@@ -63,13 +63,71 @@ export async function exportNodeToJpg(node, filename) {
 }
 
 // 结构化 { title, fields:[{label,value}], itemColumns:[{label,key}], items:[] } → Excel 下载。
+//
+// 版式照着页面上的预览来：标题独占一行、抬头信息三组并排（像预览页那个信息块）、
+// 底下才是用料明细表。原来是一行一个「标签 | 值」竖着铺几十行，明细表被挤到最下面，
+// 车间拿到这份表看不懂（用户原话：「现在导出的电子档是这样的，生产觉得看不懂」，
+// 「生产单的导出模板，能不能就是预览的这样？这样生产就能看懂了，我也不用同步做电子档了」）。
+const HEADER_PAIRS_PER_ROW = 3; // 抬头每行放几组「标签+值」
+const LONG_VALUE = 28; // 超过这个长度的值单独占一行（备注、颜色搭配这种）
+const MIN_COLS = HEADER_PAIRS_PER_ROW * 2;
+
+// 列宽：明细列按「表头字数 + 该列最长取值」估，夹在 8~46 之间。
+// 不设宽的话规格型号那列全挤成一条缝，还是得手动拉——这正是被反馈的点。
+const colWidths = (itemColumns, items, colCount) => {
+  const widths = itemColumns.map(c => {
+    const longest = items.reduce(
+      (max, row) => Math.max(max, String(cell(row[c.key])).length),
+      String(c.label).length
+    );
+    return { wch: Math.min(Math.max(longest + 2, 8), 46) };
+  });
+  while (widths.length < colCount) widths.push({ wch: 14 });
+  return widths;
+};
+
+const pushHeaderRows = (aoa, merges, fields, colCount) => {
+  let pending = [];
+  const flush = () => {
+    if (pending.length) aoa.push(pending.flat());
+    pending = [];
+  };
+  fields
+    .filter(f => cell(f.value) !== '')
+    .forEach(f => {
+      const value = String(cell(f.value));
+      // 长文本单独成行并合并到整行宽，否则后面两组会被推到看不见的地方
+      if (value.length > LONG_VALUE) {
+        flush();
+        const r = aoa.length;
+        aoa.push([`${f.label}：`, value]);
+        merges.push({ s: { r, c: 1 }, e: { r, c: colCount - 1 } });
+        return;
+      }
+      pending.push([`${f.label}：`, value]);
+      if (pending.length === HEADER_PAIRS_PER_ROW) flush();
+    });
+  flush();
+};
+
 export function exportDataToExcel(
   { title, fields = [], itemColumns = [], items = [], images = [] },
   filename
 ) {
   const aoa = [];
-  if (title) aoa.push([title]);
-  fields.forEach(f => aoa.push([f.label, cell(f.value)]));
+  const merges = [];
+  const colCount = Math.max(itemColumns.length, MIN_COLS);
+
+  if (title) {
+    merges.push({
+      s: { r: aoa.length, c: 0 },
+      e: { r: aoa.length, c: colCount - 1 },
+    });
+    aoa.push([title]);
+    aoa.push([]);
+  }
+  pushHeaderRows(aoa, merges, fields, colCount);
+
   // 附图：一张二维表塞不进图片本身，但至少要让人知道「附过几张、在哪」——
   // 原来导出的 Excel 里业务附的图连痕迹都没有，看的人以为根本没附（反馈点名）。
   // 要看图走「导出图片」或单据页面；这里给文件名和直链。
@@ -83,12 +141,16 @@ export function exportDataToExcel(
       ])
     );
   }
+
   if (itemColumns.length) {
     aoa.push([]);
     aoa.push(itemColumns.map(c => c.label));
     items.forEach(row => aoa.push(itemColumns.map(c => cell(row[c.key]))));
   }
+
   const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = merges;
+  ws['!cols'] = colWidths(itemColumns, items, colCount);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
   XLSX.writeFile(wb, `${safeName(filename)}.xlsx`);

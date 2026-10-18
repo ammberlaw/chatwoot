@@ -188,6 +188,23 @@ class Mes::ProductionOrder < ApplicationRecord
   # 一张生产订单可挂多张采购单（如主料/辅料各一张，不同采购员）。
   has_many :purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :nullify, inverse_of: :production_order
 
+  # 删单拦截：这张单一旦有下游单据，硬删会把它们全变成孤儿（采购单的 dependent 是
+  # :nullify，入库/领料/质检等则直接指向一个不存在的单）。谁挡着就报谁，让人自己判断
+  # 是撤下游还是留着这张单——不在这里替人做决定。
+  DELETE_BLOCKERS = {
+    '采购单' => :mes_purchase_orders, '采购申请单' => :mes_purchase_requisitions,
+    '入库单' => :mes_stock_entries, '生产报工' => :mes_production_records,
+    '质检单' => :mes_inspections, '出货单' => :mes_shipments,
+    '退货单' => :mes_supplier_returns, 'SN 记录' => :mes_serial_numbers
+  }.freeze
+
+  def delete_blockers
+    DELETE_BLOCKERS.filter_map do |label, assoc|
+      n = account.public_send(assoc).where(production_order_id: id).count
+      "#{label} #{n} 张" if n.positive?
+    end
+  end
+
   audited except: %i[created_at updated_at], on: %i[create update]
   has_many_attached :images # 产品图片（缩略展示）
   has_many_attached :files  # 附件（合同/文档等）

@@ -202,7 +202,10 @@ const ORDER_COLUMN_DEFS = [
   { key: 'checked', label: '核对', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'approval', label: '审核', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
-  { key: 'posted', label: '过账时间', tdClass: 'px-3 py-3 text-n-slate-11' },
+  // 列名用仓管的说法：过账＝库存真正变动的那一刻，就是货入库的时间。
+  // 叫「过账时间」是财务口径，采购在列表里找「入库时间」找不到（问题点 A1：
+  // 「这里要加一个入库时间，因为审核和入库不一定是同一天」——其实就是这一列）。
+  { key: 'posted', label: '入库时间', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
     key: 'internalRemark',
     label: '对内备注',
@@ -364,7 +367,7 @@ const viewFields = computed(() => {
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '入库仓', value: whName(e.toWarehouseId) },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },
-    { label: '过账时间', value: day(e.postedAt) },
+    { label: '入库时间', value: day(e.postedAt) },
     {
       label: '审核',
       value: e.needsApproval
@@ -508,12 +511,23 @@ const finishedWarehouseId = () =>
   (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED')?.id;
 
 const purchaseOrders = ref([]);
+// 供应商名：后端给的是 supplier_names（**数组**，一张采购单常含好几家供应商）。
+// 原来这里读的是单数 supplier_name，永远 undefined——于是下拉里既不显示供应商，
+// 搜供应商名也永远「没有匹配的采购单」（10.17 反馈 A2，仓管按供应商找单）。
+const supplierLabel = po => {
+  const names = po.supplier_names || [];
+  if (!names.length) return '';
+
+  return names.length > 1 ? `${names[0]} 等 ${names.length} 家` : names[0];
+};
+
 const purchaseOrderOptions = computed(() => [
   { value: '', label: '不关联采购单' },
   ...purchaseOrders.value.map(p => ({
     value: String(p.id),
-    label: `${p.po_no}${p.supplier_name ? ` · ${p.supplier_name}` : ''}`,
-    searchText: [p.supplier_name, p.production_order_no]
+    label: `${p.po_no}${supplierLabel(p) ? ` · ${supplierLabel(p)}` : ''}`,
+    // 搜索要能命中**每一家**供应商，不只是标签上显示的那家
+    searchText: [...(p.supplier_names || []), p.production_order_no]
       .filter(Boolean)
       .join(' '),
   })),
@@ -524,6 +538,9 @@ const form = reactive({
   purpose: 'MATERIAL_RECEIPT',
   warehouseId: '',
   purchaseOrderId: '',
+  // 追加的采购单：同一家供应商同一天送来好几张单的料，一张入库单一次收完
+  // （10.17 反馈 A2「有一张单多个采购单的要一起入」）
+  extraPurchaseOrderIds: [],
   productionOrderId: '',
   isChecked: false,
   rows: [], // { itemType, mesMaterialId, qty, receivedQty }
@@ -583,13 +600,50 @@ const prefillSupplierOptions = computed(() => {
     : rows;
 });
 
+// 追加采购单的候选：排掉主单和已追加的
+const extraPOOptions = computed(() => [
+  { value: '', label: '选一张追加…' },
+  ...purchaseOrders.value
+    .filter(
+      p =>
+        String(p.id) !== String(form.purchaseOrderId) &&
+        !form.extraPurchaseOrderIds.includes(String(p.id))
+    )
+    .map(p => ({
+      value: String(p.id),
+      label: `${p.po_no}${supplierLabel(p) ? ` · ${supplierLabel(p)}` : ''}`,
+      searchText: [...(p.supplier_names || []), p.production_order_no]
+        .filter(Boolean)
+        .join(' '),
+    })),
+]);
+const addExtraPO = v => {
+  if (v) form.extraPurchaseOrderIds.push(String(v));
+};
+const removeExtraPO = id => {
+  form.extraPurchaseOrderIds = form.extraPurchaseOrderIds.filter(
+    x => String(x) !== String(id)
+  );
+};
+const poNoOf = id =>
+  purchaseOrders.value.find(p => String(p.id) === String(id))?.po_no || id;
+
+// 本单关联的全部采购单（主单 + 追加的）
+const linkedPOs = computed(() =>
+  [form.purchaseOrderId, ...form.extraPurchaseOrderIds]
+    .filter(Boolean)
+    .map(id => purchaseOrders.value.find(p => String(p.id) === String(id)))
+    .filter(Boolean)
+);
+
 // 选采购单 → 按其明细预填收货行，实收默认等于未收数量。
+// 挂了几张单就把几张的未收行一起铺出来——同一家供应商同一天送几张单的料，
+// 仓管一次收完，不用开三张入库单（10.17 反馈 A2）。
 const prefillFromPO = async () => {
   if (!form.purchaseOrderId) return;
-  const po = purchaseOrders.value.find(
-    p => String(p.id) === String(form.purchaseOrderId)
-  );
-  let items = outstandingItems(po);
+  const pos = linkedPOs.value;
+  const po = pos[0];
+  let items = pos.flatMap(outstandingItems);
   if (prefillSupplierId.value) {
     items = items.filter(
       it => String(it.mes_supplier_id || '') === prefillSupplierId.value
@@ -638,6 +692,7 @@ const openCreate = () => {
     purpose: 'MATERIAL_RECEIPT',
     warehouseId: raw ? String(raw.id) : '',
     purchaseOrderId: '',
+    extraPurchaseOrderIds: [],
     productionOrderId: '',
     isChecked: false,
     rows: [
@@ -696,6 +751,7 @@ const submit = async () => {
   const payload = {
     purpose: form.purpose,
     purchaseOrderId: form.purchaseOrderId || null,
+    extraPurchaseOrderIds: form.extraPurchaseOrderIds.map(Number),
     productionOrderId: form.productionOrderId || null,
     toWarehouseId: inbound ? Number(form.warehouseId) : null,
     fromWarehouseId: inbound ? null : Number(form.warehouseId),
@@ -985,7 +1041,7 @@ useRouteQueryReentry(query => {
               <span>核对：{{ e.isChecked ? '已核对' : '—' }}</span>
             </div>
             <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
-              <span>过账时间：{{ day(e.postedAt) }}</span>
+              <span>入库时间：{{ day(e.postedAt) }}</span>
             </div>
             <div class="mt-2" @click.stop>
               <MesReturnControls
@@ -1314,6 +1370,41 @@ useRouteQueryReentry(query => {
                 采购单对内备注：{{ selectedPO.internal_remark }}
               </span>
             </div>
+            <!-- 追加采购单：同一家供应商同一天送来好几张单的料，一次收完
+                 （10.17 反馈 A2「有一张单多个采购单的要一起入」）。
+                 预填会把挂上的几张单的未收行一起铺出来。 -->
+            <div v-if="form.purchaseOrderId" class="flex flex-col gap-1 mt-2">
+              <span class="text-xs text-n-slate-11">
+                追加采购单（选填，几张单的货一起收）
+              </span>
+              <SelectCard
+                block
+                size="form"
+                model-value=""
+                :options="extraPOOptions"
+                @update:model-value="addExtraPO"
+              />
+              <div
+                v-if="form.extraPurchaseOrderIds.length"
+                class="flex flex-wrap gap-1.5 mt-1"
+              >
+                <span
+                  v-for="id in form.extraPurchaseOrderIds"
+                  :key="`xpo-${id}`"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-alpha-2 text-n-slate-12"
+                >
+                  {{ poNoOf(id) }}
+                  <button
+                    type="button"
+                    class="text-n-slate-10 hover:text-n-ruby-11"
+                    @click="removeExtraPO(id)"
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            </div>
+
             <!-- 一家供应商一张入库单：先挑是哪家送来的货，再预填那几行。 -->
             <div
               v-if="form.purchaseOrderId"

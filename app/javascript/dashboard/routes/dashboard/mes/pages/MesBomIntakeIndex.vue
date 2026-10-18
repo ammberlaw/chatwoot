@@ -307,10 +307,31 @@ const form = reactive({
   baseQty: '1',
   unit: '台',
   remark: '', // 整单备注（区别于每行的备注）
+  // 搭配说明：机器和皮套怎么配（「蓝皮套500+蓝机500、粉皮套500+金机500…」）。
+  // 和整单备注分开：那栏写工艺/包装要求，搭配关系混进去车间会看漏。
+  comboNote: '',
   ...blankHeader(),
   ...blankLeadDays(),
   rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
+
+// 「往下全设为此类」：类别默认整机物料，而包装物料总是集中在末尾那几行，
+// 一条条点下拉改很费事（采购原话：「包装物料每次都要一条条手工去勾选，
+// 有没有什么办法能快速一点？」）。从这一行起往下全套同一个类别，一次点完。
+const applyCategoryDown = i => {
+  const value = form.rows[i]?.category;
+  if (!value) return;
+
+  let n = 0;
+  for (let k = i + 1; k < form.rows.length; k += 1) {
+    if (form.rows[k].category !== value) {
+      form.rows[k].category = value;
+      n += 1;
+    }
+  }
+  const label = CATEGORY_OPTIONS.find(o => o.value === value)?.label || value;
+  useAlert(n ? `下面 ${n} 行都设成了${label}` : '下面各行本来就是这个类别');
+};
 
 const totalLeadDays = computed(() =>
   LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
@@ -704,10 +725,17 @@ const EXISTING_BUCKETS = {
   logos: existingLogos,
 };
 const pendingFor = kind => PENDING_BUCKETS[kind];
-const pickAttachment = async (event, kind) => {
-  const list = Array.from(event.target.files || []);
-  event.target.value = '';
-  if (!list.length) return;
+// 图片区只收图：往 logo 栏里拖一份 PDF 没有意义，收下反而让人以为传上去了。
+const acceptable = (file, kind) =>
+  kind === 'files' || (file.type || '').startsWith('image/');
+
+const uploadFiles = async (files, kind) => {
+  const list = files.filter(f => acceptable(f, kind));
+  if (!list.length) {
+    if (files.length) useAlert('这一栏只收图片');
+    return;
+  }
+
   const isImage = kind !== 'files';
   staging.value = true;
   try {
@@ -730,6 +758,22 @@ const pickAttachment = async (event, kind) => {
   } finally {
     staging.value = false;
   }
+};
+
+const pickAttachment = async (event, kind) => {
+  const list = Array.from(event.target.files || []);
+  event.target.value = '';
+  await uploadFiles(list, kind);
+};
+
+// 拖进来 / 粘贴进来的图：业务的图九成在微信里，原来必须先另存到桌面再「插入图片」
+// 挑一遍（10.17 反馈 B2「改成可以直接从微信上拖图片进去」）。
+// 微信拖出来的就是文件，和选文件走同一条上传路径。
+const dragKind = ref('');
+const onDrop = async (event, kind) => {
+  dragKind.value = '';
+  const list = Array.from(event.dataTransfer?.files || []);
+  await uploadFiles(list, kind);
 };
 const removePending = (kind, i) => pendingFor(kind).value.splice(i, 1);
 // 编辑态删除既有附件：即时生效。
@@ -767,6 +811,7 @@ const openCreate = async (preOrder = null) => {
     baseQty: '1',
     unit: '台',
     remark: '',
+    comboNote: '',
     ...blankHeader(),
     ...blankLeadDays(),
     // 新建默认铺 10 个空行，方便批量录入用料（不够可继续「加一行」）。
@@ -815,6 +860,7 @@ const openEdit = bom => {
     baseQty: String(bom.baseQty ?? '1'),
     unit: bom.unit || '',
     remark: bom.remark || '',
+    comboNote: bom.comboNote || '',
     submitDate: bom.submitDate || '',
     docNo: bom.docNo || '',
     customerName: bom.customerName || '',
@@ -886,6 +932,7 @@ const submit = async targetStatus => {
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
     remark: form.remark.trim() || null,
+    comboNote: form.comboNote.trim() || null,
     submitDate: form.submitDate || null,
     docNo: form.docNo.trim() || null,
     customerName: form.customerName.trim() || null,
@@ -1325,7 +1372,9 @@ onBeforeRouteLeave((to, from, next) => {
       </div>
     </div>
 
-    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
+    >
       <div class="flex flex-col gap-4">
         <!-- 关联生产订单（仅新建）：下发即自动挂接、通知业务员确认 -->
         <div v-if="!editingId" class="flex flex-col gap-1">
@@ -1401,7 +1450,16 @@ onBeforeRouteLeave((to, from, next) => {
                 上传中…
               </span>
             </label>
-            <div class="flex flex-wrap items-center gap-2">
+            <!-- 整块都能接拖拽：业务的图多半在微信里，拖过来就完事，不用先另存到桌面 -->
+            <div
+              class="flex flex-wrap items-center gap-2 p-1 -m-1 transition-colors rounded-lg"
+              :class="
+                dragKind === 'logos' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
+              "
+              @dragover.prevent="dragKind = 'logos'"
+              @dragleave="dragKind = ''"
+              @drop.prevent="e => onDrop(e, 'logos')"
+            >
               <div
                 v-for="lg in existingLogos"
                 :key="`exl-${lg.id}`"
@@ -1450,6 +1508,24 @@ onBeforeRouteLeave((to, from, next) => {
                 />
               </label>
             </div>
+          </div>
+
+          <!-- 搭配说明：个别单要写清楚哪种机配哪种皮套（「蓝皮套500+蓝机500」）。
+               跟 Logo、裸机/皮套颜色并排才对得上，所以放这儿，不塞进下面的整单备注
+               （那栏写工艺和包装要求，搭配关系混进去车间会看漏）。 -->
+          <div class="flex flex-col flex-1 min-w-[16rem] gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              搭配说明
+              <span class="ml-1 text-xs font-normal text-n-slate-10">
+                机器和皮套怎么配，个别单才需要填
+              </span>
+            </label>
+            <textarea
+              v-model="form.comboNote"
+              rows="2"
+              placeholder="例：蓝皮套500+蓝机500、粉皮套500+金机500、橙皮套200+银机200"
+              class="px-3 py-2 text-sm border rounded-lg outline-none resize-y reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-10"
+            />
           </div>
         </div>
 
@@ -1667,12 +1743,26 @@ onBeforeRouteLeave((to, from, next) => {
               >
                 {{ i + 1 }}
               </span>
-              <div :style="colPos('category')">
+              <div
+                :style="colPos('category')"
+                class="flex items-center gap-1 min-w-0"
+              >
                 <SelectCard
                   v-model="row.category"
                   :options="CATEGORY_OPTIONS"
                   block
+                  class="flex-1 min-w-0"
                 />
+                <!-- 包装物料总在末尾几行：在那一行选好类别，点一下把下面全套上 -->
+                <button
+                  v-if="i < form.rows.length - 1"
+                  type="button"
+                  class="grid rounded shrink-0 size-6 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-iris-11"
+                  title="把下面各行都设成这一行的类别"
+                  @click.stop="applyCategoryDown(i)"
+                >
+                  <span class="i-lucide-arrow-down-to-line size-3.5" />
+                </button>
               </div>
               <div
                 :style="colPos('materialNo')"
@@ -1861,7 +1951,15 @@ onBeforeRouteLeave((to, from, next) => {
               上传中…
             </span>
           </label>
-          <div class="flex flex-wrap items-center gap-2">
+          <div
+            class="flex flex-wrap items-center gap-2 p-1 -m-1 transition-colors rounded-lg"
+            :class="
+              dragKind === 'images' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
+            "
+            @dragover.prevent="dragKind = 'images'"
+            @dragleave="dragKind = ''"
+            @drop.prevent="e => onDrop(e, 'images')"
+          >
             <div
               v-for="img in existingImages"
               :key="`ex-${img.id}`"
@@ -1917,7 +2015,15 @@ onBeforeRouteLeave((to, from, next) => {
         <!-- 附件（工艺文档/图纸等） -->
         <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
           <label class="text-heading-3 text-n-slate-12">附件</label>
-          <div class="flex flex-col gap-1">
+          <div
+            class="flex flex-col gap-1 p-1 -m-1 transition-colors rounded-lg"
+            :class="
+              dragKind === 'files' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
+            "
+            @dragover.prevent="dragKind = 'files'"
+            @dragleave="dragKind = ''"
+            @drop.prevent="e => onDrop(e, 'files')"
+          >
             <div
               v-for="f in existingFiles"
               :key="`exf-${f.id}`"

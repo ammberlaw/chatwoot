@@ -13,7 +13,17 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
-const { tabs, activeName, closeTab } = useMesTabs();
+const { tabs, activeName, closeTab, moveTab } = useMesTabs();
+
+// 拖动标签改顺序：拖到哪一个头上就插到它前面
+const draggingName = ref('');
+const onDragStart = name => {
+  draggingName.value = name;
+};
+const onDrop = name => {
+  moveTab(draggingName.value, name);
+  draggingName.value = '';
+};
 const tabBar = ref(null);
 watch(
   activeName,
@@ -48,12 +58,19 @@ const onClose = name => {
     <div
       v-for="tab in tabs"
       :key="tab.name"
-      class="group flex shrink-0 items-center gap-2 border-b-2 transition-colors"
-      :class="
+      draggable="true"
+      :title="titleOf(tab.name) + '（可拖动调整顺序）'"
+      class="group flex shrink-0 items-center gap-2 border-b-2 transition-colors cursor-move"
+      :class="[
         tab.name === activeName
           ? 'border-n-iris-9 text-n-slate-12'
-          : 'border-transparent text-n-slate-11'
-      "
+          : 'border-transparent text-n-slate-11',
+        draggingName === tab.name ? 'opacity-40' : '',
+      ]"
+      @dragstart="onDragStart(tab.name)"
+      @dragover.prevent
+      @drop.prevent="onDrop(tab.name)"
+      @dragend="draggingName = ''"
     >
       <button
         type="button"

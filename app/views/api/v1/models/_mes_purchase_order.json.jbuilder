@@ -20,6 +20,11 @@ json.production_order_id resource.production_order_id
 json.product_line resource.product_line
 json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
+# 采购要在自己这页看到上游写了什么，不用来回切单（问题点 B3/B4）：
+# · 销售订单备注＝业务在订单上交代的事（这单的特殊要求）
+# · 生产任务单备注＝工程/PMC 在 BOM 上写的整单说明
+json.sales_order_remark resource.production_order&.remark
+json.bom_remark resource.production_order&.bom&.remark
 json.status resource.status
 json.approval_status resource.approval_status
 # 关闭/启用/删除三个按钮的显隐：别让前端自己推状态组合，口径只留模型一处。

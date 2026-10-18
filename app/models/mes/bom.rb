@@ -7,6 +7,7 @@
 #  base_qty                   :decimal(14, 3)   default(1.0), not null
 #  bom_no                     :string           not null
 #  case_color                 :string
+#  combo_note                 :text
 #  customer_name              :string
 #  doc_no                     :string
 #  estimated_lead_days        :integer

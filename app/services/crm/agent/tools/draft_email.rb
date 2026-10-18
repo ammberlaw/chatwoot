@@ -17,6 +17,9 @@ class Crm::Agent::Tools::DraftEmail < Crm::Agent::Tools::Base
     return "#{customer.name} 的档案里没有联系邮箱，请在参数里给出收件人。" if to.blank?
 
     draft = create_draft(customer, subject, body, to)
+    # 这个 label 是前端那颗按钮上的字，别用 clip——它会缀上「（已截断）」，按钮里读着像报错。
+    scope.record_artifact(kind: 'email_draft', id: draft.id, customer_id: customer.id,
+                          label: "邮件草稿：#{subject.to_s.strip.truncate(24)}")
     "已存成草稿（#{draft.id}）：收件人 #{to}，主题「#{subject}」。" \
       '**还没有发送**，请到「邮件 → 草稿箱」检查无误后自己点发送。'
   end

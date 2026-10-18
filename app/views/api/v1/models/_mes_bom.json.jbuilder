@@ -28,6 +28,8 @@ json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::ENGINEERING)
 json.sales_owner_id resource.sales_owner_id
 json.sales_owner_name mes_staff_name(resource.sales_owner)
 json.remark resource.remark
+# 搭配说明：机器和皮套怎么配，单独一栏（见迁移 20261018090000）
+json.combo_note resource.combo_note
 json.images(resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })
 json.files(resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })
 json.logos(resource.logos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })

@@ -514,6 +514,7 @@ const bomExportData = () => {
       { label: '负责人', value: v.ownerName },
       { label: '归属业务员', value: v.salesOwnerName },
       ...viewHeaderFields.value,
+      { label: '搭配说明', value: v.comboNote },
       { label: '整单备注', value: v.remark },
       { label: '采购注意事项', value: v.purchaseNote },
       { label: '生产备注（内部）', value: v.productionNote },
@@ -528,7 +529,9 @@ const bomExportData = () => {
       { label: '建议采购', key: 'suggestedPurchaseQty', align: 'right' },
       { label: '实时库存', key: 'onHand', align: 'right' },
       { label: '备注', key: 'remark' },
-      { label: '采购注意事项', key: 'purchaseNote' },
+      // 采购注意事项不进导出：这份 Excel 是发给车间的，那一栏写的是「供应商 / 下单方式」
+      // 这类采购内部信息（10.17 反馈 C6：「打框的 4 项，在导出的时候不用显示给生产的人看到」）。
+      // 单价/金额/价源本来就没进导出，和它一起留在页面上给采购看。
       { label: '生产备注', key: 'productionNote' },
     ],
     items: (v.bomItems || []).map(it => ({
@@ -1471,13 +1474,24 @@ onMounted(async () => {
                     <td class="px-2 py-2 text-n-slate-12">
                       {{ it.materialNo || '—' }}
                     </td>
-                    <td class="px-2 py-2 text-n-slate-12">
+                    <td
+                      :title="it.materialName"
+                      class="px-2 py-2 text-n-slate-12"
+                    >
                       {{ it.materialName }}
                     </td>
-                    <td class="px-2 py-2 text-n-slate-11">
+                    <!-- 规格型号动辄四五十个字。鼠标停住看全文比拉宽好使——拉宽就把后面的列
+                         挤出视野了（用户原话：在并不拉动格子间距的情况下能看全）。 -->
+                    <td
+                      :title="it.specification || ''"
+                      class="px-2 py-2 text-n-slate-11"
+                    >
                       {{ it.specification || '—' }}
                     </td>
-                    <td class="px-2 py-2 text-n-slate-11">
+                    <td
+                      :title="it.auxAttributeName || ''"
+                      class="px-2 py-2 text-n-slate-11"
+                    >
                       {{ it.auxAttributeName || '—' }}
                     </td>
                     <td class="px-2 py-2 text-n-slate-11">
@@ -1522,7 +1536,9 @@ onMounted(async () => {
                        不加「档案：」前缀——这栏是要发给供应商/车间看的，前缀是内部说法。
                        来源仍留在 title 里，鼠标移上去看得到。 -->
                     <td class="px-2 py-2 text-n-slate-11">
-                      <span v-if="it.remark">{{ it.remark }}</span>
+                      <span v-if="it.remark" :title="it.remark">
+                        {{ it.remark }}
+                      </span>
                       <span
                         v-else-if="it.productRemark"
                         class="text-n-slate-10"
@@ -1532,10 +1548,16 @@ onMounted(async () => {
                       </span>
                       <span v-else>—</span>
                     </td>
-                    <td class="px-2 py-2 text-n-slate-11">
+                    <td
+                      :title="it.purchaseNote || ''"
+                      class="px-2 py-2 text-n-slate-11"
+                    >
                       {{ it.purchaseNote || '—' }}
                     </td>
-                    <td class="px-2 py-2 text-n-slate-11">
+                    <td
+                      :title="it.productionNote || ''"
+                      class="px-2 py-2 text-n-slate-11"
+                    >
                       {{ it.productionNote || '—' }}
                     </td>
                   </tr>
@@ -1598,6 +1620,18 @@ onMounted(async () => {
                 }}</span>
               </span>
             </div>
+          </div>
+
+          <!-- 搭配说明摆在整单备注前面：车间拿到单先要知道哪种机配哪种皮套 -->
+          <div v-if="viewing.comboNote" class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              搭配说明
+            </div>
+            <p class="whitespace-pre-wrap text-n-slate-12">
+              {{ viewing.comboNote }}
+            </p>
           </div>
 
           <div v-if="viewing.remark" class="pt-2 border-t border-n-weak">

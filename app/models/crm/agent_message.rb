@@ -6,7 +6,10 @@
 #
 #  id              :bigint           not null, primary key
 #  content         :text
+#  duration_ms     :integer
+#  input_tokens    :integer
 #  meta            :jsonb            not null
+#  output_tokens   :integer
 #  role            :string           not null
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
@@ -15,7 +18,8 @@
 #
 # Indexes
 #
-#  index_crm_agent_messages_on_conversation_id  (conversation_id)
+#  index_crm_agent_messages_on_account_id_and_created_at  (account_id,created_at)
+#  index_crm_agent_messages_on_conversation_id            (conversation_id)
 #
 class Crm::AgentMessage < ApplicationRecord
   self.table_name = 'crm_agent_messages'

@@ -78,9 +78,11 @@ export default {
         'agent_list',
       ].includes(this.$route.name);
     },
-    // 团队沟通页有自己的底部输入栏，右下 Copilot 悬浮球会挡住发送键——该页隐藏它。
+    // 团队沟通和 AI 助手这两页有自己的底部输入栏，右下 Copilot 悬浮球正好压在发送键上——隐藏它。
     hideCopilotLauncher() {
-      return this.$route.name === 'crm_team_chat_index';
+      return ['crm_team_chat_index', 'crm_agent_index'].includes(
+        this.$route.name
+      );
     },
     previouslyUsedDisplayType() {
       const {

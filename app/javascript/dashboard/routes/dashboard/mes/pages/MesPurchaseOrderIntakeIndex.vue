@@ -75,8 +75,20 @@ const STATUS_LABELS = {
 // → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
 
 const productionOrders = ref([]);
+// 供应商下拉的数据源：本页自己存一份全量快照。
+//
+// 不直接读 suppliersStore.getRecords——那个 store 是全局共享的，供应商页搜一次
+// （store.get({ q: 关键词 })）就只剩匹配的那几条，切回这边下拉里也跟着只剩那几条，
+// 关掉标签页都不管用，得去点一下产品线触发重拉才恢复（10.17 反馈 B5）。
+const supplierPool = ref([]);
+const loadSupplierPool = async () => {
+  // 全量：默认分页只出第一页会漏选（后端上限也是 500）
+  await suppliersStore.get({ per_page: 500 });
+  supplierPool.value = (suppliersStore.getRecords || []).slice();
+};
+
 const supplierOptions = computed(() =>
-  (suppliersStore.getRecords || []).map(s => ({
+  supplierPool.value.map(s => ({
     value: String(s.id),
     label: s.name,
   }))
@@ -344,8 +356,7 @@ const rowIncomplete = r =>
   !Number(r.qty) || (!r.crmProductId && !r.mesMaterialId);
 // 供应商税率（%）：用于含税/未税提示。
 const supplierTaxRate = id =>
-  (suppliersStore.getRecords || []).find(s => String(s.id) === String(id))
-    ?.taxRate || 0;
+  supplierPool.value.find(s => String(s.id) === String(id))?.taxRate || 0;
 const invalid = computed(
   () =>
     !form.productLine || // 产线必填：漏了这单切到任何产线都看不见
@@ -755,8 +766,7 @@ const submit = async () => {
 const booting = ref(true);
 const boot = async () => {
   booting.value = true;
-  // 供应商下拉需全量，默认分页只出第一页会漏选。
-  suppliersStore.get({ per_page: 500 });
+  loadSupplierPool();
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`,
@@ -907,7 +917,9 @@ onBeforeRouteLeave((to, from, next) => {
       </div>
     </div>
 
-    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
+    >
       <div class="flex flex-col gap-4">
         <!-- 栅格排版：列宽由栅格统一分，控件一律撑满本列（SelectCard 默认按内容宽，
              不加 block 就会「列很宽、控件很窄」，一行看下来全是豁口）。 -->

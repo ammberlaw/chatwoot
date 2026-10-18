@@ -8,6 +8,10 @@ class Crm::Agent::Tools::CustomerProfile < Crm::Agent::Tools::Base
     customer = scope.customers.find_by(id: customer_id)
     return "看不到 ID #{customer_id} 这个客户（可能不在你的权限范围内，或者 ID 不对）。" if customer.nil?
 
+    # 看完档案八成接着要点进去（改字段、看时间线、建单），顺手挂个直达入口，
+    # 省得人再去客户列表里搜一遍名字。
+    scope.record_artifact(kind: 'customer', id: customer.id, customer_id: customer.id,
+                          label: "打开客户：#{customer.name.truncate(20)}")
     [profile(customer), orders(customer), receivables(customer)].compact.join("\n\n")
   end
 

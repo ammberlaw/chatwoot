@@ -248,7 +248,10 @@ onMounted(() => {
 // SelectCard 选项（[{value,label}]）
 // 接单方式：开头两段（工程出裸机 BOM → PMC 做生产任务单）谁要接单。
 // 返单不经工程、样机不经 PMC——跳过的那一段不进对方待办，也不算他超时。
-const intakeKind = ref('NEW');
+// 默认留空、提交前必填：带一个「新款」默认值等于没选，业务一路点过去，
+// 工程/PMC 谁该接这张单全靠猜（10.17 反馈 C3：「接单方式，帮忙设置成必选，
+// 这样他们业务下定制单的就要了解清楚下单的主要对接人是谁」）。
+const intakeKind = ref('');
 const INTAKE_OPTIONS = [
   { value: 'NEW', label: '新款（工程先接，PMC 后接）' },
   { value: 'REPEAT', label: '老款返单（只 PMC 接）' },
@@ -325,6 +328,7 @@ const missingForDraft = computed(() => {
   if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
   if (isStock.value && !isSalesUser.value && !stewardId.value) m.push('责任人');
+  if (!intakeKind.value) m.push('接单方式');
   return m;
 });
 // 商品编码全程选填（业务提交审批也可留空，工程做 BOM 时补录，与订单列表口径一致）。
@@ -403,9 +407,16 @@ const submit = async doSubmit => {
     );
     if (ok) {
       result.value = { ok: true, orderNo: ok.orderNo, submitted: doSubmit };
+      // 存完就弹一条：表单紧接着被 reset 清空，而底下那块绿色结果条要拉到页尾才看得见。
+      // 之前有人因此以为没存上，回头又填一遍，于是同一张单建出了两条
+      // （10.17 反馈 C4：「底下的订单自动保存了，也没有提示，现在就 2 个重复的订单了」）
+      useAlert(
+        `${doSubmit ? '已提交审批' : '已存草稿'} ${ok.orderNo}，表单已清空，可继续建下一单`
+      );
       reset();
     } else {
       result.value = { ok: false, msg: '保存失败' };
+      useAlert('保存失败');
     }
   } catch (e) {
     // 后端校验失败会走全局 render_record_invalid → data.message（含具体缺哪个字段）；
@@ -440,15 +451,35 @@ const backToList = () =>
       >
         新建生产订单
       </h1>
-      <button
-        class="text-sm shrink-0 text-n-slate-11 hover:text-n-slate-12"
-        @click="backToList"
-      >
-        ← 返回生产订单
-      </button>
+      <!-- 存草稿/提交审批 放标题行：原来只在表单最底下，填完要拉到底才点得到，
+           提交完接着建下一单又得拉回去（10.17 反馈 C5）。标题行本来就常驻顶部。 -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          class="h-9 px-4 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canSaveDraft"
+          @click="submit(false)"
+        >
+          {{ submitting ? '保存中…' : '存草稿' }}
+        </button>
+        <button
+          class="h-9 px-5 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canSubmit"
+          @click="submit(true)"
+        >
+          {{ submitting ? '提交中…' : '提交审批' }}
+        </button>
+        <button
+          class="text-sm shrink-0 text-n-slate-11 hover:text-n-slate-12"
+          @click="backToList"
+        >
+          ← 返回
+        </button>
+      </div>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
+    >
       <p class="text-xs text-n-slate-11">
         定制生产订单建单。先选产品线，按对应模板填规格；带
         <span class="text-n-ruby-11">*</span>
@@ -718,8 +749,15 @@ const backToList = () =>
           <DatePicker v-model="base.deliveryDate" block />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">接单方式</span>
-          <SelectCard v-model="intakeKind" :options="INTAKE_OPTIONS" block />
+          <span class="text-xs text-n-slate-11">
+            接单方式<span class="text-n-ruby-11">*</span>
+          </span>
+          <SelectCard
+            v-model="intakeKind"
+            :options="INTAKE_OPTIONS"
+            placeholder="请选择谁来接这张单"
+            block
+          />
         </label>
       </div>
 
@@ -802,21 +840,8 @@ const backToList = () =>
         </label>
       </div>
 
+      <!-- 按钮已挪到标题行常驻，这里只留「还差什么」的提示 -->
       <div class="flex flex-wrap items-center gap-3 mt-1">
-        <button
-          class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!canSaveDraft"
-          @click="submit(false)"
-        >
-          {{ submitting ? '保存中…' : '存草稿' }}
-        </button>
-        <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!canSubmit"
-          @click="submit(true)"
-        >
-          {{ submitting ? '提交中…' : '提交审批' }}
-        </button>
         <span v-if="missingForDraft.length" class="text-xs text-n-slate-11">
           请填写：{{ missingForDraft.join('、') }}
         </span>

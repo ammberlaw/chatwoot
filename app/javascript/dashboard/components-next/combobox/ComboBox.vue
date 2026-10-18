@@ -148,7 +148,18 @@ const toggleDropdown = () => {
   nextTick(() => {
     positionDropdown();
     dropdownRef.value?.focus();
-    viewportHandler = () => closeDropdown();
+    // ⚠️ 面板**内部**的滚动不能关下拉：捕获阶段监听的是所有 scroll，选项多时用户在
+    // 列表里滚鼠标也会被捕获，一滚就关——看起来就是「下拉滑不动，点箭头也没用」
+    // （10.17 反馈 B1，新建采购单的「关联生产工单」）。
+    // 只有面板外面的滚动（页面、表格横滚容器）才关：fixed 面板不跟着那些容器走，留着会错位。
+    viewportHandler = event => {
+      // 认 .combobox-dropdown（面板根节点自带的类，本来就给「点外部关闭」排除用）。
+      // 不走 dropdownRef：那是组件实例，$el 在多根节点时可能是注释节点，contains 不可靠。
+      const target = event?.target;
+      if (target?.closest?.('.combobox-dropdown')) return;
+
+      closeDropdown();
+    };
     window.addEventListener('scroll', viewportHandler, true);
     window.addEventListener('resize', viewportHandler);
   });

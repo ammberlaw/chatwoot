@@ -70,6 +70,20 @@ export function useMesTabs() {
     return next?.fullPath || null;
   };
 
+  // 拖动标签改顺序：开的页一多，常用的那几个会被挤到后面，每次都要横着滚过去找
+  // （10.17 反馈 C11「这个顺序可否能设置自行拖曳？」）。
+  // 顺序只活在本次会话里，和标签条本身一样——刷新后重新按打开顺序排。
+  const moveTab = (fromName, toName) => {
+    if (!fromName || fromName === toName) return;
+
+    const from = tabs.value.findIndex(t => t.name === fromName);
+    const to = tabs.value.findIndex(t => t.name === toName);
+    if (from === -1 || to === -1) return;
+
+    const [moved] = tabs.value.splice(from, 1);
+    tabs.value.splice(to, 0, moved);
+  };
+
   const closeOthers = name => {
     tabs.value = tabs.value.filter(t => t.name === name);
     activeName.value = name;
@@ -81,5 +95,6 @@ export function useMesTabs() {
     openTab,
     closeTab,
     closeOthers,
+    moveTab,
   };
 }

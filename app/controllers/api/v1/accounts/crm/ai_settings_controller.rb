@@ -5,6 +5,7 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
 
   def show
     @setting = Crm::AiSetting.for_account(Current.account)
+    @usage = month_usage
   end
 
   def update
@@ -37,12 +38,32 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
 
   private
 
+  # 本月用量：开了新询盘初筛之后它会自动跑、自动花钱，没有数就既谈不上调优，
+  # 也判断不了该不该给某个人开。只统计 assistant 那条（一问一答算一轮，
+  # token 是整轮含工具来回的合计，见 Crm::Agent::Runner#usage_attrs）。
+  def month_usage
+    since = Time.current.beginning_of_month
+    convs = Current.account.crm_agent_conversations
+    rows = Crm::AgentMessage.where(conversation_id: convs.select(:id))
+                            .where(role: 'assistant', created_at: since..)
+    {
+      rounds: rows.count,
+      input_tokens: rows.sum(:input_tokens),
+      output_tokens: rows.sum(:output_tokens),
+      avg_seconds: (rows.average(:duration_ms).to_f / 1000).round(1),
+      # 失败的那几轮：会话停在 FAILED，last_error 里有原因
+      failed: convs.where(status: 'FAILED', updated_at: since..).count,
+      users: convs.where(id: rows.select(:conversation_id)).distinct.count(:user_id)
+    }
+  end
+
   def check_authorization
     authorize(Crm::AiSetting)
   end
 
   def setting_params
     # agent_user_ids 是数组：谁能用 CRM 的 AI 助手（管理员恒可用，见 Crm::AiSetting.agent_allowed?）
-    params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key, agent_user_ids: [])
+    params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key,
+                                    :inquiry_triage_enabled, agent_user_ids: [])
   end
 end

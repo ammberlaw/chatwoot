@@ -6,14 +6,15 @@
 # 规矩（用户定的）：**只读 + 出草稿**。工具里没有「发邮件」「提交 PI」这种动作，
 # 想发也发不出去——能力上就不给，比在提示词里嘱咐它「别发」可靠得多。
 class Crm::Agent::Runner
-  class NotAllowed < StandardError; end
-
-  # 一轮最多让它调几次工具。防的是模型钻进死循环（反复查同一个客户）把钱和时间烧光。
-  # 16 是按最长的真实链路给的：找客户 → 看档案 → 翻邮件 → 查历史价 → 查库存 → 建草稿，
-  # 中间还会补查几次产品，12 次曾不够用（撞上限就白跑一轮）。
-  MAX_TOOL_CALLS = 16
-
   pattr_initialize [:conversation!]
+
+  # 流式落库的节流间隔（秒）。模型吐 token 很密（实测 190 字 112 个 chunk），
+  # 每个 chunk 写一次库就是每秒几十条 UPDATE，而前端 2 秒才拉一次，写得再密也看不见。
+  #
+  # 为什么是 0.5 而不是更大：DeepSeek 吐字极快（190 字 ≈ 0.2 秒），间隔给大了整段话
+  # 吐完都还没到第一次落库，流式等于没开。真正慢的是首字延迟和工具调用来回——
+  # 那两段屏幕上有工具进度条顶着，不空。换成吐字慢的模型（AI 设置里可换）这里才真正发力。
+  PARTIAL_FLUSH_INTERVAL = 0.5
 
   # 一轮整体的时限。agent 要连调好几次工具，比单次问答慢得多，但不能没有上限：
   # 模型侧挂住时（2026-10-15 DeepSeek 故障，连接活着、只发心跳不吐 token），
@@ -34,9 +35,57 @@ class Crm::Agent::Runner
   private
 
   def run(question)
-    scope = Crm::Agent::Scope.new(account: conversation.account, account_user: account_user)
-    answer = build_chat(scope).ask(question).content.to_s.strip
+    @started_at = Time.current
+    @chat = build_chat(scope)
+    answer = ask_streaming(@chat, question)
     record_assistant(answer.presence || '（没有返回内容，请换个说法再问一次）')
+  end
+
+  # 用量：整轮合计（含中间几次工具调用的来回），挂在 assistant 那条上。
+  # token 数由模型侧返回，拿不到就留空——不自己估，估出来的数拿去算成本还不如没有。
+  def usage_attrs
+    {
+      input_tokens: token_sum(:input_tokens),
+      output_tokens: token_sum(:output_tokens),
+      duration_ms: @started_at && ((Time.current - @started_at) * 1000).round
+    }
+  end
+
+  def token_sum(field)
+    rows = @chat&.messages.to_a.filter_map { |m| m.public_send(field) if m.respond_to?(field) }
+    rows.sum if rows.any?
+  end
+
+  # 边吐边落库。工具调用的进度本来就一条条摆出来了，但最后那段正文以前是整段落地——
+  # 模型写五百字要十几秒，这十几秒屏幕上只有「正在查…」，人会以为卡死了。
+  # 流式下前端（2 秒一轮询）看到的是文字在长。
+  #
+  # 刻意不上 WebSocket：轮询已经在跑，把增量写进同一条消息就够了，省一套推送通道。
+  def ask_streaming(chat, question)
+    buffer = +''
+    last_flush = Time.current
+    chat.ask(question) do |chunk|
+      buffer << chunk.content.to_s
+      next if Time.current - last_flush < PARTIAL_FLUSH_INTERVAL
+
+      last_flush = Time.current
+      flush_partial(buffer)
+    end.content.to_s.strip
+  end
+
+  # 落一条「还没写完」的 assistant 消息，反复更新它；最后由 record_assistant 定稿同一条，
+  # 所以用户不会看到半截和成品两条。
+  def flush_partial(buffer)
+    text = buffer.strip
+    return if text.empty?
+
+    @partial ||= conversation.messages.create!(role: 'assistant', content: '', meta: { streaming: true })
+    # update_columns：这条每秒要写一次，不需要验证和回调。
+    @partial.update_columns(content: text, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
+
+  def scope
+    @scope ||= Crm::Agent::Scope.new(account: conversation.account, account_user: account_user)
   end
 
   def account_user
@@ -45,16 +94,30 @@ class Crm::Agent::Runner
 
   def settings = @settings ||= Crm::AiSetting.for_account(conversation.account)
 
-  def build_chat(scope)
-    context = RubyLLM.context do |config|
-      config.openai_api_key = settings.api_key.presence || ENV.fetch('DEEPSEEK_API_KEY', nil)
+  # 没 key 就别去撞上游了：拿回来的是一串英文鉴权错误（「Authentication Fails…」），
+  # 管理员看不出是没配还是配错。NotConfigured 会被 perform 翻译成人话。
+  def api_key!
+    key = settings.api_key.presence || ENV.fetch('DEEPSEEK_API_KEY', nil).presence
+    return key if key.present?
+
+    raise Crm::EmailAiService::NotConfigured, 'AI 还没配置：请到「AI 设置」填上 API Key'
+  end
+
+  def llm_context(api_key)
+    RubyLLM.context do |config|
+      config.openai_api_key = api_key
       config.openai_api_base = settings.api_base.presence || Crm::EmailAiService::DEFAULT_API_BASE
       config.openai_use_system_role = true
       config.request_timeout = Crm::EmailAiService::REQUEST_TIMEOUT
     end
-    chat = context.chat(model: settings.model.presence || Crm::EmailAiService::DEFAULT_MODEL,
-                        provider: :openai, assume_model_exists: true)
-    chat.with_instructions(system_prompt)
+  end
+
+  def build_chat(scope)
+    chat = llm_context(api_key!).chat(
+      model: settings.model.presence || Crm::EmailAiService::DEFAULT_MODEL,
+      provider: :openai, assume_model_exists: true
+    )
+    chat.with_instructions(Crm::Agent::Prompt.build(conversation))
     tools(scope).each { |tool| chat.with_tool(tool) }
     replay_history(chat)
     attach_tool_recorder(chat)
@@ -67,30 +130,60 @@ class Crm::Agent::Runner
     Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
     Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers,
     Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::CompanyLookup,
-    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi
+    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi,
+    Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes,
+    Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::Shipments,
+    Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
+    Crm::Agent::Tools::CreateCustomer, Crm::Agent::Tools::DraftQuote,
+    Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment
   ].freeze
 
   def tools(scope)
     TOOL_CLASSES.map { |klass| klass.new(scope) }
   end
 
+  # 回放多少轮。一问一答算两条，所以 16 条约等于最近 8 轮。
+  # 不回放全部：历史是每轮**原样重发**给模型的，聊到第 20 轮时每次请求都在重付前面所有内容的钱，
+  # 而真正有用的上下文（在聊哪个客户、刚才给了什么价）基本都在最近几轮里。
+  REPLAY_MESSAGES = 16
+  # 更早的内容压成一句话带过去，省得「上次说的那个价」彻底失忆。
+  OLD_SUMMARY_CLIP = 400
+
   # 把之前的问答喂回去，不然每句话都是失忆的，用户得每次重报客户名。
   # 工具那几条不回放：它们是过程、很占长度，结论已经在 assistant 那条里了。
   def replay_history(chat)
-    conversation.messages.where(role: %w[user assistant]).order(:id).each do |msg|
-      chat.add_message(role: msg.role.to_sym, content: msg.content.to_s)
-    end
+    rows = conversation.messages.where(role: %w[user assistant]).order(:id).to_a
+    recent = rows.last(REPLAY_MESSAGES)
+    older = rows[0...-recent.size]
+
+    add_old_summary(chat, older)
+    recent.each { |msg| chat.add_message(role: msg.role.to_sym, content: msg.content.to_s) }
+  end
+
+  # 被截掉的那段只留「用户问过什么」——他问的话短、信息密度高（客户名、型号、价格都在里面），
+  # 而早先的长篇回答再塞回去就白花钱了。
+  def add_old_summary(chat, older)
+    return if older.blank?
+
+    asked = older.select { |m| m.role == 'user' }.map { |m| m.content.to_s.squish }.join('；')
+    return if asked.blank?
+
+    chat.add_message(
+      role: :user,
+      content: "（这轮对话更早的部分已省略，之前问过：#{asked.truncate(OLD_SUMMARY_CLIP)}）"
+    )
   end
 
   # 把每次工具调用记下来摆给用户看。不摆的话 AI 说什么就是什么，
   # 没人判断得出它的结论是从哪条数据来的。
+  # 次数上限由 Crm::Agent::Scope 管（超了工具回一句话让模型收口，不抛异常），
+  # 这里只负责把调用记下来摆给用户看。超限之后那几次照样记，但标出来——
+  # 不然用户看到「查客户」却没结果，会以为是查漏了。
   def attach_tool_recorder(chat)
-    calls = 0
     chat.before_tool_call do |call|
-      calls += 1
-      raise NotAllowed, '这一轮查得太多了，请把问题拆小一点再问' if calls > MAX_TOOL_CALLS
-
-      conversation.messages.create!(role: 'tool', content: tool_label(call),
+      label = tool_label(call)
+      label = "#{label}（已达本轮查询上限，改用已查到的信息作答）" if scope.budget_exhausted?
+      conversation.messages.create!(role: 'tool', content: label,
                                     meta: { tool: call.name.to_s, args: call.arguments })
     end
   end
@@ -101,7 +194,12 @@ class Crm::Agent::Runner
     'quote_history' => '翻历史报价', 'stock_lookup' => '查实时库存',
     'order_progress' => '查订单生产进度', 'my_numbers' => '算工作台数字',
     'my_worklist' => '列待办清单', 'company_lookup' => '做客户背调',
-    'draft_email' => '写邮件草稿', 'draft_pi' => '建 PI 草稿'
+    'draft_email' => '写邮件草稿', 'draft_pi' => '建 PI 草稿',
+    'follow_up_notes' => '翻跟进记录', 'quotes' => '查报价单状态',
+    'my_targets' => '算目标与提成', 'shipments' => '查出货情况',
+    'product_docs' => '翻产品资料', 'log_follow_up' => '记跟进记录',
+    'create_customer' => '建客户档案', 'draft_quote' => '建报价单草稿',
+    'create_opportunity' => '建商机', 'read_attachment' => '读邮件附件'
   }.freeze
 
   def tool_label(call)
@@ -109,53 +207,35 @@ class Crm::Agent::Runner
   end
 
   def record_assistant(text)
-    conversation.messages.create!(role: 'assistant', content: text)
+    write_answer(text)
     conversation.update!(status: 'IDLE', last_error: nil, title: conversation.title.presence || conversation.title_from_first_question)
     text
   end
 
+  # 有流式占位就定稿那一条（顺便把 streaming 标记抹掉），否则新建。
+  def write_answer(text)
+    attrs = { content: text, meta: assistant_meta }.merge(usage_attrs)
+    if @partial
+      @partial.update!(attrs)
+    else
+      conversation.messages.create!(attrs.merge(role: 'assistant'))
+    end
+  end
+
+  # 这一轮建出来的草稿挂到回答上，前端摆成能点的入口。
+  # 半路失败也挂：草稿可能已经建好了，不给入口反而更难找。
+  def assistant_meta
+    list = @scope&.artifacts
+    list.present? ? { artifacts: list } : {}
+  end
+
+  # 半路挂了也把已经吐出来的那半截留着：模型常常先写完有用的部分才超时，
+  # 整条抹掉换一句「失败了」反而更糟。
   def fail_with(message)
-    conversation.messages.create!(role: 'assistant', content: message)
+    partial = @partial&.content.to_s.strip
+    text = partial.present? ? "#{partial}\n\n（#{message}）" : message
+    write_answer(text)
     conversation.update!(status: 'FAILED', last_error: message)
     message
-  end
-
-  def system_prompt
-    <<~PROMPT
-      你是 wintouchspace 这套外贸 CRM 里的助手，帮业务员处理客户、往来邮件、报价和 PI。
-
-      硬规矩：
-      1. 只用工具查到的真实数据回答。查不到就说查不到，**绝对不要编**客户、订单、价格或邮件内容。
-      2. 你**不能发邮件、不能提交 PI**。写好的邮件只能存草稿，PI 只能建草稿，
-         最后一定要提醒用户自己去核对并手动发送/导出。
-      3. 数字（价格/数量/交期）**用户明确给了就照用户的办，直接做，不要反问**——
-         档案里的售价只是参考价，定制件、不同年用量的报价本来就不一样。
-         用户没给、工具也查不到的数字，才说「这个需要你确认」，绝不自己编一个。
-         要是用户给的数和档案差很多，先把事做了，再在最后用一句话提一下差异就行。
-      4. 用户说中文就用中文回答；要写给客户的邮件正文，按客户所在国家用对应语言写。
-      5. 回答简短直接，别客套。要列清单就列清单。
-
-      几个该主动做的动作：
-      · 报价或建 PI 前，先用 quote_history 看这个客户/这个型号以前报过什么价。
-        和这次差得多就在回答末尾提一句，别让业务员自己撞上客户翻旧账。
-      · 承诺交期前，先用 stock_lookup 看现货和可用量（现货数不等于可用数，
-        别的在产订单可能早排掉了）。
-      · 问「做到哪一步了」「什么时候能出货」用 order_progress。
-      · 问数字（我这个月多少、还有几个要跟）用 my_numbers，问「是哪几个」用 my_worklist。
-      · 陌生询盘先用 company_lookup 背调一下，顺便看系统里有没有人已经在跟。
-
-      查到的所有数据都已经按提问人自己的权限范围过滤过了，你看到的就是他能看到的，
-      不用再替他判断「这个该不该给他看」。
-
-      #{customer_hint}
-    PROMPT
-  end
-
-  # 从客户详情面板发起的对话，默认就在聊这个客户，省得用户每句话都报一遍名字。
-  def customer_hint
-    return '' if conversation.crm_customer.blank?
-
-    "当前对话默认是在谈客户「#{conversation.crm_customer.name}」（客户ID #{conversation.crm_customer_id}），" \
-      '用户没有特别指明别的客户时就用它。'
   end
 end

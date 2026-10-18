@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_18_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -893,6 +893,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
     t.jsonb "meta", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "input_tokens"
+    t.integer "output_tokens"
+    t.integer "duration_ms"
+    t.index ["account_id", "created_at"], name: "index_crm_agent_messages_on_account_id_and_created_at"
     t.index ["conversation_id"], name: "index_crm_agent_messages_on_conversation_id"
   end
 
@@ -905,6 +909,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
     t.datetime "updated_at", null: false
     t.text "apollo_api_key"
     t.bigint "agent_user_ids", default: [], null: false, array: true
+    t.boolean "inquiry_triage_enabled", default: false, null: false
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
 
@@ -1266,6 +1271,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
     t.datetime "first_clicked_at"
     t.datetime "last_clicked_at"
     t.integer "sender_utc_offset_minutes"
+    t.datetime "ai_triaged_at"
+    t.index ["account_id", "ai_triaged_at"], name: "index_crm_emails_on_account_id_and_ai_triaged_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -2965,6 +2972,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
     t.string "bare_color"
     t.string "case_color"
     t.bigint "sales_owner_id"
+    t.text "combo_note"
     t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_boms_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_boms_on_account_id_and_status"
@@ -3438,11 +3446,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
     t.datetime "approved_at"
     t.bigint "approved_by_id"
     t.text "reject_reason"
+    t.bigint "extra_purchase_order_ids", default: [], null: false, array: true
     t.index ["account_id", "approval_status"], name: "index_mes_stock_entries_on_account_and_approval"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
     t.index ["account_id"], name: "index_mes_stock_entries_on_account_id"
+    t.index ["extra_purchase_order_ids"], name: "index_mes_stock_entries_on_extra_purchase_order_ids", using: :gin
     t.index ["owner_id"], name: "index_mes_stock_entries_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_stock_entries_on_production_order_id"
     t.index ["purchase_order_id"], name: "index_mes_stock_entries_on_purchase_order_id"

@@ -21,7 +21,10 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def index
     scope = index_scope
     @purchase_orders_count = scope.count
-    @purchase_orders = scope.order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
+    # 预加载上游单据：序列化要取生产订单的备注和它挂的 BOM 备注（见 _mes_purchase_order.json.jbuilder），
+    # 不预加载就是一页 15 条多查 30 次。
+    @purchase_orders = scope.includes(production_order: :bom)
+                            .order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -163,6 +166,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
+    scope = Mes::PurchaseOrderFilter.apply(scope, params)
     scope = scope.where(has_exception: true) if params[:exception] == 'true'
     scope = apply_search(scope, params[:q]) if params[:q].present?
     scope

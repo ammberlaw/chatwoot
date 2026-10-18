@@ -367,8 +367,18 @@ const submit = async () => {
       ? await store.update({ id: editingId.value, ...payload })
       : await store.create(payload);
     if (ok) {
-      useAlert(editingId.value ? '产品已更新' : `已新增产品 ${ok.sku}`);
-      dialogRef.value?.close();
+      // 新增完不关弹窗，就地转成编辑态：辅助属性要有产品 id 才建得了（编码按产品自动生成），
+      // 关掉再回列表翻出这条新料号太费事——采购的原话是「每次新增代码的时候都要有」。
+      if (editingId.value) {
+        useAlert('产品已更新');
+        dialogRef.value?.close();
+      } else {
+        useAlert(`已新增产品 ${ok.sku}，可以接着编辅助属性`);
+        editingId.value = ok.id;
+        auxDraft.value = '';
+        await loadAux(ok.id);
+        markPristine();
+      }
       // 存完把列表和左侧目录一起刷新，不然新编的料号要手动刷页面才看得到
       refreshAll();
     }
@@ -460,7 +470,11 @@ onMounted(() => {
       class="flex flex-col gap-3 px-4 py-3 sm:px-6 sm:py-4 md:flex-row md:items-center md:justify-between [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">产品档案</h1>
+        <h1
+          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
+          产品档案
+        </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -657,7 +671,9 @@ onMounted(() => {
       </aside>
 
       <HScrollButtons />
-      <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
+      <div
+        class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
+      >
         <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
           产品编码由工程 / PMC 维护，你当前为只读。
         </p>
@@ -1000,6 +1016,17 @@ onMounted(() => {
               @click="addAux"
             />
           </div>
+        </div>
+
+        <!-- 新增态还没有产品 id，变体编码是按产品生成的，建不了。
+             摆一句说明让人知道这一栏在：保存后弹窗会就地转成编辑态，接着编，
+             不用再回列表里翻出这条刚建的代码。 -->
+        <div v-else class="flex flex-col gap-1 pt-3 border-t border-n-weak">
+          <span class="text-heading-2 text-n-slate-12">辅助属性</span>
+          <span class="text-xs text-n-slate-10">
+            保存后这一栏会就地打开，可以直接添加变体（如 喷码6000 /
+            喷码3500），不用再回列表找这条代码。
+          </span>
         </div>
       </div>
     </Dialog>

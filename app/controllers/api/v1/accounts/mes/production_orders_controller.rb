@@ -379,7 +379,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
+  # 删单：生产订单是硬删（不像销售订单进回收箱），所以先拦下游单据——
+  # 删完才发现采购单、入库单成了孤儿就找不回来了。
   def destroy
+    blockers = @production_order.delete_blockers
+    if blockers.any?
+      return render json: { error: "这张单下面已经有#{blockers.join('、')}，不能直接删。请先处理掉它们，或作废这张单。" },
+                    status: :unprocessable_entity
+    end
+
     @production_order.destroy!
     head :ok
   end

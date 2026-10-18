@@ -20,11 +20,31 @@ class Crm::Agent::Tools::DraftPi < Crm::Agent::Tools::Base
     return 'items 没解析出可用明细。每行要写成「型号 | 描述 | 数量 | 单价」，数量和单价必须是数字。' if rows.empty?
 
     pi = build(customer, rows, currency, remark)
-    "已建 PI 草稿 #{pi.pi_no}（#{rows.size} 项，合计 #{money(pi.total_amount_micros, pi.currency)}）。" \
-      '**状态是草稿、没有发给客户**，请到「PI 形式发票」里核对价格和条款，确认后再导出发送。'
+    scope.record_artifact(kind: 'pi_draft', id: pi.id, label: "PI 草稿 #{pi.pi_no}", customer_id: customer.id)
+    summary(pi, rows)
   end
 
   private
+
+  # 每行金额和合计都算好一并回去，让模型照抄。
+  # 不给它就会在回答里自己乘一遍——实测把 100 × 268 写成 33,800（应为 26,800）：
+  # 单子里的数是对的、聊天里的是错的，业务员照着聊天去跟客户对就对错了。
+  def summary(invoice, rows)
+    lines = rows.map.with_index(1) { |row, idx| "#{idx}. #{line_text(row, invoice.currency)}" }
+    <<~TEXT
+      已建 PI 草稿 #{invoice.pi_no}（#{rows.size} 项，状态草稿、没有发给客户）。
+      明细（金额都已算好，回答时照抄，别自己再乘一遍）：
+      #{lines.join("\n")}
+      合计 #{money(invoice.total_amount_micros, invoice.currency)}
+      最后提醒用户到「PI 形式发票」里核对价格和条款，确认后再导出发送。
+    TEXT
+  end
+
+  def line_text(row, currency)
+    unit = money((row[:price] * 1_000_000).round, currency)
+    amount = money((row[:qty] * row[:price] * 1_000_000).round, currency)
+    "#{row[:model]} | #{row[:description]} | #{fnum(row[:qty])} × #{unit} = #{amount}"
+  end
 
   # 「型号 | 描述 | 数量 | 单价」一行一项。数量或单价缺了/为零的行直接丢掉，不替它猜。
   def normalize(items)

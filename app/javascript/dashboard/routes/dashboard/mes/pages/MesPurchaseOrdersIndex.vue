@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -17,6 +17,7 @@ import { useListDensity } from 'dashboard/composables/useListDensity';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -75,6 +76,28 @@ const currentPage = ref(1);
 const statusFilter = ref('');
 const approvalFilter = ref('');
 
+// 表头漏斗（对标金蝶）。条件发后端算（见 Mes::PurchaseOrderFilter）：列表是分页的，
+// 前端只过滤本页的话，第 2 页往后的命中全看不见——采购单常年几十上百张。
+const colFilters = reactive({
+  po_no: '',
+  supplier: '',
+  order_no: '',
+  item_code: '',
+  item_name: '',
+  item_spec: '',
+});
+// 列 key → 筛哪个参数。两套列（按单 / 按明细）共用这张表，同名列筛的是同一件事。
+const FILTERABLE = {
+  poNo: { key: 'po_no', placeholder: '采购单号' },
+  suppliers: { key: 'supplier', placeholder: '供应商' },
+  supplier: { key: 'supplier', placeholder: '供应商' },
+  order: { key: 'order_no', placeholder: '销售订单号' },
+  code: { key: 'item_code', placeholder: '物料编码' },
+  name: { key: 'item_name', placeholder: '物料名称' },
+  spec: { key: 'item_spec', placeholder: '规格型号' },
+};
+const filterOf = col => FILTERABLE[col.key];
+
 const fetchList = () => {
   emitter.emit('MES_TODO_MAY_CHANGE');
   return store.get({
@@ -82,6 +105,9 @@ const fetchList = () => {
     owner_id: onlyMine.value ? currentUserId.value : undefined,
     status: statusFilter.value || undefined,
     approval_status: approvalFilter.value || undefined,
+    ...Object.fromEntries(
+      Object.entries(colFilters).map(([k, v]) => [k, v.trim() || undefined])
+    ),
     page: currentPage.value,
   });
 };
@@ -92,6 +118,8 @@ const resetToFirstPage = () => {
   if (currentPage.value === 1) fetchList();
   else currentPage.value = 1;
 };
+// 改了列筛选要回第 1 页，理由同搜索框
+const onColFilterChange = () => resetToFirstPage();
 let searchTimer = null;
 watch(search, () => {
   clearTimeout(searchTimer);
@@ -513,6 +541,17 @@ const ORDER_COLUMN_DEFS = [
     label: '备注',
     tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
   },
+  // 上游两条备注：采购要在自己这页看到业务和工程交代了什么，不用来回切单（问题点 B3/B4）
+  {
+    key: 'salesOrderRemark',
+    label: '销售订单备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
+  {
+    key: 'bomRemark',
+    label: '生产任务单备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
 ];
 const {
   orderedColumns: orderCols,
@@ -659,6 +698,20 @@ const itemRows = computed(() =>
       internalRemark: po.internalRemark || '—',
     }))
   )
+);
+
+// 同一张采购单的连续行标记成一组：单号只在组首显示，组尾加一条分隔线。
+//
+// 一张生产订单本来就能开好几张采购单（主料一张、辅料一张、不同采购员各建各的），
+// 所以按明细里同一张生产单下会连着出现 PU-…-06 / -07 / -08。原来每行都重复印单号，
+// 看着像「同一批料的单号对不上」（10.17 反馈 B6：「这个订单号好像不是一个」）。
+// 归组之后哪几行属于同一张单一目了然，数据本身不动。
+const groupedItemRows = computed(() =>
+  itemRows.value.map((r, i, arr) => ({
+    ...r,
+    firstOfPo: i === 0 || arr[i - 1].poNo !== r.poNo,
+    lastOfPo: i === arr.length - 1 || arr[i + 1].poNo !== r.poNo,
+  }))
 );
 
 // 列多撑得比屏幕宽，只能拖底下那根细横条，鼠标很难受。
@@ -1169,7 +1222,16 @@ useRouteQueryReentry(async query => {
                 @dragover.prevent
                 @drop="onOrderColDrop(col.key)"
               >
-                {{ col.label }}
+                <span class="inline-flex items-center gap-1">
+                  {{ col.label }}
+                  <MesColumnFilter
+                    v-if="filterOf(col)"
+                    v-model="colFilters[filterOf(col).key]"
+                    type="text"
+                    :placeholder="filterOf(col).placeholder"
+                    @change="onColFilterChange"
+                  />
+                </span>
                 <ColResizeHandle
                   :column-key="col.key"
                   :active="isOrderColResizing(col.key)"
@@ -1273,6 +1335,16 @@ useRouteQueryReentry(async query => {
                 </template>
                 <template v-else-if="col.key === 'remark'">
                   <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
+                </template>
+                <template v-else-if="col.key === 'salesOrderRemark'">
+                  <span :title="p.salesOrderRemark || ''">
+                    {{ p.salesOrderRemark || '—' }}
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'bomRemark'">
+                  <span :title="p.bomRemark || ''">
+                    {{ p.bomRemark || '—' }}
+                  </span>
                 </template>
               </td>
               <td
@@ -1400,7 +1472,16 @@ useRouteQueryReentry(async query => {
                 @dragover.prevent
                 @drop="onItemColDrop(col.key)"
               >
-                {{ col.label }}
+                <span class="inline-flex items-center gap-1">
+                  {{ col.label }}
+                  <MesColumnFilter
+                    v-if="filterOf(col)"
+                    v-model="colFilters[filterOf(col).key]"
+                    type="text"
+                    :placeholder="filterOf(col).placeholder"
+                    @change="onColFilterChange"
+                  />
+                </span>
                 <ColResizeHandle
                   :column-key="col.key"
                   :active="isItemColResizing(col.key)"
@@ -1415,9 +1496,14 @@ useRouteQueryReentry(async query => {
           </thead>
           <tbody>
             <tr
-              v-for="(r, i) in itemRows"
+              v-for="(r, i) in groupedItemRows"
               :key="r.key"
-              class="[&>td]:border-b [&>td]:border-n-weak [&:hover>td:not(.sticky)]:bg-n-alpha-1"
+              class="[&>td]:border-b [&:hover>td:not(.sticky)]:bg-n-alpha-1"
+              :class="
+                r.lastOfPo
+                  ? '[&>td]:border-n-strong'
+                  : '[&>td]:border-n-weak/40'
+              "
             >
               <td
                 v-for="col in visibleItemCols"
@@ -1430,7 +1516,10 @@ useRouteQueryReentry(async query => {
               >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
                 <template v-else-if="col.key === 'poNo'">
-                  <MesMultiNoCell :value="r.poNo" />
+                  <!-- 单号只在这组第一行印一次：一张生产单下常有好几张采购单，
+                       每行都重复印反而让人以为单号对不上 -->
+                  <MesMultiNoCell v-if="r.firstOfPo" :value="r.poNo" />
+                  <span v-else class="text-n-slate-9">〃</span>
                 </template>
                 <template v-else-if="col.key === 'supplier'">
                   {{ r.supplier }}

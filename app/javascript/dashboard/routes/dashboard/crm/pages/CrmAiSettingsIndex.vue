@@ -9,6 +9,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import ToggleSwitch from 'dashboard/components-next/switch/Switch.vue';
 
 const { t } = useI18n();
 
@@ -40,6 +41,8 @@ const form = reactive({
   apolloKey: '',
   // 谁能用 CRM 的 AI 助手（管理员/副管恒可用，不必列进来）
   agentUserIds: [],
+  // 陌生来信自动背调+建档+起草回复（会自动花模型调用，默认关）
+  inquiryTriageEnabled: false,
 });
 const { accountId } = useAccount();
 // 可选成员：AI 助手的使用名单从这里挑
@@ -62,6 +65,13 @@ const toggleAgentUser = id => {
 const configured = ref(false);
 const keyHint = ref(null);
 const apolloConfigured = ref(false);
+// 本月用量：开了自动初筛之后它会自己跑、自己花钱，得看得到花在哪
+const usage = ref(null);
+// 刚上线那几天量很小，一律换算成「万」会显示成 0.0 万，看着像没在用
+const tokenText = n => {
+  const v = Number(n) || 0;
+  return v < 10000 ? String(v) : `${(v / 10000).toFixed(1)} 万`;
+};
 const apolloKeyHint = ref(null);
 const loading = ref(true);
 const busy = ref(false);
@@ -95,6 +105,8 @@ onMounted(async () => {
     form.model = data.model || 'deepseek-chat';
     form.apiBase = data.api_base || 'https://api.deepseek.com/v1';
     form.agentUserIds = (data.agent_user_ids || []).map(String);
+    form.inquiryTriageEnabled = !!data.inquiry_triage_enabled;
+    usage.value = data.usage || null;
     await loadMembers();
   } catch {
     useAlert(t('CRM.AI_SETTINGS.LOAD_ERROR'));
@@ -120,6 +132,7 @@ const save = async () => {
         api_base: form.apiBase.trim(),
         apollo_api_key: form.apolloKey.trim(),
         agent_user_ids: form.agentUserIds.map(Number),
+        inquiry_triage_enabled: form.inquiryTriageEnabled,
       },
     });
     configured.value = data.configured;
@@ -164,7 +177,9 @@ const fieldCls =
       class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1
+          class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           {{ t('CRM.AI_SETTINGS.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -319,6 +334,41 @@ const fieldCls =
             没有可选成员。
           </span>
         </div>
+      </div>
+
+      <!-- 本月用量：只读。有数才谈得上「该不该给谁开」「要不要换模型」 -->
+      <div
+        v-if="usage"
+        class="flex flex-wrap items-center gap-x-6 gap-y-2 px-3 py-2.5 border rounded-lg border-n-weak bg-n-alpha-1"
+      >
+        <span class="text-label text-n-slate-12">本月用量</span>
+        <span class="text-xs text-n-slate-11">
+          问答 {{ usage.rounds }} 轮 · {{ usage.users }} 人用过
+        </span>
+        <span class="text-xs text-n-slate-11">
+          token 进 {{ tokenText(usage.input_tokens) }} / 出
+          {{ tokenText(usage.output_tokens) }}
+        </span>
+        <span class="text-xs text-n-slate-11">
+          平均 {{ usage.avg_seconds }} 秒/轮
+        </span>
+        <span
+          class="text-xs"
+          :class="usage.failed > 0 ? 'text-n-ruby-11' : 'text-n-slate-11'"
+        >
+          失败 {{ usage.failed }} 轮
+        </span>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
+        <div class="flex items-center gap-3">
+          <ToggleSwitch v-model="form.inquiryTriageEnabled" />
+          <span class="text-label text-n-slate-12">新询盘自动初筛</span>
+        </div>
+        <span class="text-xs text-n-slate-10">
+          收到陌生人来信时自动背调这家公司、查系统里有没有人已经在跟；判断是真实公司才建客户档案并起草一封回复草稿，
+          结果发到「团队沟通」。草稿不会自动发出。开着会自动消耗模型调用，默认关。
+        </span>
       </div>
 
       <!-- 测试连接 -->

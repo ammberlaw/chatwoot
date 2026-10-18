@@ -246,6 +246,25 @@ const openNotification = async n => {
 };
 
 const markAllRead = () => store.markAllRead(scopeParams.value);
+
+// 每条后面的「已读」：有的通知看一眼就知道不用管，但点开查看不会消未读
+// （待办类刻意不因点开而销，见 openNotification），只能在这儿按一下。
+// 采购的原话：「只是设置在每一条的后面，因为有的内容还是需要去处理的」——
+// 所以不是整列全消，是一条一条自己判断。
+const markingId = ref(null);
+const markOneRead = async n => {
+  if (n.readAt || markingId.value) return;
+
+  markingId.value = n.id;
+  try {
+    await store.markRead(n.id);
+    // 重拉一次：页签角标走后端算的 meta.groupUnread，markRead 只改了本地那条记录，
+    // 不重拉的话点完已读角标还挂着原来的数字——正是「点进去了还显示未读」那种观感。
+    await load();
+  } finally {
+    markingId.value = null;
+  }
+};
 // 「待我处理」是实时面板，刷新要刷它；其余页签刷通知列表。
 const refresh = () => {
   if (showTodoPanel.value) todoPanelRef.value?.reload();
@@ -263,7 +282,9 @@ onMounted(load);
       class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center min-w-0 gap-2">
-        <h1 class="text-xl font-semibold truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1
+          class="text-xl font-semibold truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           {{ pageTitle }}
         </h1>
         <span
@@ -368,6 +389,16 @@ onMounted(load);
               >
                 {{ fmt(n.createdAt) }}
               </span>
+              <button
+                v-if="!n.readAt"
+                type="button"
+                title="标为已读（不打开这张单）"
+                class="px-1.5 py-0.5 border rounded shrink-0 text-2xs reset-base border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-50"
+                :disabled="markingId === n.id"
+                @click.stop="markOneRead(n)"
+              >
+                已读
+              </button>
             </div>
             <p v-if="n.body" class="text-xs truncate text-n-slate-11">
               {{ n.body }}

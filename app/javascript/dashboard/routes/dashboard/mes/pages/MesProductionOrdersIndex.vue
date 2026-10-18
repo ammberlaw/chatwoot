@@ -988,7 +988,11 @@ const orderBase = reactive({
   qty: '',
   unit: '台',
   deliveryDate: '',
-  intakeKind: 'NEW',
+  // 默认空、提交前必填：带一个「新款」默认值等于没选，业务一路回车就过去了，
+  // 结果工程/PMC 谁该接单全靠猜（10.17 反馈 C3：「帮忙设置成必选，这样他们业务
+  // 下定制单的就要了解清楚下单的主要对接人是谁」）。存量单不受影响：DB 那列
+  // 本来就 NOT NULL default 'NEW'，编辑老单时照原值回填。
+  intakeKind: '',
 });
 // 接单方式：开头两段（工程出裸机 BOM → PMC 做生产任务单）谁要接单。
 // 返单不经工程、样机不经 PMC——跳过的那一段不进对方待办，也不算他超时。
@@ -1001,7 +1005,10 @@ const { isDirty, markPristine } = useDirtyGuard(() => orderBase);
 const orderSpec = ref(blankSpec('TABLET'));
 // 商品编码选填：业务建单可不填，工程做 BOM 时再补（在编辑订单里补录）。
 const orderInvalid = computed(
-  () => !orderBase.productName.trim() || !Number(orderBase.qty)
+  () =>
+    !orderBase.productName.trim() ||
+    !Number(orderBase.qty) ||
+    !orderBase.intakeKind
 );
 
 // 编辑订单：商品编码选择器（关联产品档案，API 搜索）。用独立 state，与转单/外协的
@@ -1431,10 +1438,18 @@ const canEditRow = po =>
   (mesCan('order') ||
     (canCreateOrder.value && po.ownerId === currentUserId.value));
 // 删除：管理员删任意；归属业务仅删**本人草稿**（已下发进入生产流程不可删，后端 ensure_deletable! 同口径）。
+// 谁能删：管理员/副管不限；制单人能删**自己还没进生产**的单
+// （草稿、审批中、被驳回都算——重复建出来的单多半卡在「待部门主管审批」，
+// 只放开草稿的话制单人自己收不了场，只能找管理员，10.17 反馈 C4 就是这个）。
+// 真正的安全闸在后端：下游有采购单/入库单/质检单就拒绝删（见 Mes::ProductionOrder#delete_blockers），
+// 这里放宽只是让按钮出得来。
+const DELETABLE_APPROVALS = ['DRAFT', 'SUBMITTED', 'MANAGER_APPROVED', 'REJECTED'];
 const canDeleteRow = po =>
   isAdmin.value ||
   isCrmDeputyAdmin.value ||
-  (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft);
+  (canCreateOrder.value &&
+    po.ownerId === currentUserId.value &&
+    (po.isDraft || DELETABLE_APPROVALS.includes(po.approvalStatus)));
 // 当前页查看该订单的原料入库单，保留列表及详情状态。
 const stockEntriesDialog = ref(null);
 const goStockEntries = po => stockEntriesDialog.value.open(po);
@@ -2142,6 +2157,8 @@ watch(currentPage, fetchRecords);
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
               >
+                <!-- 序号不进 visibleColumns：它不是业务列，不该能被拖走或收起 -->
+                <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">#</th>
                 <!-- 拖列头即可改顺序，按人记在本机 -->
                 <th
                   v-for="col in visibleColumns"
@@ -2179,7 +2196,7 @@ watch(currentPage, fetchRecords);
             </thead>
             <tbody>
               <tr
-                v-for="po in records"
+                v-for="(po, rowIdx) in records"
                 :key="po.id"
                 class="border-b cursor-pointer group/row border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
                 :class="
@@ -2189,6 +2206,9 @@ watch(currentPage, fetchRecords);
                 "
                 @click="selectRow(po)"
               >
+                <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                  {{ (currentPage - 1) * ITEMS_PER_PAGE + rowIdx + 1 }}
+                </td>
                 <!-- 中间列按 visibleColumns 渲染（收起的列不出现），顺序随表头拖拽实时变化 -->
                 <td
                   v-for="col in visibleColumns"
@@ -2437,8 +2457,12 @@ watch(currentPage, fetchRecords);
                 </td>
               </tr>
               <tr v-if="!records.length">
-                <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
-                  还没有生产订单。点右上角「从销售订单转入」开始。
+                <!-- 列数 = 序号 + 可见业务列 + 右侧操作列；写死的话加一列就对不齐 -->
+                <td
+                  :colspan="visibleColumns.length + 2"
+                  class="px-3 py-10 text-center text-n-slate-11"
+                >
+                  还没有销售订单。点右上角「从销售订单转入」开始。
                 </td>
               </tr>
             </tbody>
@@ -2463,7 +2487,8 @@ watch(currentPage, fetchRecords);
         <div class="flex items-center gap-2 mb-1 [.theme-classic_&]:mb-3">
           <span
             class="font-semibold truncate text-n-slate-12 [.theme-classic_&]:text-heading-1"
-            >{{ selected.orderNo }}</span>
+            >{{ selected.orderNo }}</span
+          >
           <span class="ml-auto text-xs shrink-0 text-n-slate-11">
             {{ STATUS_LABELS[selected.status] }}
           </span>
@@ -3459,11 +3484,14 @@ watch(currentPage, fetchRecords);
             </div>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">接单方式</label>
+            <label class="text-heading-3 text-n-slate-12">
+              接单方式<span class="text-n-ruby-11">*</span>
+            </label>
             <SelectCard
               v-model="orderBase.intakeKind"
               :options="INTAKE_OPTIONS"
               :disabled="viewOnlyOrder"
+              placeholder="请选择谁来接这张单"
               block
             />
           </div>

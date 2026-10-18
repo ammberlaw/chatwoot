@@ -193,6 +193,7 @@ const items = computed(() => [
   })),
   ...purchaseInbox.value.map(p => ({
     key: `po-${p.id}`,
+    sig: `po|${p.po_no}`,
     bar: 'bg-n-iris-9',
     title: `待审批采购单：${p.po_no}`,
     body: [p.supplier_names?.join('、'), p.production_order_no, p.owner_name]
@@ -205,6 +206,7 @@ const items = computed(() => [
   })),
   ...shipmentInbox.value.map(s => ({
     key: `sh-${s.id}`,
+    sig: `sh|${s.shipment_no}`,
     bar: 'bg-n-teal-9',
     title: `待审核：${s.shipment_no}`,
     body: [s.customer_name || '—', s.owner_name].filter(Boolean).join(' · '),
@@ -219,6 +221,8 @@ const items = computed(() => [
     const pur = purchaseView(o);
     return {
       key: `in-${o.id}`,
+      // 指纹只放会变的状态位，不放「停留 N 天」——那个每天都变，按掉的提示第二天又冒出来。
+      sig: `in|${o.stage}|${o.awaiting_ack ? 1 : 0}|${pur ? pur.prefix : ''}`,
       // 已接单＝正在做，不算「待我处理」；采购阶段另按三态定（等料中归「进行中」）。
       working: pur ? pur.working : !o.awaiting_ack,
       bar: pur ? pur.bar : (o.ack_overdue && 'bg-n-ruby-9') || 'bg-n-iris-9',
@@ -252,7 +256,36 @@ const items = computed(() => [
 // 「待我处理」= 真正等我动手的：审批、出库审核、**还没接单**的订单。
 // 已接单的单子只要还停在我这个阶段就会一直被算进来，接了单也不消、点几次都还在
 // （用户原话）。这类归到「进行中」单独一组，且不进角标——角标虚高，看久了就没人信。
-const pending = computed(() => items.value.filter(it => !it.working));
+// 「知道了」：这一屏的待办是按单据实时算出来的（不是 mes_notifications 里的记录），
+// 单子状态不变就会一直挂在这儿——采购的原话「不需要处理的事情，也要点进去看，
+// 点进去后还是显示未读」。所以给每条一个「知道了」，按人记在本机。
+//
+// 记的是 key + 状态指纹：单子一动（阶段变了、接单了、采购下单了）指纹就变，这条会重新冒出来，
+// 不至于把真要处理的单永久藏掉。只记在本机是有意的——这是「提示噪音」，不是业务数据，
+// 为它建表、起接口不划算（换台电脑重新冒出来反而是安全的一侧）。
+const ACK_KEY = 'mes.todo.acked.v1';
+const readAcked = () => {
+  try {
+    return JSON.parse(localStorage.getItem(ACK_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+const acked = ref(readAcked());
+const ackOne = it => {
+  const next = { ...acked.value, [it.key]: it.sig };
+  acked.value = next;
+  try {
+    localStorage.setItem(ACK_KEY, JSON.stringify(next));
+  } catch {
+    // 隐私模式下写不进去：这轮内存里仍然生效，刷新后重新出现，不影响用单
+  }
+};
+const isAcked = it => acked.value[it.key] === it.sig;
+
+const pending = computed(() =>
+  items.value.filter(it => !it.working && !isAcked(it))
+);
 const working = computed(() => items.value.filter(it => it.working));
 // 渲染顺序：待处理在前，中间插一行分组标题，进行中在后。
 const rows = computed(() => [
@@ -316,6 +349,17 @@ defineExpose({ reload: load });
           </div>
           <p class="text-xs truncate text-n-slate-11">{{ it.body }}</p>
         </div>
+        <!-- 「知道了」：这条不用我管，别再占着待办。单子状态一变会重新冒出来。
+             只对还没接单的待办给，进行中的单本来就不在角标里。 -->
+        <button
+          v-if="!it.working"
+          type="button"
+          title="这条我知道了，先从待办里收起（单子状态一变会重新出现）"
+          class="self-center px-2 py-1 text-xs border rounded-md shrink-0 reset-base border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+          @click.stop="ackOne(it)"
+        >
+          知道了
+        </button>
         <button
           v-if="it.action"
           type="button"

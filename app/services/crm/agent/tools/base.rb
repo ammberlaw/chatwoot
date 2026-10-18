@@ -17,6 +17,17 @@ class Crm::Agent::Tools::Base < RubyLLM::Tool
 
   attr_reader :scope
 
+  BUDGET_MSG = '这一轮查询次数已经用完，别再调工具了。' \
+               '用前面已经查到的信息直接回答用户，并说明哪些部分还没查到。'.freeze
+
+  # 每次工具调用都先扣预算。超了就回一句话让模型收口，而不是把这一轮废掉
+  # （口径见 Crm::Agent::Scope#take_tool_budget!）。
+  def call(args)
+    return BUDGET_MSG unless scope.take_tool_budget!
+
+    super
+  end
+
   private
 
   # 文本一律截断：一封几万字的邮件能把上下文撑爆，后面的工具结果就被挤掉了。

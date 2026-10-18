@@ -80,15 +80,25 @@ module Crm::EmailIngestion
     email
   end
 
-  # 收信后的 AI 自动化（仅已关联客户的来信；异步、失败不影响收信）：
-  # ① 附件自动归档到客户档案；② 从往来识别商机进度写跟进记录。
+  # 收信后的 AI 自动化（异步、失败不影响收信）：
+  # ① 已建档客户的来信——附件归档到客户档案 + 从往来识别商机进度写跟进记录；
+  # ② 没建档的来信——很可能是新询盘，走初筛（背调/建档/起草回复，见 Crm::InquiryTriageJob）。
+  # 两条正好互补，一封信只会走其中一条。
   def enqueue_ai_followups(email)
-    return if email.crm_customer_id.blank?
+    return enqueue_inquiry_triage(email) if email.crm_customer_id.blank?
 
     Crm::ArchiveEmailAttachmentsJob.perform_later(email.id) if email.files.attached?
     Crm::EmailProgressJob.perform_later(email.id)
   rescue StandardError => e
     Rails.logger.warn("[Crm::MailFetch] enqueue ai followups failed email=#{email.id}: #{e.message}")
+  end
+
+  # 初筛要调模型花钱，所以这里只管入队，该不该跑全由 job 自己判（开关、去重、垃圾过滤）——
+  # 判断逻辑放一处，手动补跑某封信时走的是同一套门槛。
+  def enqueue_inquiry_triage(email)
+    Crm::InquiryTriageJob.perform_later(email.id)
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::MailFetch] enqueue inquiry triage failed email=#{email.id}: #{e.message}")
   end
 
   # 客户来信自动提醒：为已建档客户的来信在「日程」里放一条当天全天提醒，

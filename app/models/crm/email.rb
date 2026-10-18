@@ -6,6 +6,7 @@
 # Table name: crm_emails
 #
 #  id                        :bigint           not null, primary key
+#  ai_triaged_at             :datetime
 #  bcc_address               :text
 #  body                      :text
 #  body_html                 :text
@@ -44,6 +45,7 @@
 # Indexes
 #
 #  index_crm_emails_on_account_id                    (account_id)
+#  index_crm_emails_on_account_id_and_ai_triaged_at  (account_id,ai_triaged_at)
 #  index_crm_emails_on_account_id_and_email_date     (account_id,email_date)
 #  index_crm_emails_on_account_id_and_folder         (account_id,folder)
 #  index_crm_emails_on_account_id_and_is_read        (account_id,is_read)

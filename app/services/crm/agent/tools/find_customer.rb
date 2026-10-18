@@ -12,11 +12,15 @@ class Crm::Agent::Tools::FindCustomer < Crm::Agent::Tools::Base
   SQL
 
   def execute(keyword:, limit: 10)
-    rows = scope.customers.where(MATCH_SQL, t: "%#{keyword.to_s.strip}%")
+    key = keyword.to_s.strip
+    rows = scope.customers.where(MATCH_SQL, t: "%#{key}%")
                 .order(last_deal_at: :desc, id: :desc).limit([limit.to_i, 25].min)
-    return "没找到和「#{keyword}」相关的客户（只在你有权限看的范围内搜）。" if rows.empty?
+    return "没找到和「#{key}」相关的客户（只在你有权限看的范围内搜）。" if rows.empty?
 
-    rows.map { |c| line(c) }.join("\n")
+    # 关键词是空的时候 SQL 成了 %%，等于把全部客户捞一遍。结果本身没问题（范围仍受权限限制），
+    # 但得说清楚这不是「搜到的」，否则模型会拿它当匹配结果，回答成「找到了这家客户」。
+    header = key.blank? ? "（没给关键词，列出你最近有成交的 #{rows.size} 个客户）\n" : ''
+    header + rows.map { |c| line(c) }.join("\n")
   end
 
   private

@@ -78,6 +78,18 @@ defineExpose({
 
 const disp = v => (v === null || v === undefined || v === '' ? '—' : v);
 
+// 鼠标停在格子上就把整段显示出来。用户原话：「格子里面的内容还是不够看，是否可以设置跟金蝶
+// 一样，鼠标箭头停留在哪个格子的时候，格子里面的内容能在页面显示出来（**在并不拉动格子间距
+// 的情况下**），并且这个显示，对所有单据的格子都适用」。
+// 规格型号那一列动辄四五十个字，拉宽就把后面的列挤出视野——悬停看反而比拉宽好使。
+// 图片列没有文本可提示，返回空（空 title 浏览器不弹气泡）。
+const cellTitle = (row, col) => {
+  if (col.type === 'images') return '';
+
+  const v = row[col.key];
+  return v === null || v === undefined || v === '' ? '' : String(v);
+};
+
 const exportExcel = () =>
   exportDataToExcel(
     {
@@ -235,6 +247,7 @@ const printDoc = () => printNode(contentRef.value, props.title);
                     <td
                       v-for="c in itemColumns"
                       :key="c.key"
+                      :title="cellTitle(it, c)"
                       class="px-2 py-2 align-top text-n-slate-12"
                       :class="[
                         c.align === 'right' ? 'text-right' : '',

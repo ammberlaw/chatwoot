@@ -238,6 +238,8 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     params.require(:stock_entry).permit(
       :purpose, :production_order_id, :purchase_order_id, :from_warehouse_id, :to_warehouse_id,
       :is_checked, :checked_by_id, :received_by_id, :owner_id, :remark, :actual_inbound_date, :color,
+      # 一张入库单可同时收几张采购单的货（主单之外再挂几张）
+      { extra_purchase_order_ids: [] },
       stock_entry_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :qty, :received_qty, :unit, :warehouse_id, :remark, :_destroy,
         # 行内附图：传 signed_id 数组，整组替换（同采购明细）

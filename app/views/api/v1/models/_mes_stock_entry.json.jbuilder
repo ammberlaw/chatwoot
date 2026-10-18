@@ -14,6 +14,15 @@ json.product_sku production_order&.crm_product&.sku
 if Current.account_user&.mes_staff?
   json.purchase_order_id resource.purchase_order_id
   json.purchase_order_no resource.purchase_order&.po_no
+  # 一张入库单可以同时收几张采购单的货（同供应商同一天到的几张单一次收完）
+  json.extra_purchase_order_ids resource.extra_purchase_order_ids
+  json.related_purchase_order_nos(
+    if resource.extra_purchase_order_ids.present?
+      resource.related_purchase_orders.map(&:po_no)
+    else
+      [resource.purchase_order&.po_no].compact
+    end
+  )
 end
 json.from_warehouse_id resource.from_warehouse_id
 json.to_warehouse_id resource.to_warehouse_id
@@ -48,8 +57,15 @@ json.remark resource.remark
 # 单价/金额沿用采购口径的权限闸（仅采购岗/财务/管理员/采购审批人）——
 # 入库单给仓管看得最多，不能顺手把成本漏出去。
 po = resource.purchase_order
-# 来源采购单的行先取出来：供应商名、单价都从这里对
-purchase_items = po ? po.purchase_items.to_a : []
+# 来源采购单的行先取出来：供应商名、单价都从这里对。
+# 挂了多张采购单时要把几张的行并在一起——否则追加那几张单的料对不上供应商和单价。
+# 没挂额外单时直接用主单的行，避免多一次查询（列表页每条都会走到这里）。
+purchase_items =
+  if resource.extra_purchase_order_ids.present?
+    resource.account.mes_purchase_items.where(purchase_order_id: resource.all_purchase_order_ids).to_a
+  else
+    po ? po.purchase_items.to_a : []
+  end
 can_view_amount = Current.account_user&.mes_can?(:purchase) ||
                   Current.account_user&.crm_finance? ||
                   Mes::PurchaseOrder.approver?(Current.account, Current.user&.id) || false

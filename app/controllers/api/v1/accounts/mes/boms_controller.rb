@@ -193,7 +193,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   def bom_params
     params.require(:bom).permit(
       :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :sales_owner_id, :product_line, :status,
-      :remark,
+      :remark, :combo_note,
       # 单号允许手工填（两账并行期要对上金蝶的号）。**只在新建时放行**——
       # 改已生效单据的号会让纸质单、下游单据和 ERP 全部对不上。留空则自动生成。
       *(action_name == 'create' ? [:bom_no] : []),

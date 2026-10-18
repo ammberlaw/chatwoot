@@ -8,6 +8,7 @@
 #  approved_at               :datetime
 #  color                     :string
 #  entry_no                  :string           not null
+#  extra_purchase_order_ids  :bigint           default([]), not null, is an Array
 #  is_checked                :boolean          default(FALSE), not null
 #  posted_at                 :datetime
 #  product_line              :string
@@ -38,6 +39,7 @@
 #  index_mes_stock_entries_on_account_id                 (account_id)
 #  index_mes_stock_entries_on_account_id_and_entry_no    (account_id,entry_no) UNIQUE
 #  index_mes_stock_entries_on_account_id_and_purpose     (account_id,purpose)
+#  index_mes_stock_entries_on_extra_purchase_order_ids   (extra_purchase_order_ids) USING gin
 #  index_mes_stock_entries_on_owner_id                   (owner_id)
 #  index_mes_stock_entries_on_production_order_id        (production_order_id)
 #  index_mes_stock_entries_on_purchase_order_id          (purchase_order_id)
@@ -78,6 +80,16 @@ class Mes::StockEntry < ApplicationRecord
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', optional: true
+
+  # 本单关联的全部采购单 id（主单 + 追加的）。同一家供应商同一天送来好几张单的料，
+  # 仓管一次收完比开三张入库单省事（照采购单挂多张生产订单那套，见 Mes::PurchaseOrder）。
+  def all_purchase_order_ids
+    ([purchase_order_id] + extra_purchase_order_ids.to_a).compact.uniq
+  end
+
+  def related_purchase_orders
+    account.mes_purchase_orders.where(id: all_purchase_order_ids).order(:id)
+  end
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :checked_by, class_name: 'User', optional: true
   belongs_to :approved_by, class_name: 'User', optional: true
@@ -214,10 +226,8 @@ class Mes::StockEntry < ApplicationRecord
       raise StandardError, '单据已过账或已作废' unless status == 'DRAFT'
       raise StandardError, approval_blocker if approval_blocker
       raise StandardError, '成品入库需车间负责人与仓管共同确认后方可过账' if dual_confirm_required? && !dual_confirmed?
-      # 关联采购单必须审批通过才能收货，杜绝未审批/被驳回的采购单被越权收货推进流程。
-      if purpose == 'MATERIAL_RECEIPT' && purchase_order.present? && !purchase_order.approved?
-        raise StandardError, '关联采购单未审批通过，不能收货'
-      end
+
+      ensure_purchase_orders_approved!
 
       # 成品入库防超量在并发下失效——锁住生产订单，让「读累计→校验→写入」在同一临界区。
       production_order&.lock! if purpose == 'MANUFACTURE'
@@ -541,14 +551,25 @@ class Mes::StockEntry < ApplicationRecord
   # 本次到料日期：入库单填了实际入库日就用它，否则用过账当下。
   def receipt_arrival_at = actual_inbound_date || Time.current
 
+  # 关联采购单必须审批通过才能收货，杜绝未审批/被驳回的采购单被越权收货推进流程。
+  # 追加的那几张也要查：只看主单的话，没批的单能借一张已批的主单把货收进来。
+  def ensure_purchase_orders_approved!
+    return unless purpose == 'MATERIAL_RECEIPT'
+
+    unapproved = related_purchase_orders.reject(&:approved?)
+    return if unapproved.empty?
+
+    raise StandardError, "关联采购单 #{unapproved.map(&:po_no).join('、')} 未审批通过，不能收货"
+  end
+
+  # 回写要覆盖**本单关联的每一张采购单**（主单 + 追加的）。
+  # 只认主单的话，追加那张单的料收了也不记账：received_qty 不涨、收货状态永远「未收」、
+  # 在途量不冲减，下次建入库单这些料还会被当成没收完再铺一遍。
   def sync_purchase_receipt!
-    po = purchase_order
     arrival = receipt_arrival_at
+    orders = related_purchase_orders.to_a
     stock_entry_items.each do |item|
-      po_item = po.purchase_items.find do |pi|
-        (item.mes_material_id && pi.mes_material_id == item.mes_material_id) ||
-          (item.crm_product_id && pi.crm_product_id == item.crm_product_id)
-      end
+      po, po_item = locate_purchase_item(orders, item)
       next if po_item.nil?
 
       po_item.update_columns(
@@ -563,7 +584,23 @@ class Mes::StockEntry < ApplicationRecord
         crm_product_id: item.crm_product_id, qty: item.effective_qty
       )
     end
-    po.reload.recompute_receipt_status!
+    orders.each { |o| o.reload.recompute_receipt_status! }
+  end
+
+  # 同一颗料可能在好几张关联采购单上都有（主料辅料分单下的）。
+  # 优先回写「还没收完」的那张——否则收货量全记到已经收满的单上，
+  # 真正欠货的那张永远显示没到货。
+  def locate_purchase_item(orders, item)
+    matches = orders.filter_map do |po|
+      hit = po.purchase_items.find { |pi| same_material?(pi, item) }
+      [po, hit] if hit
+    end
+    matches.find { |(_po, pi)| pi.qty.to_d > pi.received_qty.to_d } || matches.first || [nil, nil]
+  end
+
+  def same_material?(purchase_item, entry_item)
+    (entry_item.mes_material_id && purchase_item.mes_material_id == entry_item.mes_material_id) ||
+      (entry_item.crm_product_id && purchase_item.crm_product_id == entry_item.crm_product_id)
   end
 
   # 作废原料入库的对称冲销：把本单收货量从采购明细 received_qty 扣回（下限 0），
