@@ -1177,6 +1177,10 @@ const menuItems = computed(() => {
           'crm_customers_index',
           'crm_customer_intake_index',
           'crm_customer_dupes_index',
+          // 展会名片（crm_business_cards_index）**故意不在侧栏挂入口**：
+          // 拍名片是展会现场站着用手机干的事，网页端摆个入口只会让人以为电脑上也能拍。
+          // 按产品决定只从 App 进（App 是独立前端，走同一套 /crm/business_cards 接口）。
+          // 路由和页面都还在，直接敲 URL 可进——核对数据时用得上。
           'crm_ai_background_check_index',
         ],
         children: [

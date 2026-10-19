@@ -59,6 +59,11 @@ Rails.application.routes.draw do
             resource :contact_merge, only: [:create]
           end
           namespace :crm do
+            # 展会名片：现场连拍 → 后台识别 → 回头批量校对 → 确认建客户。
+            resources :business_cards, only: [:index, :create, :update, :destroy] do
+              collection { get :events }
+              member { post :confirm }
+            end
             resources :customers do
               collection do
                 get :check_duplicate
@@ -1101,7 +1106,9 @@ Rails.application.routes.draw do
         end
       end
 
-      resource :notification_subscriptions, only: [:create, :destroy]
+      resource :notification_subscriptions, only: [:create, :destroy] do
+        get :configuration
+      end
 
       namespace :widget do
         resource :direct_uploads, only: [:create]

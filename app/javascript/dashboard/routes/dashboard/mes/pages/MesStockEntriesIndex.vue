@@ -296,6 +296,25 @@ const {
   autoFitColumn: autoFitItemCol,
 } = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.seItemCols.v1');
 
+// 明细视图的行级过滤。后端那层列筛选筛的是**单**：只要这张入库单（或它的来源采购单）
+// 里有一行命中，整张单就算命中。按单看没问题，摊成明细后这张单里其他供应商、其他物料的行
+// 也跟着铺出来，看着就是「筛了没反应」（10.19 反馈：原料入库按供应商筛不了）。
+// 所以明细视图再按同一个关键字把行过一遍。只过行上真有的那几列——
+// 归属人、过账时间是单据级的东西，行上没有，不参与。
+const ROW_FILTER_FIELDS = {
+  col_no: 'entryNo',
+  col_po: 'sourceNo',
+  col_supplier: 'supplier',
+  col_code: 'code',
+  col_name: 'name',
+  col_spec: 'spec',
+};
+const matchesRowFilters = row =>
+  Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
+    const v = (colFilters[key] || '').trim().toLowerCase();
+    return !v || String(row[field] || '').toLowerCase().includes(v);
+  });
+
 // 把当页入库单摊平成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
 const itemRows = computed(() =>
   records.value.flatMap(e =>
@@ -317,7 +336,7 @@ const itemRows = computed(() =>
       status: e.status,
       remark: it.remark || '—',
     }))
-  )
+  ).filter(matchesRowFilters)
 );
 
 // 「列」面板与「恢复默认列序」必须跟着当前视图走：两套列完全不同，

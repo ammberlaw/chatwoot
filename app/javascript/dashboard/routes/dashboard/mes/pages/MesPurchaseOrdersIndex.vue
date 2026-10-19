@@ -671,6 +671,23 @@ const {
   autoFitColumn: autoFitItemCol,
 } = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v1');
 
+// 明细视图的行级过滤。后端的列筛选筛的是**单**：一张采购单只要有一行对上就整张留下。
+// 按单看没问题（供应商那列本来就列全部几家），摊成明细后这张单里其他供应商、其他物料的行
+// 也跟着铺出来，看着就是「筛了没反应」——采购单一单多家供应商是常态，这里比入库单更明显
+// （同 10.19 原料入库那条）。所以明细视图再按同一个关键字把行过一遍。
+// 只过行上真有的那几列——单号、销售订单号是单据级的，不参与。
+const ROW_FILTER_FIELDS = {
+  supplier: 'supplier',
+  item_code: 'code',
+  item_name: 'name',
+  item_spec: 'spec',
+};
+const matchesRowFilters = row =>
+  Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
+    const v = (colFilters[key] || '').trim().toLowerCase();
+    return !v || String(row[field] || '').toLowerCase().includes(v);
+  });
+
 // 把当页采购单摊平成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
 const itemRows = computed(() =>
   records.value.flatMap(po =>
@@ -697,7 +714,7 @@ const itemRows = computed(() =>
       itemRemark: it.remark || '—',
       internalRemark: po.internalRemark || '—',
     }))
-  )
+  ).filter(matchesRowFilters)
 );
 
 // 同一张采购单的连续行标记成一组：单号只在组首显示，组尾加一条分隔线。

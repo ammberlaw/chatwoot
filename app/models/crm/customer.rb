@@ -83,6 +83,12 @@ class Crm::Customer < ApplicationRecord
   # 「最后互动时间」：跟进记录 / 往来邮件 / 下单 / 会话(WhatsApp 等) / 商机动态 五者取最新，
   # 建档时间兜底（新建档不会一上来就判成沉默）。客户列表的「最近联系」、流失预警、
   # 公海自动回收都读这一份，避免各处口径打架——只在一个地方沉默就被收走是最伤业务的。
+  # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
+  # 使 +86 138-0013-8000 与 13800138000 判为同号。%s 处填要归一化的列名。
+  # 查重的地方都得用同一份，否则「客户页说不重复、名片确认时说重复」这种自相矛盾很难查。
+  PHONE_NORM_SQL = "NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(COALESCE(%s, ''), '\\D', '', 'g'), " \
+                   "'^(00)?86(1\\d{10})$', '\\2'), '')".freeze
+
   LAST_TOUCH_SQL = <<~SQL.squish
     GREATEST(
       crm_customers.created_at,

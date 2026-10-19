@@ -71,6 +71,7 @@ class Account < ApplicationRecord
   has_many :contacts, dependent: :destroy_async
   has_many :conversations, dependent: :destroy_async
   has_many :crm_customers, class_name: 'Crm::Customer', dependent: :destroy_async
+  has_many :crm_business_cards, class_name: 'Crm::BusinessCard', dependent: :destroy_async
   has_many :crm_opportunities, class_name: 'Crm::Opportunity', dependent: :destroy_async
   has_many :crm_products, class_name: 'Crm::Product', dependent: :destroy_async
   has_many :crm_sales_orders, class_name: 'Crm::SalesOrder', dependent: :destroy_async

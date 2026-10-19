@@ -845,6 +845,19 @@ const INTAKE_TIPS = {
 };
 const intakeTip = kind => INTAKE_TIPS[kind] || '';
 
+// 这一阶段整段跳过接单时，面板上要说明白「为什么没有接单按钮、这单该谁往下推」。
+// 不写的话那一块就是空的：负责人头像挂着、按钮一个没有，看着像按钮丢了
+// （10.19 反馈：「订单没有接单的按钮」——那张单是老款返单，工程这段本就不接）。
+const ACK_SKIP_NOTES = {
+  REPEAT: '老款返单不经工程，本阶段无需接单 —— 由 PMC 直接建生产任务单往下走',
+  SAMPLE: '样机不经 PMC，本阶段无需接单',
+};
+const ackSkipNote = computed(() =>
+  selected.value?.ackSkipped
+    ? ACK_SKIP_NOTES[selected.value.intakeKind] || '本阶段无需接单'
+    : ''
+);
+
 // 材料明细里那一行的卡点提示：卡了几天、等谁、补充说明。
 const itemBlockerTip = bi =>
   [
@@ -2691,6 +2704,9 @@ watch(currentPage, fetchRecords);
               <span v-if="ackCountdown" :class="ackCountdown.cls">
                 · {{ ackCountdown.text }}
               </span>
+            </template>
+            <template v-else-if="ackSkipNote">
+              <span class="text-n-slate-10">{{ ackSkipNote }}</span>
             </template>
           </div>
 

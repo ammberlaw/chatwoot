@@ -92,9 +92,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     link_source_contact
   end
 
-  # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
-  # 使 +86 138-0013-8000 与 13800138000 判为同号。
-  PHONE_NORM_SQL = "NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(COALESCE(%s, ''), '\\D', '', 'g'), '^(00)?86(1\\d{10})$', '\\2'), '')".freeze
+  # 电话归一化口径收在模型上（名片查重也要用同一份，见 Crm::Customer::PHONE_NORM_SQL）。
+  PHONE_NORM_SQL = Crm::Customer::PHONE_NORM_SQL
 
   # 存量查重维度：字段 → 归一化 SQL 表达式 + 最短有效长度（过滤空值/无意义短值）。
   DUP_DIMENSIONS = {

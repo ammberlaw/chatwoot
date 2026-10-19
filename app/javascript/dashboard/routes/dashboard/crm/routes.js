@@ -3,6 +3,7 @@ import CrmLayout from './CrmLayout.vue';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
 import CrmCustomerDupesIndex from './pages/CrmCustomerDupesIndex.vue';
 import CrmAiBackgroundCheckIndex from './pages/CrmAiBackgroundCheckIndex.vue';
+import CrmBusinessCardsIndex from './pages/CrmBusinessCardsIndex.vue';
 import CrmExhibitionsIndex from './pages/CrmExhibitionsIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
@@ -103,6 +104,11 @@ const crmPages = [
     'customer-settings',
     'crm_customer_settings_index',
     CrmCustomerSettingsIndex
+  ),
+  crmPage(
+    'business-cards',
+    'crm_business_cards_index',
+    CrmBusinessCardsIndex
   ),
   crmPage('exhibitions', 'crm_exhibitions_index', CrmExhibitionsIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),

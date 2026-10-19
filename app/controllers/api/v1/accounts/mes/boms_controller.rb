@@ -171,7 +171,10 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def apply_column_filters(scope)
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
-    scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].to_s.strip}%") if params[:q].present?
+    # 顶部搜索框写着「单号 / 投单单号」，就得两个都搜。原来只搜 bom_no，
+    # 而列表主显示的恰恰是投单单号（doc_no，纸质单全程认的那个号）——
+    # 照着单子上的号来搜一条都出不来。与表头 no 那一列同口径。
+    scope = scope.where('bom_no ILIKE :t OR doc_no ILIKE :t', t: "%#{params[:q].to_s.strip}%") if params[:q].present?
     scope = date_filtered(scope)
     COLUMN_FILTERS.each do |param, apply|
       value = params[param]

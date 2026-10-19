@@ -256,10 +256,25 @@ const totalColSpan = computed(() => orderedColumns.value.length + 2);
 
 const records = computed(() => store.getRecords);
 
+// 明细视图的行级过滤。后端那三列筛的是**单**：一张任务单只要有一行料对上就留下，
+// 按单看正是「哪几张单用了这颗料」。但摊成明细后，这张单里其余几十行料也跟着铺出来，
+// 筛了跟没筛一样（与原料入库同一个毛病，10.19）。所以明细视图再按同一个关键字过一遍行。
+// 只过行上真有的那三列——单号、型号、客户是单据级的，行上没有，不参与。
+const ROW_FILTER_FIELDS = {
+  item_code: 'materialNo',
+  item_name: 'materialName',
+  item_spec: 'specification',
+};
+const matchesRowFilters = it =>
+  Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
+    const v = (colFilters[key] || '').trim().toLowerCase();
+    return !v || String(it[field] || '').toLowerCase().includes(v);
+  });
+
 // 把当页任务单摊成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
 const itemRows = computed(() =>
   records.value.flatMap(b =>
-    (b.bomItems || []).map(it => ({
+    (b.bomItems || []).filter(matchesRowFilters).map(it => ({
       key: `${b.id}-${it.id}`,
       bom: b,
       item: it,

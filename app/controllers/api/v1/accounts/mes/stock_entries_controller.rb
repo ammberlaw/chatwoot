@@ -26,6 +26,23 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     SQL
   }
 
+  # 按供应商找入库单：认的是**本单实际收到的那几行**是谁送来的，
+  # 不是「来源采购单里有没有这家」。一张采购单常含十几家供应商、货一家一家送到、
+  # 每家各开一张入库单，按整单算会把同一张采购单下所有供应商的入库单全带出来
+  # （生产上筛「佳度」4 张变 25 张，10.19 反馈）。行的对应关系与
+  # _mes_stock_entry.json.jbuilder 里的 match_po_item 一致：在本单挂的几张采购单
+  # （主单 + 追加单）里按物料/成品对上。表头漏斗和下面的大搜索框共用这一段。
+  SUPPLIER_MATCH_SQL = <<~SQL.squish
+    EXISTS (SELECT 1 FROM mes_stock_entry_items sei
+              JOIN mes_purchase_items pit
+                ON pit.purchase_order_id = ANY(ARRAY[mes_stock_entries.purchase_order_id]
+                                               || mes_stock_entries.extra_purchase_order_ids)
+               AND ((sei.mes_material_id IS NOT NULL AND pit.mes_material_id = sei.mes_material_id)
+                 OR (sei.crm_product_id IS NOT NULL AND pit.crm_product_id = sei.crm_product_id))
+              JOIN mes_suppliers sup ON sup.id = pit.mes_supplier_id
+             WHERE sei.stock_entry_id = mes_stock_entries.id AND sup.name ILIKE :t)
+  SQL
+
   # 一个框搜多处：单号 / 采购单号 / 对内备注 / 供应商 / 物料编码 / 品名 / 工单号 / 成品名 / 归属人。
   # 工单号是后补的：一张工单的料摊成十几张单，车间和财务最常用的就是拿工单号来找
   # （原先只按归属人姓名搜生产订单，搜工单号一条都出不来）。内连 users 还会把
@@ -36,8 +53,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     mes_stock_entries.entry_no ILIKE :q
     OR mes_stock_entries.purchase_order_id IN (SELECT po.id FROM mes_purchase_orders po
          WHERE po.po_no ILIKE :q OR po.internal_remark ILIKE :q)
-    OR mes_stock_entries.purchase_order_id IN (SELECT pit.purchase_order_id FROM mes_purchase_items pit
-         JOIN mes_suppliers sup ON sup.id = pit.mes_supplier_id WHERE sup.name ILIKE :q)
+    OR #{SUPPLIER_MATCH_SQL.gsub(':t', ':q')}
     OR mes_stock_entries.production_order_id IN (SELECT mpo.id FROM mes_production_orders mpo
          LEFT JOIN users usr ON usr.id = mpo.owner_id
          WHERE mpo.order_no ILIKE :q OR mpo.product_name ILIKE :q OR usr.name ILIKE :q)
@@ -49,12 +65,8 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     col_po: lambda { |scope, v|
       scope.where(purchase_order_id: Mes::PurchaseOrder.where('mes_purchase_orders.po_no ILIKE ?', "%#{v}%").select(:id))
     },
-    # 供应商挂在来源采购单的明细行上（一张采购单可能有好几家），入库单自己身上没有这个字段。
-    col_supplier: lambda { |scope, v|
-      scope.where(purchase_order_id: Mes::PurchaseItem.joins(:mes_supplier)
-                                                      .where('mes_suppliers.name ILIKE ?', "%#{v}%")
-                                                      .select(:purchase_order_id))
-    },
+    # 供应商挂在来源采购单的明细行上，入库单自己身上没有这个字段（口径见 SUPPLIER_MATCH_SQL）。
+    col_supplier: ->(scope, v) { scope.where(SUPPLIER_MATCH_SQL, t: "%#{v}%") },
     col_code: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('p.sku ILIKE :t OR m.material_no ILIKE :t'), t: "%#{v}%") },
     col_name: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('p.name ILIKE :t OR m.name ILIKE :t'), t: "%#{v}%") },
     col_spec: lambda { |scope, v|

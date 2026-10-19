@@ -757,7 +757,12 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 接单截止 = 进入阶段后 ACK_LIMIT_HOURS 个「工作小时」（工作日 08:00–17:30，跳过周末）。
+  # 不需要接单的阶段没有截止可言：返单不经工程、样机不经 PMC，那一段整段跳过
+  # （见 ack_skipped?）。照样算一个截止的话，详情面板会出现「截止 10/19 · 还剩 48 小时」
+  # 却没有接单按钮，看着就是按钮丢了（10.19 反馈：「订单没有接单的按钮」）。
   def ack_deadline
+    return nil unless ack_required?
+
     entered = stage_entered_at
     entered && WorkingHours.add_hours(entered, ACK_LIMIT_HOURS)
   end
