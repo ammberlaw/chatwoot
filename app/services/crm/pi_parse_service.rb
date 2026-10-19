@@ -71,10 +71,23 @@ class Crm::PiParseService
   end
 
   # Excel/CSV：逐 sheet 逐行把非空单元格用 ' | ' 拼成一行，喂给模型理解表格。
+  #
+  # roo 读 xlsx 是**整张表一次性解析**的，一个坏单元格就能让整个文件读不出来——
+  # 实际遇到的是 WPS/老模板导出的「声明成数字型但值是空的」格子（<c t="n"><v></v></c>），
+  # roo 拿空串去 Integer() 直接抛 ArgumentError。这类格子对 PI 内容毫无影响，
+  # 不能因此让人家整张 PI 识别不了。
+  #
+  # 所以 roo 一旦翻车就退回 Gotenberg：转成 PDF 再抽文字，和老 .xls 走同一条路。
+  # 拿到的文字版式不如直接读单元格规整，但字段都在，模型照样认得出来。
   def extract_excel
     ext = @file.original_filename.to_s.downcase.end_with?('.csv') ? :csv : :xlsx
     ss = Roo::Spreadsheet.open(@file.tempfile.path, extension: ext)
     ss.sheets.flat_map { |name| sheet_rows(ss.sheet(name)) }.reject(&:blank?).join("\n")
+  rescue StandardError => e
+    raise if ext == :csv
+
+    Rails.logger.warn("[PI parse] roo 读 xlsx 失败（#{e.class}: #{e.message}），改用 Gotenberg 转 PDF")
+    extract_legacy_excel
   end
 
   # 老版 .xls（BIFF）：roo 读不了，纯 Ruby 的解析器都要额外 gem。这里借已在跑的
@@ -88,7 +101,8 @@ class Crm::PiParseService
     tmp.close
     extract_pdf(tmp.path)
   rescue Mes::GotenbergClient::ConversionError => e
-    raise UnsupportedType, "老版 .xls 转换失败：#{e.message}"
+    # 文案按真实扩展名走：xlsx 读废后也会落到这条路上，不能一律报「老版 .xls」。
+    raise UnsupportedType, "#{File.extname(@file.original_filename.to_s).presence || 'Excel'} 转换失败：#{e.message}"
   ensure
     tmp&.unlink
   end

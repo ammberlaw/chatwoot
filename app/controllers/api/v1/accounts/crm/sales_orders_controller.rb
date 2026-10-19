@@ -86,7 +86,9 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   rescue Crm::PiParseService::UnsupportedType, Crm::EmailAiService::NotConfigured => e
     render json: { error: e.message }, status: :unprocessable_entity
   rescue StandardError => e
-    Rails.logger.error("[PI parse] #{e.class}: #{e.message}")
+    # 带一行调用栈：上次排查「invalid value for Integer(): \"\"」时光有类名和消息
+    # 认不出是 roo 还是 pdf-reader 抛的，得去容器里翻 gem 源码才定位到。
+    Rails.logger.error("[PI parse] #{e.class}: #{e.message} @ #{e.backtrace&.first}")
     render json: { error: 'PI 识别失败，请检查文件或稍后重试' }, status: :unprocessable_entity
   end
 
