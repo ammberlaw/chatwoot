@@ -182,6 +182,11 @@ const purchaseView = o => {
 const items = computed(() => [
   ...approvalInbox.value.map(o => ({
     key: `ap-${o.id}`,
+    // sig 不能少：isAcked 比的是 acked[key] === it.sig，没有 sig 就是
+    // undefined === undefined 恒真，这类待办会被当成「已点过知道了」全部过滤掉——
+    // 审批待办因此从来没在这一屏出现过（角标却照数，于是「有未读、点开空白」）。
+    // 审批往前走一级（SUBMITTED→MANAGER_APPROVED）指纹就变，条目会重新冒出来。
+    sig: `ap|${o.approval_status}`,
     bar: 'bg-n-amber-9',
     title: `待审批：${o.order_no}`,
     body: [o.product_name, o.pi_no ? `PI ${o.pi_no}` : null, o.owner_name]

@@ -353,7 +353,7 @@ onMounted(() => {
 
     <!-- 顶部 KPI 环形卡 -->
     <div
-      class="flex md:grid overflow-x-auto flex-shrink-0 grid-cols-2 gap-3 px-4 sm:px-[26px] pt-3.5 pb-1 xl:grid-cols-4"
+      class="flex md:grid overflow-x-auto flex-shrink-0 grid-cols-2 gap-3 px-4 sm:px-[26px] pt-3.5 pb-1 xl:grid-cols-5"
     >
       <div
         v-for="card in kpiCards"

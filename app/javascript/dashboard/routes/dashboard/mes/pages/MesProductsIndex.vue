@@ -319,7 +319,11 @@ const openCreate = () => {
     sku: '',
     productLine: '',
     category: '',
-    sourceCategory: '',
+    // 商品类别跟着当前筛选走（和下面的 groupCode 一个道理）：人是在「主板」这一类里
+    // 翻到流水号末尾才点的新增，新编的码理应还在这一类下。留空的话列表按
+    // source_category 筛就看不到它了——新建完「列表里没有、搜索又搜得到」，
+    // 人会以为没存上、再建一遍（生产上已经出过 P.03.134 这么一颗）。
+    sourceCategory: selectedSourceCategory.value || '',
     unit: '',
     specification: '',
     remark: '',

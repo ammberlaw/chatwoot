@@ -775,6 +775,22 @@ const onDrop = async (event, kind) => {
   const list = Array.from(event.dataTransfer?.files || []);
   await uploadFiles(list, kind);
 };
+
+// 粘贴上传。拖拽这条路只认 `dataTransfer.files`，而微信里拖图并不保证给出真文件
+// （用户 10.19 仍反馈「未改」）；复制图片→Ctrl+V 则一定是剪贴板里的 image 文件，
+// 对微信最稳，而且本来就是她们更顺手的动作。
+// 挂在三个区域各自身上（区域带 tabindex，点一下再 Ctrl+V），不装全局监听——
+// 全局监听会把页面别处的粘贴也吃掉，而且分不清该进 logo 还是附图。
+const onPaste = async (event, kind) => {
+  const files = Array.from(event.clipboardData?.items || [])
+    .filter(it => it.kind === 'file')
+    .map(it => it.getAsFile())
+    .filter(Boolean);
+  if (!files.length) return;
+
+  event.preventDefault();
+  await uploadFiles(files, kind);
+};
 const removePending = (kind, i) => pendingFor(kind).value.splice(i, 1);
 // 编辑态删除既有附件：即时生效。
 const removeExisting = async (kind, att) => {
@@ -1446,11 +1462,15 @@ onBeforeRouteLeave((to, from, next) => {
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               Logo / 图片
+              <span class="ml-1 text-xs font-normal text-n-slate-10">
+                可拖入，或点一下这块再 Ctrl+V 粘贴
+              </span>
               <span v-if="staging" class="ml-1 text-xs text-n-amber-11">
                 上传中…
               </span>
             </label>
-            <!-- 整块都能接拖拽：业务的图多半在微信里，拖过来就完事，不用先另存到桌面 -->
+            <!-- 整块能接拖拽，也能点一下再 Ctrl+V 粘贴：业务的图多半在微信里，
+                 微信拖出来不保证是真文件，复制图片再粘贴那条路更稳 -->
             <div
               class="flex flex-wrap items-center gap-2 p-1 -m-1 transition-colors rounded-lg"
               :class="
@@ -1459,6 +1479,8 @@ onBeforeRouteLeave((to, from, next) => {
               @dragover.prevent="dragKind = 'logos'"
               @dragleave="dragKind = ''"
               @drop.prevent="e => onDrop(e, 'logos')"
+            tabindex="0"
+            @paste="e => onPaste(e, 'logos')"
             >
               <div
                 v-for="lg in existingLogos"
@@ -1947,6 +1969,9 @@ onBeforeRouteLeave((to, from, next) => {
         <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
           <label class="text-heading-3 text-n-slate-12">
             结构图 / 样品图
+            <span class="ml-1 text-xs font-normal text-n-slate-10">
+              可拖入，或点一下这块再 Ctrl+V 粘贴
+            </span>
             <span v-if="staging" class="ml-1 text-xs text-n-amber-11">
               上传中…
             </span>
@@ -1959,6 +1984,8 @@ onBeforeRouteLeave((to, from, next) => {
             @dragover.prevent="dragKind = 'images'"
             @dragleave="dragKind = ''"
             @drop.prevent="e => onDrop(e, 'images')"
+            tabindex="0"
+            @paste="e => onPaste(e, 'images')"
           >
             <div
               v-for="img in existingImages"
@@ -2014,7 +2041,12 @@ onBeforeRouteLeave((to, from, next) => {
 
         <!-- 附件（工艺文档/图纸等） -->
         <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
-          <label class="text-heading-3 text-n-slate-12">附件</label>
+          <label class="text-heading-3 text-n-slate-12">
+            附件
+            <span class="ml-1 text-xs font-normal text-n-slate-10">
+              可拖入，或点一下这块再 Ctrl+V 粘贴
+            </span>
+          </label>
           <div
             class="flex flex-col gap-1 p-1 -m-1 transition-colors rounded-lg"
             :class="
@@ -2023,6 +2055,8 @@ onBeforeRouteLeave((to, from, next) => {
             @dragover.prevent="dragKind = 'files'"
             @dragleave="dragKind = ''"
             @drop.prevent="e => onDrop(e, 'files')"
+            tabindex="0"
+            @paste="e => onPaste(e, 'files')"
           >
             <div
               v-for="f in existingFiles"

@@ -508,6 +508,19 @@ const ORDER_COLUMN_DEFS = [
   },
   { key: 'suppliers', label: '供应商', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'order', label: '销售订单', tdClass: 'px-3 py-3 text-n-slate-11' },
+  // 上游两条备注紧挨着「销售订单」列：采购要在自己这页看到业务和工程交代了什么，
+  // 不用来回切单（问题点 B3/B4）。**位置是这条需求的一半**——上一版把它们追加在
+  // 列数组末尾，这张表 17 列、不横拉到底根本看不见，用户照样反馈「未改」。
+  {
+    key: 'salesOrderRemark',
+    label: '销售订单备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
+  {
+    key: 'bomRemark',
+    label: '生产任务单备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
   { key: 'owner', label: '归属人', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
     key: 'creator',
@@ -541,17 +554,6 @@ const ORDER_COLUMN_DEFS = [
     label: '备注',
     tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
   },
-  // 上游两条备注：采购要在自己这页看到业务和工程交代了什么，不用来回切单（问题点 B3/B4）
-  {
-    key: 'salesOrderRemark',
-    label: '销售订单备注',
-    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
-  },
-  {
-    key: 'bomRemark',
-    label: '生产任务单备注',
-    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
-  },
 ];
 const {
   orderedColumns: orderCols,
@@ -568,7 +570,7 @@ const {
   isResizing: isOrderColResizing,
   startResize: startOrderColResize,
   autoFitColumn: autoFitOrderCol,
-} = useOrderableColumns(ORDER_COLUMN_DEFS, 'mes.poListCols.v1');
+} = useOrderableColumns(ORDER_COLUMN_DEFS, 'mes.poListCols.v2');
 
 // 明细视图的列。两套列各记各的（本机键不同），互不干扰。
 const ITEM_COLUMN_DEFS = [

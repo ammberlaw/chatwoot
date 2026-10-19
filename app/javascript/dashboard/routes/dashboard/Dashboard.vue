@@ -20,7 +20,12 @@ const FloatingCallWidget = defineAsyncComponent(
   () => import('dashboard/components-next/call/FloatingCallWidget.vue')
 );
 
-import CopilotLauncher from 'dashboard/components-next/copilot/CopilotLauncher.vue';
+// Copilot（上游 Captain）**只留面板、不留悬浮球**：
+// 球原本钉在右下 bottom-4/right-4，和 CRM 自己的 AI 助手球（CrmAiAssistant，
+// 可拖拽、默认 right-24/bottom-24）必然叠在一起；而且 Captain 在本系统没配过
+// 助手也没喂过知识库，点开是空面板，它的显示条件还偏偏是「不在对话页才显示」。
+// 面板留着：对话页侧边栏仍可开（is_copilot_panel_open），哪天真要用 Captain
+// 把 CopilotLauncher 挂回来即可。
 import CopilotContainer from 'dashboard/components/copilot/CopilotContainer.vue';
 
 import MobileSidebarLauncher from 'dashboard/components-next/sidebar/MobileSidebarLauncher.vue';
@@ -33,7 +38,6 @@ export default {
     WootKeyShortcutModal,
     AddAccountModal,
     UpgradePage,
-    CopilotLauncher,
     CopilotContainer,
     FloatingCallWidget,
     MobileSidebarLauncher,
@@ -77,12 +81,6 @@ export default {
         'general_settings_index',
         'agent_list',
       ].includes(this.$route.name);
-    },
-    // 团队沟通和 AI 助手这两页有自己的底部输入栏，右下 Copilot 悬浮球正好压在发送键上——隐藏它。
-    hideCopilotLauncher() {
-      return ['crm_team_chat_index', 'crm_agent_index'].includes(
-        this.$route.name
-      );
     },
     previouslyUsedDisplayType() {
       const {
@@ -175,7 +173,6 @@ export default {
       <template v-if="!showUpgradePage">
         <router-view />
         <CommandBar />
-        <CopilotLauncher v-if="!hideCopilotLauncher" />
         <MobileSidebarLauncher
           :is-mobile-sidebar-open="isMobileSidebarOpen"
           @toggle="toggleMobileSidebar"
