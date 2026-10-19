@@ -50,6 +50,10 @@ class Api::V1::Accounts::Crm::BusinessCardsController < Api::V1::Accounts::Crm::
   # 查重是硬门槛：撞上了先回 409 让人看清楚撞的是谁，确认要另建再带 force。
   # 口径与 CustomersController 的建档查重一致（邮箱/电话/WhatsApp/公司名全库查）。
   def confirm
+    # 重复点击 / App 断网重试：已经确认过的名片直接回当前状态，不再建一次客户、
+    # 也不再往客户备注上追加一遍。这道守卫挡的是明显的重复；真正的并发靠
+    # link_to_existing 里的行锁（两个请求可能同时读到 PARSED，在这里都放行）。
+    return render 'api/v1/accounts/crm/business_cards/show' if @card.status == 'CONFIRMED'
     return render json: { error: '公司名不能为空，先补上再确认' }, status: :unprocessable_entity unless @card.ready_to_confirm?
 
     if params[:link_customer_id].present?
@@ -109,12 +113,37 @@ class Api::V1::Accounts::Crm::BusinessCardsController < Api::V1::Accounts::Crm::
                 customer_remark: @card.customer_remark)
   end
 
-  # 挂到已有客户：不改那张客户档案（可能是别人的私海客户，联系方式不该被名片覆盖），
-  # 只把名片标成已处理并指过去，时间线上留得下「这家在某展会碰到过」。
+  # 挂到已有客户。那张档案可能是别人的私海客户，**联系方式、国家、网址一概不动**——
+  # 名片上的未必比档案里的新，覆盖了等于拿旧资料把人家维护好的档案冲掉。
+  # 唯一写进去的是这次展会才有的信息（在哪个展会碰到、当场聊了什么），
+  # 追加到原备注末尾，原备注一个字不改。
+  #
+  # 整段放在一个事务里，并对名片和客户都加行锁，解决两件事：
+  # ① 并发——两个人同时把各自的名片挂到同一家客户上，读-改-写会让后写的
+  #    覆盖先写的，先追加的那条备注就没了；
+  # ② 重复——同一张名片被点两次（手抖、App 重试），不能把同一段备注追加两遍。
+  # 锁的顺序固定「先名片后客户」，两条路径一致，不会互相死锁。
   def link_to_existing(customer_id)
-    customer = Current.account.crm_customers.find(customer_id)
-    @card.update!(status: 'CONFIRMED', crm_customer_id: customer.id)
+    Crm::BusinessCard.transaction do
+      @card.lock!
+      # 拿到行锁后再判一次：并发的两个请求在入口守卫处可能都读到 PARSED，
+      # 后拿到锁的那个在这里退出，备注就不会被追加两遍。
+      next if @card.status == 'CONFIRMED'
+
+      customer = Current.account.crm_customers.lock.find(customer_id)
+      customer.update!(customer_remark: remark_with_card_notes(customer))
+      @card.update!(status: 'CONFIRMED', crm_customer_id: customer.id)
+    end
     render 'api/v1/accounts/crm/business_cards/show'
+  end
+
+  # 原备注 + 本次现场信息，换行隔开。名片上既没填展会名也没写现场备注时
+  # 什么都不追加——不能为了"留个痕"往人家备注里塞一行空话。
+  def remark_with_card_notes(customer)
+    addition = @card.customer_remark
+    return customer.customer_remark if addition.blank?
+
+    [customer.customer_remark.presence, addition].compact.join("\n")
   end
 
   # 全库查重（不按辖区收口）：撞单检测要跨负责人，否则两个业务员各建一份谁都看不见对方那份。
