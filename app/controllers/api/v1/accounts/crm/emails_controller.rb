@@ -237,7 +237,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
         dist.save!
         created += 1
         subj = @email.subject.presence || '(无主题)'
-        crm_notify(u.id, "#{current_user.crm_display_name} 给你分发了一封邮件：#{subj}#{note.present? ? "（#{note}）" : ''}")
+        crm_notify(u.id, "#{current_user.crm_display_name} 给你分发了一封邮件：#{subj}#{note.present? ? "（#{note}）" : ''}", ref: distributed_email_ref(subj))
       end
     end
     render json: { distributed: created }
@@ -282,6 +282,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   private
+
+  # 分发通知挂上这封邮件，点一下直接打开它（见 Chat::NotifyService#notify）。
+  def distributed_email_ref(subject)
+    # customer_id 一并带上：邮件中心的深链要「客户 + 邮件」两个参数才能直接打开那一封，
+    # 没关联客户的邮件就只跳到邮件中心（见前端 openRef）。
+    { type: 'email', id: @email.id, label: '邮件', title: subject,
+      subtitle: "#{current_user.crm_display_name} 分发", customer_id: @email.crm_customer_id }
+  end
 
   # 可分发对象=本账号 CRM 成员的 user_id：管理员或已配 crm_role 的成员。
   def crm_member_user_ids

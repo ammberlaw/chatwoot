@@ -129,7 +129,8 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     ok = @sheet.with_lock { @sheet.editable? && @sheet.submit! }
     return render_error('仅草稿/退回状态可提交', :unprocessable_entity) unless ok
     crm_notify_managers_of(@sheet.owner_id,
-                           "【提成表】#{@sheet.owner&.name} 提交了 #{month_label(@sheet.period_month)} 提成表，请及时审批。")
+                           "【提成表】#{@sheet.owner&.name} 提交了 #{month_label(@sheet.period_month)} 提成表，请及时审批。",
+                           ref: sheet_ref("#{@sheet.owner&.name} 提交 · 待审批"))
     render :show
   end
 
@@ -139,7 +140,8 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
 
     ok = @sheet.with_lock { @sheet.status == 'SUBMITTED' && @sheet.approve!(by: current_user) }
     return render_error('仅「已提交」的表可通过', :unprocessable_entity) unless ok
-    crm_notify(@sheet.owner_id, "【提成表】你的 #{month_label(@sheet.period_month)} 提成表已通过审批。")
+    crm_notify(@sheet.owner_id, "【提成表】你的 #{month_label(@sheet.period_month)} 提成表已通过审批。",
+               ref: sheet_ref('已通过审批'))
     render :show
   end
 
@@ -161,7 +163,8 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     return render_error('该表当前状态不可退回', :unprocessable_entity) unless ok
     by_label = from == 'APPROVED' ? '财务' : '主管'
     crm_notify(@sheet.owner_id,
-               "【提成表】你的 #{month_label(@sheet.period_month)} 提成表被#{by_label}退回，原因：#{reason}，请修改后重新提交。")
+               "【提成表】你的 #{month_label(@sheet.period_month)} 提成表被#{by_label}退回，原因：#{reason}，请修改后重新提交。",
+               ref: sheet_ref("被#{by_label}退回 · 待修改"))
     render :show
   end
 
@@ -234,6 +237,12 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   end
 
   private
+
+  # 通知挂上这张提成表，点一下直接进详情（见 Chat::NotifyService#notify）。
+  def sheet_ref(subtitle)
+    { type: 'commission_sheet', id: @sheet.id, label: '提成表',
+      title: "#{month_label(@sheet.period_month)} 提成表", subtitle: subtitle }
+  end
 
   # 通知文案里的月份标签，如「2026年8月」。
   def month_label(date)

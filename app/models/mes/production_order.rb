@@ -182,7 +182,7 @@ class Mes::ProductionOrder < ApplicationRecord
   # 实际点按钮的人。与上面两个不同的时候就是「代批」，时间线要标出来。
   belongs_to :manager_acted_by, class_name: 'User', optional: true
   belongs_to :gm_acted_by, class_name: 'User', optional: true
-  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认生产任务单」的人，流程已取消
+  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 业务二次确认生产任务单的人（见 #confirm_bom!）
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
   # 物料反馈面板：采购把供应商那边的情况（延误/改期/到货）更新给业务看。
@@ -328,7 +328,8 @@ class Mes::ProductionOrder < ApplicationRecord
     planned = planned_end.presence
     lead = bom.total_lead_days
     planned ||= lead.positive? ? lead.days.from_now : nil
-    updates = { bom_id: bom.id }
+    # 换了 BOM 等于用料重来一遍，上一轮的业务确认作废（见 #confirm_bom!）。
+    updates = { bom_id: bom.id, bom_confirmed_at: nil, bom_confirmed_by_id: nil }
     updates[:planned_end_date] = planned if planned
     update!(updates)
     # 生产任务单做好了，成品顺带带到生产订单上，再由它继续推到销售订单明细。
@@ -336,8 +337,14 @@ class Mes::ProductionOrder < ApplicationRecord
     # 工程建 BOM 常留空产品线；继承订单产品线，否则业务员按产品线筛会漏看这张 BOM。
     bom.update!(product_line: product_line) if bom.product_line.blank? && product_line.present?
     enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
-    notify_purchase_release_pending(bom, actor)
+    notify_bom_attached(actor)
     self
+  end
+
+  # 挂上 BOM 之后发两封：请业务核对用料（只有客户单要）、提醒工程/PMC 下发采购。
+  def notify_bom_attached(actor)
+    notify_bom_reconfirm(actor) if bom_confirm_required?
+    notify_purchase_release_pending(bom, actor)
   end
 
   # 从生产任务单把成品补到本单的商品编码上。
@@ -353,6 +360,66 @@ class Mes::ProductionOrder < ApplicationRecord
     return if product_id.blank?
 
     update!(crm_product_id: product_id)
+  end
+
+  # ── 业务二次确认生产任务单（2026-10-20 按业务要求恢复）──
+  #
+  # 流程：工程/PMC 挂上生产任务单 → 通知业务「请确认用料」→ 业务点「确认无误」→
+  # 才允许下发采购。业务原话：「之前都是做电子档了先发给业务确认的，业务确认了我才
+  # 投单给采购去下物料」。
+  #
+  # 这道闸 2026-09-10 曾被取消（当时嫌多一步），字段一直留着，这次直接复用。
+  # 与那一版的差别：**只卡有客户的单**（order_kind=CUSTOMER，新款定制与老款返单都算）；
+  # 库存备货单没有客户、没人可确认，直接放行。
+  def bom_confirm_required? = !stock?
+  def bom_confirmed? = bom_confirmed_at.present?
+
+  # 正卡在「等业务确认用料」这一步：挂了 BOM、还没下发采购、业务还没点头。
+  def awaiting_bom_confirm?
+    bom_confirm_required? && bom_id.present? && stage == 'BOM_READY' && !bom_confirmed?
+  end
+
+  # 业务点「确认用料无误」。确认完工程/PMC 才能把单下发给采购。
+  def confirm_bom!(actor:)
+    raise StandardError, '库存备货单没有客户，不需要业务确认用料' unless bom_confirm_required?
+    raise StandardError, '这张单还没挂生产任务单' if bom_id.nil?
+    return self if bom_confirmed?
+
+    update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'bom_reconfirm')
+    notify_bom_confirmed(actor)
+    self
+  end
+
+  # 工程改了用料 → 上一轮的业务确认作废。不作废的话，业务确认完工程再改，
+  # 这道闸就等于没有。已经下发过采购的单不回退阶段（料都买了），只清标记；
+  # 要是之后被退回「生产任务单」阶段，就得重新确认一遍。
+  def reset_bom_confirmation!(actor: nil)
+    return unless bom_confirm_required? && bom_confirmed?
+
+    update!(bom_confirmed_at: nil, bom_confirmed_by_id: nil)
+    notify_bom_reconfirm(actor) if stage == 'BOM_READY'
+  end
+
+  # 挂上 BOM 后请业务核对用料。收件人＝订单归属业务员（备货单不发，没有客户）。
+  def notify_bom_reconfirm(actor)
+    return if owner_id.blank?
+
+    Mes::Notifier.notify(
+      account: account, recipients: [owner_id], kind: 'bom_reconfirm',
+      title: "请确认用料：#{order_no}",
+      body: "#{actor&.name || '工程/PMC'} 做好了生产任务单 #{bom&.bom_no}，请核对用料后在订单上点「确认用料无误」，确认后才会下发采购。",
+      order: self
+    )
+  end
+
+  # 业务确认完回头告诉工程/PMC：可以下发采购了。
+  def notify_bom_confirmed(actor)
+    notify_stage_owners(
+      kind: 'bom_confirmed',
+      title: "业务已确认用料：#{order_no}",
+      body: "#{actor&.name || '业务'} 已确认 #{order_no}（#{product_name}）的用料，可以下发采购了。"
+    )
   end
 
   # 挂好 BOM 即是工程/PMC 的待办：发 todo 类通知进其「待处理」，下发采购时自动销掉。
@@ -431,12 +498,22 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
   def release_to_purchasing!(actor: nil)
-    raise StandardError, '需先挂工程/PMC 生产任务单' if bom_id.nil?
-    raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
-
+    ensure_releasable_to_purchasing!
     Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
     enter_stage!('PURCHASING', actor: actor)
     self
+  end
+
+  # 下发采购前的四道闸。前两道是流程位置，后两道都是「业务还没点头」：
+  # 料没定清楚就把采购单发出去，买错的料退不回来。
+  def ensure_releasable_to_purchasing!
+    who = owner&.name || '归属业务员'
+    raise StandardError, '需先挂工程/PMC 生产任务单' if bom_id.nil?
+    raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
+    # 退回给业务的单还没被认领就下发，等于「问题还没问清楚，料先买了」——
+    # 退回的理由多半正是某颗料定不下来（2026-10-20 按业务要求加的闸）。
+    raise StandardError, "这张单已退回给业务（#{who}）等确认，对方点「改完了，交回去」后才能下发采购" if awaiting_sales_confirm?
+    raise StandardError, "这张单的用料还没经业务（#{who}）确认，确认后才能下发采购" if awaiting_bom_confirm?
   end
 
   # 无需采购：料现成在库里，跳过采购与原料入库，直接进「原料入库」好让领料开单。

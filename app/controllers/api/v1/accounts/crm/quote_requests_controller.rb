@@ -69,7 +69,9 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
     )
     crm_notify(@quote_request.applicant_id,
                "你的定制报价 #{@quote_request.request_no}（#{@quote_request.title}）已报价：" \
-               "#{@quote_request.quote_currency} #{@quote_request.quoted_price}")
+               "#{@quote_request.quote_currency} #{@quote_request.quoted_price}",
+               ref: request_ref(@quote_request,
+                                "已报价 #{@quote_request.quote_currency} #{@quote_request.quoted_price}"))
     render :show
   end
 
@@ -119,9 +121,18 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
   # 否则单子会静静躺着没人管——这类「交到某人手上」的流程最怕无声失败。
   def notify_pricer(request, prefix)
     text = "#{prefix}：#{request.request_no} #{request.title}（#{request.applicant&.crm_display_name}）"
-    return crm_notify(request.pricer_id, text) if request.pricer_id.present?
+    ref = request_ref(request, "#{request.applicant&.crm_display_name} 提交 · 待报价")
+    return crm_notify(request.pricer_id, text, ref: ref) if request.pricer_id.present?
 
-    Current.account.administrators.each { |a| crm_notify(a.id, "#{text}｜该业务员没有配直属主管，请指派报价人") }
+    Current.account.administrators.each do |a|
+      crm_notify(a.id, "#{text}｜该业务员没有配直属主管，请指派报价人", ref: ref)
+    end
+  end
+
+  # 通知挂上这张定制报价单，点一下直接定位到它（见 Chat::NotifyService#notify）。
+  def request_ref(request, subtitle)
+    { type: 'quote_request', id: request.id, label: '定制报价',
+      title: "#{request.request_no} #{request.title}", subtitle: subtitle }
   end
 
   def fetch_request

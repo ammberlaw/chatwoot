@@ -116,7 +116,11 @@ class Crm::InquiryTriageJob < ApplicationJob
   def notify(email, answer)
     account = email.account
     Chat::NotifyService.new(account: account, sender: Crm::SystemUser.for(account))
-                       .notify(email.owner_id, notice_text(email, answer))
+                       .notify(email.owner_id, notice_text(email, answer),
+                               ref: { type: 'email', id: email.id, label: '邮件',
+                                      title: email.subject.presence || '（无主题）',
+                                      subtitle: "新询盘 · #{email.from_address}",
+                                      customer_id: email.crm_customer_id })
   end
 
   def notice_text(email, answer)

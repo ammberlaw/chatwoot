@@ -13,10 +13,14 @@
 # 拿它当下次的参考会把错价一路传下去。作废单同理不算。
 # 口径与 Mes::MaterialPriceResolver 的「最近采购价」一致。
 class Mes::LastPurchasePrice
-  def self.for(account:, crm_product_id: nil, mes_material_id: nil, supplier_id: nil)
+  # exclude_po_id：编辑一张已审核的单时，「最近一张」查出来的就是它自己，
+  # 对着自己比价永远是「与上次持平」。把本单排除掉才比得出涨跌。
+  def self.for(account:, crm_product_id: nil, mes_material_id: nil, supplier_id: nil, exclude_po_id: nil)
     return nil if account.blank? || (crm_product_id.blank? && mes_material_id.blank?)
 
-    item = scope(account, supplier_id, crm_product_id, mes_material_id).first
+    rel = scope(account, supplier_id, crm_product_id, mes_material_id)
+    rel = rel.where.not(purchase_order_id: exclude_po_id) if exclude_po_id.present?
+    item = rel.first
     item && payload(item)
   end
 

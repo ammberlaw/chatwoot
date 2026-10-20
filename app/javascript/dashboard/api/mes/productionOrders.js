@@ -17,6 +17,9 @@ client.detachBom = id => axios.post(`${client.url}/${id}/detach_bom`);
 client.revertToBomReady = id =>
   axios.post(`${client.url}/${id}/revert_to_bom_ready`);
 
+// 业务确认用料无误（有客户的单必须确认过才能下发采购）。
+client.confirmBom = id => axios.post(`${client.url}/${id}/confirm_bom`);
+
 // 下发到采购阶段（BOM_READY → PURCHASING）。
 client.releasePurchasing = id =>
   axios.post(`${client.url}/${id}/release_purchasing`);

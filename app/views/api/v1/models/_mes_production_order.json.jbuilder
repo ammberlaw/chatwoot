@@ -113,6 +113,11 @@ json.ack_deadline resource.ack_deadline
 # 退回给业务：工程/PMC 做任务单时发现业务没确认清楚，把单退回去等业务补细节。
 # can_return 由模型按阶段 + 是不是本阶段负责人判（前端据此决定显不显示按钮）。
 json.awaiting_sales_confirm resource.awaiting_sales_confirm?
+# 业务二次确认用料（只卡有客户的单）：没确认就不许下发采购，见 ProductionOrder#confirm_bom!
+json.bom_confirm_required resource.bom_confirm_required?
+json.awaiting_bom_confirm resource.awaiting_bom_confirm?
+json.bom_confirmed_at resource.bom_confirmed_at
+json.bom_confirmed_by_name mes_staff_name(resource.bom_confirmed_by)
 json.can_return_to_sales resource.can_return_to_sales?(Current.user)
 json.sales_return_at resource.sales_return_at
 json.sales_return_reason resource.sales_return_reason

@@ -158,6 +158,9 @@ const blankRow = () => ({
   mesMaterialId: '',
   materialLabel: '', // 物料档案行的显示名（只读，产品档案里找不到它）
   lastPriceText: '', // 「上次 ¥21.00 · PU2609005」，只提示不参与提交
+  // 上次价的数值与税别：拿来和这次填的价比涨跌（见 priceDelta），同样不参与提交
+  lastPriceYuan: null,
+  lastPriceTaxIncluded: null,
   mesSupplierId: '',
   arrivalDate: '',
   qty: '1',
@@ -447,8 +450,45 @@ const supplierAbove = i => {
 // 把上次那张单的供应商和单价填进这一行。
 // 已经填了的不覆盖——她手上可能拿着新报价、或者这次就是要换一家做，
 // 自动改掉就成事故了；只在下面提示上次是谁、多少钱。
+const clearLastPrice = row => {
+  row.lastPriceText = '';
+  row.lastPriceYuan = null;
+  row.lastPriceTaxIncluded = null;
+};
+
+// 这次的价比上次贵了还是便宜了。
+//
+// 采购记不住几百颗料的行情，带出「上次多少钱」还不够——真正要盯的是这次有没有被涨价
+// （反馈原话「带出单价的时候，会有提示这次的价格比上次采购价低了还是高了」）。
+// 只提示不拦：报价本来就会动，涨跌都可能是对的。
+//
+// 含税价和未税价不能直接比（差一个 13 个点），税别对不上时只说一句口径不同，不给数。
+// 持平不显示——自动带出来的价本来就等于上次，每行挂一句「与上次持平」纯属噪音。
+const priceDelta = row => {
+  const last = Number(row.lastPriceYuan);
+  const now = Number(row.rate);
+  if (!Number.isFinite(last) || last <= 0) return null;
+  if (!Number.isFinite(now) || now <= 0) return null;
+  if (
+    row.lastPriceTaxIncluded !== null &&
+    row.lastPriceTaxIncluded !== row.priceTaxIncluded
+  ) {
+    return { text: '与上次税别不同，未作比较', cls: 'text-n-slate-10' };
+  }
+  const diff = now - last;
+  if (Math.abs(diff) < 1e-6) return null;
+  const pct = (diff / last) * 100;
+  const up = diff > 0;
+  return {
+    text: `${up ? '贵了' : '便宜了'} ¥${Math.abs(diff).toFixed(2)}（${up ? '+' : '-'}${Math.abs(pct).toFixed(1)}%）`,
+    cls: up ? 'text-n-ruby-11' : 'text-n-teal-11',
+  };
+};
+
 const applyLastPrice = (row, hit) => {
   const yuan = Number(hit.rate_micros) / 1e6;
+  row.lastPriceYuan = yuan;
+  row.lastPriceTaxIncluded = !!hit.price_tax_included;
   row.lastPriceText = `上次 ¥${yuan.toFixed(2)}${
     hit.price_tax_included ? '（含税）' : ''
   }${hit.supplier_name ? ` · ${hit.supplier_name}` : ''}${
@@ -469,7 +509,7 @@ const fetchLastPrice = async row => {
   const material = row.mesMaterialId || '';
   const product = row.crmProductId || '';
   if (!material && !product) {
-    row.lastPriceText = '';
+    clearLastPrice(row);
     return;
   }
   try {
@@ -481,17 +521,19 @@ const fetchLastPrice = async row => {
           mes_supplier_id: row.mesSupplierId || undefined,
           crm_product_id: product || undefined,
           mes_material_id: material || undefined,
+          // 编辑态排除本单：否则「最近一张」查出来的就是它自己，永远比不出涨跌
+          exclude_purchase_order_id: editingId.value || undefined,
         },
       }
     );
     const hit = data?.payload;
     if (!hit) {
-      row.lastPriceText = '';
+      clearLastPrice(row);
       return;
     }
     applyLastPrice(row, hit);
   } catch {
-    row.lastPriceText = '';
+    clearLastPrice(row);
   }
 };
 
@@ -678,6 +720,9 @@ const openEdit = po => {
         specification: it.specification || '',
       }))
   );
+  // 编辑一张旧单时原来完全不显示「上次多少钱」，比价无从谈起。这里逐行补查
+  // （applyLastPrice 对已填单价的行只提示不覆盖，不会动已有的价）。
+  form.rows.forEach(r => fetchLastPrice(r));
   markPristine();
 };
 
@@ -1290,13 +1335,21 @@ onBeforeRouteLeave((to, from, next) => {
                   :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
                   @update:model-value="v => setRowRate(row, v)"
                 />
-                <!-- 上次这家供应商这颗料多少钱。单价空着就直接填进去，已填只提示不覆盖。 -->
+                <!-- 上次这家供应商这颗料多少钱。单价空着就直接填进去，已填只提示不覆盖。
+                     后面跟着这次相对上次的涨跌（贵了标红、便宜了标绿），只提示不拦。 -->
                 <span
                   v-if="row.lastPriceText"
                   class="text-[11px] leading-tight truncate text-n-slate-10"
                   :title="row.lastPriceText"
                 >
                   {{ row.lastPriceText }}
+                </span>
+                <span
+                  v-if="priceDelta(row)"
+                  class="text-[11px] font-medium leading-tight truncate"
+                  :class="priceDelta(row).cls"
+                >
+                  {{ priceDelta(row).text }}
                 </span>
               </div>
               <!-- 金额：填了就按数量反推单价（供应商常报「这批多少钱」） -->

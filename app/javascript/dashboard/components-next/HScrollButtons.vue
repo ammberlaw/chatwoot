@@ -101,7 +101,7 @@ onBeforeUnmount(() => {
     <button
       v-show="canLeft"
       type="button"
-      class="absolute z-20 flex items-center justify-center border rounded-full shadow-md size-8 -translate-y-1/2 border-n-weak bg-n-solid-1 text-n-slate-11 hover:text-n-slate-12"
+      class="absolute z-20 flex items-center justify-center border rounded-full shadow-md size-8 -translate-y-1/2 border-n-weak bg-n-solid-1 text-n-slate-11 hover:text-n-slate-12 export-skip"
       :style="leftStyle"
       title="向左翻一屏"
       @click="scrollPage(-1)"
@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
     <button
       v-show="canRight"
       type="button"
-      class="absolute z-20 flex items-center justify-center border rounded-full shadow-md size-8 -translate-y-1/2 border-n-weak bg-n-solid-1 text-n-slate-11 hover:text-n-slate-12"
+      class="absolute z-20 flex items-center justify-center border rounded-full shadow-md size-8 -translate-y-1/2 border-n-weak bg-n-solid-1 text-n-slate-11 hover:text-n-slate-12 export-skip"
       :style="rightStyle"
       title="向右翻一屏"
       @click="scrollPage(1)"

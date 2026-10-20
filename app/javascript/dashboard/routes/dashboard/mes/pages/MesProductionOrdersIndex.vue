@@ -715,13 +715,17 @@ const submitReturnToSales = async () => {
   }
 };
 const resolveBusy = ref(false);
-const resolveSalesReturn = async () => {
+// 「已确认」原来只写在「查看」明细弹窗里，业务被退回后第一眼看的是右侧详情面板，
+// 根本找不到交回去的入口（改完单没按钮可点）。改成按订单传入，两处共用。
+const resolveSalesReturn = async (order = null) => {
+  const target = order || viewingOrder.value;
+  if (!target) return;
   resolveBusy.value = true;
   try {
-    const { data } = await MesProductionOrderAPI.resolveSalesReturn(
-      viewingOrder.value.id
-    );
-    viewingOrder.value = camelcaseKeys(data, { deep: true });
+    const { data } = await MesProductionOrderAPI.resolveSalesReturn(target.id);
+    const fresh = camelcaseKeys(data, { deep: true });
+    if (viewingOrder.value?.id === fresh.id) viewingOrder.value = fresh;
+    if (selected.value?.id === fresh.id) selected.value = fresh;
     useAlert('已确认，工程/PMC 可以接着做了');
     fetchRecords();
   } catch (e) {
@@ -899,6 +903,12 @@ const ackChip = po => {
   // PMC 看着它照常排在「待接单」里，业务那边更是完全不知道单子回到自己手上了
   // （10.19 反馈：「我点了退回给业务，但是在列表还是正常显示，没有显示已退回」）。
   // 放在接单态之前：这时候「待接单」是误导，接单的人正等着业务先把细节定下来。
+  // 等业务确认用料：单子停在这儿不动，列表上得看得出来卡在谁手里。
+  if (po.awaitingBomConfirm)
+    return {
+      text: `等业务确认用料 · ${po.ownerName || '业务'}`,
+      cls: 'text-n-amber-11',
+    };
   if (po.awaitingSalesConfirm)
     return {
       // salesReturnByName 是**退回的人**（工程/PMC），不是该确认的人——
@@ -1014,6 +1024,8 @@ const submitConvert = async () => {
 // —— 定制生产订单：按产品线模板填规格（新建 / 编辑规格）——
 const orderDialogRef = ref(null);
 const editingOrderId = ref(null);
+// 正在编辑的那张订单的完整数据：编辑弹窗里的图片/附件区要拿它上传与回显。
+const editingOrder = ref(null);
 const viewOnlyOrder = ref(false);
 const orderTemplate = ref('TABLET');
 const templateOptions = Object.entries(SPEC_TEMPLATES).map(([value, t]) => ({
@@ -1109,6 +1121,7 @@ const openNewOrder = () =>
 const openEditSpec = (order, { viewOnly = false } = {}) => {
   viewOnlyOrder.value = viewOnly;
   editingOrderId.value = order.id;
+  editingOrder.value = order;
   orderTemplate.value =
     order.spec?.template ||
     (SPEC_TEMPLATES[order.productLine] ? order.productLine : 'TABLET');
@@ -1157,8 +1170,19 @@ const submitOrder = async () => {
     ? await store.update({ id: editingOrderId.value, ...payload })
     : await store.create(payload);
   if (ok) {
-    useAlert(editingOrderId.value ? '订单已更新' : `已建单 ${ok.orderNo}`);
+    // 被退回的单改完要交回去，不然工程/PMC 那边还是停着——保存成功时顺手指一下，
+    // 否则业务以为点完「确认」就完事了（单子其实一直卡在「已退回业务」）。
+    const backToPmc = editingOrderId.value && ok.awaitingSalesConfirm;
+    useAlert(
+      // eslint-disable-next-line no-nested-ternary
+      backToPmc
+        ? '订单已更新。改好了就在右侧点「改完了，交回去」'
+        : editingOrderId.value
+          ? '订单已更新'
+          : `已建单 ${ok.orderNo}`
+    );
     if (editingOrderId.value) selected.value = ok;
+    editingOrder.value = ok;
     orderDialogRef.value?.close();
     fetchRecords();
   }
@@ -1166,11 +1190,14 @@ const submitOrder = async () => {
 
 // —— 产品图片 / 附件上传 ——
 const uploading = ref(false);
-const onUpload = async (event, kind) => {
+// target 不传就是右侧详情面板那份；编辑弹窗把正在编辑的那张传进来——
+// 原来绑死 selected，点列表行的「编辑」并不选中行，弹窗里传不了附件。
+const onUpload = async (event, kind, target = null) => {
   const list = Array.from(event.target.files || []);
   event.target.value = '';
   if (!list.length) return;
-  if (!selected.value) {
+  const order = target || selected.value;
+  if (!order) {
     useAlert('请先选中一张订单再上传');
     return;
   }
@@ -1179,12 +1206,13 @@ const onUpload = async (event, kind) => {
   uploading.value = true;
   try {
     const ok = await store.attachFiles({
-      id: selected.value.id,
+      id: order.id,
       formData: fd,
       kind,
     });
     if (ok) {
-      selected.value = ok;
+      if (selected.value?.id === ok.id) selected.value = ok;
+      if (editingOrder.value?.id === ok.id) editingOrder.value = ok;
       useAlert(kind === 'images' ? '图片已上传' : '附件已上传');
     }
   } catch (e) {
@@ -1197,13 +1225,17 @@ const onUpload = async (event, kind) => {
     uploading.value = false;
   }
 };
-const removeAttachment = async (attachmentId, kind) => {
+const removeAttachment = async (attachmentId, kind, target = null) => {
+  const order = target || selected.value;
+  if (!order) return;
   const ok = await store.detachFile({
-    id: selected.value.id,
+    id: order.id,
     attachmentId,
     kind,
   });
-  if (ok) selected.value = ok;
+  if (!ok) return;
+  if (selected.value?.id === ok.id) selected.value = ok;
+  if (editingOrder.value?.id === ok.id) editingOrder.value = ok;
 };
 
 // 详情里要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
@@ -1465,8 +1497,46 @@ const APPROVAL_LABELS = {
 const approvalComment = ref('');
 
 const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
+
+// ── 业务二次确认用料（2026-10-20 恢复，只卡有客户的单）──
+// 工程/PMC 挂好生产任务单 → 业务核对用料 → 点「确认用料无误」→ 才能下发采购。
+// 业务原话：「之前都是做电子档了先发给业务确认的，业务确认了我才投单给采购去下物料」。
+const awaitingBomConfirm = computed(() => !!selected.value?.awaitingBomConfirm);
+// 谁能点：这张单的归属业务员本人，或管理员（与后端 can_confirm_bom? 同口径）。
+const canConfirmBom = computed(
+  () =>
+    awaitingBomConfirm.value &&
+    (isOwner.value || isAdmin.value || isCrmDeputyAdmin.value)
+);
+
+// 「下发到采购」的闸：退回给业务没处理 或 用料没确认，都不让下发
+// （后端 ensure_releasable_to_purchasing! 同样拦，不只靠这个 disabled）。
+const releaseBlocked = computed(
+  () => awaitingBomConfirm.value || !!selected.value?.awaitingSalesConfirm
+);
+const releaseBlockedReason = computed(() => {
+  if (selected.value?.awaitingSalesConfirm)
+    return '这张单已退回给业务等确认，对方点「改完了，交回去」后才能下发采购';
+  if (awaitingBomConfirm.value)
+    return '这张单的用料还没经业务确认，确认后才能下发采购';
+  return '';
+});
+
+const confirmBom = async () => {
+  if (!selected.value) return;
+  const ok = await store.confirmBom(selected.value.id);
+  if (ok) {
+    useAlert('已确认用料，工程/PMC 可以下发采购了');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
 // 编辑规格/图片/附件：order 能力全量；业务角色可改**本人订单（含已下发）**——
 // 已下发改动由后端通知下一个流程负责人（后端 ensure_editable! 同口径）。
+const canEditOrder = order =>
+  mesCan('order') ||
+  (canCreateOrder.value && order?.ownerId === currentUserId.value);
 const canEditSelected = computed(
   () => mesCan('order') || (canCreateOrder.value && isOwner.value)
 );
@@ -2621,6 +2691,46 @@ watch(currentPage, fetchRecords);
           }}
         </div>
 
+        <!-- 被工程/PMC 退回：原因 + 交回去的按钮。原来这两样只在「查看」明细弹窗里，
+             业务被退回后看的是这块面板，改完单找不到任何「交回去」的入口。 -->
+        <div
+          v-if="selected.awaitingSalesConfirm"
+          class="flex flex-col gap-2 p-4 mb-4 border rounded-2xl border-n-amber-6 bg-n-amber-2 [.theme-classic_&]:p-5"
+        >
+          <div class="flex items-center gap-2">
+            <span
+              class="i-lucide-corner-up-left size-4 shrink-0 text-n-amber-11"
+            />
+            <span class="text-sm font-medium text-n-slate-12">
+              已退回给你，等你确认
+            </span>
+          </div>
+          <p class="text-xs text-n-slate-11">
+            {{ selected.salesReturnByName }} ·
+            {{
+              selected.salesReturnAt
+                ? new Date(selected.salesReturnAt).toLocaleString()
+                : ''
+            }}
+          </p>
+          <p class="text-sm whitespace-pre-wrap text-n-slate-12">
+            {{ selected.salesReturnReason }}
+          </p>
+          <div v-if="isOwner || mesCan('order')" class="flex flex-col gap-1.5">
+            <Button
+              label="改完了，交回去"
+              color="amber"
+              size="sm"
+              class="self-start"
+              :is-loading="resolveBusy"
+              @click="resolveSalesReturn(selected)"
+            />
+            <span class="text-xs text-n-slate-10">
+              先在「编辑」里改好规格、补好附件再点
+            </span>
+          </div>
+        </div>
+
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
         <div
           class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl [.theme-classic_&]:!bg-[#f8f9fa] [.theme-classic_&]:!border-[#eeeff1] [.theme-classic_&]:!shadow-none [.theme-classic_&]:p-5"
@@ -2926,10 +3036,50 @@ watch(currentPage, fetchRecords);
             <!-- 挂好 BOM 后下一步就是工程/PMC「下发到采购」
                  （原先中间有一道「业务二次确认生产任务单」的闸，已取消）。 -->
             <div
-              v-if="selected.stage === 'BOM_READY'"
+              v-if="selected.stage === 'BOM_READY' && !awaitingBomConfirm"
               class="p-3 mt-2 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
             >
               生产任务单已挂好，等工程/PMC 核对后点「下发到采购」。
+            </div>
+
+            <!-- 业务二次确认用料：有客户的单必须业务点头才能下发采购。
+                 备货单没有客户、没人可确认，后端直接放行，这块也不出现。 -->
+            <div
+              v-if="awaitingBomConfirm"
+              class="flex flex-col gap-2 p-3 mt-2 border rounded-lg border-n-amber-6 bg-n-amber-2"
+            >
+              <div class="flex items-center gap-2">
+                <span
+                  class="i-lucide-clipboard-check size-4 shrink-0 text-n-amber-11"
+                />
+                <span class="text-sm font-medium text-n-slate-12">
+                  等业务确认用料
+                </span>
+              </div>
+              <p class="text-xs text-n-slate-11">
+                {{
+                  canConfirmBom
+                    ? '核对下面的生产任务单明细，没问题就点确认——确认后工程/PMC 才能下发采购。'
+                    : `等 ${selected.ownerName || '归属业务员'} 核对用料，确认后才能下发采购。`
+                }}
+              </p>
+              <Button
+                v-if="canConfirmBom"
+                label="确认用料无误"
+                color="amber"
+                size="sm"
+                :is-loading="uiFlags.updatingItem"
+                @click="confirmBom"
+              />
+            </div>
+
+            <!-- 已确认过：留痕给工程/PMC 看，省得再去问业务点没点 -->
+            <div
+              v-else-if="selected.bomConfirmedAt"
+              class="p-3 mt-2 text-xs rounded-lg text-n-teal-11 bg-n-alpha-1"
+            >
+              业务已确认用料 · {{ selected.bomConfirmedByName || '业务' }} ·
+              {{ new Date(selected.bomConfirmedAt).toLocaleString() }}
             </div>
             <!-- 查看工程做的用料清单（弹窗看完整明细） -->
             <Button
@@ -2943,16 +3093,19 @@ watch(currentPage, fetchRecords);
               class="w-full mt-2"
               @click="openBomView"
             />
-            <!-- 下发采购（原先此处有一道「业务二次确认 BOM」的闸，已取消）-->
+            <!-- 下发采购。有客户的单要业务先确认用料（2026-10-20 恢复这道闸，
+                 后端 release_to_purchasing! 同样拦，不只靠这个 disabled）。 -->
             <Button
               v-if="
                 selected.stage === 'BOM_READY' &&
                 (mesCan('bom') || mesCan('order'))
               "
+              v-tooltip.top="releaseBlockedReason"
               label="下发到采购"
               color="iris"
               size="sm"
               class="w-full mt-2"
+              :disabled="releaseBlocked"
               :is-loading="uiFlags.updatingItem"
               @click="releasePurchasing"
             />
@@ -3614,6 +3767,107 @@ watch(currentPage, fetchRecords);
             :template="orderTemplate"
             :readonly="viewOnlyOrder"
           />
+        </div>
+
+        <!-- 图片 / 附件：原来只在右侧详情面板里有，改规格的人在这个弹窗里找不到，
+             得先关掉弹窗、回列表选中那一行才传得了。新建还没有单号，故只在编辑时出现。 -->
+        <div
+          v-if="editingOrderId && editingOrder"
+          class="flex flex-col gap-4 pt-4 border-t border-n-weak"
+        >
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-n-slate-11">产品图片</span>
+              <label
+                v-if="!viewOnlyOrder && canEditOrder(editingOrder)"
+                class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+              >
+                上传图片
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  class="hidden"
+                  :disabled="uploading"
+                  @change="e => onUpload(e, 'images', editingOrder)"
+                />
+              </label>
+            </div>
+            <div
+              v-if="(editingOrder.images || []).length"
+              class="grid grid-cols-4 gap-2"
+            >
+              <div
+                v-for="img in editingOrder.images"
+                :key="img.id"
+                class="relative group"
+              >
+                <a :href="img.url" target="_blank" rel="noopener">
+                  <img
+                    :src="img.url"
+                    :alt="img.filename"
+                    class="object-cover w-full h-20 rounded-lg border border-n-weak"
+                  />
+                </a>
+                <button
+                  v-if="!viewOnlyOrder && canEditOrder(editingOrder)"
+                  type="button"
+                  class="absolute top-1 right-1 items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full bg-n-slate-12/70 group-hover:flex"
+                  @click="removeAttachment(img.id, 'images', editingOrder)"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <p v-else class="text-xs text-n-slate-10">暂无产品图片</p>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-n-slate-11">附件</span>
+              <label
+                v-if="!viewOnlyOrder && canEditOrder(editingOrder)"
+                class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+              >
+                上传附件
+                <input
+                  type="file"
+                  multiple
+                  class="hidden"
+                  :disabled="uploading"
+                  @change="e => onUpload(e, 'files', editingOrder)"
+                />
+              </label>
+            </div>
+            <ul
+              v-if="(editingOrder.files || []).length"
+              class="flex flex-col gap-1"
+            >
+              <li
+                v-for="file in editingOrder.files"
+                :key="file.id"
+                class="flex items-center justify-between text-xs group"
+              >
+                <a
+                  :href="file.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="truncate text-n-iris-11 hover:underline"
+                >
+                  {{ file.filename }}
+                </a>
+                <button
+                  v-if="!viewOnlyOrder && canEditOrder(editingOrder)"
+                  type="button"
+                  class="hidden ml-2 text-n-slate-10 hover:text-n-ruby-11 group-hover:block"
+                  @click="removeAttachment(file.id, 'files', editingOrder)"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+            <p v-else class="text-xs text-n-slate-10">暂无附件</p>
+          </div>
         </div>
       </div>
     </Dialog>

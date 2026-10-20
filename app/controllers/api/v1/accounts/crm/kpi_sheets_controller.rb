@@ -70,7 +70,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     end
 
     crm_notify_managers_of(@sheet.owner_id,
-                           "【绩效考核】#{@sheet.owner&.name} 提交了「#{@sheet.scheme_name}」，请及时到「考核表」打分。")
+                           "【绩效考核】#{@sheet.owner&.name} 提交了「#{@sheet.scheme_name}」，请及时到「考核表」打分。",
+                           ref: sheet_ref("#{@sheet.owner&.name} 提交 · 待打分"))
     render 'show'
   end
 
@@ -84,7 +85,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
     @sheet.reset_for_return!(reason: reason, by: current_user)
     crm_notify(@sheet.owner_id,
-               "【绩效考核】你的「#{@sheet.scheme_name}」被退回，原因：#{reason}，请修改后重新提交。")
+               "【绩效考核】你的「#{@sheet.scheme_name}」被退回，原因：#{reason}，请修改后重新提交。",
+               ref: sheet_ref('被退回 · 待修改后重新提交'))
     render 'show'
   end
 
@@ -136,7 +138,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     end
 
     crm_notify(@sheet.owner_id,
-               "【绩效考核】你的「#{@sheet.scheme_name}」已完成全部审批并归档，最终得分 #{@sheet.total_score}/100。")
+               "【绩效考核】你的「#{@sheet.scheme_name}」已完成全部审批并归档，最终得分 #{@sheet.total_score}/100。",
+               ref: sheet_ref("已归档 · #{@sheet.total_score}/100"))
     render 'show'
   end
 
@@ -155,11 +158,18 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   private
 
+  # 通知里挂上这张考核表，收到的人点一下直接进详情（见 Chat::NotifyService#notify）。
+  def sheet_ref(subtitle)
+    { type: 'kpi_sheet', id: @sheet.id, label: '考核表',
+      title: @sheet.scheme_name, subtitle: subtitle }
+  end
+
   # 主管打分后自动在团队沟通通知被考核成员打分结果。失败只记日志、不阻断打分。
   def notify_scored
     Chat::NotifyService.new(account: Current.account, sender: Crm::SystemUser.for(Current.account)).notify(
       @sheet.owner_id,
-      "【绩效考核】你的「#{@sheet.scheme_name}」已完成主管打分，总分 #{@sheet.total_score}/100，详情见「考核表」。"
+      "【绩效考核】你的「#{@sheet.scheme_name}」已完成主管打分，总分 #{@sheet.total_score}/100，详情见「考核表」。",
+      ref: sheet_ref("主管已打分 · #{@sheet.total_score}/100")
     )
   end
 

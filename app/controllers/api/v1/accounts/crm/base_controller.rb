@@ -45,16 +45,17 @@ class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
 
   # 团队沟通「系统通知」：CRM 各审批节点自动提醒成员/主管，以「系统通知」名义发单聊。
   # 失败在 NotifyService 内部兜住、只记日志，不阻断主业务流程。
-  def crm_notify(target_id, content)
+  # ref：这条通知指向的单据，收到的人点一下就能跳过去（见 Chat::NotifyService#notify）。
+  def crm_notify(target_id, content, ref: nil)
     return if target_id.blank?
 
     Chat::NotifyService.new(account: Current.account, sender: Crm::SystemUser.for(Current.account))
-                       .notify(target_id, content)
+                       .notify(target_id, content, ref: ref)
   end
 
   # 提交考核/提成后，通知该成员的直属主管们（可能不止一个部门）去审。
-  def crm_notify_managers_of(user_id, content)
-    Org::Department.managers_of(Current.account, user_id).each { |mid| crm_notify(mid, content) }
+  def crm_notify_managers_of(user_id, content, ref: nil)
+    Org::Department.managers_of(Current.account, user_id).each { |mid| crm_notify(mid, content, ref: ref) }
   end
 
   # 当前成员可见的负责人 id：:all 或 user_id 数组。

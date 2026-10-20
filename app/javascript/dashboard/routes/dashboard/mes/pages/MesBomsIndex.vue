@@ -1487,26 +1487,32 @@ onMounted(async () => {
                     >
                       用量
                     </th>
-                    <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键 -->
+                    <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键。
+                         export-secret：导出图片是发给车间的那份，这三列连同采购注意事项、
+                         底下的成本汇总一起不进图（页面上照常显示）。 -->
                     <template v-if="showCost">
                       <th
-                        class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                        class="px-2 py-2 font-medium text-right whitespace-nowrap export-secret"
                       >
                         单价
                       </th>
                       <th
-                        class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                        class="px-2 py-2 font-medium text-right whitespace-nowrap export-secret"
                       >
                         金额
                       </th>
-                      <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      <th
+                        class="px-2 py-2 font-medium whitespace-nowrap export-secret"
+                      >
                         价源
                       </th>
                     </template>
                     <th class="px-2 py-2 font-medium whitespace-nowrap">
                       备注
                     </th>
-                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    <th
+                      class="px-2 py-2 font-medium whitespace-nowrap export-secret"
+                    >
                       采购注意事项
                     </th>
                     <th class="px-2 py-2 font-medium whitespace-nowrap">
@@ -1566,16 +1572,16 @@ onMounted(async () => {
                     </td>
                     <template v-if="showCost">
                       <td
-                        class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                        class="px-2 py-2 text-right tabular-nums text-n-slate-12 export-secret"
                       >
                         {{ money(it.unitPriceMicros) }}
                       </td>
                       <td
-                        class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                        class="px-2 py-2 text-right tabular-nums text-n-slate-12 export-secret"
                       >
                         {{ money(it.amountMicros) }}
                       </td>
-                      <td class="px-2 py-2">
+                      <td class="px-2 py-2 export-secret">
                         <!-- 「多单价不一」＝这颗料在本任务单的几张生产订单里买价不同（备货期涨跌价）。
                            这时单价那一栏取的是最近一张，没有唯一正确值，所以标出来并把每张单
                            各是多少挂在悬停提示里——只给一个数会让人当成确定的成本。 -->
@@ -1614,7 +1620,7 @@ onMounted(async () => {
                     </td>
                     <td
                       :title="it.purchaseNote || ''"
-                      class="px-2 py-2 text-n-slate-11"
+                      class="px-2 py-2 text-n-slate-11 export-secret"
                     >
                       {{ it.purchaseNote || '—' }}
                     </td>
@@ -1641,7 +1647,7 @@ onMounted(async () => {
                  合计会被当成完整成本用（财务按它算产品单价）。 -->
             <div
               v-if="showCost"
-              class="flex flex-wrap items-center gap-x-6 gap-y-1 px-2 py-3 mt-2 text-sm border rounded-lg border-n-weak bg-n-alpha-1"
+              class="flex flex-wrap items-center gap-x-6 gap-y-1 px-2 py-3 mt-2 text-sm border rounded-lg border-n-weak bg-n-alpha-1 export-secret"
             >
               <span class="text-n-slate-11">
                 材料合计

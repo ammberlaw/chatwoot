@@ -87,6 +87,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def create
+    guard = create_dedupe_guard
+    return render json: { error: guard }, status: :unprocessable_entity if guard
+
     @customer = Current.account.crm_customers.create!(customer_params)
     @customer.sync_contacts(contact_entries)
     link_source_contact
@@ -176,16 +179,19 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     q = params[:q].to_s.strip
     return render json: { payload: [] } if q.length < 2
 
-    rows = dedupe_search_scope(q, params[:scope].to_s).order(:id).limit(DEDUPE_SEARCH_LIMIT)
-    render json: { payload: rows.map { |c| dedupe_search_row(c) } }
+    rows = dedupe_search_scope(q, params[:scope].to_s).order(:id).limit(DEDUPE_SEARCH_LIMIT).to_a
+    hits = matched_contacts_by_customer(rows.map(&:id), q)
+    render json: { payload: rows.map { |c| dedupe_search_row(c, hits[c.id]) } }
   end
 
-  # 客户建档实时查重：邮箱精确命中(阻止) + 手机/WhatsApp 命中 + 公司名相似(提醒)。
+  # 客户建档实时查重：邮箱精确命中(阻止) + 企业邮箱后缀撞单(阻止) +
+  # 手机/WhatsApp 命中 + 公司名相似(提醒)。
   # 手机维度是给没有邮箱的客户（WhatsApp 进来的）兜底的身份依据，复用主动查重那套归一规则。
   def check_duplicate
     name = params[:name].to_s.strip
     render json: {
       email_hit: dedupe_row(email_duplicate(params[:email])),
+      domain_hit: domain_duplicate(params[:email]),
       phone_hit: dedupe_row(phone_duplicate(params[:phone])),
       alibaba_hit: dedupe_row(alibaba_duplicate(params[:alibaba_account])),
       name_hits: name.length >= 2 ? name_matches(name) : []
@@ -774,20 +780,48 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     'contact' => 'primary_contact_name', 'alibaba' => 'alibaba_account'
   }.freeze
 
+  # 客户档案里补录的「其他联系人」（采购、经理……）也是这个客户的身份依据。
+  # 客户主表上只有一个 contact_email/contact_phone，查重原来只认它——在档案里加的
+  # 第二个邮箱一概搜不到，建档时查出「没有匹配的客户，可放心建档」，于是建重
+  #（生产上 76 条联系人邮箱不在主表上）。这里把联系人表并进来。
+  # 先取命中的客户 id 再并进主查询：联系人表一万多条，直接 JOIN 会把客户行乘出重复。
+  CONTACT_SCAN_LIMIT = 200
+
+  def customer_ids_by_contact(sql, binds)
+    Current.account.contacts.where.not(crm_customer_id: nil)
+           .where(sql, **binds).distinct.limit(CONTACT_SCAN_LIMIT).pluck(:crm_customer_id)
+  end
+
   # 主动查重的范围检索。电话按去符号后的数字包含匹配；邮箱后缀匹配 @ 结尾段。
   def dedupe_search_scope(query, scope_key)
     base = Current.account.crm_customers
     like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
     column = DEDUPE_SCOPE_COLUMNS[scope_key]
-    return base.where("#{column} ILIKE :q", q: like) if column
+    return dedupe_column_scope(base, column, scope_key, like) if column
 
     case scope_key
-    when 'email_suffix'
-      base.where('contact_email ILIKE :q', q: "%@#{ActiveRecord::Base.sanitize_sql_like(query.delete_prefix('@'))}")
+    when 'email_suffix' then dedupe_email_suffix_scope(base, query)
     when 'phone' then dedupe_phone_scope(base, query)
     when 'social' then base.where('whats_app ILIKE :q OR wechat ILIKE :q OR linkedin ILIKE :q', q: like)
     else dedupe_all_scope(base, like, query)
     end
+  end
+
+  # 邮箱/联系人姓名这两档除了客户主表，还要搜客户名下的联系人。
+  CONTACT_BACKED_SCOPES = { 'email' => 'email ILIKE :q', 'contact' => 'name ILIKE :q' }.freeze
+
+  def dedupe_column_scope(base, column, scope_key, like)
+    contact_sql = CONTACT_BACKED_SCOPES[scope_key]
+    return base.where("#{column} ILIKE :q", q: like) if contact_sql.blank?
+
+    ids = customer_ids_by_contact(contact_sql, { q: like })
+    base.where("#{column} ILIKE :q OR crm_customers.id IN (:ids)", q: like, ids: ids)
+  end
+
+  def dedupe_email_suffix_scope(base, query)
+    suffix = "%@#{ActiveRecord::Base.sanitize_sql_like(query.delete_prefix('@'))}"
+    ids = customer_ids_by_contact('email ILIKE :q', { q: suffix })
+    base.where('contact_email ILIKE :q OR crm_customers.id IN (:ids)', q: suffix, ids: ids)
   end
 
   # 库侧列按 PHONE_NORM_SQL 归一（剥 86 前缀），查询词也生成「原样 + 剥 86」两个变体，
@@ -801,15 +835,25 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     wa_expr = format(PHONE_NORM_SQL, 'whats_app')
     clauses = variants.each_index.map { |i| "#{phone_expr} LIKE :d#{i} OR #{wa_expr} LIKE :d#{i}" }.join(' OR ')
     binds = variants.each_with_index.to_h { |d, i| [:"d#{i}", "%#{d}%"] }
-    base.where(clauses, **binds)
+    # 联系人留的电话同样算这个客户的身份（同一套归一规则）
+    ct_expr = format(PHONE_NORM_SQL, 'phone_number')
+    ids = customer_ids_by_contact(
+      variants.each_index.map { |i| "#{ct_expr} LIKE :d#{i}" }.join(' OR '), binds
+    )
+    base.where("(#{clauses}) OR crm_customers.id IN (:ids)", **binds, ids: ids)
   end
 
   # 「全部」：文本字段 OR 检索；关键词含 ≥4 位数字时并入电话匹配。
   def dedupe_all_scope(base, like, query)
+    # 「全部」也要带上客户名下的联系人（邮箱 / 姓名 / 电话任一命中）。
+    ids = customer_ids_by_contact(
+      'email ILIKE :q OR name ILIKE :q OR phone_number ILIKE :q', { q: like }
+    )
     text_hit = base.where(
       'name ILIKE :q OR customer_code ILIKE :q OR contact_email ILIKE :q OR ' \
       'primary_contact_name ILIKE :q OR whats_app ILIKE :q OR wechat ILIKE :q OR ' \
-      'linkedin ILIKE :q OR alibaba_account ILIKE :q', q: like
+      'linkedin ILIKE :q OR alibaba_account ILIKE :q OR crm_customers.id IN (:ids)',
+      q: like, ids: ids
     )
     digits = query.gsub(/\D/, '')
     return text_hit if digits.length < 4
@@ -818,12 +862,29 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   # 主动查重结果行：对齐查重表格列（编号/阶段/公司/联系人/邮箱/电话）+ 归属。
-  def dedupe_search_row(customer)
+  def dedupe_search_row(customer, matched_contacts = nil)
     dedupe_row(customer).merge(
       contact_name: customer.primary_contact_name,
       email: customer.contact_email,
-      phone: customer.contact_phone
+      phone: customer.contact_phone,
+      # 命中的是客户名下某位联系人时标出来是谁——不然列表只给客户名，看的人
+      # 对着主表那个不一样的邮箱想不明白为什么算重复。
+      matched_contacts: Array(matched_contacts).filter_map { |ct| contact_label(ct) }.uniq.first(3)
     )
+  end
+
+  def contact_label(contact)
+    [contact.name.presence, contact.email.presence].compact.uniq.join(' · ').presence
+  end
+
+  # 本次查询词在这些客户名下命中了哪些联系人，一次查完按客户分组（50 行逐个查就是 50 次）。
+  def matched_contacts_by_customer(customer_ids, query)
+    return {} if query.blank? || customer_ids.blank?
+
+    like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+    Current.account.contacts.where(crm_customer_id: customer_ids)
+           .where('email ILIKE :q OR name ILIKE :q OR phone_number ILIKE :q', q: like)
+           .group_by(&:crm_customer_id)
   end
 
   def name_matches(name)
@@ -845,11 +906,125 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     }
   end
 
+  # 建档实时查重的邮箱精确命中。主表没有就再问一次客户名下的联系人——
+  # 在客户档案里补录的采购/经理邮箱同样代表这个客户，漏了就会建重。
   def email_duplicate(value)
     email = value.to_s.strip.downcase
     return nil if email.blank?
 
-    Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
+    hit = Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
+    return hit if hit
+
+    contact = Current.account.contacts.where.not(crm_customer_id: nil).where('LOWER(email) = ?', email).first
+    contact && Current.account.crm_customers.find_by(id: contact.crm_customer_id)
+  end
+
+  # 建档硬拦。前端那个禁用的「建档」按钮只是提示，刷新一下、或者两个人同时点都能绕过去，
+  # 真正的闸必须在这里。
+  # 只拦**手工建档**这一个入口：批量导入、邮件/PI 自动建档走的是别的路，它们各有自己的
+  # 去重与合并逻辑，在这里一刀切会把整批导入打断。
+  def create_dedupe_guard
+    email = customer_params[:contact_email]
+    hit = email_duplicate(email)
+    return "该邮箱已被建档：#{hit.name}（#{owner_label(hit)}），不能重复建档" if hit
+
+    domain = domain_duplicate(email)
+    return nil unless domain && domain[:blocking]
+
+    "@#{domain[:domain]} 这个企业邮箱后缀已归 #{domain[:owner]} 的「#{domain[:name]}」，" \
+      '同一家公司只能由一个业务建档，请联系负责人或走转交'
+  end
+
+  # 企业邮箱后缀撞单：同一家公司（同一个企业域名）只归一个业务，B 再填同后缀就建不了。
+  #
+  # 免费邮箱必须跳过：一个 @gmail.com 底下几百个毫不相干的客户，拦了整个建档流程就瘫了。
+  # 这张表只能往大了列——外贸客户各国的免费邮箱都有，漏一个就是一次误拦。
+  FREE_EMAIL_DOMAINS = %w[
+    gmail.com googlemail.com hotmail.com hotmail.co.uk hotmail.fr hotmail.it hotmail.es
+    outlook.com outlook.fr outlook.de outlook.com.br live.com live.cn live.co.uk msn.com
+    yahoo.com yahoo.co.uk yahoo.co.jp yahoo.co.in yahoo.fr yahoo.de yahoo.es yahoo.com.br
+    yahoo.com.cn ymail.com rocketmail.com
+    163.com 126.com yeah.net qq.com vip.qq.com foxmail.com sina.com sina.cn sohu.com
+    aliyun.com 139.com 189.cn 21cn.com tom.com wo.cn
+    icloud.com me.com mac.com aol.com mail.com email.com gmx.com gmx.de gmx.net web.de
+    t-online.de freenet.de protonmail.com protonmail.ch proton.me tutanota.com zoho.com
+    yandex.com yandex.ru mail.ru inbox.ru bk.ru list.ru rambler.ru
+    naver.com daum.net hanmail.net nate.com
+    rediffmail.com sify.com indiatimes.com
+    orange.fr wanadoo.fr free.fr laposte.net sfr.fr neuf.fr bbox.fr
+    libero.it virgilio.it alice.it tiscali.it tin.it
+    terra.com.br uol.com.br bol.com.br ig.com.br globo.com
+    seznam.cz centrum.cz wp.pl o2.pl interia.pl onet.pl
+    abv.bg mynet.com hotmail.com.tr yandex.com.tr
+    live.nl live.it live.fr live.se live.dk live.no live.ca live.com.au live.com.mx
+    windowslive.com hotmail.de hotmail.nl hotmail.se hotmail.be hotmail.ca
+    yandex.kz yandex.by ya.ru tut.by en-gy.ru
+    gmx.ch gmx.at freenet.de email.de arcor.de
+    btinternet.com talktalk.net virginmedia.com sky.com ntlworld.com blueyonder.co.uk
+    bigpond.com bigpond.net.au optusnet.com.au iinet.net.au telstra.com
+    netvigator.com hkbn.net pacific.net.hk
+    vodamail.co.za telkomsa.net mweb.co.za
+    prodigy.net.mx hotmail.com.mx
+    sapo.pt clix.pt netcabo.pt
+    inbox.lv inbox.lt one.lt
+    email.cz email.it tiscali.co.uk alice.it
+    contractor.net europe.com post.com usa.com consultant.com techie.com
+    tutamail.com tuta.io keemail.me
+    st.ug.edu.gh
+  ].freeze
+
+  # 一次性 / 临时邮箱服务：和免费邮箱一个道理，一个域名底下全是互不相干的人。
+  DISPOSABLE_EMAIL_DOMAINS = %w[
+    dayrep.com teleworm.us armyspy.com jourrapide.com cuvox.de einrot.com fleckens.hu
+    rhyta.com superrito.com gustr.com mailinator.com guerrillamail.com 10minutemail.com
+    temp-mail.org trashmail.com yopmail.com sharklasers.com maildrop.cc getnada.com
+  ].freeze
+
+  # Apple 隐私中继：用「通过 Apple 登录」留的邮箱全是 @privaterelay.appleid.com，
+  # 生产上 70 个客户分属 9 个业务——当成同一家公司拦下来就是一次大面积误伤。
+  # 另外两个是拼错的 gmail，本身就是脏数据，更不该拿来判公司。
+  ALWAYS_SKIP_DOMAINS = %w[privaterelay.appleid.com gmail.co gmail.com1].freeze
+
+  def free_email_domain?(domain)
+    FREE_EMAIL_DOMAINS.include?(domain) ||
+      DISPOSABLE_EMAIL_DOMAINS.include?(domain) ||
+      ALWAYS_SKIP_DOMAINS.include?(domain)
+  end
+
+  DOMAIN_HIT_SCAN_LIMIT = 50
+
+  # 取企业邮箱域名；免费邮箱和不含点的脏值一律返回 nil（＝不参与撞单判断）。
+  def enterprise_email_domain(value)
+    domain = value.to_s.strip.downcase.split('@').last.to_s.strip
+    return nil if domain.blank? || domain.exclude?('.')
+    return nil if free_email_domain?(domain)
+
+    domain
+  end
+
+  # 这个域名下已经建过的客户（客户主邮箱 + 名下联系人邮箱都算）。
+  def customers_by_email_domain(domain)
+    like = "%@#{ActiveRecord::Base.sanitize_sql_like(domain)}"
+    ids = customer_ids_by_contact('email ILIKE :q', { q: like })
+    Current.account.crm_customers
+           .where('contact_email ILIKE :q OR crm_customers.id IN (:ids)', q: like, ids: ids)
+           .limit(DOMAIN_HIT_SCAN_LIMIT).to_a
+  end
+
+  # blocking＝真的拦人：这家已经在**别人**名下。
+  # 公海 / 未分配 / 自己名下都只提示不拦——公海的本来就该去认领，拦住反而没路走。
+  def domain_duplicate(value)
+    domain = enterprise_email_domain(value)
+    return nil if domain.blank?
+
+    rows = customers_by_email_domain(domain)
+    return nil if rows.empty?
+
+    # 优先报「别人名下」那条：命中公海那条就放行的话，别人名下的那家等于没拦住。
+    blocker = rows.find { |c| !c.is_in_public_pool && c.account_owner_id.present? && c.account_owner_id != current_user.id }
+    hit = blocker || rows.first
+    dedupe_row(hit).merge(domain: domain, blocking: blocker.present?,
+                          in_public_pool: hit.is_in_public_pool, total: rows.size)
   end
 
   # 阿里买家账号撞单：全库精确比对（跨负责人，撞单检测不按辖区收口，与 phone_duplicate 同口径）。

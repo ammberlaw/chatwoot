@@ -80,6 +80,9 @@ const route = useRoute();
 const router = useRouter();
 
 const emailHit = ref(null);
+// 企业邮箱后缀撞单：同一家公司只归一个业务（blocking=已在别人名下，拦；
+// 公海/未分配/自己名下只提示）。见后端 domain_duplicate。
+const domainHit = ref(null);
 const phoneHit = ref(null);
 const nameHits = ref([]);
 const alibabaHit = ref(null);
@@ -173,6 +176,7 @@ watch(
         phone.replace(/\D/g, '').length < 8
       ) {
         emailHit.value = null;
+        domainHit.value = null;
         phoneHit.value = null;
         alibabaHit.value = null;
         nameHits.value = [];
@@ -183,11 +187,13 @@ watch(
           params: { email, name, phone, alibaba_account: alibaba },
         });
         emailHit.value = data.email_hit;
+        domainHit.value = data.domain_hit;
         phoneHit.value = data.phone_hit;
         alibabaHit.value = data.alibaba_hit;
         nameHits.value = data.name_hits || [];
       } catch {
         emailHit.value = null;
+        domainHit.value = null;
         phoneHit.value = null;
         alibabaHit.value = null;
         nameHits.value = [];
@@ -411,12 +417,27 @@ const missing = computed(() => {
 // 手机号撞库：填了邮箱时只提示（公司总机可能多人共用），没邮箱时手机号是唯一身份，撞了就不给建。
 const phoneBlocking = computed(() => !!phoneHit.value && !form.email.trim());
 
+// 同一个企业域名已经在别人名下＝这家公司有人跟了，不给建（公海/自己的只提示）。
+const domainBlocking = computed(() => !!domainHit.value?.blocking);
+
+const domainHintText = computed(() => {
+  const hit = domainHit.value;
+  if (!hit) return '';
+  if (hit.blocking)
+    return '同一家公司的企业邮箱只能归一个业务，这家已经有人跟了，请联系负责人或走转交。';
+  if (hit.in_public_pool)
+    return '这家在公海，去「公海客户」认领即可，不用重复建档。';
+  if (hit.is_mine) return '你名下已有这家公司，确认不是同一家再继续建档。';
+  return '这家还没分配负责人，确认不是同一家再继续建档，或联系管理员指派。';
+});
+
 const canSubmit = computed(
   () =>
     missing.value.length === 0 &&
     !emailHit.value &&
     !alibabaHit.value &&
     !phoneBlocking.value &&
+    !domainBlocking.value &&
     !submitting.value
 );
 
@@ -432,6 +453,7 @@ const resetForm = () => {
   });
   extraContacts.value = [];
   emailHit.value = null;
+  domainHit.value = null;
   phoneHit.value = null;
   nameHits.value = [];
   bgResult.value = null;
@@ -513,11 +535,19 @@ const submit = async () => {
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">客户建档</h1>
+    <div
+      class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        客户建档
+      </h1>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
+    >
       <div
         v-if="draftRestored"
         class="flex items-center justify-between gap-2 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
@@ -546,6 +576,31 @@ const submit = async () => {
         <span class="text-xs text-n-slate-11"
           >无法用相同邮箱重复建档，请换邮箱或联系负责人。</span
         >
+      </div>
+
+      <!-- 企业邮箱后缀撞单。已在别人名下＝这家公司有人跟了，红框且不给建；
+           公海/未分配/自己名下只是提醒（公海那条该去认领，拦住反而没路走）。 -->
+      <div
+        v-if="domainHit && !emailHit"
+        class="flex flex-col gap-1 p-3 text-sm border rounded-lg"
+        :class="
+          domainBlocking
+            ? 'border-n-ruby-8 text-n-ruby-11'
+            : 'border-n-amber-8 text-n-amber-11'
+        "
+      >
+        <span>
+          <strong>@{{ domainHit.domain }}</strong> 这个企业邮箱后缀已被建档：
+          <strong>{{ domainHit.name }}</strong>
+          <template v-if="domainHit.customer_code">
+            （{{ domainHit.customer_code }}）
+          </template>
+          · {{ domainHit.owner }}
+          <template v-if="domainHit.total > 1">
+            等 {{ domainHit.total }} 家
+          </template>
+        </span>
+        <span class="text-xs text-n-slate-11">{{ domainHintText }}</span>
       </div>
 
       <div

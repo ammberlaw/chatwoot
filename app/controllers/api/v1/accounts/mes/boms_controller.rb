@@ -156,8 +156,15 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     )
     summary = Mes::Bom.diff_summary(changes)
     @bom.production_orders.where.not(stage: 'SHIPPED').where.not(status: 'CANCELLED').each do |order|
-      order.notify_bom_revised(summary, rev_no, actor: current_user)
+      sync_order_after_revision(order, summary, rev_no)
     end
+  end
+
+  # 用料变了，受影响的订单要做两件事：作废业务上一轮的确认（不然不用重新点头就能下发
+  # 采购，这道闸形同虚设，见 ProductionOrder#confirm_bom!），再通知已参与的下游部门。
+  def sync_order_after_revision(order, summary, rev_no)
+    order.reset_bom_confirmation!(actor: current_user)
+    order.notify_bom_revised(summary, rev_no, actor: current_user)
   end
 
   def attach_to_order_if_requested

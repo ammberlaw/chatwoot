@@ -44,10 +44,63 @@ const inlineImages = async node => {
     });
 };
 
+// 导出图片 = 发给车间的那一份。
+//
+// 两件事要在截图前处理掉：
+//
+// 1）标了 .export-secret 的节点隐藏。单价/金额/价源、采购注意事项、成本汇总这些
+//    是给采购和财务看的，这张图要发到车间去。（.export-skip 是「任何导出都不要」，
+//    比如导出按钮本身；.export-secret 只在导出图片时藏，页面上照常给有权限的人看。）
+//
+// 2）横向滚动的容器放开。明细表十几列靠 overflow-x 翻屏，截图只拿到可视区那几列，
+//    物料后半段全丢（反馈原话「导出图片的内容，仅限鼠标停留的预览内容，物料后段的
+//    内容看不见」）。把滚动容器连同外层节点一起撑成内容宽度，截完原样还原。
+const SECRET_SELECTOR = '.export-secret';
+
+const expandForShot = node => {
+  const restore = [];
+  const stash = (el, props) => {
+    restore.push([el, props.map(k => [k, el.style[k]])]);
+  };
+
+  node.querySelectorAll(SECRET_SELECTOR).forEach(el => {
+    stash(el, ['display']);
+    el.style.display = 'none';
+  });
+
+  const scrollers = [node, ...node.querySelectorAll('*')].filter(el => {
+    const cs = getComputedStyle(el);
+    return (
+      /(auto|scroll)/.test(cs.overflowX) || /(auto|scroll)/.test(cs.overflowY)
+    );
+  });
+  scrollers.forEach(el => {
+    stash(el, ['overflow', 'overflowX', 'overflowY', 'width', 'maxWidth']);
+    el.style.overflow = 'visible';
+    el.style.overflowX = 'visible';
+    el.style.overflowY = 'visible';
+    el.style.width = 'max-content';
+    el.style.maxWidth = 'none';
+  });
+
+  // 最外层也要撑开：它的 offsetWidth 决定截图宽度，不放开还是按弹窗宽度裁。
+  stash(node, ['width', 'maxWidth']);
+  node.style.width = 'max-content';
+  node.style.maxWidth = 'none';
+
+  return () =>
+    restore.forEach(([el, props]) =>
+      props.forEach(([k, v]) => {
+        el.style[k] = v || '';
+      })
+    );
+};
+
 // DOM 节点 → JPG 下载（用于打印/存档单据）。
 export async function exportNodeToJpg(node, filename) {
   if (!node) return;
   const undo = await inlineImages(node);
+  const collapse = expandForShot(node);
   const dataUrl = await toJpeg(node, {
     quality: 0.95,
     backgroundColor: '#ffffff',
@@ -55,6 +108,7 @@ export async function exportNodeToJpg(node, filename) {
     // 跳过标了 .export-skip 的节点（如导出按钮本身）。
     filter: n => !(n.classList && n.classList.contains('export-skip')),
   });
+  collapse();
   undo();
   const a = document.createElement('a');
   a.href = dataUrl;

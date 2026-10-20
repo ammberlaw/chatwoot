@@ -18,7 +18,9 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   # 转交给同阶段另一位负责人：与接单同权（控制器再校验「必须是本阶段负责人」）。
   def handoff? = true
   def reject? = true
-  # 业务二次确认 BOM（控制器校验创建人/管理员）。
+  # 业务二次确认用料：这一层只管「进得了 MES」，是不是本单归属业务员由控制器
+  # can_confirm_bom? 校验（2026-10-20 恢复这道闸，见 ProductionOrder#confirm_bom!）。
+  def confirm_bom? = true
   # 审批链：提交（控制器校验创建人）、通过/驳回（控制器 can_approve? 校验当前环节人/管理员）、待我审批收件箱。
   def submit_approval? = true
   def approve? = true

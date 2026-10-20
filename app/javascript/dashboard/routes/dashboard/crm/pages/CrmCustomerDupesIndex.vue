@@ -240,6 +240,12 @@ const openCustomer = customer => {
               class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
             >
               <span>联系人：{{ customer.contact_name || '—' }}</span>
+              <span
+                v-if="(customer.matched_contacts || []).length"
+                class="text-n-iris-11"
+              >
+                命中联系人：{{ customer.matched_contacts.join('、') }}
+              </span>
             </div>
             <div
               class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
@@ -294,6 +300,14 @@ const openCustomer = customer => {
                 </td>
                 <td class="px-4 py-2 font-medium text-n-slate-12">
                   {{ customer.name }}
+                  <!-- 命中的是这家名下某位联系人（不是客户主邮箱）时标出来，
+                       否则对着一个不一样的邮箱想不明白为什么算重复。 -->
+                  <span
+                    v-if="(customer.matched_contacts || []).length"
+                    class="block text-xs font-normal text-n-iris-11"
+                  >
+                    命中联系人：{{ customer.matched_contacts.join('、') }}
+                  </span>
                 </td>
                 <td class="px-4 py-2 text-n-slate-11">
                   {{ customer.contact_name || '—' }}

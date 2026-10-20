@@ -117,12 +117,11 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   # 打回来改，拿它当参考会把错价一路传下去。
   # 没传供应商＝新建时刚输完料号，连供应商一起带出来；传了就只认这家的价。
   def last_price
-    hit = Mes::LastPurchasePrice.for(
-      account: Current.account,
-      supplier_id: params[:mes_supplier_id].presence,
-      crm_product_id: params[:crm_product_id].presence,
-      mes_material_id: params[:mes_material_id].presence
-    )
+    hit = Mes::LastPurchasePrice.for(account: Current.account, supplier_id: params[:mes_supplier_id].presence,
+                                     crm_product_id: params[:crm_product_id].presence,
+                                     mes_material_id: params[:mes_material_id].presence,
+                                     # 编辑态把本单排除掉，否则比的是自己（见 Mes::LastPurchasePrice）
+                                     exclude_po_id: params[:exclude_purchase_order_id].presence)
     render json: { payload: hit }
   end
 

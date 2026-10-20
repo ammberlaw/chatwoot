@@ -646,6 +646,7 @@ Rails.application.routes.draw do
                 post :attach_bom
                 post :detach_bom
                 post :revert_to_bom_ready
+                post :confirm_bom
                 post :release_purchasing
                 post :skip_purchasing
                 post :mark_outsourced

@@ -71,7 +71,9 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
     sheets.each do |sheet|
       notifier.notify(
         sheet.owner_id,
-        "【绩效考核】#{sheet.scheme_name} 已下发，请及时到「考核表」填报本月绩效考核。"
+        "【绩效考核】#{sheet.scheme_name} 已下发，请及时到「考核表」填报本月绩效考核。",
+        ref: { type: 'kpi_sheet', id: sheet.id, label: '考核表',
+               title: sheet.scheme_name, subtitle: '已下发 · 待你填报' }
       )
     end
   end

@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   before_action :fetch_production_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :skip_purchasing, :requirement, :handoff,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced,
-                       :return_to_sales, :resolve_sales_return]
+                       :return_to_sales, :resolve_sales_return, :confirm_bom]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
 
@@ -180,6 +180,17 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_order.update!(delivery_date: params[:delivery_date]) if params[:delivery_date].present?
     @production_order.attach_bom!(bom)
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 业务确认用料无误：工程/PMC 做好生产任务单后要业务点头，点完才能下发采购。
+  # 谁能点＝订单归属业务员本人或管理员（和改单同一口径）。
+  def confirm_bom
+    return render json: { error: '只有这张单的归属业务员能确认用料' }, status: :forbidden unless can_confirm_bom?
+
+    @production_order.confirm_bom!(actor: current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。
@@ -638,6 +649,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def admin_like?
     Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+  end
+
+  def can_confirm_bom?
+    admin_like? || @production_order.owner_id == current_user.id
   end
 
   # 能否审批当前环节：管理员，或本环节指定审批人本人。

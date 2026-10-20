@@ -151,9 +151,7 @@ const agentMap = computed(() => {
 const convSrc = conv =>
   conv.kind === 'group'
     ? conv.avatar_url || ''
-    : conv.peer_avatar_url ||
-      agentMap.value[conv.peer_id]?.thumbnail ||
-      '';
+    : conv.peer_avatar_url || agentMap.value[conv.peer_id]?.thumbnail || '';
 // 「系统通知」是机器人不是人，没有在线这回事——它不在坐席列表里，查出来恒为
 // 「离线」，摆在那儿只会让人以为通知发不出去。群聊同理不显示。
 const convStatus = conv =>
@@ -538,21 +536,68 @@ const clearPendingRef = () => {
   pendingRef.value = null;
 };
 
-// 点击消息里的业务卡片 → 跳转对象详情。
+// 消息里的业务卡片 → 对应单据。
+//
+// 「系统通知」发的考核表/提成表/定制报价/邮件也走这套卡片（后端 Chat::NotifyService
+// 的 ref 参数），所以这张表要随通知类型一起长。认不出的类型不画卡片，不会乱跳。
+const REF_ROUTES = {
+  customer: t => ({
+    name: 'crm_customer_detail_index',
+    params: { accountId: accountId.value, id: t.id },
+  }),
+  // 带 ?focus=<id>：销售订单页据此直接展开这一单，不然只是跳到整个列表。
+  sales_order: t => ({
+    name: 'crm_sales_orders_index',
+    params: { accountId: accountId.value },
+    query: { focus: String(t.id) },
+  }),
+  kpi_sheet: t => ({
+    name: 'crm_kpi_sheet_detail',
+    params: { accountId: accountId.value },
+    query: { id: String(t.id) },
+  }),
+  commission_sheet: t => ({
+    name: 'crm_commission_sheet_detail',
+    params: { accountId: accountId.value },
+    query: { id: String(t.id) },
+  }),
+  // 定制报价没有独立详情页，跳列表。
+  quote_request: () => ({
+    name: 'crm_quote_requests_index',
+    params: { accountId: accountId.value },
+  }),
+  // 邮件深链要「客户 + 邮件」两个参数才打得开那一封；没关联客户就只到邮件中心。
+  email: t =>
+    t.snapshot?.customer_id
+      ? {
+          name: 'crm_emails_index',
+          params: { accountId: accountId.value },
+          query: {
+            email_id: String(t.id),
+            customer_id: String(t.snapshot.customer_id),
+          },
+        }
+      : { name: 'crm_emails_index', params: { accountId: accountId.value } },
+};
+
+const REF_ICONS = {
+  customer: 'i-lucide-building-2',
+  sales_order: 'i-lucide-file-text',
+  kpi_sheet: 'i-lucide-clipboard-check',
+  commission_sheet: 'i-lucide-badge-percent',
+  quote_request: 'i-lucide-calculator',
+  email: 'i-lucide-mail',
+};
+
+const refIcon = t => REF_ICONS[t?.type] || 'i-lucide-file-text';
+// 卡片上那行小字：后端挂 ref 时给的 label 优先，老消息（只有客户/订单两种）回落到原文案。
+const refLabel = t =>
+  t?.snapshot?.label || (t?.type === 'customer' ? L.kindCustomer : L.kindOrder);
+const canOpenRef = t => !!REF_ROUTES[t?.type];
+
 const openRef = target => {
-  if (target.type === 'customer') {
-    router.push({
-      name: 'crm_customer_detail_index',
-      params: { accountId: accountId.value, id: target.id },
-    });
-  } else if (target.type === 'sales_order') {
-    // 带 ?focus=<id>：销售订单页据此直接展开这一单，不然只是跳到整个列表。
-    router.push({
-      name: 'crm_sales_orders_index',
-      params: { accountId: accountId.value },
-      query: { focus: String(target.id) },
-    });
-  }
+  const build = REF_ROUTES[target?.type];
+  if (build) router.push(build(target));
 };
 
 const buildSendExtra = content => {
@@ -993,8 +1038,12 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 标题 + 新建 -->
-        <div class="flex items-center justify-between px-5 pb-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
-          <h1 class="text-xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <div
+          class="flex items-center justify-between px-5 pb-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+        >
+          <h1
+            class="text-xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          >
             {{ L.messages }}
           </h1>
           <div class="flex gap-0.5">
@@ -1275,7 +1324,7 @@ onBeforeUnmount(() => {
                 </div>
                 <!-- 业务对象卡片：点击跳转客户/订单 -->
                 <button
-                  v-if="msg.ref"
+                  v-if="msg.ref && canOpenRef(msg.ref)"
                   type="button"
                   class="flex items-center gap-2.5 mt-1.5 px-3 py-2 max-w-[260px] text-left rounded-2xl bg-n-solid-1 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-alpha-1 transition-colors"
                   @click="openRef(msg.ref)"
@@ -1283,22 +1332,11 @@ onBeforeUnmount(() => {
                   <span
                     class="grid rounded-lg shrink-0 size-9 place-items-center bg-n-teal-3 text-n-teal-11"
                   >
-                    <Icon
-                      :icon="
-                        msg.ref.type === 'customer'
-                          ? 'i-lucide-building-2'
-                          : 'i-lucide-file-text'
-                      "
-                      class="size-[18px]"
-                    />
+                    <Icon :icon="refIcon(msg.ref)" class="size-[18px]" />
                   </span>
                   <span class="min-w-0">
                     <span class="block text-xs text-n-slate-10">
-                      {{
-                        msg.ref.type === 'customer'
-                          ? L.kindCustomer
-                          : L.kindOrder
-                      }}
+                      {{ refLabel(msg.ref) }}
                     </span>
                     <span
                       class="block text-sm font-medium truncate text-n-slate-12"
