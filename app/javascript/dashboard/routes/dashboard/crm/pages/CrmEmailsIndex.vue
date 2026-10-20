@@ -1169,9 +1169,28 @@ const openLocation = open => {
 // 追踪列表行：最近一次打开的归属地（城市, 国家）。
 const trackingLocation = record =>
   [record.lastOpenCity, record.lastOpenCountry].filter(Boolean).join(', ');
+// 列表不再下发正文（一页 25 封、平均 1.8 万字，全带上就是 750KB），
+// 选中时才补拉这一封的详情。拉回来直接写进列表那条记录本身——
+// 阅读区、回复、转发、编辑草稿、再次编辑拿到的都是同一个对象，
+// 一次请求之后它们全都有正文，不用各自再判一遍。
+const loadBody = async email => {
+  if (!email || email.bodyHtml !== undefined) return;
+  try {
+    const { data } = await CrmEmailAPI.show(email.id);
+    const full = camelcaseKeys(data.payload || data || {}, { deep: true });
+    email.body = full.body || '';
+    email.bodyHtml = full.bodyHtml || '';
+  } catch {
+    // 拉不到就留空：阅读区会显示「（无正文）」，比整页报错好
+    email.body = email.body || '';
+    email.bodyHtml = '';
+  }
+};
+
 const selectEmail = async email => {
   selectedEmail.value = email;
   emailOpens.value = [];
+  await loadBody(email);
   // 换邮件时收起 AI 翻译/摘要面板（翻译按邮件缓存，重开秒出）。
   aiTranslation.value = null;
   aiSummary.value = null;
@@ -1945,8 +1964,12 @@ watch(
       :class="selectedEmail ? 'hidden md:flex' : 'flex'"
     >
       <div class="flex-shrink-0 px-4 pt-4 pb-3 border-b border-n-weak">
-        <div class="flex items-center justify-between gap-2 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
-          <h1 class="text-lg font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <div
+          class="flex items-center justify-between gap-2 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+        >
+          <h1
+            class="text-lg font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          >
             {{ activeFolderLabel }}
           </h1>
           <div class="flex items-center flex-wrap gap-2">
@@ -2298,7 +2321,11 @@ watch(
                     {{ record.subject || '(无主题)' }}
                   </div>
                   <div class="mt-0.5 text-xs truncate text-n-slate-10">
-                    {{ stripTextColorMarkers(record.body) || '（无正文）' }}
+                    {{
+                      stripTextColorMarkers(
+                        record.bodyPreview ?? record.body
+                      ) || '（无正文）'
+                    }}
                   </div>
                   <div class="flex items-center gap-2 mt-1.5">
                     <span
@@ -3181,7 +3208,8 @@ watch(
             >
               <span class="truncate">
                 {{ d.from_user_name }} → {{ d.to_user_name }}
-                <span v-if="d.note" class="text-n-slate-9"
+                <span
+v-if="d.note" class="text-n-slate-9"
                   >（{{ d.note }}）</span
                 >
               </span>

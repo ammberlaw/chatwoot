@@ -69,12 +69,40 @@ class ContactInboxWithContactBuilder
     contact ||= find_contact_by_email(contact_attributes[:email])
     contact ||= find_contact_by_phone_number(contact_attributes[:phone_number])
     contact ||= find_contact_by_instagram_source_id(source_id) if instagram_channel?
+    contact ||= find_contact_by_whatsapp_source_id(source_id) if whatsapp_channel?
 
     contact
   end
 
   def instagram_channel?
     inbox.channel_type == 'Channel::Instagram'
+  end
+
+  WHATSAPP_CHANNELS = %w[Channel::Whatsapp Channel::WhatsappWeb].freeze
+
+  def whatsapp_channel?
+    WHATSAPP_CHANNELS.include?(inbox.channel_type)
+  end
+
+  # 同一个人发给公司不同 WhatsApp 线（官方号 / 各业务员的个人号）时复用同一条联系人。
+  #
+  # 原来只按手机号对。但个人号那条链路入站**可能只给 LID**（WhatsApp 的匿名标识，
+  # 形如 220486558580954@lid）、拿不到手机号，于是同一个客户在第二条线上
+  # 又建出一条新联系人——生产上 Pocketprice 就是这样成了 29138 / 29150 两条，
+  # 两条会话各走各的，业务看着像「系统里发的和手机上发的不同步」。
+  # （同一个客户 BLOOM OIL 因为有手机号能对上，就只有一条，表现正常。）
+  #
+  # 按 source_id 对是安全的：LID 和手机号 JID 都唯一标识一个 WhatsApp 账号，
+  # 不存在两个人共用同一个的情况。
+  # 只合并**联系人**，contact_inbox 仍是一线一条——每条线的会话本来就该分开，
+  # 客户手机上看到的也是两个不同号码的对话。
+  def find_contact_by_whatsapp_source_id(wa_source_id)
+    return if wa_source_id.blank?
+
+    ContactInbox.joins(:inbox)
+                .where(source_id: wa_source_id)
+                .where(inboxes: { account_id: account.id, channel_type: WHATSAPP_CHANNELS })
+                .first&.contact
   end
 
   # There might be existing contact_inboxes created through Channel::FacebookPage

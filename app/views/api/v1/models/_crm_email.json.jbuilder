@@ -8,8 +8,16 @@ json.to_address resource.to_address
 json.cc_address resource.cc_address
 json.bcc_address resource.bcc_address
 json.email_date resource.email_date
-json.body resource.body
-json.body_html resource.body_html
+# 正文只在详情里下发（detail: true）。列表一页 25 封、平均 1.8 万字，
+# 全带上就是一次 750KB 的响应，而列表只用得到一句摘要。
+# 阅读区/回复/编辑草稿拿到的都是 selectEmail 补拉的那份详情，不受影响。
+if local_assigns[:detail]
+  json.body resource.body
+  json.body_html resource.body_html
+else
+  # 列表行的摘要：纯文本前 300 字够显示一行，再多也被省略号截掉。
+  json.body_preview resource.body.to_s[0, 300]
+end
 json.send_status resource.send_status
 json.send_error resource.send_error
 json.scheduled_at resource.scheduled_at

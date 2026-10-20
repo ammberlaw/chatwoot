@@ -1,6 +1,8 @@
 # Turns an inbound message forwarded by the Baileys bridge into a Chatwoot
 # contact + conversation + message. Mirrors the Telegram incoming flow.
-# 单聊：文字 + 媒体（图片/视频/语音/文件）。群聊仍不收。
+# 单聊 + 群聊：文字 + 媒体（图片/视频/语音/文件）。
+# 群聊的「联系人」代表群本身；真正的发言人由桥用 participant_name 带来，
+# 拼在正文前面（见 message_content），否则一个群十个人说话看着全是同一个人。
 class Whatsapp::IncomingMessageWhatsappWebService
   include FileTypeHelper
 
@@ -24,16 +26,34 @@ class Whatsapp::IncomingMessageWhatsappWebService
 
   private
 
+  # 群消息正文前缀发言人：「张三：内容」。
+  #
+  # 为什么用前缀而不是另起字段渲染：列表摘要、阅读区、AI 往来摘要、导出走的是
+  # 各自不同的渲染路径，塞进 content_attributes 的话每条路都要单独改一遍，
+  # 漏一处就有一处看不出是谁说的。前缀一次到位。
+  # 同时也写进 content_attributes 留底，以后真要单独渲染时不用重新解析正文。
+  def message_content
+    return params[:text] if participant_name.blank? || params[:text].blank?
+
+    "#{participant_name}：#{params[:text]}"
+  end
+
+  def participant_name
+    params[:participant_name].to_s.strip.presence
+  end
+
   def build_message
     @conversation.messages.create!(
-      content: params[:text],
+      content: message_content,
       account_id: inbox.account_id,
       inbox_id: inbox.id,
       message_type: from_me? ? :outgoing : :incoming,
       sender: from_me? ? agent : @contact,
       source_id: message_id,
       created_at: sent_at,
-      content_attributes: reply_attributes
+      content_attributes: reply_attributes.merge(
+        participant_name.present? ? { wa_participant_name: participant_name } : {}
+      )
     )
   end
 

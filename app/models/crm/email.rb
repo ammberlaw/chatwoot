@@ -72,7 +72,16 @@ class Crm::Email < ApplicationRecord
   SEND_STATUSES = %w[DRAFT SCHEDULED PENDING SENT FAILED].freeze
   # 邮件正文上限（含内联样式/富文本，体积远超普通字段）。收信入库截断与模型校验共用此值，
   # 别再各自写死不同数字（曾出现入库按 2 万截、校验放到 20 万、长邮件被腰斩）。
-  BODY_MAX_LENGTH = 200_000
+  #
+  # 2026-10-20 从 20 万提到 100 万：外贸一条线程来回十几轮是常态，而引用链每轮都把
+  # 上一封整个 body_html 裹进来；企业邮箱（阿里尤其）给每个节点都挂内联样式，
+  # HTML 大约是纯文本的 5 倍。生产上已有 7 封真撞上限被截断（分布在 4 条线程，
+  # 最早 10-07），其中一条回到第 13 轮就发不出去了，报「Body html过长」。
+  #
+  # 提这个数的前提是**列表不再下发正文**（见 _crm_email.json.jbuilder 的 detail 开关）：
+  # 原来一页 25 封全带正文、平均每封 1.8 万字，放开上限会让列表响应跟着膨胀。
+  # 现在列表只给 body_preview，正文在点开那一封时单独拉。
+  BODY_MAX_LENGTH = 1_000_000
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true

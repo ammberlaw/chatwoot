@@ -561,13 +561,68 @@ const quoteHeaderHtml = computed(() => {
   if (!m) return QUOTE_MARKER;
   return `${QUOTE_MARKER}<br>发件人：${escapeHtml(m.from || '—')}<br>时间：${escapeHtml(m.date || '')}<br>主题：${escapeHtml(m.subject || '(无主题)')}`;
 });
+// 引用历史的体积兜底。
+//
+// 正常情况下**不该触发**：引用是客户要留的往来记录，不能随便替人删。
+// 正文上限已经提到 Crm::Email::BODY_MAX_LENGTH（100 万），一条线程来回几十轮
+// 都够用。这里留一道闸只是为了「真有一天撞上限时别让人卡在发不出去」——
+// 与其弹一句「Body html过长」让人干瞪眼，不如砍掉最老的几轮把信发出去，
+// 并在信里写明省略过。
+//
+// 引用是新的在上、旧的在下（每封的引用块都挂在自己正文底下），所以裁尾部
+// 丢掉的是最老的几轮，最近的上下文完整保留。
+const QUOTE_HTML_BUDGET = 900_000;
+
+const trimQuoteHtml = html => {
+  if (!html || html.length <= QUOTE_HTML_BUDGET) {
+    return { html, dropped: 0 };
+  }
+  const box = document.createElement('div');
+  box.innerHTML = html;
+  const before = html.length;
+
+  const sizeOf = n =>
+    (n.nodeType === 1 ? n.outerHTML : n.textContent || '').length;
+
+  // 从尾部往前丢（最旧的历史在最下面），但**丢之前先算一下会不会裁过头**：
+  // 一封信常常整个被一层外壳 div 裹着（阿里企业邮是 .__aliyun_email_body_block），
+  // 顶层只有一个孩子，直接丢就等于把历史全删光。所以遇到「丢掉它就低于预算」
+  // 的大块就钻进去，只裁它内部的尾巴，丢多少算多少。
+  const shrink = node => {
+    while (box.innerHTML.length > QUOTE_HTML_BUDGET) {
+      const last = node.lastChild;
+      if (!last) return;
+
+      const leaf = !last.childNodes || !last.childNodes.length;
+      if (box.innerHTML.length - sizeOf(last) >= QUOTE_HTML_BUDGET || leaf) {
+        node.removeChild(last);
+      } else {
+        // 丢掉它会裁过头，而它还能往里拆：进去只裁它内部的尾巴
+        shrink(last);
+        return;
+      }
+    }
+  };
+  shrink(box);
+
+  return { html: box.innerHTML, dropped: before - box.innerHTML.length };
+};
+
 // 发出的 HTML 里的引用块：分隔头 + 原邮件 HTML（灰色引用条样式，收件端习惯）。
-const quoteBlockHtml = computed(() =>
-  quoteHtmlRaw.value
-    ? `<br><br><div style="color:#6b7280;font-size:13px">${quoteHeaderHtml.value}</div>` +
-      `<blockquote style="margin:8px 0 0;padding-left:12px;border-left:2px solid #d1d5db">${quoteHtmlRaw.value}</blockquote>`
-    : ''
-);
+const quoteBlockHtml = computed(() => {
+  if (!quoteHtmlRaw.value) return '';
+
+  const { html, dropped } = trimQuoteHtml(quoteHtmlRaw.value);
+  // 裁过就说一声——收件人要知道底下不是全部历史，不能让它静悄悄消失。
+  const note = dropped
+    ? '<div style="color:#9ca3af;font-size:12px;margin-top:8px">' +
+      '（更早的往来历史较长，已省略）</div>'
+    : '';
+  return (
+    `<br><br><div style="color:#6b7280;font-size:13px">${quoteHeaderHtml.value}</div>` +
+    `<blockquote style="margin:8px 0 0;padding-left:12px;border-left:2px solid #d1d5db">${html}${note}</blockquote>`
+  );
+});
 const quoteBlockText = computed(() => {
   if (!quoteHtmlRaw.value && !quotePlain.value) return '';
   const m = quoteMeta.value;
