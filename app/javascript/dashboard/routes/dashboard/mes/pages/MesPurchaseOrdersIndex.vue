@@ -310,6 +310,22 @@ const fetchPreviewPdf = async () => {
   }
 };
 
+// 「只看这家 / 看全部」：一张采购单常挂十几家供应商，预览默认全勾，
+// 想核某一家的那张纸就得把其余的逐个取消——这两颗按钮是一步到位的入口。
+const onlyThisSupplier = s => {
+  previewChecked.value = [Number(s.id || 0)];
+  fetchPreviewPdf();
+};
+const isOnlyChecked = s =>
+  previewChecked.value.length === 1 &&
+  Number(previewChecked.value[0]) === Number(s.id || 0);
+const checkAllSuppliers = () => {
+  previewChecked.value = previewSuppliers.value
+    .filter(x => x.id)
+    .map(x => Number(x.id));
+  fetchPreviewPdf();
+};
+
 // 一张采购单挂多张生产订单时，列表只露前两张，免得把列撑开；全部挂 title 上。
 const orderNosLabel = nos => {
   const list = nos || [];
@@ -582,6 +598,12 @@ const ITEM_COLUMN_DEFS = [
     tdClass: 'px-3 py-2 font-medium text-n-slate-12',
   },
   { key: 'supplier', label: '供应商', tdClass: 'px-3 py-2 text-n-slate-11' },
+  // 这家供应商在本单下的子流水号——仓库收料、财务对账都认它
+  {
+    key: 'supplierNo',
+    label: '供应商单号',
+    tdClass: 'px-3 py-2 font-mono text-n-slate-11 whitespace-nowrap',
+  },
   { key: 'code', label: '物料编码', tdClass: 'px-3 py-2 text-n-slate-11' },
   { key: 'name', label: '名称', tdClass: 'px-3 py-2 text-n-slate-12' },
   {
@@ -671,7 +693,7 @@ const {
   isResizing: isItemColResizing,
   startResize: startItemColResize,
   autoFitColumn: autoFitItemCol,
-} = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v1');
+} = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v2');
 
 // 明细视图的行级过滤。后端的列筛选筛的是**单**：一张采购单只要有一行对上就整张留下。
 // 按单看没问题（供应商那列本来就列全部几家），摊成明细后这张单里其他供应商、其他物料的行
@@ -687,36 +709,50 @@ const ROW_FILTER_FIELDS = {
 const matchesRowFilters = row =>
   Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
     const v = (colFilters[key] || '').trim().toLowerCase();
-    return !v || String(row[field] || '').toLowerCase().includes(v);
+    return (
+      !v ||
+      String(row[field] || '')
+        .toLowerCase()
+        .includes(v)
+    );
   });
 
 // 把当页采购单摊平成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
 const itemRows = computed(() =>
-  records.value.flatMap(po =>
-    (po.purchaseItems || []).map(it => ({
-      key: `${po.id}-${it.id}`,
-      po,
-      poNo: po.poNo,
-      docDate: po.docDate,
-      supplier: it.supplierName || '—',
-      code: it.productSku || it.materialNo || '—',
-      name: it.productName || it.materialName || '—',
-      spec: it.specification || '—',
-      aux: it.auxAttributeName || '—',
-      productRemark: it.productRemark || '—',
-      qty: it.qty,
-      received: it.receivedQty,
-      unit: it.unit || '',
-      taxRate: it.supplierTaxRate,
-      untaxedRate: it.untaxedRateMicros,
-      taxedRate: it.taxedRateMicros,
-      untaxedAmount: it.untaxedAmountMicros,
-      taxedAmount: it.taxedAmountMicros,
-      arrival: it.arrivalDate,
-      itemRemark: it.remark || '—',
-      internalRemark: po.internalRemark || '—',
-    }))
-  ).filter(matchesRowFilters)
+  records.value
+    .flatMap(po =>
+      (po.purchaseItems || []).map(it => ({
+        key: `${po.id}-${it.id}`,
+        po,
+        poNo: po.poNo,
+        // 这家供应商在本单下的子流水号（PU-xxxx-01 / -02 …）。按单视图展开供应商时有，
+        // 按明细这边原来没有——仓库查物料、财务对账单都是认这个号的，看不到就对不上账
+        // （10.19 反馈：「这些流水号要显示到按明细那边去啊」）。
+        supplierNo:
+          (po.suppliers || []).find(
+            sp => String(sp.id || '') === String(it.mesSupplierId || '')
+          )?.no || '',
+        docDate: po.docDate,
+        supplier: it.supplierName || '—',
+        code: it.productSku || it.materialNo || '—',
+        name: it.productName || it.materialName || '—',
+        spec: it.specification || '—',
+        aux: it.auxAttributeName || '—',
+        productRemark: it.productRemark || '—',
+        qty: it.qty,
+        received: it.receivedQty,
+        unit: it.unit || '',
+        taxRate: it.supplierTaxRate,
+        untaxedRate: it.untaxedRateMicros,
+        taxedRate: it.taxedRateMicros,
+        untaxedAmount: it.untaxedAmountMicros,
+        taxedAmount: it.taxedAmountMicros,
+        arrival: it.arrivalDate,
+        itemRemark: it.remark || '—',
+        internalRemark: po.internalRemark || '—',
+      }))
+    )
+    .filter(matchesRowFilters)
 );
 
 // 同一张采购单的连续行标记成一组：单号只在组首显示，组尾加一条分隔线。
@@ -1543,6 +1579,9 @@ useRouteQueryReentry(async query => {
                 <template v-else-if="col.key === 'supplier'">
                   {{ r.supplier }}
                 </template>
+                <template v-else-if="col.key === 'supplierNo'">
+                  {{ r.supplierNo || '—' }}
+                </template>
                 <template v-else-if="col.key === 'code'">{{ r.code }}</template>
                 <template v-else-if="col.key === 'name'">{{ r.name }}</template>
                 <template v-else-if="col.key === 'spec'">
@@ -1649,21 +1688,42 @@ useRouteQueryReentry(async query => {
               :key="s.id"
               class="flex flex-col gap-1 text-xs text-n-slate-11"
             >
-              <label class="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  v-if="previewSuppliers.length > 1"
-                  v-model="previewChecked"
-                  type="checkbox"
-                  :value="Number(s.id || 0)"
-                  @change="fetchPreviewPdf"
-                />
-                <span class="font-medium truncate text-n-slate-12">
-                  {{ s.name }}
-                </span>
-                <span class="shrink-0 text-n-slate-10"
-                  >{{ s.itemCount }} 项</span
+              <div class="flex items-center gap-1.5">
+                <label class="flex items-center min-w-0 gap-1.5 cursor-pointer">
+                  <input
+                    v-if="previewSuppliers.length > 1"
+                    v-model="previewChecked"
+                    type="checkbox"
+                    :value="Number(s.id || 0)"
+                    @change="fetchPreviewPdf"
+                  />
+                  <span class="font-medium truncate text-n-slate-12">
+                    {{ s.name }}
+                  </span>
+                  <span class="shrink-0 text-n-slate-10"
+                    >{{ s.itemCount }} 项</span
+                  >
+                </label>
+                <!-- 一张单挂十几家时，想单看一家得把其余十几个勾一个个取消——
+                     给个一步到位的（10.19 反馈「不能单独选择某家查看」）。 -->
+                <button
+                  v-if="previewSuppliers.length > 1 && s.id"
+                  type="button"
+                  class="shrink-0 text-xs text-n-iris-11 hover:underline"
+                  @click="onlyThisSupplier(s)"
                 >
-              </label>
+                  只看这家
+                </button>
+                <span class="flex-1" />
+                <button
+                  v-if="previewSuppliers.length > 1 && isOnlyChecked(s)"
+                  type="button"
+                  class="shrink-0 text-xs text-n-slate-11 hover:underline"
+                  @click="checkAllSuppliers"
+                >
+                  看全部
+                </button>
+              </div>
               <!-- 未指定供应商的那组不能导（会被凑成一份发错家），直接在这儿说清楚 -->
               <span v-if="!s.id" class="text-n-ruby-11">
                 这几项还没指定供应商，导不出——请回「编辑」里逐行选供应商

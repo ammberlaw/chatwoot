@@ -83,7 +83,11 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def requirement
     production_order = Current.account.mes_production_orders.find(params[:production_order_id])
     # category 可选：MACHINE 主料(整机料) / PACKAGING 辅料(包装料)——支持两个采购员分料建单。
-    render json: { payload: production_order.material_requirements(category: params[:category].presence) }
+    cat = params[:category].presence
+    # blocked：工程/业务还没确认、这轮不下单的料。不带进明细，但要告诉采购有几项、
+    # 卡在谁那里——少了几行而没有提示，采购会以为料就这些。
+    render json: { payload: production_order.material_requirements(category: cat),
+                   blocked: production_order.blocked_requirement_rows(category: cat) }
   end
 
   # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF，

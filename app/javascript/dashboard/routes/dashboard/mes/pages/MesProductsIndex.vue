@@ -6,6 +6,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import {
   MES_PRODUCT_LINES,
   productLineLabel,
+  getActiveProductLine,
 } from 'dashboard/composables/useMesProductLine';
 
 import MesProductAPI from 'dashboard/api/mes/products';
@@ -272,6 +273,10 @@ const removeAux = async attr => {
   }
 };
 
+// 上一次新建用的计量单位，记在本机（这是填单顺手程度的事，不是业务数据，不值得建表）。
+const UNIT_KEY = 'mes.products.lastUnit';
+const lastUnit = ref(localStorage.getItem(UNIT_KEY) || '');
+
 const form = reactive({
   name: '',
   sku: '',
@@ -317,14 +322,18 @@ const openCreate = () => {
   Object.assign(form, {
     name: '',
     sku: '',
-    productLine: '',
+    // 产品线跟着顶部切换的产线走：在「平板」下编码，新码就是平板的。
+    // 「全部」视图下拿不到具体产线，留空由人选（后端也会按当前产线兜底）。
+    productLine: getActiveProductLine() || '',
     category: '',
     // 商品类别跟着当前筛选走（和下面的 groupCode 一个道理）：人是在「主板」这一类里
     // 翻到流水号末尾才点的新增，新编的码理应还在这一类下。留空的话列表按
     // source_category 筛就看不到它了——新建完「列表里没有、搜索又搜得到」，
     // 人会以为没存上、再建一遍（生产上已经出过 P.03.134 这么一颗）。
     sourceCategory: selectedSourceCategory.value || '',
-    unit: '',
+    // 单位沿用上一次新建时填的：一个人一口气编几十个码，单位基本都是同一个
+    // （平板是「片」，商显是「台」），每次重选纯属多余。不一样的改掉就行。
+    unit: lastUnit.value,
     specification: '',
     remark: '',
     groupCode: selectedGroup.value || '',
@@ -371,6 +380,15 @@ const submit = async () => {
       ? await store.update({ id: editingId.value, ...payload })
       : await store.create(payload);
     if (ok) {
+      // 记住这次用的单位，下一次新建直接带上（见 openCreate）
+      if (payload.unit) {
+        lastUnit.value = payload.unit;
+        try {
+          localStorage.setItem(UNIT_KEY, payload.unit);
+        } catch {
+          // 隐私模式写不进去：这轮内存里仍然生效，不影响建档
+        }
+      }
       // 新增完不关弹窗，就地转成编辑态：辅助属性要有产品 id 才建得了（编码按产品自动生成），
       // 关掉再回列表翻出这条新料号太费事——采购的原话是「每次新增代码的时候都要有」。
       if (editingId.value) {

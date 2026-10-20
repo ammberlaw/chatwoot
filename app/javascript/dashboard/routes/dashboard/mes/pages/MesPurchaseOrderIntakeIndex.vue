@@ -87,12 +87,6 @@ const loadSupplierPool = async () => {
   supplierPool.value = (suppliersStore.getRecords || []).slice();
 };
 
-const supplierOptions = computed(() =>
-  supplierPool.value.map(s => ({
-    value: String(s.id),
-    label: s.name,
-  }))
-);
 // 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
 const ITEM_TYPE_OPTIONS = [
   { value: 'MATERIAL', label: '物料' },
@@ -139,29 +133,18 @@ const seedAuxFromRows = rows => {
   const seeded = { ...productAux.value };
   rows.forEach(r => {
     const pid = String(r.crmProductId || '');
-    if (!pid || !r.auxAttributeName || seeded[pid]) return;
-    seeded[pid] = [{ name: r.auxAttributeName }];
+    if (!pid || !r.auxAttributeName) return;
+    // 按「产品 + 值」取并集，不能见到这颗料就跳过后面的行：
+    // 同一个编码在一张单上出现多次、各自辅助属性不同是常态（2809喇叭 线长255mm
+    // 和 线长105mm 是两行），原来只种第一行那个值，第二行的值不在选项里就显示不出来，
+    // 两行看着都是 255mm——照这个下给供应商就是做错货（10.19 反馈）。
+    const list = seeded[pid] ? [...seeded[pid]] : [];
+    if (!list.some(a => a.name === r.auxAttributeName)) {
+      list.push({ name: r.auxAttributeName });
+    }
+    seeded[pid] = list;
   });
   productAux.value = seeded;
-};
-
-// 选料时把档案上的辅助属性一并带出来（用户原话：编码自带的辅助属性要带出）。
-// 只有一个选项就直接填上；有多个让人挑——同一颗编码不同变体，填错了供应商就做错货。
-const onProductPicked = (p, row) => {
-  mergeProductOptions([
-    {
-      value: String(p.id),
-      label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
-        p.specification ? ` · ${p.specification}` : ''
-      }`,
-      unit: p.unit || '',
-      specification: p.specification || '',
-      onHand: p.on_hand != null ? Number(p.on_hand) : null,
-    },
-  ]);
-  const list = p.aux_attributes || [];
-  productAux.value = { ...productAux.value, [String(p.id)]: list };
-  if (row) row.auxAttributeName = list.length === 1 ? list[0].name : '';
 };
 
 const editingId = ref(null);
@@ -208,6 +191,56 @@ const form = reactive({
   exceptionNote: '',
   rows: [],
 });
+
+// 选料时把档案上的辅助属性一并带出来（用户原话：编码自带的辅助属性要带出）。
+// 只有一个选项就直接填上；有多个让人挑——同一颗编码不同变体，填错了供应商就做错货。
+const onProductPicked = (p, row) => {
+  mergeProductOptions([
+    {
+      value: String(p.id),
+      label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
+        p.specification ? ` · ${p.specification}` : ''
+      }`,
+      unit: p.unit || '',
+      specification: p.specification || '',
+      onHand: p.on_hand != null ? Number(p.on_hand) : null,
+    },
+  ]);
+  // 档案上的选项 **并上** 这张单里已经在用的值，不能整个替换：
+  // 老单上的辅助属性可能已经从档案里停用/改名了，替换掉它那一行就变空白，
+  // 保存一次这个值就真丢了（用户原话：「后面线长选泽只会多不会少」）。
+  const archive = p.aux_attributes || [];
+  const inUse = form.rows
+    .filter(
+      r => String(r.crmProductId || '') === String(p.id) && r.auxAttributeName
+    )
+    .map(r => r.auxAttributeName);
+  const list = [...archive];
+  inUse.forEach(name => {
+    if (!list.some(a => a.name === name)) list.push({ name });
+  });
+  productAux.value = { ...productAux.value, [String(p.id)]: list };
+  // 只有一个候选才自动填；多个让人挑——同一颗编码不同变体，填错了供应商就做错货。
+  if (row) row.auxAttributeName = archive.length === 1 ? archive[0].name : '';
+};
+
+// 已停用的供应商不出现在下拉里——停用就是不再跟它下单，选得到就还会下错
+// （10.19 反馈：「供应商列表里面已经禁用了的，采购订单页面下单就不要能搜索出来」）。
+// 但**已经选上的那家要留着**：老单当初下给它时它还是启用的，把它从下拉里拿掉
+// 会让那一行变空白，编辑一保存就把供应商丢了。
+const pickedSupplierIds = computed(
+  () => new Set(form.rows.map(r => r.mesSupplierId).filter(Boolean))
+);
+const supplierOptions = computed(() =>
+  supplierPool.value
+    .filter(
+      s => s.isActive !== false || pickedSupplierIds.value.has(String(s.id))
+    )
+    .map(s => ({
+      value: String(s.id),
+      label: s.isActive === false ? `${s.name}（已停用）` : s.name,
+    }))
+);
 const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 // 已经走过采购阶段、或已完结/取消的单不再出现在候选里——采购员反馈这些单
@@ -477,6 +510,9 @@ const removeRow = i => {
 
 // 从关联的生产订单 BOM 算料，覆盖当前明细行。
 // category='' 全部 / 'MACHINE' 只主料(整机料) / 'PACKAGING' 只辅料(包装料)——两个采购员分料建单。
+// 被拦下的待确认料（后端 requirement 接口的 blocked）：不进明细，但顶部要挂出来。
+const blockedRows = ref([]);
+
 const explode = async (category = '') => {
   if (!form.productionOrderId) {
     useAlert('请先选销售订单');
@@ -488,11 +524,17 @@ const explode = async (category = '') => {
       category
     );
     const all = data?.payload || [];
+    // 工程/业务还没确认的料后端不带进来（下给供应商就是下错单），但必须让采购知道
+    // 「这单还差几项没定」——少了几行却不说，采购会以为料就这些、下完就不管了。
+    blockedRows.value = data?.blocked || [];
     if (!all.length) {
+      const emptyHint = category
+        ? '该类别（整机物料/包装物料）无用料'
+        : '该销售订单未挂生产任务单或无用料';
       useAlert(
-        category
-          ? '该类别（整机物料/包装物料）无用料'
-          : '该销售订单未挂生产任务单或无用料'
+        blockedRows.value.length
+          ? `这单的料还没确认完：${blockedRows.value.length} 项待确认，确认后才能下单`
+          : emptyHint
       );
       return;
     }
@@ -1109,6 +1151,26 @@ onBeforeRouteLeave((to, from, next) => {
             v-model="form.exceptionNote"
             placeholder="异常说明"
           />
+        </div>
+
+        <!-- 待确认的料没带进明细（下给供应商就是下错单），在这里挂出来：
+             采购要看得见「还差哪几项、卡在谁那里」，而不是只看到少了几行。 -->
+        <div
+          v-if="blockedRows.length"
+          class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-amber-7 bg-n-amber-2"
+        >
+          <span class="text-heading-3 text-n-amber-11">
+            {{ blockedRows.length }} 项待确认，本次不下单
+          </span>
+          <span
+            v-for="r in blockedRows"
+            :key="r.material_no || r.material_name"
+            class="text-label-small text-n-slate-11"
+          >
+            {{ r.material_no || '（无代码）' }} {{ r.material_name }} ·
+            {{ r.blocker_label || '待确认' }}
+            <template v-if="r.blocker_note">· {{ r.blocker_note }}</template>
+          </span>
         </div>
 
         <div class="flex items-center justify-between">

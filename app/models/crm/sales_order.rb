@@ -133,7 +133,10 @@ class Crm::SalesOrder < ApplicationRecord
     Array(line_items).filter_map do |item|
       next unless item.is_a?(Hash)
 
+      # crm_product_id 必须带出来：明细行多数只存产品 id、不存 sku（建单时选的是产品档案），
+      # 下游只按 sku 对行就会全部对不上——出库审核页的单价/金额因此一直是「—」。
       { sku: item['sku'], name: item['name'], spec: item['spec'],
+        crm_product_id: item['crm_product_id'],
         quantity: item['quantity'], unit_price: item['unit_price'], amount: item['amount'] }
     end
   end

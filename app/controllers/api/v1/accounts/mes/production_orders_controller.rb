@@ -789,9 +789,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 删除权：管理员删任意；其余仅能删**本人的草稿**（已下发进入生产流程不可删）。
   def ensure_deletable!
     return if admin_like?
-    return if @production_order.is_draft && @production_order.owner_id == current_user.id
+    return unless @production_order.owner_id == current_user.id
+    # 草稿，或者虽已生效但什么都还没开始（见 deletable_by_owner? 的注释）。
+    return if @production_order.is_draft || @production_order.deletable_by_owner?
 
-    render json: { error: '仅本人草稿可删除；已下发订单不可删除' }, status: :forbidden
+    render json: { error: '这张单已经往下走了（已领料/采购/入库），不能删。请联系管理员作废。' },
+           status: :forbidden
   end
 
   def production_order_params

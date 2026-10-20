@@ -3,7 +3,9 @@ json.shipment_no resource.shipment_no
 json.crm_sales_order_id resource.crm_sales_order_id
 json.sales_order_no resource.crm_sales_order&.order_no
 json.crm_customer_id resource.crm_customer_id
-json.customer_name resource.crm_customer&.name
+# 客户名回落到销售订单上的客户：生产出库单建出来时不一定直接挂客户
+# （挂的是生产订单），财务的出库审核页就只剩一个「—」，看不出这车货发给谁。
+json.customer_name(resource.crm_customer&.name || resource.crm_sales_order&.crm_customer&.name)
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
@@ -31,14 +33,16 @@ json.remark resource.remark
 # 发货仓 + 客户地址：销售出库单票面上要印「发货仓库」和「交货地点」，
 # 原来这两样只能点进别处看。
 json.warehouse_name resource.warehouse&.name
-json.customer_address resource.crm_customer&.address
+json.customer_address(resource.crm_customer&.address || resource.crm_sales_order&.crm_customer&.address)
 json.sales_order_remark resource.crm_sales_order&.remark
 # 销售单价按订单明细里同一个产品那行取（出库单自己不存价）。
 # 这是卖给客户的价，不是成本，销售端本来就看得到。
 order_lines = resource.crm_sales_order&.line_item_rows.to_a
 json.shipment_items do
   json.array! resource.shipment_items.order(:id) do |item|
-    line = order_lines.find { |r| r[:sku].present? && r[:sku] == item.crm_product&.sku }
+    # 先按产品 id 对行（明细行基本都只存 id），对不上再退回 sku。
+    line = order_lines.find { |r| r[:crm_product_id].present? && r[:crm_product_id].to_i == item.crm_product_id.to_i } ||
+           order_lines.find { |r| r[:sku].present? && r[:sku] == item.crm_product&.sku }
     json.id item.id
     json.crm_product_id item.crm_product_id
     json.product_name item.crm_product&.name

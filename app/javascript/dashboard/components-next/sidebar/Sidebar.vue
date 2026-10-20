@@ -360,7 +360,13 @@ const REJECTED_KINDS = [
   'shipment_rejected',
   'document_returned',
   'stage_returned',
+  // 工程/PMC 把单退回给业务要业务确认细节——这是实打实要业务动手的事，
+  // 漏在这里角标就不跳，业务不知道单子回到自己手上了（10.19 反馈）。
+  'sales_return_pending',
 ];
+const mesUnreadCount = computed(() =>
+  Number(mesNotificationsStore.getUnreadCount || 0)
+);
 const mesActionCount = computed(
   () =>
     mesTodoCount.value +
@@ -1472,7 +1478,12 @@ const menuItems = computed(() => {
           },
           // MES 站内通知是生产流转待办（接单/审批/报工），只给 MES 岗和采购审批人。
           // 财务有自己的「财务通知」，这一条对她是噪音（用户 2026-10-13 定）。
-          ...(isMesStaff.value || isMesPurchaseApprover.value
+          // 业务员不是 MES 岗，但**退回待确认、订单知会这些通知是发给他的**，
+          // 原来他连这个入口都没有，收得到看不着（10.19 反馈：迪拜账号没有站内通知模块）。
+          // 所以再放一个口子：手上有未读 MES 通知的人也显示。
+          ...(isMesStaff.value ||
+          isMesPurchaseApprover.value ||
+          mesUnreadCount.value > 0
             ? [
                 {
                   name: 'MES Notifications',

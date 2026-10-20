@@ -45,6 +45,19 @@ const fetchList = async () => {
 onMounted(fetchList);
 
 const unpaidOf = s => s.fully_paid === false;
+// 本次出库的货值：按行的 amount 合计（amount 已按本次出库量算，不是订单量）。
+// 有行取不到单价时合计标成「含未计价行」，不要给一个少算了的数让人以为就这么多。
+const itemsTotal = s => {
+  const rows = s.shipment_items || [];
+  const sum = rows.reduce((a, r) => a + Number(r.amount || 0), 0);
+  const missing = rows.some(r => r.amount == null);
+  const text = sum.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return missing ? `${text}（含未计价行）` : text;
+};
+
 const pendingCount = computed(() => records.value.length);
 
 // —— 审核通过：款没收齐要写理由 ——
@@ -217,7 +230,76 @@ const submitReject = async () => {
             v-else
             class="px-3 py-2 mt-2 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
           >
-            这张单没挂销售订单、或财务还没给它建账——系统查不到收款情况，请自行核对后再放行。
+            <template v-if="s.sales_order_no">
+              {{ s.sales_order_no }}
+              还没在财务建账（应收台账里没有这张单），系统查不到
+              收款情况。先去「应收台账」建账，或自行核对后放行。
+            </template>
+            <template v-else>
+              这张单没挂销售订单，系统查不到收款情况，请自行核对后再放行。
+            </template>
+          </div>
+
+          <!-- 货物明细：财务要知道这一车放的是什么、值多少钱才敢签字。
+               数据接口本来就带（shipment_items），原先这页没渲染，只有一个单号和两个按钮
+               （10.20 反馈「这个出库审核没有单据详情，审核不了」）。 -->
+          <div v-if="s.shipment_items?.length" class="mt-2 overflow-x-auto">
+            <table class="w-full text-xs min-w-[520px]">
+              <thead>
+                <tr class="text-left text-n-slate-10">
+                  <th class="py-1 pr-3 font-medium">商品编码</th>
+                  <th class="py-1 pr-3 font-medium">品名</th>
+                  <th class="py-1 pr-3 font-medium">规格</th>
+                  <th class="py-1 pr-3 font-medium text-right">数量</th>
+                  <th class="py-1 pr-3 font-medium text-right">单价</th>
+                  <th class="py-1 font-medium text-right">金额</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="it in s.shipment_items"
+                  :key="it.id"
+                  class="border-t border-n-weak text-n-slate-11"
+                >
+                  <td class="py-1 pr-3 font-mono">
+                    {{ it.product_sku || '—' }}
+                  </td>
+                  <td class="py-1 pr-3 text-n-slate-12">
+                    {{ it.product_name || '—' }}
+                  </td>
+                  <td class="py-1 pr-3">{{ it.specification || '—' }}</td>
+                  <td class="py-1 pr-3 text-right tabular-nums">
+                    {{ Number(it.qty || 0) }} {{ it.unit || '' }}
+                  </td>
+                  <td class="py-1 pr-3 text-right tabular-nums">
+                    {{ it.unit_price == null ? '—' : Number(it.unit_price) }}
+                  </td>
+                  <td class="py-1 text-right tabular-nums text-n-slate-12">
+                    {{ it.amount == null ? '—' : Number(it.amount).toFixed(2) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div
+              class="flex flex-wrap items-center gap-x-5 gap-y-1 pt-1 mt-1 text-xs border-t border-n-weak text-n-slate-11"
+            >
+              <span>
+                本次出库合计
+                <b class="ml-1 tabular-nums text-n-slate-12">
+                  {{ itemsTotal(s) }}
+                </b>
+              </span>
+              <span v-if="s.warehouse_name">发货仓 {{ s.warehouse_name }}</span>
+              <span v-if="s.customer_address">
+                交货地点 {{ s.customer_address }}
+              </span>
+            </div>
+          </div>
+          <div
+            v-else
+            class="px-3 py-2 mt-2 text-xs rounded-lg text-n-amber-11 bg-n-amber-2"
+          >
+            这张单没有出库明细，核对不了放的是什么货——先回销售出库页确认单据是否建完整。
           </div>
         </div>
       </div>

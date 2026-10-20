@@ -882,6 +882,19 @@ const blockerTip = b =>
 // 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
 const ackChip = po => {
   if (!po || po.stage === 'SHIPPED') return null;
+  // 退回给业务后这单其实停住了，等业务确认细节。原来列表上一点痕迹都没有，
+  // PMC 看着它照常排在「待接单」里，业务那边更是完全不知道单子回到自己手上了
+  // （10.19 反馈：「我点了退回给业务，但是在列表还是正常显示，没有显示已退回」）。
+  // 放在接单态之前：这时候「待接单」是误导，接单的人正等着业务先把细节定下来。
+  if (po.awaitingSalesConfirm)
+    return {
+      // salesReturnByName 是**退回的人**（工程/PMC），不是该确认的人——
+      // 该确认的是订单归属业务员本人，别把两者写反。
+      text: po.salesReturnByName
+        ? `已退回业务 · ${po.salesReturnByName} 退回`
+        : '已退回业务 · 等业务确认',
+      cls: 'text-n-ruby-11',
+    };
   if (po.stageAckAt)
     return {
       text: po.stageAckByName ? `✓ ${po.stageAckByName} 已接单` : '✓ 已接单',
@@ -1456,13 +1469,27 @@ const canEditRow = po =>
 // 只放开草稿的话制单人自己收不了场，只能找管理员，10.17 反馈 C4 就是这个）。
 // 真正的安全闸在后端：下游有采购单/入库单/质检单就拒绝删（见 Mes::ProductionOrder#delete_blockers），
 // 这里放宽只是让按钮出得来。
-const DELETABLE_APPROVALS = ['DRAFT', 'SUBMITTED', 'MANAGER_APPROVED', 'REJECTED'];
+const DELETABLE_APPROVALS = [
+  'DRAFT',
+  'SUBMITTED',
+  'MANAGER_APPROVED',
+  'REJECTED',
+];
+// 已生效但一步没走的单也让制单人自己删：转单建出来的单一上来就是 APPROVED
+// （PMC/管理员由已审销售订单转入直接生效），重复建的两张都卡在第一阶段，
+// 原来制单人一张也删不掉，只能找管理员（10.19 反馈「现在就 2 个重复的订单了，
+// 需要加一个删除的」）。口径与后端 deletable_by_owner? 一致，
+// 真正的闸是下游单据检查（delete_blockers）。
+const untouched = po =>
+  po.stage === 'SALES_CONFIRMED' && po.status === 'IN_PROGRESS';
 const canDeleteRow = po =>
   isAdmin.value ||
   isCrmDeputyAdmin.value ||
   (canCreateOrder.value &&
     po.ownerId === currentUserId.value &&
-    (po.isDraft || DELETABLE_APPROVALS.includes(po.approvalStatus)));
+    (po.isDraft ||
+      DELETABLE_APPROVALS.includes(po.approvalStatus) ||
+      untouched(po)));
 // 当前页查看该订单的原料入库单，保留列表及详情状态。
 const stockEntriesDialog = ref(null);
 const goStockEntries = po => stockEntriesDialog.value.open(po);
@@ -1487,10 +1514,10 @@ const goCrmSalesOrder = id =>
 // 删除草稿订单（归属业务删本人草稿 / 管理员删任意）。
 const deleteOrder = async po => {
   // eslint-disable-next-line no-alert
-  if (!window.confirm(`确定删除草稿订单「${po.orderNo}」？`)) return;
+  if (!window.confirm(`确定删除订单「${po.orderNo}」？删了不可恢复。`)) return;
   const ok = await store.delete(po.id);
   if (ok) {
-    useAlert('草稿订单已删除');
+    useAlert('订单已删除');
     if (selected.value?.id === po.id) selected.value = null;
     fetchRecords();
   }
@@ -2166,7 +2193,13 @@ watch(currentPage, fetchRecords);
             class="hidden md:table w-full text-sm"
             :class="hiddenCols ? '' : 'md:min-w-[1240px]'"
           >
-            <thead>
+            <!-- 表头冻结在列表容器顶部：这张表十几列又长，往下翻就对不上「这一列是什么」了
+                 （10.19 反馈「这个抬头可以冻结吗？下拉后不知道对应的是什么项了」）。
+                 ⚠ 底色必须下在 **th 单元格**上，不能下在 thead/tr 上：CSS 表格的绘制顺序是
+                 行组(thead) → 行(tr) → 单元格，thead 属于行组，tbody 的行比它后画，
+                 背景放 thead 上会被数据行盖住，滚动时表头文字和行文字叠在一起
+                 （10.19 反馈的「下拉以后字符会重叠在抬头那里」就是这个）。 -->
+            <thead class="sticky top-0 z-20 [&_th]:bg-n-solid-1">
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
               >
@@ -2465,6 +2498,16 @@ watch(currentPage, fetchRecords);
                       variant="ghost"
                       size="sm"
                       @click="openDetail(po)"
+                    />
+                    <!-- 删除原先只画在手机卡片那段，桌面表格这一列没有——用电脑的人
+                         怎么都找不到入口（10.19 反馈「没有删除这个功能」）。 -->
+                    <Button
+                      v-if="canDeleteRow(po)"
+                      label="删除"
+                      variant="ghost"
+                      color="ruby"
+                      size="sm"
+                      @click="deleteOrder(po)"
                     />
                   </div>
                 </td>
@@ -3614,7 +3657,7 @@ watch(currentPage, fetchRecords);
         <HScrollButtons />
         <div class="overflow-auto border rounded-lg border-n-weak max-h-[60vh]">
           <table class="w-full text-sm">
-            <thead class="sticky top-0 bg-n-solid-2">
+            <thead class="sticky top-0 z-10 [&_th]:bg-n-solid-2">
               <tr class="text-left text-n-slate-11">
                 <th class="px-3 py-2 font-medium">#</th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">

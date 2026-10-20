@@ -1,6 +1,14 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, watch, onMounted } from 'vue';
+import {
+  ref,
+  computed,
+  reactive,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
@@ -245,6 +253,30 @@ const activeResetCols = () =>
 // 列表里就地看用料明细：PMC 核对一张单的料，原先得点「查看」开弹窗、关掉再开下一张。
 // 不直接把明细摊成多行——一张任务单二十几项料，五张单的列表就变成上百行，没法看了。
 const expandedIds = ref(new Set());
+
+// 展开的用料明细按**滚动容器的可视宽度**收口（见模板里那块 sticky left-0）。
+// 不量就只能写死或用 100vw，前者在不同屏上都不对，后者会把侧栏那段也算进去。
+const listScrollRef = ref(null);
+const panelWidth = ref(0);
+const measurePanel = () => {
+  const el = listScrollRef.value;
+  if (!el) return;
+  // 容器本身带左右内边距，减掉才不会顶出一条横向滚动。
+  const cs = getComputedStyle(el);
+  const pad =
+    parseFloat(cs.paddingLeft || 0) + parseFloat(cs.paddingRight || 0);
+  panelWidth.value = Math.max(0, el.clientWidth - pad);
+};
+onMounted(() => {
+  measurePanel();
+  window.addEventListener('resize', measurePanel);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', measurePanel));
+// 展开/收起会改变布局，量一次保证第一屏就是对的。
+watch(
+  () => expandedIds.value.size,
+  () => nextTick(measurePanel)
+);
 const toggleItems = bom => {
   const next = new Set(expandedIds.value);
   if (next.has(bom.id)) next.delete(bom.id);
@@ -268,7 +300,12 @@ const ROW_FILTER_FIELDS = {
 const matchesRowFilters = it =>
   Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
     const v = (colFilters[key] || '').trim().toLowerCase();
-    return !v || String(it[field] || '').toLowerCase().includes(v);
+    return (
+      !v ||
+      String(it[field] || '')
+        .toLowerCase()
+        .includes(v)
+    );
   });
 
 // 把当页任务单摊成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
@@ -803,6 +840,7 @@ onMounted(async () => {
 
     <HScrollButtons />
     <div
+      ref="listScrollRef"
       class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
@@ -1038,71 +1076,82 @@ onMounted(async () => {
                  够 PMC 核料；单价、采购注意事项这些仍在「查看」里，列表不塞。 -->
               <tr v-if="expandedIds.has(b.id)">
                 <td :colspan="totalColSpan" class="px-3 py-3 bg-n-alpha-1">
-                  <table class="w-full text-xs">
-                    <thead>
-                      <tr class="text-left text-n-slate-11">
-                        <th class="w-10 px-2 py-1 font-medium">#</th>
-                        <th class="px-2 py-1 font-medium whitespace-nowrap">
-                          类别
-                        </th>
-                        <th class="px-2 py-1 font-medium whitespace-nowrap">
-                          物料编码
-                        </th>
-                        <th
-                          class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
-                        >
-                          物料名称
-                        </th>
-                        <th
-                          class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
-                        >
-                          规格型号
-                        </th>
-                        <th
-                          class="px-2 py-1 font-medium text-right whitespace-nowrap"
-                        >
-                          用量
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr
-                        v-for="(it, idx) in b.bomItems"
-                        :key="it.id || idx"
-                        class="border-t border-n-weak"
-                      >
-                        <td class="px-2 py-1 tabular-nums text-n-slate-10">
-                          {{ idx + 1 }}
-                        </td>
-                        <td class="px-2 py-1 whitespace-nowrap">
-                          <span
-                            class="px-2 py-0.5 rounded-full"
-                            :class="
-                              it.category === 'PACKAGING'
-                                ? 'bg-n-amber-3 text-n-amber-12'
-                                : 'bg-n-iris-3 text-n-iris-12'
-                            "
+                  <!-- 展开的用料明细跟着外层宽表一起横向延伸，「用量」那几列掉到屏幕外，
+                       不横拉看不到（10.19 反馈「后面的内容看不到呢」）。
+                       钉在滚动容器左边并按容器宽度收口：横向滚外层表头时，这块明细
+                       原地不动，六列始终在眼前。 -->
+                  <div
+                    class="sticky left-0"
+                    :style="panelWidth ? { width: `${panelWidth}px` } : null"
+                  >
+                    <table class="w-full text-xs">
+                      <thead>
+                        <tr class="text-left text-n-slate-11">
+                          <th class="w-10 px-2 py-1 font-medium">#</th>
+                          <th class="px-2 py-1 font-medium whitespace-nowrap">
+                            类别
+                          </th>
+                          <th class="px-2 py-1 font-medium whitespace-nowrap">
+                            物料编码
+                          </th>
+                          <th
+                            class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
                           >
-                            {{ categoryLabel(it.category) }}
-                          </span>
-                        </td>
-                        <td class="px-2 py-1 whitespace-nowrap text-n-slate-12">
-                          {{ it.materialNo || '—' }}
-                        </td>
-                        <td class="px-2 py-1 text-n-slate-12">
-                          {{ it.materialName || '—' }}
-                        </td>
-                        <td class="px-2 py-1 text-n-slate-11">
-                          {{ it.specification || '—' }}
-                        </td>
-                        <td
-                          class="px-2 py-1 text-right whitespace-nowrap text-n-slate-11"
+                            物料名称
+                          </th>
+                          <th
+                            class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
+                          >
+                            规格型号
+                          </th>
+                          <th
+                            class="px-2 py-1 font-medium text-right whitespace-nowrap"
+                          >
+                            用量
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(it, idx) in b.bomItems"
+                          :key="it.id || idx"
+                          class="border-t border-n-weak"
                         >
-                          {{ it.qty }} {{ it.unit || '' }}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                          <td class="px-2 py-1 tabular-nums text-n-slate-10">
+                            {{ idx + 1 }}
+                          </td>
+                          <td class="px-2 py-1 whitespace-nowrap">
+                            <span
+                              class="px-2 py-0.5 rounded-full"
+                              :class="
+                                it.category === 'PACKAGING'
+                                  ? 'bg-n-amber-3 text-n-amber-12'
+                                  : 'bg-n-iris-3 text-n-iris-12'
+                              "
+                            >
+                              {{ categoryLabel(it.category) }}
+                            </span>
+                          </td>
+                          <td
+                            class="px-2 py-1 whitespace-nowrap text-n-slate-12"
+                          >
+                            {{ it.materialNo || '—' }}
+                          </td>
+                          <td class="px-2 py-1 text-n-slate-12">
+                            {{ it.materialName || '—' }}
+                          </td>
+                          <td class="px-2 py-1 text-n-slate-11">
+                            {{ it.specification || '—' }}
+                          </td>
+                          <td
+                            class="px-2 py-1 text-right whitespace-nowrap text-n-slate-11"
+                          >
+                            {{ it.qty }} {{ it.unit || '' }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </td>
               </tr>
             </template>

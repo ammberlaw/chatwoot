@@ -13,7 +13,12 @@ import {
   onActivated,
   onBeforeUnmount,
 } from 'vue';
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
+import {
+  useRoute,
+  useRouter,
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+} from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -151,6 +156,8 @@ const showTabletHeaderFields = computed(
 
 // 用料明细的列：宽度可拖（像 Excel / 金蝶那样），拖完记在本机。
 // 序号和删除那两根固定宽，不给拖。规格型号默认给最宽——不放全就核不了料。
+// 物料编码对「标了卡点的待定料」不是必填（见 isRowComplete），
+// 但对普通料仍然必填，所以表头上的星号保留。
 const REQUIRED_COLS = ['materialNo', 'materialName', 'qty'];
 const BOM_COLS = [
   { key: 'idx', fixed: 28 },
@@ -502,8 +509,16 @@ const isRowEmpty = r =>
   !r.purchaseNote.trim() &&
   !r.productionNote.trim() &&
   !Number(r.qty);
+// 标了卡点的行允许没有物料编码：工程还在打样、规格都没定的料本来就编不出码来，
+// 但这颗料得在单子上占个位，否则它的进度在系统里完全看不见——用户原话：
+// 「工程摄像头还在打样，规格型号、代码都没有的，但是其它物料正常下单，
+//   那摄像头这个料怎么能体现在系统里面跟踪进度呢？」
+// 没码的行不会被下推到采购（material_requirements 已排除卡点行），不影响下单口径。
+// 名称和用量仍然必填——连叫什么、要几个都说不出，那不是待定，是还没想好。
 const isRowComplete = r =>
-  !!r.materialNo.trim() && !!r.materialName.trim() && !!Number(r.qty);
+  !!r.materialName.trim() &&
+  !!Number(r.qty) &&
+  (!!r.materialNo.trim() || !!r.blockerKind);
 const filledRows = computed(() => form.rows.filter(r => !isRowEmpty(r)));
 
 // 复制成金蝶「生产任务单 → 材料信息 → 快速贴粘」能直接吃的格式。
@@ -1307,6 +1322,41 @@ onBeforeRouteLeave((to, from, next) => {
   pendingLeave = () => next();
   leaveDialogRef.value?.open();
 });
+
+// 同一个路由换 query（新建页 → 点另一张单的「编辑」，URL 从 /bom-intake 变成
+// /bom-intake?id=123）走的是 **update** 守卫，不是 leave——这条原先没写，于是
+// 填到一半的新单会被第二张单直接盖掉，一声不吭（用户原话：「我在新建一个生产单，
+// 做到一半……点了另一个生产单，第一个生产单就直接被第2个生产单覆盖掉了」）。
+onBeforeRouteUpdate((to, from, next) => {
+  const sameTarget =
+    String(to.query.id || '') === String(from.query.id || '') &&
+    String(to.query.new_for_order || '') ===
+      String(from.query.new_for_order || '');
+
+  // 只是开关模版弹窗之类的 query 变化，不换单，不拦。
+  if (leaving || sameTarget || !isDirty.value || booting.value) {
+    next();
+    return;
+  }
+  pendingLeave = () => {
+    next();
+    // 放行之后要按新的 query 重新装载，否则地址变了、表单还是上一张单的内容。
+    boot();
+  };
+  leaveDialogRef.value?.open();
+});
+
+// 关标签页 / 刷新 / 直接改地址栏：路由守卫管不到，只能交给浏览器原生提醒。
+// 文案由浏览器定（规范不允许自定义），我们只负责在「有未保存内容」时打开它。
+const warnBeforeUnload = e => {
+  if (!isDirty.value || leaving || booting.value) return;
+  e.preventDefault();
+  e.returnValue = '';
+};
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload));
+onBeforeUnmount(() =>
+  window.removeEventListener('beforeunload', warnBeforeUnload)
+);
 </script>
 
 <template>
@@ -1476,11 +1526,11 @@ onBeforeRouteLeave((to, from, next) => {
               :class="
                 dragKind === 'logos' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
               "
+              tabindex="0"
               @dragover.prevent="dragKind = 'logos'"
               @dragleave="dragKind = ''"
               @drop.prevent="e => onDrop(e, 'logos')"
-            tabindex="0"
-            @paste="e => onPaste(e, 'logos')"
+              @paste="e => onPaste(e, 'logos')"
             >
               <div
                 v-for="lg in existingLogos"
@@ -1981,10 +2031,10 @@ onBeforeRouteLeave((to, from, next) => {
             :class="
               dragKind === 'images' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
             "
+            tabindex="0"
             @dragover.prevent="dragKind = 'images'"
             @dragleave="dragKind = ''"
             @drop.prevent="e => onDrop(e, 'images')"
-            tabindex="0"
             @paste="e => onPaste(e, 'images')"
           >
             <div
@@ -2052,10 +2102,10 @@ onBeforeRouteLeave((to, from, next) => {
             :class="
               dragKind === 'files' ? 'bg-n-iris-3 ring-1 ring-n-iris-8' : ''
             "
+            tabindex="0"
             @dragover.prevent="dragKind = 'files'"
             @dragleave="dragKind = ''"
             @drop.prevent="e => onDrop(e, 'files')"
-            tabindex="0"
             @paste="e => onPaste(e, 'files')"
           >
             <div

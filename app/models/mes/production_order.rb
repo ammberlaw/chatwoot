@@ -205,6 +205,20 @@ class Mes::ProductionOrder < ApplicationRecord
     end
   end
 
+  # 制单人能不能自己删掉这张单。
+  #
+  # 原来只放行「本人草稿」，但**转单建出来的单一上来就是 APPROVED**（PMC/管理员
+  # 由已审的销售订单转入直接生效，见 ProductionOrdersController#convert），
+  # 于是重复建的单制单人自己收不了场，只能找管理员——10.19 反馈「现在就 2 个重复的
+  # 订单了，需要加一个删除的」说的就是这个。
+  #
+  # 放宽的边界卡在「什么都还没开始」：还停在第一阶段、没停产没完工。
+  # 真正的安全闸仍是 delete_blockers（下游有采购/入库/质检就拒绝），这里只是
+  # 不再因为「审批态是 APPROVED」这一条就把人挡在门外。
+  def deletable_by_owner?
+    stage == 'SALES_CONFIRMED' && status == 'IN_PROGRESS'
+  end
+
   audited except: %i[created_at updated_at], on: %i[create update]
   has_many_attached :images # 产品图片（缩略展示）
   has_many_attached :files  # 附件（合同/文档等）
@@ -464,6 +478,16 @@ class Mes::ProductionOrder < ApplicationRecord
 
   def blocked_items = bom&.blocked_bom_items || []
 
+  # 算料时被拦下的卡点行，给采购建档页顶部提示用。category 传了就只数那一类。
+  def blocked_requirement_rows(category: nil)
+    rows = blocked_items
+    rows = rows.select { |i| i.category == category } if category.present?
+    rows.map do |i|
+      { material_no: i.material_no, material_name: i.material_name,
+        blocker_label: i.blocker_label, blocker_note: i.blocker_note }
+    end
+  end
+
   def blocked_item_count = blocked_items.size
 
   def blocker_group(kind, items)
@@ -522,11 +546,16 @@ class Mes::ProductionOrder < ApplicationRecord
   # 返回 [{ mes_material_id, material_no, material_name, specification, unit, qty }]，供采购单预填。
   # category 传入则只展开该类用料（MACHINE 整机 / PACKAGING 包装）；
   # 生产领料只推整机物料（包装未到不挡开产），采购需全推。
+  # 卡点行不进算料：工程/业务还没确认的料（规格、代码、打样结果都没定）下给供应商
+  # 就是下错单——采购那边看不出这一行是「待定」，照样发出去。用户原话：
+  # 「销售订单有待确定的物料……待定中的物料不要下推过来」。
+  # 被拦下的条数由 blocked_requirement_note 回给前端，采购要知道「这单还差几项没定」，
+  # 不能静悄悄少几行（那样采购会以为料就这些，下完就不管了）。
   def material_requirements(category: nil)
     return [] if bom.nil? || bom.base_qty.to_d.zero?
 
     factor = qty.to_d / bom.base_qty.to_d
-    items = bom.bom_items
+    items = bom.bom_items.reject(&:blocked?)
     items = items.select { |i| i.category == category } if category.present?
     product_map = crm_product_map_for(items)
     stock_map = onhand_total_map(product_map.values)
