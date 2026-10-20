@@ -415,8 +415,27 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
         .gsub(/\{\{\s*(?:我的名字|我|发件人)\s*\}\}/) { |m| me.presence || m }
   end
 
+  # 分发给我的邮件，详情也得读得到。
+  # 列表走 distributed 接口（它直接按分发记录取，绕开了「只看自己邮箱」），详情却还卡在
+  # 可见范围上——于是列表看得见那一行、点开永远拉不到正文：网页端 loadBody 把 404 吞掉，
+  # 静默显示「（正文为空）」；App 没吞，直接报「记录不存在或已不可访问」。
+  # 分发本身就是授权（同事把这封信交给我处理），所以只对读取动作放宽；
+  # 改 / 删 / 再分发 / 挂知识库附件仍然只有邮箱主人能做。
+  READABLE_BY_DISTRIBUTEE = %w[show thread eml].freeze
+
   def fetch_email
-    @email = visible_emails.find(params[:id])
+    scope = READABLE_BY_DISTRIBUTEE.include?(action_name) ? readable_emails : visible_emails
+    @email = scope.find(params[:id])
+  end
+
+  def readable_emails
+    return visible_emails if crm_mail_visible_owner_ids == :all
+
+    visible_emails.or(Current.account.crm_emails.where(id: distributed_to_me_ids))
+  end
+
+  def distributed_to_me_ids
+    Current.account.crm_email_distributions.to_user(current_user.id).select(:crm_email_id)
   end
 
   def check_authorization
@@ -609,14 +628,19 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   def thread_candidates(email)
     scope = visible_emails.where.not(folder: 'DRAFT')
                           .includes(:owner, :crm_customer, files_attachments: :blob)
-    if email.crm_customer_id
-      scope.where(crm_customer_id: email.crm_customer_id).limit(300).to_a
-    else
-      addr = counterparty_address(email)
-      return [email] if addr.blank?
+    rows = thread_rows(scope, email)
+    # 分发给我的那封不在我的可见范围里，但它就是我正在读的这封——不补进候选集，
+    # 「会话往来」会连当前这封都列不出来。往来里**别人邮箱**的其余邮件仍然不放出来。
+    rows.any? { |e| e.id == email.id } ? rows : rows + [email]
+  end
 
-      scope.where('from_address ILIKE :a OR to_address ILIKE :a', a: "%#{addr}%").limit(300).to_a
-    end
+  def thread_rows(scope, email)
+    return scope.where(crm_customer_id: email.crm_customer_id).limit(300).to_a if email.crm_customer_id
+
+    addr = counterparty_address(email)
+    return [] if addr.blank?
+
+    scope.where('from_address ILIKE :a OR to_address ILIKE :a', a: "%#{addr}%").limit(300).to_a
   end
 
   # 收件箱看发件人，其余看收件人；地址串取第一个邮箱。
