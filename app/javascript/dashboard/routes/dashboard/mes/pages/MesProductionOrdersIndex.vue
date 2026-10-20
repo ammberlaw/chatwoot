@@ -180,7 +180,19 @@ const stageFlowOf = po =>
 const stageIndexOf = po =>
   stageFlowOf(po).findIndex(st => st.value === po?.stage);
 
+// 审批没走完的单 is_draft=true，工程那边压根看不见、也接不了。
+// 阶段字段这时还停在建单时的初始值（SALES_CONFIRMED＝「待工程接单」），
+// 照画出来会让人以为单子已经到工程手上了。统一显示「未生效」，进度点全灰。
+const stageNotLive = po =>
+  !!po?.approvalStatus && po.approvalStatus !== 'APPROVED';
+const stageTextOf = po => (stageNotLive(po) ? '未生效' : stageLabel(po?.stage));
+const stageChipOf = po =>
+  stageNotLive(po) ? 'bg-n-slate-3 text-n-slate-11' : stageChip(po?.stage);
+const stageTipOf = po =>
+  stageNotLive(po) ? `审批通过后进入：${stageLabel(po?.stage)}` : '';
+
 const stageDotClass = (po, idx) => {
+  if (stageNotLive(po)) return 'bg-n-slate-5';
   const cur = stageIndexOf(po);
   if (cur < 0) return 'bg-n-slate-5';
   if (idx < cur) return 'bg-n-iris-9';
@@ -188,6 +200,7 @@ const stageDotClass = (po, idx) => {
   return 'bg-n-slate-5';
 };
 const stageProgressText = po => {
+  if (stageNotLive(po)) return '未开始';
   const flow = stageFlowOf(po);
   const cur = stageIndexOf(po);
   return cur < 0 ? '' : `已走 ${cur + 1}/${flow.length}`;
@@ -1522,16 +1535,33 @@ const deleteOrder = async po => {
     fetchRecords();
   }
 };
+// 上一级已经是我经手的（我是指定主管，或我代批的），本级就不给我按钮——
+// 一个人连批两级等于这道闸没有。与后端 can_approve? 同一口径。
+const actedPreviousLevel = po => {
+  if (!po || po.approvalStatus !== 'MANAGER_APPROVED') return false;
+  if (!po.managerActedAt) return false; // 没主管直接转总经理的单不算
+
+  return [po.managerActedById, po.managerId].includes(currentUserId.value);
+};
+
 const canApprove = computed(() => {
   const po = selected.value;
   if (!po) return false;
   if (!['SUBMITTED', 'MANAGER_APPROVED'].includes(po.approvalStatus))
     return false;
+  if (actedPreviousLevel(po)) return false;
   return (
     isAdmin.value ||
     isCrmDeputyAdmin.value ||
     po.currentApproverId === currentUserId.value
   );
+});
+
+// 被回避规则挡住时给一句说明，否则按钮凭空消失看不懂。
+const approvalBlockedHint = computed(() => {
+  const po = selected.value;
+  if (!po || !actedPreviousLevel(po)) return '';
+  return `部门主管这一级已由你审批，本级需由${po.gmName || '总经理'}处理。`;
 });
 
 // ── 审批卡 / 接单卡的状态计算 ──
@@ -1571,6 +1601,13 @@ const approvalBadge = computed(() => {
   };
 });
 
+// 这一级谁点的。代批（实际操作人 ≠ 指定审批人）要写明白，否则事后分不清谁批的。
+const actorLine = (assignedName, actorName, actorId, assignedId) => {
+  if (!actorId || !assignedId || actorId === assignedId)
+    return assignedName || actorName || '';
+  return `${actorName || '管理员'} 代 ${assignedName || '指定审批人'} 审批`;
+};
+
 // 审批时间线。驳回发生在哪一级，就把那一级标红：主管驳回时 gmActedAt 为空，据此区分。
 const approvalSteps = computed(() => {
   const po = selected.value;
@@ -1591,7 +1628,12 @@ const approvalSteps = computed(() => {
     out.push({
       key: 'manager',
       title: denied ? '部门主管驳回' : '部门主管通过',
-      who: po.managerName,
+      who: actorLine(
+        po.managerName,
+        po.managerActedByName,
+        po.managerActedById,
+        po.managerId
+      ),
       at: po.managerActedAt,
       state: denied ? 'reject' : 'done',
       comment: po.managerComment,
@@ -1608,7 +1650,7 @@ const approvalSteps = computed(() => {
     out.push({
       key: 'gm',
       title: rejected ? '总经理驳回' : '总经理通过',
-      who: po.gmName,
+      who: actorLine(po.gmName, po.gmActedByName, po.gmActedById, po.gmId),
       at: po.gmActedAt,
       state: rejected ? 'reject' : 'done',
       comment: po.gmComment,
@@ -2073,10 +2115,11 @@ watch(currentPage, fetchRecords);
                   {{ po.orderNo }}
                 </span>
                 <span
+                  v-tooltip.top="stageTipOf(po)"
                   class="shrink-0 px-2 py-0.5 text-xs rounded-full"
-                  :class="stageChip(po.stage)"
+                  :class="stageChipOf(po)"
                 >
-                  {{ stageLabel(po.stage) }}
+                  {{ stageTextOf(po) }}
                 </span>
                 <span
                   v-if="isStalled(po)"
@@ -2330,10 +2373,11 @@ watch(currentPage, fetchRecords);
                   <template v-if="col.key === 'stage'">
                     <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span
+                        v-tooltip.top="stageTipOf(po)"
                         class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
-                        :class="stageChip(po.stage)"
+                        :class="stageChipOf(po)"
                       >
-                        {{ stageLabel(po.stage) }}
+                        {{ stageTextOf(po) }}
                       </span>
                       <span
                         v-if="isStalled(po)"
@@ -2364,7 +2408,7 @@ watch(currentPage, fetchRecords);
                             v-if="si"
                             class="w-2 h-px shrink-0"
                             :class="
-                              si <= stageIndexOf(po)
+                              !stageNotLive(po) && si <= stageIndexOf(po)
                                 ? 'bg-n-iris-9'
                                 : 'bg-n-slate-5'
                             "
@@ -2633,6 +2677,14 @@ watch(currentPage, fetchRecords);
                 @click="openDeny"
               />
             </div>
+          </div>
+
+          <!-- 本级轮不到我：说明一句，否则按钮凭空消失看不懂 -->
+          <div
+            v-else-if="approvalBlockedHint"
+            class="px-3 py-2 mb-3 text-xs rounded-lg bg-n-alpha-black1 text-n-slate-11"
+          >
+            {{ approvalBlockedHint }}
           </div>
 
           <!-- 审批留痕时间线 -->

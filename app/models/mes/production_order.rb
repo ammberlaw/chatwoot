@@ -43,7 +43,9 @@
 #  crm_customer_id             :bigint
 #  crm_product_id              :bigint
 #  crm_sales_order_id          :bigint
+#  gm_acted_by_id              :bigint
 #  gm_id                       :bigint
+#  manager_acted_by_id         :bigint
 #  manager_id                  :bigint
 #  outsource_supplier_id       :bigint
 #  owner_id                    :bigint
@@ -175,8 +177,11 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :stage_ack_by, class_name: 'User', optional: true
   belongs_to :sales_return_by, class_name: 'User', optional: true
   belongs_to :sales_return_resolved_by, class_name: 'User', optional: true
-  belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级）
-  belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级）
+  belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级，提交时解析，审批动作不覆盖）
+  belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级，同上）
+  # 实际点按钮的人。与上面两个不同的时候就是「代批」，时间线要标出来。
+  belongs_to :manager_acted_by, class_name: 'User', optional: true
+  belongs_to :gm_acted_by, class_name: 'User', optional: true
   belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认生产任务单」的人，流程已取消
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
@@ -1083,8 +1088,8 @@ class Mes::ProductionOrder < ApplicationRecord
     self.manager_id = resolve_manager_id
     self.gm_id = resolve_gm_id
     self.submitted_at = Time.current
-    self.manager_acted_at = self.manager_comment = nil
-    self.gm_acted_at = self.gm_comment = nil
+    self.manager_acted_at = self.manager_comment = self.manager_acted_by_id = nil
+    self.gm_acted_at = self.gm_comment = self.gm_acted_by_id = nil
     self.approval_status = manager_id.present? ? 'SUBMITTED' : 'MANAGER_APPROVED'
     save!
     notify_approval_pending
@@ -1096,8 +1101,8 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, '非「待部门主管」环节' unless approval_status == 'SUBMITTED'
 
     # 不覆盖 manager_id（提交时已解析为应审批的部门主管），仅记审批时间/意见，保留留痕；
-    # 管理员代批经控制器 admin 判定放行，无需借 manager_id 授权。
-    update!(approval_status: 'MANAGER_APPROVED',
+    # 管理员代批经控制器 admin 判定放行，无需借 manager_id 授权。实际操作人另记 acted_by。
+    update!(approval_status: 'MANAGER_APPROVED', manager_acted_by_id: actor&.id,
             manager_acted_at: Time.current, manager_comment: comment)
     Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     notify_approval_pending
@@ -1108,7 +1113,9 @@ class Mes::ProductionOrder < ApplicationRecord
   def gm_approve!(actor, comment: nil)
     raise StandardError, '非「待总经理」环节' unless approval_status == 'MANAGER_APPROVED'
 
-    update!(approval_status: 'APPROVED', gm_id: actor.id,
+    # gm_id 是提交时指定的总经理，不能被操作人顶掉——否则管理员代批后时间线
+    # 会把代批人显示成总经理，事后分不清这单到底谁批的。
+    update!(approval_status: 'APPROVED', gm_acted_by_id: actor&.id,
             gm_acted_at: Time.current, gm_comment: comment)
     Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     # 不发「审批通过」知会：收件人收到也无事可做，只会把真正要处理的待办挤下去。
@@ -1122,11 +1129,11 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, '当前状态无法驳回' unless pending_approval?
 
     if approval_status == 'SUBMITTED'
-      self.manager_id = actor.id
+      self.manager_acted_by_id = actor.id
       self.manager_acted_at = Time.current
       self.manager_comment = reason
     else
-      self.gm_id = actor.id
+      self.gm_acted_by_id = actor.id
       self.gm_acted_at = Time.current
       self.gm_comment = reason
     end

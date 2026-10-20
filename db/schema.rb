@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_18_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_20_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -964,6 +964,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_18_150000) do
     t.index ["account_id", "approval_request_id"], name: "idx_attendance_by_approval"
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
+  end
+
+  create_table "crm_business_cards", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id", null: false
+    t.string "status", default: "PENDING", null: false
+    t.string "event_name"
+    t.string "company_name"
+    t.string "contact_name"
+    t.string "job_title"
+    t.string "contact_phone"
+    t.string "whats_app"
+    t.string "contact_email"
+    t.string "website"
+    t.string "country"
+    t.text "address"
+    t.text "raw_text"
+    t.text "remark"
+    t.text "parse_error"
+    t.datetime "parsed_at"
+    t.bigint "crm_customer_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "status"], name: "index_crm_business_cards_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_business_cards_on_account_id"
+    t.index ["crm_customer_id"], name: "index_crm_business_cards_on_crm_customer_id"
+    t.index ["owner_id"], name: "index_crm_business_cards_on_owner_id"
   end
 
   create_table "crm_commission_items", force: :cascade do |t|
@@ -3176,6 +3203,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_18_150000) do
     t.datetime "sales_return_resolved_at"
     t.bigint "sales_return_resolved_by_id"
     t.string "intake_kind", default: "NEW", null: false
+    t.bigint "manager_acted_by_id"
+    t.bigint "gm_acted_by_id"
     t.index ["account_id", "approval_status"], name: "index_mes_production_orders_on_account_id_and_approval_status"
     t.index ["account_id", "is_draft"], name: "index_mes_production_orders_on_account_id_and_is_draft"
     t.index ["account_id", "is_outsourced"], name: "index_mes_production_orders_on_account_id_and_is_outsourced"
@@ -4159,6 +4188,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_18_150000) do
   add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_ai_settings", "accounts"
+  add_foreign_key "crm_business_cards", "accounts"
+  add_foreign_key "crm_business_cards", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_business_cards", "users", column: "owner_id"
   add_foreign_key "crm_credential_views", "crm_credentials", on_delete: :cascade
   add_foreign_key "crm_credentials", "crm_credential_groups", on_delete: :cascade
   add_foreign_key "crm_customers", "accounts"

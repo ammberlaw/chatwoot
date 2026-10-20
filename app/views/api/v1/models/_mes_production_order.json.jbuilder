@@ -158,10 +158,14 @@ json.manager_id resource.manager_id
 json.manager_name mes_staff_name(resource.manager)
 json.manager_acted_at resource.manager_acted_at
 json.manager_comment resource.manager_comment
+json.manager_acted_by_id resource.manager_acted_by_id
+json.manager_acted_by_name mes_staff_name(resource.manager_acted_by)
 json.gm_id resource.gm_id
 json.gm_name mes_staff_name(resource.gm)
 json.gm_acted_at resource.gm_acted_at
 json.gm_comment resource.gm_comment
+json.gm_acted_by_id resource.gm_acted_by_id
+json.gm_acted_by_name mes_staff_name(resource.gm_acted_by)
 json.spec resource.spec
 json.remark resource.remark
 # 相对路径（only_path）：绝对 url_for 会带 0.0.0.0:3000 宿主，浏览器加载不了。

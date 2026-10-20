@@ -641,11 +641,22 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   # 能否审批当前环节：管理员，或本环节指定审批人本人。
+  # 回避：上一级已经是我批的，这一级就不给我点了——一个人连批两级等于这道闸没有。
+  # 管理员也挡，否则兼着部门主管的管理员能把自己提的单一路批到生效。
   def can_approve?(order)
     return false unless order.pending_approval?
+    return false if acted_previous_level?(order)
     return true if admin_like?
 
     order.current_approver_id == current_user.id
+  end
+
+  # 本单的上一级是否由我经手（指定审批人是我，或我代批的）。
+  def acted_previous_level?(order)
+    return false unless order.approval_status == 'MANAGER_APPROVED'
+    return false if order.manager_acted_at.blank? # 没主管直接转总经理的单不算
+
+    [order.manager_acted_by_id, order.manager_id].compact.include?(current_user.id)
   end
 
   def boolean_param(key)
