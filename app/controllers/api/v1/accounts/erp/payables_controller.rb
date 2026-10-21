@@ -37,6 +37,36 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/payables/detail'
   end
 
+  # 该出没出应付凭证的入库单（规则上线前过的账、或当时科目没配齐）。
+  # 应付的凭证不在这张台账上生成——它是原料入库**过账时**自动出的（借存货/贷应付）。
+  # 规则 2026-10-09 才上线，在那之前过账的单一张凭证都没有，而台账上又没有任何补出的
+  # 入口：财务看到的就是「应付有账、总账没账」，还问不出为什么。这里把名单和原因一起给出来。
+  def pending_vouchers
+    service = Erp::AutoVoucherService.new(Current.account)
+    rows = unvouchered_receipts.map do |entry|
+      { id: entry.id, entry_no: entry.entry_no, purpose: entry.purpose, posted_on: entry.posted_at&.to_date,
+        po_no: entry.purchase_order&.po_no, blocker: service.stock_receipt_voucher_blocker(entry) }
+    end
+    render json: { payload: rows, count: rows.size }
+  end
+
+  # 补出一张入库单的应付凭证。出不了就把原因原样返回，不留「点了没动静」。
+  def build_receipt_voucher
+    entry = Current.account.mes_stock_entries.find(params[:stock_entry_id])
+    service = Erp::AutoVoucherService.new(Current.account)
+    if (blocker = service.stock_receipt_voucher_blocker(entry))
+      return render json: { error: "出不了应付凭证：#{blocker}" }, status: :unprocessable_entity
+    end
+
+    service.for_stock_receipt(entry)
+    render json: { payload: { stock_entry_id: entry.id, entry_no: entry.entry_no,
+                              voucher_no: service.stock_receipt_voucher(entry)&.voucher_no } }
+  rescue ActiveRecord::RecordInvalid => e
+    # 典型是凭证日期落在已结账期间——凭证模型那层拒掉，原话比什么都清楚（同应收那边）。
+    render json: { error: "出不了应付凭证：#{e.record.errors.full_messages.to_sentence}" },
+           status: :unprocessable_entity
+  end
+
   def create
     if params[:mes_purchase_order_id].present?
       purchase_order = Current.account.mes_purchase_orders.find(params[:mes_purchase_order_id])
@@ -176,6 +206,14 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     scope.joins(:mes_supplier).left_joins(:mes_purchase_order)
          .where('erp_payables.payable_no ILIKE :t OR mes_suppliers.name ILIKE :t ' \
                 'OR mes_purchase_orders.po_no ILIKE :t', t: term)
+  end
+
+  # 已过账、按口径该出应付凭证、但一张也没出的入库单（采购入库 / 采购退货）。
+  def unvouchered_receipts
+    issued = Current.account.erp_vouchers.where(source_type: 'Mes::StockEntry').select(:source_id)
+    Current.account.mes_stock_entries
+           .where(purpose: Mes::StockEntry::PAYABLE_VOUCHER_PURPOSES, status: 'POSTED')
+           .where.not(id: issued).includes(:purchase_order).order(:posted_at, :id)
   end
 
   def fetch_payable

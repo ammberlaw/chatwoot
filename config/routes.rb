@@ -390,6 +390,7 @@ Rails.application.routes.draw do
                 get :import_template
                 post :import
                 post :bulk_post
+                post :bulk_void
               end
               member do
                 post :post_voucher
@@ -422,8 +423,15 @@ Rails.application.routes.draw do
                 get :supplier_statement
                 get :aging
                 get :monthly
+                # 应付凭证是入库过账时出的，补出的入口只能放在台账这边（财务不进 MES）。
+                get :pending_vouchers
+                post :build_receipt_voucher
               end
               member { get :detail }
+            end
+            # 应付「先对账再建账」：建账前的一道流程，独立于应付台账的增删改查。
+            resources :payable_reconciliations, only: [:index] do
+              collection { post :confirm }
             end
             resources :payment_records, only: [:index, :show, :create, :update, :destroy] do
               member { post :void }

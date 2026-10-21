@@ -44,7 +44,11 @@ class Crm::PiToSalesOrder
       contact_id: @pi.contact_id,
       owner_id: @pi.owner_id,
       handled_by_id: @pi.handled_by_id,
-      status: 'IN_PRODUCTION',
+      # 付了钱 ≠ 已经在做。原来这里直接置「生产中」，于是 PI 一付款订单就显示在产，
+      # MES 里却一张生产单/出库单都没有——没人知道这单还等着转，生产上 62 张
+      # 「看着在产、实际没人做」的单，主力就是这么来的（2026-10-21）。
+      # 改为「待确认」：转单（定制→生产单 / 库存→出库单）真正发生时才进生产中。
+      status: 'PENDING_CONFIRMATION',
       order_date: Time.current,
       order_currency: @pi.currency,
       order_amount_micros: net_amount_micros,

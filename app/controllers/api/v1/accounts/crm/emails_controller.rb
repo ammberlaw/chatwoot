@@ -189,7 +189,13 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     recipients = parsed_bulk_recipients
     return render json: { error: '没有有效收件人（缺邮箱）' }, status: :unprocessable_entity if recipients.blank?
 
-    files = Array(email_params[:files]).compact_blank
+    # ⚠️ 附件**先上传一次**，再把同一个 blob 挂到每封邮件上。
+    # 原来是在收件人循环里 `email.files.attach(f)`：f 是上传的文件对象，每 attach 一次就
+    # 新建一个 blob、往 COS 重传一遍完整文件。一次 13.5MB 的目录发给 137 个客户，
+    # 等于串行往对象存储推 1.8GB——结果 137 封里只有 12 封真带上了附件，
+    # 其中 7 个 blob 记录建了文件没传上去（发送时 ActiveStorage::FileNotFoundError），
+    # 另外 99 封「发送成功」的邮件客户收到时根本没有附件（2026-10-20 广交会目录群发）。
+    blobs = upload_once(Array(email_params[:files]).compact_blank)
     base = email_params.except(:to_address, :crm_customer_id, :contact_id, :files, :folder, :send_status, :send_now)
     # 定时群发：scheduled_at 在未来 → 每封置 SCHEDULED（到点由 DispatchScheduledEmailsJob 转 PENDING 发送）；否则立即 PENDING。
     scheduled = email_params[:scheduled_at].present? && Time.zone.parse(email_params[:scheduled_at].to_s) > Time.zone.now
@@ -212,7 +218,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
           send_status: status
         )
       )
-      files.each { |f| email.files.attach(f) }
+      blobs.each { |blob| email.files.attach(blob) }
       email.save!
       count += 1
     end
@@ -289,6 +295,15 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     # 没关联客户的邮件就只跳到邮件中心（见前端 openRef）。
     { type: 'email', id: @email.id, label: '邮件', title: subject,
       subtitle: "#{current_user.crm_display_name} 分发", customer_id: @email.crm_customer_id }
+  end
+
+  # 上传一次拿到 blob，供群发的每封邮件共用（删除时的共用保护见 Crm::Email#purge_unshared_files）。
+  def upload_once(files)
+    files.map do |file|
+      ActiveStorage::Blob.create_and_upload!(
+        io: file, filename: file.original_filename, content_type: file.content_type
+      )
+    end
   end
 
   # 可分发对象=本账号 CRM 成员的 user_id：管理员或已配 crm_role 的成员。

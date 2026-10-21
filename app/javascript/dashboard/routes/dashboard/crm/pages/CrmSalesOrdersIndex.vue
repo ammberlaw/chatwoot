@@ -66,6 +66,9 @@ const normalizeFilter = value =>
   !canViewTeam.value && (!value || value === 'all') ? 'mine' : value || 'all';
 const activeFilter = ref(normalizeFilter(route.query.filter));
 const activeStatus = ref('');
+// 审核状态筛选：主管用来一眼捞出「哪些等着我批」，业务员用来找自己被驳回的单。
+// 列表默认不筛（全部），不替人做主。
+const activeApproval = ref('');
 const currentPage = ref(1);
 const searchQuery = ref('');
 const activeOwnerId = ref('');
@@ -159,6 +162,13 @@ const statusFilterOptions = [
   })),
 ];
 
+const approvalFilterOptions = [
+  { value: '', label: '全部审核状态' },
+  { value: 'PENDING', label: '待审核' },
+  { value: 'REJECTED', label: '已驳回' },
+  { value: 'APPROVED', label: '已审核' },
+];
+
 // 业务员下拉（空值 = 全部业务员），取自账号成员。
 const ownerFilterOptions = computed(() => [
   { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_OWNER') },
@@ -181,6 +191,7 @@ const fetchRecords = () => {
     page: currentPage.value,
     filter,
     status: activeStatus.value || undefined,
+    approval_status: activeApproval.value || undefined,
     owner_id: activeOwnerId.value || undefined,
     month: activeMonth.value || undefined,
     q: searchQuery.value.trim() || undefined,
@@ -210,6 +221,12 @@ const onPageChange = page => {
 
 const setStatus = value => {
   activeStatus.value = value;
+  currentPage.value = 1;
+  fetchRecords();
+};
+
+const setApproval = value => {
+  activeApproval.value = value;
   currentPage.value = 1;
   fetchRecords();
 };
@@ -294,7 +311,9 @@ const runApproval = async (order, fn, okText) => {
     if (selectedOrder.value?.id === order.id) {
       selectedOrder.value = camelcaseKeys(data, { deep: true });
     }
-    useAlert(okText);
+    // 库存单审核通过会自动转出库单，后端把结果（转成了 / 为什么没转成）带回来。
+    // 有它就显示它——「已通过审核」这句盖住的话，审核人不知道单子转没转。
+    useAlert(data?.auto_convert_note || okText);
     await fetchRecords();
   } catch (err) {
     useAlert(err?.response?.data?.error || '操作失败，请重试');
@@ -723,6 +742,12 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           @update:model-value="setStatus"
         />
         <SelectCard
+          :model-value="activeApproval"
+          :options="approvalFilterOptions"
+          trigger-class="h-[38px]"
+          @update:model-value="setApproval"
+        />
+        <SelectCard
           v-if="canViewTeam"
           :model-value="activeOwnerId"
           :options="ownerFilterOptions"
@@ -806,6 +831,15 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 >
                   <span class="rounded-full size-1.5 bg-current opacity-90" />
                   {{ STATUSES[record.status]?.label || record.status }}
+                </span>
+                <!-- 审核：只在「待审核/已驳回」时出现——已审核是常态，摆上去反而把状态列撑宽。 -->
+                <span
+                  v-if="record.approvalStatus !== 'APPROVED'"
+                  class="inline-flex items-center px-2 py-[3px] ml-1 rounded-full text-[12px] font-medium shrink-0"
+                  :class="APPROVAL_CHIP[record.approvalStatus] || ''"
+                  :title="record.rejectReason || ''"
+                >
+                  {{ record.approvalLabel }}
                 </span>
                 <span class="flex-1" />
                 <span
@@ -961,6 +995,15 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   >
                     <span class="rounded-full size-1.5 bg-current opacity-90" />
                     {{ STATUSES[record.status]?.label || record.status }}
+                  </span>
+                  <!-- 审核：只在「待审核/已驳回」时出现——已审核是常态，摆上去反而把状态列撑宽。 -->
+                  <span
+                    v-if="record.approvalStatus !== 'APPROVED'"
+                    class="inline-flex items-center px-2 py-[3px] ml-1 rounded-full text-[12px] font-medium shrink-0"
+                    :class="APPROVAL_CHIP[record.approvalStatus] || ''"
+                    :title="record.rejectReason || ''"
+                  >
+                    {{ record.approvalLabel }}
                   </span>
                 </td>
                 <td

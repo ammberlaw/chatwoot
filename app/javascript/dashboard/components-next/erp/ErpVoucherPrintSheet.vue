@@ -20,9 +20,9 @@ const amount = line => fmtMoney(line.base_amount_micros);
 const totalDebit = computed(() => props.voucher.total_debit_micros || 0);
 const capital = computed(() => rmbCapital(totalDebit.value));
 
+// 客户维度不上票面（与凭证详情一致，见 ErpVouchersIndex）——库里照记，账簿按客户查得到。
 const dimensionText = line =>
   [
-    line.crm_customer_name,
     line.mes_supplier_name,
     line.crm_sales_order_no,
     line.department_name,

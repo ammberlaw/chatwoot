@@ -78,6 +78,20 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     render json: { payload: post_each(ids) }
   end
 
+  BULK_VOID_LIMIT = 100
+
+  # 批量作废：同单张 void，只作用于待过账凭证，留痕不删。
+  # 自动凭证一天能产几十张（出库/入库/收付款各一套），试错或口径改了要清场时，
+  # 一张张点作废根本点不完——财务原话「表头也加一个批量删除」。
+  # 作废而非删除：凭证号不断号，审计要看得见作废迹；已记账的一律拦住，错账走红冲。
+  def bulk_void
+    ids = Array(params[:voucher_ids]).map(&:to_i).select(&:positive?).uniq
+    return render json: { error: '请先选择要作废的凭证' }, status: :unprocessable_entity if ids.empty?
+    return render json: { error: "一次最多作废 #{BULK_VOID_LIMIT} 张，请分批操作" }, status: :unprocessable_entity if ids.size > BULK_VOID_LIMIT
+
+    render json: { payload: void_each(ids) }
+  end
+
   # 红冲：生成方向相反的凭证，两张互相引用。
   def reverse
     @voucher = Erp::VoucherPostingService.new(@voucher, current_user).reverse!
@@ -139,16 +153,22 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   # 否则「资产提了折旧、总账没入账」，而且该期间重新计提会返回 0 张——这个月折旧就丢了。
   # 选中的里面可能混着已过账/已作废的（列表停留在旧数据时很常见），
   # 这些既不算成功也不算失败，单独报个 skipped，免得「选了 30 张、过了 25 张」没人知道另外 5 张去哪了。
-  def post_each(ids)
-    posted = 0
+  # 批量过账 / 批量作废共用一套：逐张跑，失败点名到凭证号（只报「3 张失败」等于没报），
+  # 一张失败不挡其余。跳过的＝勾选时还是待过账、轮到它时已被别人处理掉的。
+  def each_draft(ids, done_key)
+    done = 0
     failed = []
     Current.account.erp_vouchers.where(id: ids, status: Erp::Voucher::DRAFT).order(:voucher_no).each do |voucher|
-      Erp::VoucherPostingService.new(voucher, current_user).post!
-      posted += 1
-    rescue Erp::VoucherPostingService::Error, ActiveRecord::RecordInvalid => e
+      yield voucher
+      done += 1
+    rescue StandardError => e
       failed << { voucher_no: voucher.voucher_no, error: posting_error(e) }
     end
-    { posted: posted, failed: failed, skipped: ids.size - posted - failed.size }
+    { done_key => done, :failed => failed, :skipped => ids.size - done - failed.size }
+  end
+
+  def post_each(ids)
+    each_draft(ids, :posted) { |voucher| Erp::VoucherPostingService.new(voucher, current_user).post! }
   end
 
   # RecordInvalid 在中文环境下 message 是「Translation missing: …record_invalid」，
@@ -159,17 +179,48 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     error.message
   end
 
-  def rollback_depreciation_side_effects
-    return unless @voucher.source_type == 'Erp::Depreciation'
+  # 批量作废时逐张传进来；单张动作省略参数走 @voucher。
+  def rollback_depreciation_side_effects(voucher = @voucher)
+    return unless voucher.source_type == 'Erp::Depreciation'
 
-    Erp::DepreciationService.new(Current.account, current_user).rollback_voucher!(@voucher)
+    Erp::DepreciationService.new(Current.account, current_user).rollback_voucher!(voucher)
   end
+
+  def void_each(ids)
+    each_draft(ids, :voided) do |voucher|
+      ActiveRecord::Base.transaction do
+        rollback_depreciation_side_effects(voucher)
+        voucher.update!(status: Erp::Voucher::VOID)
+      end
+    end
+  end
+
+  # 表头漏斗可筛的列（列名 → SQL）。日期和状态不收录：工具栏已经有期间选择和状态下拉，
+  # 同一个条件给两个入口，筛完对不上只会让人以为坏了。
+  # 制单/记账取 CRM 英文名优先（与列表、凭证详情显示的同一个名字，否则筛「吴仟」筛不出
+  # 列表上写着的那一行）。
+  COLUMN_SQL = {
+    'voucher_no' => 'erp_vouchers.voucher_no',
+    'summary' => 'erp_vouchers.summary',
+    'prepared_by' => "COALESCE(NULLIF(preparers.crm_name, ''), preparers.name)",
+    'posted_by' => "COALESCE(NULLIF(posters.crm_name, ''), posters.name)"
+  }.freeze
 
   def filtered_scope
     scope = Current.account.erp_vouchers
     scope = scope.where(period: params[:period]) if params[:period].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
-    filtered_by_date_and_keyword(scope)
+    apply_voucher_column_filters(filtered_by_date_and_keyword(scope))
+  end
+
+  # 显式 LEFT JOIN 带别名：prepared_by / posted_by 都指向 users，交给 left_joins 生成的
+  # 别名不稳（第二个会变成 posted_by_users 之类），COLUMN_SQL 里写死的别名对不上就是 500。
+  def apply_voucher_column_filters(scope)
+    return scope if params[:cf].blank?
+
+    joined = scope.joins('LEFT JOIN users preparers ON preparers.id = erp_vouchers.prepared_by_id')
+                  .joins('LEFT JOIN users posters ON posters.id = erp_vouchers.posted_by_id')
+    apply_column_filters(joined, COLUMN_SQL)
   end
 
   def filtered_by_date_and_keyword(scope)

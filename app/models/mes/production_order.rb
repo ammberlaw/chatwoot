@@ -1162,7 +1162,10 @@ class Mes::ProductionOrder < ApplicationRecord
   def submit_for_approval!(_actor)
     raise StandardError, '当前状态无法提交审批' unless %w[DRAFT REJECTED].include?(approval_status)
 
-    self.manager_id = resolve_manager_id
+    # 定制单只过总经理（2026-10-21 用户定）：这类单业务在建档页就填清了规格、交期、
+    # 接单方式，生产部门主管与总经理审的是同一件事，两级压成一级。
+    # 备货单不动——它没有客户、责任人和产线由生产自己定，部门主管那一级有判断余地。
+    self.manager_id = order_kind == 'CUSTOMER' ? nil : resolve_manager_id
     self.gm_id = resolve_gm_id
     self.submitted_at = Time.current
     self.manager_acted_at = self.manager_comment = self.manager_acted_by_id = nil

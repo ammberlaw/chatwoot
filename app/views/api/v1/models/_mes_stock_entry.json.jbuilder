@@ -10,8 +10,12 @@ json.production_order_no production_order&.order_no
 json.production_order_owner_name production_order&.owner&.name
 json.product_name production_order&.product_name
 json.product_sku production_order&.crm_product&.sku
-# 关联采购单（采购来源）属采购口径，销售端不可见（生态硬约束）——仅 MES 员工下发。
-if Current.account_user&.mes_staff?
+# 采购来源（采购单号 / 源单号 / 供应商）属采购口径，销售端不可见（生态硬约束）。
+# 财务不在「销售端」之列：对账就是拿供应商和他手里那张采购单号去核。而且单价、金额
+# 这些更敏感的本来就对财务开着（见下面 can_view_amount）——只关供应商，等于把财务挡在
+# 对账门外：她那边看到的是一列「—」，却照样看得见每颗料多少钱。
+can_view_purchase_source = Current.account_user&.mes_staff? || Current.account_user&.crm_finance? || false
+if can_view_purchase_source
   json.purchase_order_id resource.purchase_order_id
   json.purchase_order_no resource.purchase_order&.po_no
   # 一张入库单可以同时收几张采购单的货（同供应商同一天到的几张单一次收完）
@@ -70,7 +74,7 @@ can_view_amount = Current.account_user&.mes_can?(:purchase) ||
                   Current.account_user&.crm_finance? ||
                   Mes::PurchaseOrder.approver?(Current.account, Current.user&.id) || false
 # 供应商对销售端不可见——与抬头那串 supplier_names 同一道口子，行上也得关。
-can_view_supplier = Current.account_user&.mes_staff? || false
+can_view_supplier = can_view_purchase_source
 # 行 → 采购行的对应：同一张采购单里按物料/成品对上，对不上就留空（手工建的入库单没有来源行）。
 entry_items = resource.stock_entry_items.order(:id).to_a
 match_po_item = lambda do |item|

@@ -29,11 +29,25 @@ module Crm::SalesOrderApproval
   # 能不能往下游推（转生产订单 / 进财务待建账）。闸只认这一个判断，两边口径才不会走偏。
   def pushable? = approved?
 
+  # 审核通过。库存单会在这里自动转成现货出库单（见 Crm::StockOrderAutoConvert）。
+  #
+  # 审核前必须有订单类型：它是转单的判据（定制→生产订单 / 库存→出库单），
+  # 审核通过的那一刻就要按它决定往哪条线走。手工建单弹窗本来就强制选，
+  # 但 PI 付款自动转单、报价单转单两条路径不经过弹窗，转出来的单这一栏是空的
+  # （生产上 9/19 之后建的 71 张里 33 张空着）——闸放在这里，空着就批不了。
   def approve!(actor)
     raise StandardError, '这张订单不在待审核状态' unless approval_status == 'PENDING'
+    raise StandardError, '这张订单还没选「定制单 / 库存单」，补上才能审核——系统要靠它决定转生产订单还是转出库单' if order_kind.blank?
 
     update!(approval_status: 'APPROVED', approved_by: actor, approved_at: Time.current, reject_reason: nil)
+    # 自动转单失败不回滚审核：审核是人的决定，已经做出了；转不动的原因挂在
+    # auto_convert_note 上由控制器带回前端（多半是明细对不上成品档案，要人去点一次）。
+    @auto_convert_note = Crm::StockOrderAutoConvert.new(self, actor).call
+    self
   end
+
+  # 审核接口返回给前端的提示：自动转单成功/没转成的原因。nil＝这单不走自动转。
+  attr_reader :auto_convert_note
 
   def reject!(actor, reason)
     raise StandardError, '这张订单不在待审核状态' unless approval_status == 'PENDING'

@@ -243,19 +243,49 @@ class Erp::AutoVoucherService
   # 借 存货科目(按来源类别映射，逐类合并) / 贷 应付账款(按币种)。
   # 退货走红字：金额取负，不做反向分录（财务 2026-10-06 明确「退货是红字冲销法」）。
   def for_stock_receipt(entry)
-    return if skip_doc?(Erp::AutoVoucherRule::STOCK_RECEIPT)
+    return if stock_receipt_voucher_blocker(entry).present?
 
-    rows = stock_receipt_rows(entry)
-    payable = cny_payable_account
-    return if rows.blank? || payable.blank?
-
-    lines = stock_receipt_lines(entry, rows, payable)
-    return if lines.size < 2
-
+    lines = stock_receipt_lines(entry, stock_receipt_rows(entry), cny_payable_account)
     create_voucher!(source_type: entry.class.name, source_id: entry.id,
                     date: entry.posted_at || entry.created_at,
                     summary: "#{return_entry?(entry) ? '采购退货' : '采购入库'} #{entry.entry_no}",
                     lines: lines)
+  end
+
+  # 这张入库单已经出过的应付凭证（没有就是 nil）。
+  def stock_receipt_voucher(entry)
+    @account.erp_vouchers.find_by(source_type: entry.class.name, source_id: entry.id)
+  end
+
+  # 出不了应付凭证的原因，能出就返回 nil。
+  #
+  # 过账时自动生成走的是同一套判断，两边口径不会分叉（同 revenue_voucher_blocker）。
+  # 原来这里是一串静默 return nil：规则上线前过的账没出凭证，财务在应付台账上
+  # 既看不到凭证、也问不出为什么——生产上 10 张 8/27~10/6 过账的原料入库就是这么挂着的。
+  WRONG_PURPOSE_REASON = '只有采购入库和采购退货出应付凭证'.freeze
+  # 按 0 入账会把存货做没，所以宁可不出（见 stock_receipt_rows）。
+  NO_PO_LINE_REASON = '这张单的料在来源采购单上找不到对应行，或采购行没填金额'.freeze
+
+  def stock_receipt_voucher_blocker(entry)
+    return WRONG_PURPOSE_REASON unless Mes::StockEntry::PAYABLE_VOUCHER_PURPOSES.include?(entry.purpose)
+    return '自动凭证规则「采购入库/退货 → 应付账款」已停用' if skip_doc?(Erp::AutoVoucherRule::STOCK_RECEIPT)
+
+    existing = stock_receipt_voucher(entry)
+    return "已经有凭证 #{existing.voucher_no}" if existing
+    return '这张入库单还没过账，过账时会自动出凭证' unless entry.status == 'POSTED'
+
+    stock_receipt_lines_blocker(entry)
+  end
+
+  # 科目与分录这一层的拦路原因（拆出来是为了把上面那个方法的复杂度压回阈值内）。
+  def stock_receipt_lines_blocker(entry)
+    payable = cny_payable_account
+    return '账套里找不到应付账款科目（会计科目表里建一个 PAYABLE 类明细科目）' if payable.blank?
+
+    rows = stock_receipt_rows(entry)
+    return NO_PO_LINE_REASON if rows.blank?
+
+    '分录凑不齐一借一贷（多半是存货科目没配）' if stock_receipt_lines(entry, rows, payable).size < 2
   end
 
   def return_entry?(entry) = entry.purpose == 'MATERIAL_RETURN'

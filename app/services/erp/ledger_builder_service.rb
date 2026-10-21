@@ -63,19 +63,32 @@ class Erp::LedgerBuilderService
     end
   end
 
-  # 采购入库过账后同步应付台账：按**实收数量**重算，不是按订单数量——订 100 收 60 就只欠 60。
-  # 分批收货就分批长（每次过账重算同一条台账），重复过账、补收货都不会翻倍建账。
-  # 已付金额不会被下调：把总额改到低于已付，未付额变负、状态误判成已付清，与核销脱节。
-  def sync_from_purchase_receipt(purchase_order)
-    grouped = purchase_order.purchase_items.group_by(&:mes_supplier_id)
-    grouped.filter_map do |supplier_id, items|
-      next if supplier_id.blank?
+  # ── 应付「先对账再建账」 ──────────────────────────────────────────
+  # 收了货不再直接起账（见 Mes::StockEntry#post!：自动建账那一步 2026-10-21 停掉了），
+  # 先在这里按「采购单 × 供应商」把该欠多少列出来，财务跟供应商核对无误再确认建账。
+  # 粒度与应付台账一行完全一致，确认走的就是原来那个 upsert——口径不会分叉。
+  #
+  # 只看**已过账**的原料入库：草稿单上的数字还会改，拿去跟供应商对账等于对了个寂寞。
+  def pending_reconciliation
+    order_ids = @account.mes_stock_entries
+                        .where(purpose: 'MATERIAL_RECEIPT', status: 'POSTED')
+                        .where.not(purchase_order_id: nil).distinct.pluck(:purchase_order_id)
+    booked = booked_amounts(order_ids)
+    @account.mes_purchase_orders.where(id: order_ids)
+            .includes(purchase_items: :mes_supplier)
+            .flat_map { |order| reconciliation_rows(order, booked) }
+            .sort_by { |row| [row[:po_no].to_s, row[:supplier_name].to_s] }
+  end
 
-      amount = received_amount(supplier_id, items)
-      next if amount <= 0
+  # 确认建账：按实收金额建/更新这一行（就是原来入库过账时自动做的那一步）。
+  def confirm_reconciliation!(purchase_order:, supplier_id:)
+    items = purchase_order.purchase_items.select { |item| item.mes_supplier_id == supplier_id }
+    raise Error, "采购单 #{purchase_order.po_no} 上没有这家供应商的明细行" if items.empty?
 
-      upsert_payable(purchase_order, supplier_id, amount)
-    end
+    amount = received_amount(supplier_id, items)
+    raise Error, '这家供应商在本单上还没有已过账的收货，没有可建账的金额' if amount <= 0
+
+    upsert_payable(purchase_order, supplier_id, amount)
   end
 
   # 金额优先取采购明细上的行金额；行上没有金额（MES 侧未填价）就按供应商报价单算：
@@ -100,6 +113,28 @@ class Erp::LedgerBuilderService
   private
 
   # 实收金额：行上有金额的按「实收/订购」等比折算，没金额的按供应商报价 × 实收 × (1+税率)。
+  # 差额 ≠ 0 才算待对账：一分不差就是已经对过账建过了，不该再占着清单。
+  def reconciliation_rows(order, booked)
+    order.purchase_items.group_by(&:mes_supplier_id).filter_map do |supplier_id, items|
+      next if supplier_id.blank?
+
+      amount = received_amount(supplier_id, items)
+      next if amount <= 0
+
+      booked_micros = booked[[order.id, supplier_id]].to_i
+      next if booked_micros == amount
+
+      { mes_purchase_order_id: order.id, po_no: order.po_no, mes_supplier_id: supplier_id,
+        supplier_name: items.first.mes_supplier&.name, received_micros: amount, booked_micros: booked_micros }
+    end
+  end
+
+  def booked_amounts(order_ids)
+    @account.erp_payables.where(mes_purchase_order_id: order_ids)
+            .pluck(:mes_purchase_order_id, :mes_supplier_id, :total_amount_micros)
+            .to_h { |order_id, supplier_id, amount| [[order_id, supplier_id], amount] }
+  end
+
   def received_amount(supplier_id, items)
     supplier = @account.mes_suppliers.find_by(id: supplier_id)
     items.sum { |item| received_line_amount(supplier, item) }

@@ -21,6 +21,9 @@ Metrics/ClassLength:
     - 'app/models/account.rb'
     # 应收台账：七个 REST + 待建账/账龄/订单详情/补凭证，动作本身都不长、只是数量多。
     - 'app/controllers/api/v1/accounts/erp/receivables_controller.rb'
+    # 记账凭证：REST + 过账/红冲/作废/批量过账/批量作废/影像/导入，同上——
+    # 动作各自几行，拆成 concern 只是把同一组凭证操作挪到另一个文件里读。
+    - 'app/controllers/api/v1/accounts/erp/vouchers_controller.rb'
 
 Metrics/MethodLength:
   Max: 19

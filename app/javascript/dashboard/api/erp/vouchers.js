@@ -9,6 +9,9 @@ API.reverse = id => axios.post(`${API.url}/${id}/reverse`);
 // 批量过账：一次把选中的待过账凭证全过了（后端逐张校验，不平的单独回报，不拖垮整批）。
 API.bulkPost = voucherIds =>
   axios.post(`${API.url}/bulk_post`, { voucher_ids: voucherIds });
+// 批量作废：留痕不删，只作用于待过账的。
+API.bulkVoid = voucherIds =>
+  axios.post(`${API.url}/bulk_void`, { voucher_ids: voucherIds });
 API.void = id => axios.post(`${API.url}/${id}/void`);
 
 // 原始单据影像（发票 / 水单扫描件）。已过账凭证也允许补传。

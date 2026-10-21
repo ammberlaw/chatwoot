@@ -62,6 +62,9 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     return unless ensure_sales_order_approver!
 
     @sales_order.approve!(current_user)
+    # 库存单审核通过会自动转出库单；成功或没转成的原因都要让审核人当场看见
+    # （见 Crm::StockOrderAutoConvert），否则他只知道「审核通过」，不知道单子转没转。
+    @auto_convert_note = @sales_order.auto_convert_note
     render 'api/v1/accounts/crm/sales_orders/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity

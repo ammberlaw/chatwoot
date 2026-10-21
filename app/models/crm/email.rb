@@ -92,7 +92,11 @@ class Crm::Email < ApplicationRecord
   has_many :opens, class_name: 'Crm::EmailOpen', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many :clicks, class_name: 'Crm::EmailClick', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many :distributions, class_name: 'Crm::EmailDistribution', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
-  has_many_attached :files
+  # 群发给每个收件人各建一封邮件，附件**共用同一个 blob**（见 EmailsController#bulk_create）。
+  # 所以删一封不能把文件直接删掉——别的收件人那几封还指着它。
+  # dependent: false 关掉 ActiveStorage 的默认 purge，改由 purge_unshared_files 判断：
+  # 只有没人再引用的 blob 才真删，还有人用的只摘掉这条引用。
+  has_many_attached :files, dependent: false
 
   validates :folder, inclusion: { in: FOLDERS }
   validates :send_status, inclusion: { in: SEND_STATUSES }
@@ -103,6 +107,7 @@ class Crm::Email < ApplicationRecord
   # 发送触发（对应 Twenty send-email 的 DB 事件）：send_now 归一为 PENDING，
   # 状态刚变成 PENDING 时入队 SMTP 发送；成功/失败由 EmailSendService 回写。
   before_save :normalize_send_now
+  before_destroy :purge_unshared_files, prepend: true
   after_commit :enqueue_send, if: -> { saved_change_to_send_status? && send_status == 'PENDING' }
 
   scope :in_folder, ->(folder) { where(folder: folder) }
@@ -163,6 +168,17 @@ class Crm::Email < ApplicationRecord
   end
 
   private
+
+  # 删邮件时清理附件：blob 还被别的记录引用（群发共用）就只摘引用，否则连文件一起清。
+  def purge_unshared_files
+    files_attachments.each do |attachment|
+      if ActiveStorage::Attachment.where(blob_id: attachment.blob_id).where.not(id: attachment.id).exists?
+        attachment.delete
+      else
+        attachment.purge_later
+      end
+    end
+  end
 
   def normalize_send_now
     self.send_status = 'PENDING' if send_now? && will_save_change_to_send_now?

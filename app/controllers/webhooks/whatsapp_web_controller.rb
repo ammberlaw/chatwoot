@@ -7,8 +7,12 @@ class Webhooks::WhatsappWebController < ActionController::API
   # Inbound message forwarded by the Baileys bridge.
   def process_payload
     # from_me：业务员在手机上直接回的消息，落成「我方发出」（见 IncomingMessageWhatsappWebService）。
+    # ⚠️ 这个白名单漏一个键，桥传了也等于没传。participant_name（群里真正的发言人）
+    # 就这么漏了：桥一直在发（sessions.js 的 payload），服务层也早就写好了「发言人：内容」
+    # 的前缀逻辑，中间卡在这一行——生产上 282 个 WhatsApp 会话、0 条消息带发言人，
+    # 群里十个人说话看着全是同一个人（2026-10-21 用户反馈）。
     payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :book_name, :text, :message_id, :timestamp,
-                                          :from_me, :quoted_id)
+                                          :from_me, :quoted_id, :participant_name)
     # 图片/视频/语音/文件走 multipart 上来。文件对象进不了 ActiveJob（序列化不了），
     # 所以在这里先落成 blob，只把 signed_id 带进后台任务。
     payload[:media_signed_id] = stage_media&.signed_id

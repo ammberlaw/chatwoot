@@ -7,6 +7,7 @@ import { fmtMoney } from 'dashboard/helper/erpMoney';
 import { printElement } from 'dashboard/helper/printHelper';
 
 import ErpPayableAPI from 'dashboard/api/erp/payables';
+import ErpPayableReconAPI from 'dashboard/api/erp/payableReconciliations';
 import ErpPaymentAPI from 'dashboard/api/erp/paymentRecords';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 import MesSupplierAPI from 'dashboard/api/mes/suppliers';
@@ -38,6 +39,9 @@ const canLedger = computed(() => erpCan('payable'));
 const canSettle = computed(() => erpCan('payment'));
 
 const TABS = [
+  // 待对账排在台账前面：先对账、对好了才建账（2026-10-21 财务定的流程），
+  // 顺序就按流程走，别让人先看到台账再回头找对账在哪。
+  { key: 'reconcile', label: '待对账' },
   { key: 'ledger', label: '应付台账' },
   { key: 'payments', label: '付款记录' },
   { key: 'statement', label: '供应商对账' },
@@ -304,6 +308,45 @@ const loadStatement = async () => {
   }
 };
 
+/* ---------------- 待对账 ---------------- */
+// 收了货先跟供应商核对，对好了才落应付台账（见 Erp::PayableReconciliationsController）。
+// 每行＝一张采购单 × 一家供应商，按**已过账**的实收数量算该欠多少。
+const reconRows = ref([]);
+const reconLoading = ref(false);
+const confirmingRecon = ref(null);
+const loadRecon = async () => {
+  reconLoading.value = true;
+  try {
+    const { data } = await ErpPayableReconAPI.get();
+    reconRows.value = data.payload || [];
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '待对账清单加载失败');
+  } finally {
+    reconLoading.value = false;
+  }
+};
+const reconKey = row => `${row.mes_purchase_order_id}-${row.mes_supplier_id}`;
+// 差额＝该欠的减去台账已建的。首次建账时已建为 0，差额就是全额。
+const reconDiff = row => (row.received_micros || 0) - (row.booked_micros || 0);
+const confirmRecon = async row => {
+  confirmingRecon.value = reconKey(row);
+  try {
+    const { data } = await ErpPayableReconAPI.confirm(
+      row.mes_purchase_order_id,
+      row.mes_supplier_id
+    );
+    const { payable_no: payableNo, warning } = data.payload || {};
+    // 警告（按实收重算后低于已付）要单独说，被「已建账」的提示盖掉财务就不知道。
+    useAlert(warning || `已建账 ${payableNo}`);
+    await loadRecon();
+    if (activeTab.value === 'ledger') loadLedgers();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '建账失败');
+  } finally {
+    confirmingRecon.value = null;
+  }
+};
+
 const agingRef = ref(null);
 const monthlyRef = ref(null);
 // 供应商对账与账龄分析不吃关键字（各自有自己的查询条），隐掉顶部搜索。
@@ -313,6 +356,7 @@ const isDocTab = computed(() =>
 const reload = () => {
   if (activeTab.value === 'ledger') return loadLedgers();
   if (activeTab.value === 'payments') return loadPayments();
+  if (activeTab.value === 'reconcile') return loadRecon();
   if (activeTab.value === 'statement') return loadStatement();
   if (activeTab.value === 'monthly') return monthlyRef.value?.load();
   return agingRef.value?.load();
@@ -676,7 +720,63 @@ const exportCurrent = async () => {
   }
 };
 
-onMounted(loadLedgers);
+/* ---------------- 补出应付凭证 ---------------- */
+// 应付的凭证不在这张台账上生成——它是原料入库**过账时**自动出的（借存货 / 贷应付账款）。
+// 自动规则 2026-10-09 才上线，在那之前过账的单一张凭证都没有，而台账上又没有任何补出的
+// 入口：财务看到的就是「应付有账、总账没账」，而且问不出为什么。
+// 这里把该出没出的入库单捞出来，一次补完；出不了的原因由后端判定后原样带回。
+const canVoucher = computed(() => erpCan('voucher'));
+const pendingVouchers = ref([]);
+const buildingVouchers = ref(false);
+const loadPendingVouchers = async () => {
+  if (!canVoucher.value) return;
+  try {
+    const { data } = await ErpPayableAPI.pendingVouchers();
+    pendingVouchers.value = data.payload || [];
+  } catch {
+    // 补出凭证是附带功能，拉不到名单不该让整个台账页报错
+    pendingVouchers.value = [];
+  }
+};
+const buildPendingVouchers = async () => {
+  const targets = pendingVouchers.value.slice();
+  if (!targets.length) return;
+  buildingVouchers.value = true;
+  let done = 0;
+  const failures = [];
+  try {
+    // 逐张补：出不了的各有各的原因（科目没配、采购行没填金额），
+    // 一张失败不该把其余的也挡住，最后把原因一并报出来（同应收那边）。
+    for (let i = 0; i < targets.length; i += 1) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await ErpPayableAPI.buildReceiptVoucher(targets[i].id);
+        done += 1;
+      } catch (error) {
+        failures.push(
+          `${targets[i].entry_no}：${error?.response?.data?.error || '补出失败'}`
+        );
+      }
+    }
+  } finally {
+    buildingVouchers.value = false;
+  }
+  await loadPendingVouchers();
+  useAlert(
+    failures.length
+      ? `补出 ${done} 张，${failures.length} 张没出：${failures[0]}${
+          failures.length > 1 ? ` 等 ${failures.length} 条` : ''
+        }`
+      : `已补出 ${done} 张应付凭证`
+  );
+};
+
+onMounted(() => {
+  loadLedgers();
+  loadPendingVouchers();
+  // 进页面就拉一次：待对账的条数要显示在页签上，不然财务不知道有货等着对。
+  loadRecon();
+});
 </script>
 
 <template>
@@ -757,6 +857,16 @@ onMounted(loadLedgers);
           :is-loading="exporting"
           @click="exportCurrent"
         />
+        <!-- 应付凭证是入库过账时出的，规则上线前过账的老单一张都没出——台账上得有条补的路 -->
+        <Button
+          v-if="canVoucher && activeTab === 'ledger' && pendingVouchers.length"
+          :label="`补出凭证 (${pendingVouchers.length})`"
+          color="amber"
+          variant="faded"
+          size="sm"
+          :is-loading="buildingVouchers"
+          @click="buildPendingVouchers"
+        />
         <Button
           v-if="canLedger && activeTab === 'ledger'"
           label="从采购单建账"
@@ -791,6 +901,18 @@ onMounted(loadLedgers);
           @click="switchTab(tab.key)"
         >
           {{ tab.label }}
+          <!-- 有货等着对账就把条数写在页签上，不然财务不知道该进来 -->
+          <span
+            v-if="tab.key === 'reconcile' && reconRows.length"
+            class="ml-1 px-1.5 py-0.5 text-xs rounded-full"
+            :class="
+              activeTab === tab.key
+                ? 'bg-white/25 text-white'
+                : 'bg-n-amber-4 text-n-amber-11'
+            "
+          >
+            {{ reconRows.length }}
+          </span>
         </button>
       </div>
       <!-- 台账筛选：状态 / 结算（含税·未税）/ 发生日期区间。
@@ -1141,6 +1263,68 @@ onMounted(loadLedgers);
         party-label="供应商"
         :fetcher="ErpPayableAPI.aging"
       />
+
+      <!-- 待对账：收了货、还没跟供应商核对过的。核对无误点「对好了，建账」才进台账。 -->
+      <table
+        v-else-if="activeTab === 'reconcile'"
+        class="w-full min-w-[900px] text-sm"
+      >
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium whitespace-nowrap">采购单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              已收货金额
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              台账已建
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              待建金额
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in reconRows"
+            :key="reconKey(row)"
+            class="border-b border-n-weak"
+          >
+            <td class="px-3 py-2 text-n-slate-12">{{ row.po_no }}</td>
+            <td class="px-3 py-2 text-n-slate-12">{{ row.supplier_name }}</td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.received_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+              {{ money(row.booked_micros) }}
+            </td>
+            <td
+              class="px-3 py-2 font-mono text-right"
+              :class="reconDiff(row) < 0 ? 'text-n-ruby-11' : 'text-n-amber-11'"
+            >
+              {{ money(reconDiff(row)) }}
+            </td>
+            <td class="px-3 py-2 text-right">
+              <Button
+                v-if="canLedger"
+                label="对好了，建账"
+                color="amber"
+                size="sm"
+                :is-loading="confirmingRecon === reconKey(row)"
+                @click="confirmRecon(row)"
+              />
+            </td>
+          </tr>
+          <tr v-if="!reconRows.length && !reconLoading">
+            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+              没有待对账的收货——收到的货都已经跟供应商核对过并建了账。
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       <!-- 供应商对账 -->
       <table v-else class="w-full max-w-3xl text-sm">

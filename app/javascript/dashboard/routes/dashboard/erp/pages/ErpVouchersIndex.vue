@@ -7,6 +7,7 @@ import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import ErpVoucherAPI from 'dashboard/api/erp/vouchers';
+import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeaderFilter.vue';
 import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import ErpAutoVoucherRuleAPI from 'dashboard/api/erp/autoVoucherRules';
 import ErpReportAPI from 'dashboard/api/erp/reports';
@@ -92,18 +93,42 @@ const statusFilter = ref('');
 const keyword = ref('');
 const currentPage = ref(1);
 
+// 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }，在服务端按列筛。
+// 不在前端筛当前这一页——列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
+// 期间和状态不进表头：工具栏已经有那两个下拉，同一个条件两个入口只会让人以为坏了。
+const colFilters = ref({});
+// axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
+// cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params（同应付台账）。
+const colFilterParams = () => {
+  const out = {};
+  Object.entries(colFilters.value).forEach(([key, f]) => {
+    if (!f?.op) return;
+    out[`cf[${key}][op]`] = f.op;
+    out[`cf[${key}][value]`] = f.value ?? '';
+  });
+  return out;
+};
+
 const fetchList = () =>
   store.get({
     page: currentPage.value,
     period: period.value,
     status: statusFilter.value,
     q: keyword.value.trim(),
+    ...colFilterParams(),
   });
 
 watch(currentPage, fetchList);
 const resetAndFetch = () => {
   currentPage.value = 1;
   fetchList();
+};
+const activeColFilterCount = computed(
+  () => Object.values(colFilters.value).filter(f => f?.op).length
+);
+const clearColFilters = () => {
+  colFilters.value = {};
+  resetAndFetch();
 };
 
 // 科目下拉：只给启用中的末级科目（分类科目不能记账，后端也会拦）。
@@ -644,6 +669,36 @@ const doBulkPost = async () => {
   }
 };
 
+// ── 批量作废 ──
+// 与批量过账同一批选中、同一套口径：只有待过账的能作废，已记账的一律不碰（错账走红冲）。
+// 作废不是删除——凭证号留着不断号，审计看得见这张作废过。
+const bulkVoidRef = ref(null);
+const bulkVoiding = ref(false);
+const askBulkVoid = () => bulkVoidRef.value?.open();
+const doBulkVoid = async () => {
+  bulkVoiding.value = true;
+  try {
+    const { data } = await ErpVoucherAPI.bulkVoid(selectedDraftIds.value);
+    const { voided, failed = [], skipped = 0 } = data.payload || {};
+    const parts = [`已作废 ${voided} 张`];
+    if (skipped) parts.push(`${skipped} 张已不是待过账状态，跳过`);
+    if (failed.length) {
+      parts.push(
+        `${failed.length} 张没作废：${failed
+          .map(f => `${f.voucher_no}（${f.error}）`)
+          .join('；')}`
+      );
+    }
+    useAlert(parts.join('，'));
+    selectedIds.value = [];
+    fetchList();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '批量作废失败');
+  } finally {
+    bulkVoiding.value = false;
+  }
+};
+
 const confirmRef = ref(null);
 const deleting = ref(null);
 const askDelete = voucher => {
@@ -744,6 +799,15 @@ onMounted(() => {
           custom-input-class="w-48"
           @keyup.enter="resetAndFetch"
         />
+        <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事（同应付台账） -->
+        <Button
+          v-if="activeColFilterCount"
+          :label="`清除筛选 (${activeColFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearColFilters"
+        />
         <Button label="查询" color="slate" size="sm" @click="resetAndFetch" />
         <!-- 导出是只读动作，不挂写权限 -->
         <Button
@@ -771,6 +835,15 @@ onMounted(() => {
           size="sm"
           :is-loading="bulkPosting"
           @click="askBulkPost"
+        />
+        <Button
+          v-if="canWrite && selectedDraftIds.length"
+          :label="`批量作废 ${selectedDraftIds.length} 张`"
+          color="ruby"
+          variant="faded"
+          size="sm"
+          :is-loading="bulkVoiding"
+          @click="askBulkVoid"
         />
         <Button
           v-if="canWrite"
@@ -840,10 +913,24 @@ onMounted(() => {
                   />
                 </th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  凭证字号
+                  <span class="inline-flex items-center gap-1">
+                    凭证字号
+                    <TableHeaderFilter
+                      v-model="colFilters.voucher_no"
+                      @change="resetAndFetch"
+                    />
+                  </span>
                 </th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">摘要</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1">
+                    摘要
+                    <TableHeaderFilter
+                      v-model="colFilters.summary"
+                      @change="resetAndFetch"
+                    />
+                  </span>
+                </th>
                 <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                   借方合计
                 </th>
@@ -852,7 +939,21 @@ onMounted(() => {
                 </th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  制单 / 记账
+                  <!-- 一列两个人名，所以两个漏斗，各自紧跟在自己那个词后面。
+                       两个挨在一起（制单 / 记账 ∨∨）谁也分不清哪个筛哪个。 -->
+                  <span class="inline-flex items-center gap-1">
+                    制单
+                    <TableHeaderFilter
+                      v-model="colFilters.prepared_by"
+                      @change="resetAndFetch"
+                    />
+                    <span class="text-n-slate-10">/</span>
+                    记账
+                    <TableHeaderFilter
+                      v-model="colFilters.posted_by"
+                      @change="resetAndFetch"
+                    />
+                  </span>
                 </th>
                 <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                   操作
@@ -1418,10 +1519,10 @@ onMounted(() => {
                   {{ line.currency }} × {{ Number(line.exchange_rate) }}
                 </span>
               </td>
+              <!-- 客户维度照常记进库（应收账款是往来科目，账簿「按客户查应收明细账」、
+                   客户对账单都靠它），只是票面上不再列出来：一行里客户名 + 业务员挤在
+                   一起会折行，财务看凭证认的是业务员。见打印票面的 dimensionText。 -->
               <td class="px-2 py-2 text-xs text-n-slate-11">
-                <span v-if="line.crm_customer_name">
-                  客户 {{ line.crm_customer_name }}
-                </span>
                 <span v-if="line.mes_supplier_name">
                   供应商 {{ line.mes_supplier_name }}
                 </span>
@@ -1707,6 +1808,15 @@ onMounted(() => {
       :description="`确定把选中的 ${selectedDraftIds.length} 张待过账凭证全部记账？记账后不能再改，错账只能红冲。借贷不平的会被跳过并逐张报出来。`"
       confirm-label="全部过账"
       @confirm="doBulkPost"
+    />
+    <Dialog
+      ref="bulkVoidRef"
+      type="alert"
+      width="sm"
+      title="批量作废"
+      :description="`确定把选中的 ${selectedDraftIds.length} 张待过账凭证全部作废？作废后凭证号留着、内容可查，但不再进账。已记账的不在其中，错账请用红冲。`"
+      confirm-label="全部作废"
+      @confirm="doBulkVoid"
     />
   </div>
 </template>
