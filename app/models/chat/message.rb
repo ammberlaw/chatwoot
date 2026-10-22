@@ -38,6 +38,9 @@ class Chat::Message < ApplicationRecord
 
   has_many_attached :files
 
+  # Covers member messages, forwarded messages and the system-notice sender.
+  after_create_commit -> { Chat::MobilePushJob.perform_later(id) }
+
   # 纯附件消息可无正文。
   validates :content, presence: true, unless: -> { files.attached? }
 

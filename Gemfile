@@ -282,3 +282,5 @@ group :development, :test do
   gem 'spring'
   gem 'spring-watcher-listen'
 end
+
+gem "httpx", "1.8.4"

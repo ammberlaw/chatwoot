@@ -22,8 +22,15 @@ class NotificationSubscription < ApplicationRecord
 
   SUBSCRIPTION_TYPES = {
     browser_push: 1,
-    fcm: 2
+    fcm: 2,
+    apns: 4,
+    huawei: 5,
+    xiaomi: 6,
+    oppo: 7,
+    vivo: 8
   }.freeze
 
   enum subscription_type: SUBSCRIPTION_TYPES
+  NATIVE_TYPES = %w[apns huawei xiaomi oppo vivo].freeze
+  scope :native, -> { where(subscription_type: NATIVE_TYPES) }
 end

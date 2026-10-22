@@ -10,10 +10,24 @@ class Notification::PushNotificationService
       send_browser_push(subscription)
       send_fcm_push(subscription)
       send_push_via_chatwoot_hub(subscription)
+      send_native_push(subscription)
     end
   end
 
   private
+
+  def send_native_push(subscription)
+    return unless NotificationSubscription::NATIVE_TYPES.include?(subscription.subscription_type)
+    return if notification.read_at.present?
+    account_user = AccountUser.find_by(account_id: notification.account_id, user_id: user.id, deactivated_at: nil)
+    return unless account_user
+    return unless ConversationPolicy.new({ user: user, account: notification.account, account_user: account_user }, conversation).show?
+
+    Notification::NativePushService.new.deliver(
+      subscription: subscription, account_id: notification.account_id, user_id: user.id,
+      kind: 'customer', conversation_id: conversation.display_id, message_id: notification.id
+    )
+  end
 
   delegate :user, to: :notification
   delegate :notification_subscriptions, to: :user
