@@ -21,8 +21,9 @@ class Notification::VivoPushService
   end
 
   def send_message(token:, attributes:, data:)
+    alert = Notification::NativePushService.alert_for(data[:kind])
     payload = { appId: ENV.fetch('VIVO_APP_ID').to_i, regId: token, notifyType: 4, category: 'IM',
-                title: 'WINTOUCH 新消息', content: '你收到一条新消息，打开 App 查看。', timeToLive: 3600,
+                title: alert[:title], content: alert[:body], timeToLive: 3600,
                 skipType: 4, skipContent: Notification::NativePushService.android_intent(data),
                 clientCustomMap: data, requestId: Digest::SHA256.hexdigest(data.to_json + token)[0, 32] }
     result = Notification::NativePushService.request_json('https://api-push.vivo.com.cn/message/send',

@@ -5,8 +5,17 @@ module Crm
     NAME = '系统通知'.freeze
 
     def self.for(account)
-      email = "crm-system-#{account.id}@wintouch.local"
+      email = email_for(account.id)
       User.find_by(email: email) || create_for(email)
+    end
+
+    def self.email_for(account_id)
+      "crm-system-#{account_id}@wintouch.local"
+    end
+
+    # 只读查 id：后台任务判定「这条消息是不是系统通知发的」用，查不到就是没有，别建号。
+    def self.existing_id_for(account_id)
+      User.where(email: email_for(account_id)).pick(:id)
     end
 
     def self.create_for(email)

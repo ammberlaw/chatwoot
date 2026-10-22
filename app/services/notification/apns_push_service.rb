@@ -37,7 +37,8 @@ class Notification::ApnsPushService
       'apns-push-type' => 'alert', 'apns-priority' => '10', 'apns-expiration' => (Time.now.to_i + 3600).to_s,
       'apns-collapse-id' => "#{data[:kind]}-#{data[:message_id]}"
     }
-    payload = data.merge(aps: { alert: { title: 'WINTOUCH 新消息', body: '你收到一条新消息，打开 App 查看。' }, sound: 'default' })
+    alert = Notification::NativePushService.alert_for(data[:kind])
+    payload = data.merge(aps: { alert: { title: alert[:title], body: alert[:body] }, sound: 'default' })
     response = Notification::NativePushService.http.with(ssl: { alpn_protocols: ['h2'] }, fallback_protocol: 'h2')
                                               .post("https://#{host}/3/device/#{token}", headers: headers, json: payload)
     raise Notification::NativePushService::DeliveryError, 'APNs transport failed' if response.is_a?(HTTPX::ErrorResponse)

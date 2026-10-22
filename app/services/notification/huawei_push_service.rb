@@ -17,8 +17,9 @@ class Notification::HuaweiPushService
   end
 
   def send_message(token:, attributes:, data:)
+    alert = Notification::NativePushService.alert_for(data[:kind])
     payload = { message: { token: [token], data: data.to_json,
-                          notification: { title: 'WINTOUCH 新消息', body: '你收到一条新消息，打开 App 查看。' },
+                          notification: { title: alert[:title], body: alert[:body] },
                           android: { ttl: '3600s', category: 'IM',
                                      notification: { channel_id: 'wintouch-messages',
                                                      click_action: { type: 1, intent: Notification::NativePushService.android_intent(data) } } } } }

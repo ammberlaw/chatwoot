@@ -5,8 +5,9 @@ class Notification::XiaomiPushService
   end
 
   def send_message(token:, attributes:, data:)
+    alert = Notification::NativePushService.alert_for(data[:kind])
     form = { registration_id: token, restricted_package_name: 'com.wintouchspace.app',
-             title: 'WINTOUCH 新消息', description: '你收到一条新消息，打开 App 查看。', payload: data.to_json,
+             title: alert[:title], description: alert[:body], payload: data.to_json,
              time_to_live: 3_600_000, notify_type: -1, 'extra.notify_effect' => '2',
              'extra.intent_uri' => Notification::NativePushService.android_intent(data),
              'extra.channel_id' => ENV.fetch('XIAOMI_CHANNEL_ID'),
