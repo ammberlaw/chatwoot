@@ -7,8 +7,10 @@ class Crm::PiToSalesOrder
 
   # PI 抬头 → 资金账户名：客户是照 PI 上印的 BANK DETAILS 打款的，收哪个账户在开 PI 时就定了，
   # 转单时按抬头带过来，不用人再选一次。账户按名字找，账套里没有这个名字就留空（不猜）。
-  # 转单后需要人补的结算信息（前端据此决定要不要弹补填框）。
-  SETTLEMENT_FIELDS = %i[payment_term receipt_account_id insurance_order_no].freeze
+  # 转单后需要人补的信息（前端据此决定要不要弹补填框）。
+  # 交货方式（2026-10-22）：PI 上不录，但仓管备货、派车、通知客户来提都要看它，
+  # 所以跟结算方式一起在转单那一刻补。
+  SETTLEMENT_FIELDS = %i[payment_term receipt_account_id delivery_method insurance_order_no].freeze
 
   RECEIPT_ACCOUNT_BY_HEADER = {
     'HK_WINTOUCH' => '香港建设银行',

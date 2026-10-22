@@ -142,6 +142,7 @@ const viewFields = computed(() => {
     { label: '类型', value: KIND_LABELS[s.kind] || s.kind },
     { label: '销售订单', value: s.salesOrderNo },
     { label: '客户', value: s.customerName },
+    { label: '交货方式', value: s.deliveryMethodLabel },
     { label: '销售订单', value: s.productionOrderNo },
     { label: '归属人', value: s.productionOrderOwnerName || s.ownerName },
     { label: '状态', value: STATUS_LABELS[s.status] || s.status },

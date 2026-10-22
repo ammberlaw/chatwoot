@@ -129,10 +129,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     end
 
     # 转单时勾的「订单金额已含税」写回销售订单（出库收入凭证按它拆行，见 ERP_SPEC §8.2bis）。
-    unless params[:amount_includes_tax].nil?
-      sales_order.update_columns(amount_includes_tax: ActiveModel::Type::Boolean.new.cast(params[:amount_includes_tax]),
-                                 updated_at: Time.current)
-    end
+    # 订单类型一并写回（2026-10-22）：以前转单选的类型只管这一次，订单上那栏照旧空着，
+    # 下次转同一张单还得再选一遍。既然转单的人已经判断过这单该走哪条线，就以他选的为准。
+    tax = params[:amount_includes_tax]
+    writeback = { order_kind: 'CUSTOM', updated_at: Time.current }
+    writeback[:amount_includes_tax] = ActiveModel::Type::Boolean.new.cast(tax) unless tax.nil?
+    sales_order.update_columns(writeback) # rubocop:disable Rails/SkipsModelValidations
     rows = convert_rows
     return render json: { error: '请至少选择一行明细' }, status: :unprocessable_entity if rows.empty?
 

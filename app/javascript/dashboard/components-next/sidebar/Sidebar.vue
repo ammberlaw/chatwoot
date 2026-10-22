@@ -14,6 +14,7 @@ import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import CrmQuoteRequestAPI from 'dashboard/api/crm/quoteRequests';
+import CrmSalesOrderAPI from 'dashboard/api/crm/salesOrders';
 import ConversationSourceTagsAPI from 'dashboard/api/crm/conversationSourceTags';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
@@ -386,6 +387,18 @@ const fetchQuoteRequestTodoCount = async () => {
   }
 };
 
+// 销售订单审核角标：待我审的单数。和定制报价那个同一个道理——单子开出来主管
+// 不进页面就不知道，只能等业务员来问（用户 2026-10-22 原话：「不是业务问我我根本不知道」）。
+const salesOrderTodoCount = ref(0);
+const fetchSalesOrderTodoCount = async () => {
+  try {
+    const { data } = await CrmSalesOrderAPI.pendingCount();
+    salesOrderTodoCount.value = data.count || 0;
+  } catch {
+    salesOrderTodoCount.value = 0;
+  }
+};
+
 const churnRiskCount = ref(0);
 const fetchChurnRiskCount = async () => {
   try {
@@ -471,6 +484,7 @@ watch(
     fetchSourceTagCounts();
     fetchChurnRiskCount();
     fetchQuoteRequestTodoCount();
+    fetchSalesOrderTodoCount();
   },
   { immediate: true }
 );
@@ -492,6 +506,8 @@ onMounted(() => {
   emitter.on('CHAT_MESSAGE_CREATED', onChatRealtime);
   // 协同页读完消息后广播，用于即时清角标。
   emitter.on('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
+  // 订单页审完/驳回后广播，不用等下次进系统才掉角标。
+  emitter.on('SALES_ORDER_APPROVAL_CHANGED', fetchSalesOrderTodoCount);
   // 新消息（含自己发出的回复）
   emitter.on('CONVERSATION_ATTENTION_MAY_CHANGE', refreshConversationAttention);
   // 会话新建/状态变更/转派——actionCable 已有的广播，顺带用上
@@ -501,6 +517,7 @@ onBeforeUnmount(() => {
   clearTimeout(attentionTimer);
   emitter.off('CHAT_MESSAGE_CREATED', onChatRealtime);
   emitter.off('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
+  emitter.off('SALES_ORDER_APPROVAL_CHANGED', fetchSalesOrderTodoCount);
   emitter.off(
     'CONVERSATION_ATTENTION_MAY_CHANGE',
     refreshConversationAttention
@@ -1293,6 +1310,8 @@ const menuItems = computed(() => {
           {
             name: 'CRM Sales Orders',
             label: t('SIDEBAR.CRM_SALES_ORDERS'),
+            badgeCount: salesOrderTodoCount.value,
+            hint: '有等你审核的销售订单时在此提醒；审完角标自动消。',
             to: accountScopedRoute('crm_sales_orders_index'),
             activeOn: ['crm_sales_orders_index'],
           },

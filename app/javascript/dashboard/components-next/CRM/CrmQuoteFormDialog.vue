@@ -394,6 +394,7 @@ defineExpose({ dialogRef, open });
           >
             <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
             报价明细
+            <span class="font-normal normal-case text-n-ruby-11">必填</span>
           </span>
           <button
             type="button"

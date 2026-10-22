@@ -7,6 +7,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import MesProductAPI from 'dashboard/api/mes/products';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -33,7 +34,7 @@ const { paymentTermOptions, load: loadCrmOptions } = useCrmOptions();
 // 收款账户：哪个银行/平台收的款。只回 id + 名字，业务员也能取。
 const receiptAccounts = ref([]);
 const receiptAccountOptions = computed(() => [
-  { value: '', label: '未指定' },
+  { value: '', label: '请选择' },
   ...receiptAccounts.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
 const loadReceiptAccounts = async () => {
@@ -85,8 +86,9 @@ const form = reactive({
   orderCurrency: 'CNY',
   exchangeRate: '',
   taxRate: String(DEFAULT_CN_TAX_RATE),
+  deliveryMethod: '',
   remark: '',
-  lineItems: [], // [{ name, spec, quantity, unitPrice, amount }]
+  lineItems: [], // [{ crmProductId, productLabel, name, spec, quantity, unitPrice, amount }]
 });
 
 // ── 读取 PI 自动识别 ──
@@ -108,6 +110,7 @@ const applyParsedPi = (data, file) => {
   if (data.shipping_cost != null) form.shipping = String(data.shipping_cost);
   form.lineItems = Array.isArray(data.line_items)
     ? data.line_items.map(li => ({
+        crmProductId: li.crm_product_id || '',
         name: li.name || '',
         spec: li.spec || '',
         quantity: li.quantity ?? '',
@@ -164,8 +167,18 @@ const onPiSelected = async event => {
   }
 };
 
+// 交货方式：这单货怎么送到客户手上。仓管备货、派车、通知客户来提都看它，
+// 以前只能写在备注里，出库的人还得翻备注猜。
+const DELIVERY_METHOD_OPTIONS = [
+  { value: '', label: '请选择' },
+  { value: 'LOGISTICS', label: '物流发货' },
+  { value: 'VEHICLE', label: '车辆配送' },
+  { value: 'SELF_PICKUP', label: '客户自提' },
+];
+
 const addLineItem = () =>
   form.lineItems.push({
+    crmProductId: '',
     name: '',
     spec: '',
     quantity: '',
@@ -173,6 +186,44 @@ const addLineItem = () =>
     amount: '',
   });
 const removeLineItem = index => form.lineItems.splice(index, 1);
+
+// ── 商品编码：从产品档案选（选填）──
+// 产品档案五千多条，不预载——下拉按关键词远程搜。已选中的那条并进选项里保持回显，
+// 否则编辑一张老单子时下拉是空的，看着像编码丢了。
+const products = ref([]);
+const productOptions = computed(() =>
+  products.value.map(p => ({
+    value: p.id,
+    label: p.sku ? `${p.name}（${p.sku}）` : p.name,
+  }))
+);
+const mergeProducts = list => {
+  list.forEach(p => {
+    if (p?.id && !products.value.some(m => m.id === p.id))
+      products.value.push(p);
+  });
+};
+const searchProducts = async q => {
+  try {
+    const { data } = await MesProductAPI.get({ q, per_page: 30 });
+    const found = data?.payload || [];
+    const picked = products.value.filter(p =>
+      form.lineItems.some(li => String(li.crmProductId) === String(p.id))
+    );
+    products.value = found;
+    mergeProducts(picked);
+  } catch {
+    // 搜不到就维持现有选项，不打断录单
+  }
+};
+// 选中编码后把品名/规格带出来：业务员选了产品还要再手敲一遍品名，没人会愿意。
+// 只在空着时填，不覆盖他自己写的叫法（客户叫法和档案名常常不一样）。
+const onProductPicked = (li, value) => {
+  const p = products.value.find(x => String(x.id) === String(value));
+  if (!p) return;
+  if (!li.name.trim()) li.name = p.name || '';
+  if (!li.spec.trim()) li.spec = p.spec || '';
+};
 
 // 上传的订单均为已付款订单，无「待确认」环节，默认从「生产中」起。
 const isEditing = computed(() => editingId.value !== null);
@@ -250,15 +301,45 @@ const opportunityOptions = computed(() => {
   ];
 });
 
-// 新建订单：附件与订单类型必填（附件如 PI、生产订单），否则不可保存。
+// 一行明细算不算填好了：品名、数量、单价三样齐了才算。
+// 只填品名不填数量单价，审核的人照样不知道这单值多少钱、发几台。
+const isLineItemFilled = li =>
+  (li.name || '').trim() &&
+  Number(li.quantity) > 0 &&
+  li.unitPrice !== '' &&
+  li.unitPrice !== null &&
+  Number(li.unitPrice) >= 0;
+
+// 订单明细必填（2026-10-22）：以前明细可以一行不填，审核人打开只看到一个金额，
+// 不知道卖的是什么货。生产上 365 张单里 15 张是空的，审核时只能退回去问业务员。
+const filledLineItems = computed(() => form.lineItems.filter(isLineItemFilled));
+const hasIncompleteLineItem = computed(() =>
+  form.lineItems.some(
+    li =>
+      !isLineItemFilled(li) &&
+      ((li.name || '').trim() ||
+        li.quantity !== '' ||
+        li.unitPrice !== '' ||
+        li.crmProductId)
+  )
+);
+
+// 新建订单：附件、订单类型、订单明细、结算方式、收款账户必填（附件如 PI、生产订单）。
+// 这几项只在**新建**时卡：生产上 9 月前的老单九成这两栏是空的（367 张里 329 张没结算方式），
+// 编辑时一并卡死，业务员想改个交期都得先补两栏历史信息——那不是补数据，是挡着他干活。
+// 老单缺什么，详情面板上照常标出来，补不补由审核人和他自己决定。
 const isFormInvalid = computed(
   () =>
     !form.name.trim() ||
     !form.orderDate ||
-    (!isEditing.value && !form.orderKind) ||
+    hasIncompleteLineItem.value ||
     (!isEditing.value &&
-      pendingFiles.value.length === 0 &&
-      !sourceAttachmentId.value)
+      (filledLineItems.value.length === 0 ||
+        !form.orderKind ||
+        !form.paymentTerm ||
+        !form.receiptAccountId ||
+        !form.deliveryMethod ||
+        (pendingFiles.value.length === 0 && !sourceAttachmentId.value)))
 );
 
 const resetForm = () => {
@@ -288,6 +369,8 @@ const resetForm = () => {
   form.taxRate = String(DEFAULT_CN_TAX_RATE);
   form.remark = '';
   form.lineItems = [];
+  form.deliveryMethod = '';
+  products.value = [];
 };
 
 // 拉取当前业务员名下私海客户（一次拿全）。
@@ -347,6 +430,7 @@ const open = record => {
     form.piNo = record.piNo || '';
     form.lineItems = Array.isArray(record.lineItems)
       ? record.lineItems.map(li => ({
+          crmProductId: li.crmProductId || '',
           name: li.name || '',
           spec: li.spec || '',
           quantity: li.quantity ?? '',
@@ -354,6 +438,16 @@ const open = record => {
           amount: li.amount ?? '',
         }))
       : [];
+    // 已选的产品补进下拉选项，不然编辑时那一栏是空的（下拉是远程搜，不预载）。
+    mergeProducts(
+      (record.lineItems || [])
+        .filter(li => li.crmProductId)
+        .map(li => ({
+          id: li.crmProductId,
+          name: li.productName || li.name,
+          sku: li.sku,
+        }))
+    );
     form.crmCustomerId = record.crmCustomerId
       ? String(record.crmCustomerId)
       : '';
@@ -384,6 +478,7 @@ const open = record => {
     form.receiptAccountId = record.receiptAccountId
       ? String(record.receiptAccountId)
       : '';
+    form.deliveryMethod = record.deliveryMethod || '';
   }
   loadCrmOptions('payment_term');
   loadReceiptAccounts();
@@ -411,6 +506,7 @@ const handleConfirm = () => {
   };
   const lineItemsPayload = form.lineItems
     .map(li => ({
+      crm_product_id: li.crmProductId || null,
       name: (li.name || '').trim(),
       spec: (li.spec || '').trim(),
       quantity: num(li.quantity),
@@ -425,6 +521,7 @@ const handleConfirm = () => {
     insuranceOrderNo: form.insuranceOrderNo.trim() || null,
     paymentTerm: form.paymentTerm || null,
     receiptAccountId: form.receiptAccountId || null,
+    deliveryMethod: form.deliveryMethod || null,
     crmCustomerId: form.crmCustomerId || null,
     crmOpportunityId: form.crmOpportunityId || null,
     status: form.status,
@@ -721,17 +818,33 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           </span>
         </div>
         <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">结算方式</label>
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            结算方式
+            <span v-if="!isEditing" class="text-n-ruby-11">*</span>
+          </label>
           <SelectCard
             v-model="form.paymentTerm"
             :options="paymentTermOptions"
           />
         </div>
         <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">收款账户</label>
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            收款账户
+            <span v-if="!isEditing" class="text-n-ruby-11">*</span>
+          </label>
           <SelectCard
             v-model="form.receiptAccountId"
             :options="receiptAccountOptions"
+          />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            交货方式
+            <span v-if="!isEditing" class="text-n-ruby-11">*</span>
+          </label>
+          <SelectCard
+            v-model="form.deliveryMethod"
+            :options="DELIVERY_METHOD_OPTIONS"
           />
         </div>
       </div>
@@ -749,6 +862,12 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           >
             <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
             {{ t('CRM.SALES_ORDERS.FORM.SECTION_ITEMS') }}
+            <span
+              v-if="!isEditing"
+              class="font-normal normal-case text-n-ruby-11"
+            >
+              必填
+            </span>
           </span>
           <button
             type="button"
@@ -760,37 +879,73 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           </button>
         </div>
 
-        <div v-if="!form.lineItems.length" class="text-xs text-n-slate-10">
-          {{ t('CRM.SALES_ORDERS.ITEMS.EMPTY') }}
-        </div>
-        <div v-else class="flex flex-col gap-1.5">
-          <div class="flex gap-2 px-1 text-xs font-medium text-n-slate-10">
-            <span class="flex-[3]">{{ t('CRM.SALES_ORDERS.ITEMS.NAME') }}</span>
-            <span class="flex-[2]">{{ t('CRM.SALES_ORDERS.ITEMS.SPEC') }}</span>
-            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.QTY') }}</span>
-            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.PRICE') }}</span>
-            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.AMOUNT') }}</span>
-            <span class="w-6 shrink-0" />
-          </div>
+        <span v-if="!form.lineItems.length" class="text-xs text-n-ruby-11">
+          {{
+            isEditing
+              ? '这单还没写明细——审核的人看不出卖的是什么货，建议顺手补上。'
+              : '订单明细必填：至少加一行，写清品名、数量、单价。审核的人要靠它知道这单卖的是什么货。'
+          }}
+        </span>
+        <div v-else class="flex flex-col gap-2">
           <div
             v-for="(li, index) in form.lineItems"
             :key="index"
-            class="flex items-center gap-2"
+            class="flex items-start gap-2 pb-2 border-b border-dashed last:border-0 last:pb-0 border-n-weak"
           >
-            <Input v-model="li.name" class="flex-[3]" />
-            <Input v-model="li.spec" class="flex-[2]" />
-            <Input v-model="li.quantity" type="number" class="flex-1" />
-            <Input v-model="li.unitPrice" type="number" class="flex-1" />
-            <Input v-model="li.amount" type="number" class="flex-1" />
+            <div class="grid flex-1 min-w-0 grid-cols-6 gap-2">
+              <ComboBox
+                v-model="li.crmProductId"
+                class="col-span-3"
+                :options="productOptions"
+                placeholder="搜索产品名称 / 编码（选填）"
+                use-api-results
+                clearable
+                empty-state="没搜到这个产品，直接在右边手写品名就行"
+                @open="searchProducts('')"
+                @search="searchProducts"
+                @update:model-value="val => onProductPicked(li, val)"
+              />
+              <Input
+                v-model="li.name"
+                class="col-span-3"
+                :placeholder="t('CRM.SALES_ORDERS.ITEMS.NAME')"
+              />
+              <Input
+                v-model="li.spec"
+                class="col-span-3"
+                :placeholder="t('CRM.SALES_ORDERS.ITEMS.SPEC')"
+              />
+              <Input
+                v-model="li.quantity"
+                type="number"
+                :placeholder="t('CRM.SALES_ORDERS.ITEMS.QTY')"
+              />
+              <Input
+                v-model="li.unitPrice"
+                type="number"
+                :placeholder="t('CRM.SALES_ORDERS.ITEMS.PRICE')"
+              />
+              <Input
+                v-model="li.amount"
+                type="number"
+                :placeholder="t('CRM.SALES_ORDERS.ITEMS.AMOUNT')"
+              />
+            </div>
             <button
               type="button"
-              class="flex items-center justify-center w-6 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+              class="flex items-center justify-center w-6 h-10 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
               :title="t('CRM.SALES_ORDERS.ITEMS.REMOVE')"
               @click="removeLineItem(index)"
             >
-              <span class="i-lucide-x size-4" />
+              <span class="i-lucide-x size-4 shrink-0" />
             </button>
           </div>
+          <span
+            v-if="hasIncompleteLineItem"
+            class="px-1 text-xs text-n-ruby-11"
+          >
+            有明细行没填完——品名、数量、单价三样都要有，不要的整行删掉。
+          </span>
         </div>
       </div>
 

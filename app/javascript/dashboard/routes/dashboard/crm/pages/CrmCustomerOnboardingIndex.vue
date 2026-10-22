@@ -406,6 +406,7 @@ const hasContactKey = computed(
 
 const missing = computed(() => {
   const m = [];
+  if (!form.name.trim()) m.push('公司名');
   if (!form.tradeCountry) m.push('国家');
   if (!form.customerGroup) m.push('客户分组');
   if (!form.productGroup) m.push('产品分组');
@@ -665,7 +666,9 @@ const submit = async () => {
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs text-n-slate-11">公司名</span>
+          <span class="text-xs text-n-slate-11"
+            >公司名 <span class="text-n-ruby-11">*</span></span
+          >
           <input
             v-model="form.name"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"

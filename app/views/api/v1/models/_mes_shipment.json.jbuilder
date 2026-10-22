@@ -60,6 +60,9 @@ json.sales_order_currency sales_order&.order_currency
 # 信保订单号：业务在销售订单上填的那个（阿里信保单号），财务要拿它去平台上核。
 # 本来就存在 crm_sales_orders 上，只是 MES 出库列表一直没把它带出来。
 json.insurance_order_no sales_order&.insurance_order_no
+# 交货方式（物流发货 / 车辆配送 / 客户自提）：仓管备货、派车、通知客户来提都看它，
+# 不带出来的话他拿到出库单还得回订单里翻一遍。
+json.delivery_method_label sales_order&.delivery_method_label
 # 销售单价按订单明细里同一个产品那行取（出库单自己不存价）。
 # 这是卖给客户的价，不是成本，销售端本来就看得到。
 order_lines = sales_order&.line_item_rows.to_a

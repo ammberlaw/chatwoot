@@ -73,11 +73,13 @@ defineExpose({ dialogRef, onSuccess, open });
       <Input
         v-model="form.name"
         :label="t('CRM.SALES_TARGETS.FORM.NAME')"
+        required
         autofocus
       />
       <div class="relative flex flex-col min-w-0 gap-1">
         <label class="mb-0.5 text-heading-3 text-n-slate-12">
           {{ t('CRM.SALES_TARGETS.FORM.MONTH') }}
+          <span class="text-n-ruby-11">*</span>
         </label>
         <MonthPicker v-model="form.month" block />
       </div>

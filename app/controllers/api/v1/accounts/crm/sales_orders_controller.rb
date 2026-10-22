@@ -51,10 +51,15 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     copy_source_attachment(source_attachment)
     @sales_order.save!
     remember_product_choices(@sales_order.line_items)
+    notify_approval_pending(@sales_order)
   end
 
   def update
+    was_rejected = @sales_order.approval_status == 'REJECTED'
     @sales_order.update!(order_attributes)
+    # 被驳回的单改完自动回待审核（见 Crm::SalesOrderApproval#reopen_approval_on_edit），
+    # 主管得再被叫一次——不然改完这单又静静躺回队列里。
+    notify_approval_pending(@sales_order, resubmit: true) if was_rejected
   end
 
   # 审核通过：这张单才能转生产订单、才进财务「待建账」。
@@ -62,6 +67,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     return unless ensure_sales_order_approver!
 
     @sales_order.approve!(current_user)
+    notify_approval_result(@sales_order, '已通过审核，可以转生产订单 / 进财务待建账了', '已审核')
     # 库存单审核通过会自动转出库单；成功或没转成的原因都要让审核人当场看见
     # （见 Crm::StockOrderAutoConvert），否则他只知道「审核通过」，不知道单子转没转。
     @auto_convert_note = @sales_order.auto_convert_note
@@ -75,9 +81,16 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     return unless ensure_sales_order_approver!
 
     @sales_order.reject!(current_user, params[:reason])
+    notify_approval_result(@sales_order, "被驳回：#{@sales_order.reject_reason}（改完会自动回到待审核）", '已驳回')
     render 'api/v1/accounts/crm/sales_orders/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 侧栏角标：等我审的单数。口径收在 Crm::SalesOrderApprover.pending_scope，
+  # 与「通过/驳回」按钮显不显示是同一个判断。
+  def pending_count
+    render json: { count: Crm::SalesOrderApprover.pending_scope(Current.account, Current.account_user).count }
   end
 
   # 读取 PI 自动识别：上传 PDF/Excel，返回字段化结果供前端校对（不落库）。
@@ -203,12 +216,15 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     @cash_account_names = ids.empty? ? {} : Current.account.erp_cash_accounts.where(id: ids).pluck(:id, :name).to_h
   end
 
-  # 明细行只存了 crm_product_id，编码(sku)要去产品档案取。整页的 id 一次查完做成 map。
+  # 明细行只存了 crm_product_id，编码(sku)和产品名要去产品档案取。整页的 id 一次查完做成 map。
+  # 产品名是给编辑弹窗回显用的：下拉按关键词远程搜，没有名字就只能显示一个光秃秃的 id。
   def preload_line_item_products(records)
     ids = records.flat_map do |order|
       Array(order.line_items).filter_map { |item| item['crm_product_id'].presence if item.is_a?(Hash) }
     end.uniq
-    @product_sku_by_id = ids.empty? ? {} : Current.account.crm_products.where(id: ids).pluck(:id, :sku).to_h
+    rows = ids.empty? ? [] : Current.account.crm_products.where(id: ids).pluck(:id, :sku, :name)
+    @product_sku_by_id = rows.to_h { |id, sku, _name| [id, sku] }
+    @product_name_by_id = rows.to_h { |id, _sku, name| [id, name] }
   end
 
   # 记住「这段客户叫法 → 这个产品」，下次同样文字自动带出。
@@ -242,6 +258,33 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
     render json: { error: '只有该业务员所在团队的负责人或管理员可以审核这张订单' }, status: :forbidden
     false
+  end
+
+  # 新单/改后重提落待审核时叫一声审核人。没有这一步，单子开出来主管不进页面就不知道，
+  # 只能等业务员来问（用户 2026-10-22 原话：「不是业务问我我根本不知道」）。
+  def notify_approval_pending(order, resubmit: false)
+    return unless order.approval_status == 'PENDING'
+
+    owner_name = order.owner&.crm_display_name
+    text = "【销售订单】#{resubmit ? '改后重新提交审核' : '新单待审核'}：#{order_label(order)}（#{owner_name}）"
+    Crm::SalesOrderApprover.notify_ids(Current.account, order).each do |uid|
+      crm_notify(uid, text, ref: sales_order_ref(order, "#{owner_name} · 待审核"))
+    end
+  end
+
+  # 审完叫一声业务员：批没批、为什么被驳回，他自己不用天天回来刷列表看。
+  def notify_approval_result(order, text, subtitle)
+    crm_notify(order.owner_id, "【销售订单】#{order_label(order)} #{text}",
+               ref: sales_order_ref(order, subtitle))
+  end
+
+  def sales_order_ref(order, subtitle)
+    { type: 'sales_order', id: order.id, label: '销售订单', title: order_label(order),
+      subtitle: subtitle, customer_id: order.crm_customer_id }
+  end
+
+  def order_label(order)
+    [order.order_no, order.pi_no.presence || order.name].compact_blank.join(' ')
   end
 
   # 能否删除某订单：负责人本人 或 管理员/副管理员。
@@ -322,7 +365,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     params.require(:sales_order).permit(
       :name, :order_no, :pi_no, :insurance_order_no, :receipt_account_id,
       :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
-      :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate, :tax_rate,
+      :status, :order_kind, :delivery_method, :order_date, :delivery_date, :order_currency, :exchange_rate, :tax_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,
       :payment_term,

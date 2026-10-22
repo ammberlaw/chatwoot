@@ -77,6 +77,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 侧栏角标：谁都能问「等我审几张」，数本身已按 pending_scope 收口。
+  def pending_count?
+    true
+  end
+
   def reject?
     true
   end

@@ -152,6 +152,8 @@ Rails.application.routes.draw do
                 post :parse_pi
                 get :deleted
                 get :receipt_accounts
+                # 侧栏角标：等我审的单数。
+                get :pending_count
               end
               member do
                 get :audits

@@ -240,11 +240,14 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   # 保证成品库存按 SKU 扣减、不串库。现货出库(STOCK)明细来自产品档案本就带编码，不受影响。
   # 转单时勾的「订单金额已含税」写回销售订单——出库后的收入凭证按它拆行。
   # 放在转单而不是建单：业务员建单时未必想得起来，转单的人是要对金额负责的那个。
+  #
+  # 订单类型一并写回（2026-10-22）：以前转单选的类型只管这一次，订单上那栏照旧空着，
+  # 下次转同一张单还得再选一遍。既然转单的人已经判断过这单该走哪条线，就以他选的为准。
   def record_tax_basis!(sales_order)
-    return if params[:amount_includes_tax].nil?
-
-    sales_order.update_columns(amount_includes_tax: ActiveModel::Type::Boolean.new.cast(params[:amount_includes_tax]),
-                               updated_at: Time.current)
+    tax = params[:amount_includes_tax]
+    attrs = { order_kind: 'STOCK', updated_at: Time.current }
+    attrs[:amount_includes_tax] = ActiveModel::Type::Boolean.new.cast(tax) unless tax.nil?
+    sales_order.update_columns(attrs) # rubocop:disable Rails/SkipsModelValidations
   end
 
   # 转单前的两道闸：销售订单审过没有、这张单是不是已经转过了。

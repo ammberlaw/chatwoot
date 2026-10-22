@@ -13,7 +13,8 @@ json.receipt_account_name @cash_account_names&.[](resource.receipt_account_id)
 json.line_items(Array(resource.line_items).map do |item|
   next item unless item.is_a?(Hash)
 
-  item.merge('sku' => @product_sku_by_id&.[](item['crm_product_id'].presence&.to_i))
+  id = item['crm_product_id'].presence&.to_i
+  item.merge('sku' => @product_sku_by_id&.[](id), 'product_name' => @product_name_by_id&.[](id))
 end)
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
@@ -54,6 +55,8 @@ json.reject_reason resource.reject_reason
 # 当前这个人能不能审这张单——前端据此决定显不显示「通过/驳回」。
 json.can_approve Crm::SalesOrderApprover.can?(Current.account_user, resource)
 json.order_kind resource.order_kind
+json.delivery_method resource.delivery_method
+json.delivery_method_label resource.delivery_method_label
 json.order_date resource.order_date
 json.delivery_date resource.delivery_date
 json.order_currency resource.order_currency

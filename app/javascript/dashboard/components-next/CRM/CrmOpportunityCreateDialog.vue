@@ -78,7 +78,9 @@ const pad2 = n => String(n).padStart(2, '0');
 const timeOptions = (() => {
   const out = [];
   for (let h = 0; h < 24; h += 1) {
-    ['00', '30'].forEach(mm => out.push({ value: `${pad2(h)}:${mm}`, label: `${pad2(h)}:${mm}` }));
+    ['00', '30'].forEach(mm =>
+      out.push({ value: `${pad2(h)}:${mm}`, label: `${pad2(h)}:${mm}` })
+    );
   }
   return out;
 })();
@@ -204,6 +206,7 @@ defineExpose({ dialogRef, onSuccess, open });
       <Input
         v-model="form.name"
         :label="t('CRM.OPPORTUNITIES.FORM.NAME')"
+        required
         :placeholder="t('CRM.OPPORTUNITIES.FORM.NAME_PLACEHOLDER')"
       />
       <div class="grid grid-cols-2 gap-4">
@@ -261,7 +264,11 @@ defineExpose({ dialogRef, onSuccess, open });
           </label>
           <div class="flex items-center gap-2">
             <div class="flex-1">
-              <DatePicker v-model="form.nextFollowUpDate" block :clearable="true" />
+              <DatePicker
+                v-model="form.nextFollowUpDate"
+                block
+                :clearable="true"
+              />
             </div>
             <div class="w-24">
               <SelectCard

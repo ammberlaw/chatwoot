@@ -23,5 +23,7 @@ api.convertPreview = id => axios.get(`${api.url}/${id}/convert_preview`);
 // 审核：过了才能转生产订单 / 进财务待建账。驳回必须带原因。
 api.approve = id => axios.post(`${api.url}/${id}/approve`);
 api.reject = (id, reason) => axios.post(`${api.url}/${id}/reject`, { reason });
+// 侧栏角标：等我审的单数。
+api.pendingCount = () => axios.get(`${api.url}/pending_count`);
 
 export default api;

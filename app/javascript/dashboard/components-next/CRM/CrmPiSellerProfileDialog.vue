@@ -78,16 +78,19 @@ defineExpose({ open });
         <Input
           v-model="form.contactName"
           :label="t('CRM.PI.SELLER_PROFILE.CONTACT')"
+          required
           :placeholder="t('CRM.PI.SELLER_PROFILE.CONTACT_PLACEHOLDER')"
         />
         <Input
           v-model="form.mobile"
           :label="t('CRM.PI.SELLER_PROFILE.MOBILE')"
+          required
           :placeholder="t('CRM.PI.SELLER_PROFILE.MOBILE_PLACEHOLDER')"
         />
         <Input
           v-model="form.email"
           :label="t('CRM.PI.SELLER_PROFILE.EMAIL')"
+          required
           :placeholder="t('CRM.PI.SELLER_PROFILE.EMAIL_PLACEHOLDER')"
         />
       </template>

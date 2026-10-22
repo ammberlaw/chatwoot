@@ -146,6 +146,9 @@ const NOWRAP = 'white-space:nowrap;';
       <div style="flex: 1; min-width: 0">
         交货地点： {{ shipment.customerAddress || '' }}
       </div>
+      <div style="flex: 0 0 auto">
+        交货方式： {{ shipment.deliveryMethodLabel || '' }}
+      </div>
     </div>
 
     <div

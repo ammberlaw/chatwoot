@@ -394,9 +394,28 @@ const convertedOrder = reactive({ id: null, no: '', missing: [] });
 const settlement = reactive({
   paymentTerm: '',
   receiptAccountId: '',
+  deliveryMethod: '',
   insuranceOrderNo: '',
 });
+// 交货方式：这单货怎么送到客户手上。仓管备货、派车、通知客户来提都看它。
+const DELIVERY_METHOD_OPTIONS = [
+  { value: '', label: '请选择' },
+  { value: 'LOGISTICS', label: '物流发货' },
+  { value: 'VEHICLE', label: '车辆配送' },
+  { value: 'SELF_PICKUP', label: '客户自提' },
+];
 const savingSettlement = ref(false);
+// 红星那两项填齐了才能点保存。要么填完存，要么「稍后再补」——不留「填一半存进去」
+// 这条路，否则红星就成了摆设，人照样会在转 ERP 那一步才发现缺东西。
+// 收款账户只在后端报它缺的时候才算必填：没缺时那一栏是「已按 PI 抬头带入」的只读块，
+// 没有下拉可选，再要求它就是让人点不动保存又不知道该点哪。
+const isSettlementInvalid = computed(
+  () =>
+    !settlement.paymentTerm ||
+    !settlement.deliveryMethod ||
+    (convertedOrder.missing.includes('receipt_account_id') &&
+      !settlement.receiptAccountId)
+);
 // 收款水单这类单据：选了先放内存，点保存时跟结算信息一起提交到订单附件
 const settlementFiles = ref([]);
 const settlementFileRef = ref(null);
@@ -414,7 +433,7 @@ const removeSettlementFile = i => {
 const { paymentTermOptions, load: loadCrmOptions } = useCrmOptions();
 const receiptAccounts = ref([]);
 const receiptAccountOptions = computed(() => [
-  { value: '', label: '未指定' },
+  { value: '', label: '请选择' },
   ...receiptAccounts.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
 
@@ -424,6 +443,7 @@ const openSettlement = async ({ id, no, missing }) => {
   convertedOrder.missing = missing || [];
   settlement.paymentTerm = '';
   settlement.receiptAccountId = '';
+  settlement.deliveryMethod = '';
   settlement.insuranceOrderNo = '';
   settlementFiles.value = [];
   loadCrmOptions('payment_term');
@@ -452,7 +472,10 @@ const uploadSettlementFiles = async () => {
 const saveSettlement = async () => {
   if (!convertedOrder.id || savingSettlement.value) return;
   savingSettlement.value = true;
-  const payload = { payment_term: settlement.paymentTerm || null };
+  const payload = {
+    payment_term: settlement.paymentTerm || null,
+    delivery_method: settlement.deliveryMethod || null,
+  };
   if (settlement.insuranceOrderNo.trim()) {
     payload.insurance_order_no = settlement.insuranceOrderNo.trim();
   }
@@ -522,7 +545,40 @@ const submit = async () => {
   }
 };
 
-defineExpose({ open });
+// 列表上一键标「已付款」：不用点进来改状态再保存一遍。
+// 走和编辑保存同一条路（PUT /crm/pis/:id 只带 status），所以自动转销售订单、
+// 转完补结算信息这两步照旧——逻辑收在这一处，列表页不重写一份。
+const markingPaid = ref(false);
+const markPaid = async record => {
+  if (markingPaid.value) return false;
+  markingPaid.value = true;
+  try {
+    const fd = new FormData();
+    fd.append('pi[status]', 'PAID');
+    const { data } = await PisAPI.update(accountId.value, record.id, fd);
+    const no = data?.converted_order_no;
+    useAlert(
+      no ? t('CRM.PI.FORM.SAVED_CONVERTED', { no }) : t('CRM.PI.FORM.SAVED')
+    );
+    emit('saved');
+    const missing = data?.converted_order_missing || [];
+    if (
+      data?.converted_order_id &&
+      (missing.includes('payment_term') ||
+        missing.includes('receipt_account_id'))
+    ) {
+      openSettlement({ id: data.converted_order_id, no, missing });
+    }
+    return true;
+  } catch (error) {
+    useAlert(error?.response?.data?.message || t('CRM.PI.FORM.SAVE_ERROR'));
+    return false;
+  } finally {
+    markingPaid.value = false;
+  }
+};
+
+defineExpose({ open, markPaid });
 </script>
 
 <template>
@@ -532,12 +588,12 @@ defineExpose({ open });
     overflow-y-auto
     confirm-button-color="iris"
     :dirty="isDirty"
-    @close="markPristine"
     :title="
       editingId ? t('CRM.PI.FORM.EDIT_TITLE') : t('CRM.PI.FORM.NEW_TITLE')
     "
     :is-loading="saving"
     :disable-confirm-button="!isValid"
+    @close="markPristine"
     @confirm="submit"
   >
     <div class="flex flex-col gap-4">
@@ -848,6 +904,7 @@ defineExpose({ open });
     confirm-button-label="保存"
     cancel-button-label="稍后再补"
     :is-loading="savingSettlement"
+    :disable-confirm-button="isSettlementInvalid"
     @confirm="saveSettlement"
   >
     <div class="flex flex-col gap-4">
@@ -860,6 +917,7 @@ defineExpose({ open });
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             结算方式
+            <span class="text-n-ruby-11">*</span>
           </label>
           <SelectCard
             v-model="settlement.paymentTerm"
@@ -872,6 +930,7 @@ defineExpose({ open });
         >
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             收款账户
+            <span class="text-n-ruby-11">*</span>
           </label>
           <SelectCard
             v-model="settlement.receiptAccountId"
@@ -890,10 +949,19 @@ defineExpose({ open });
         </div>
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            交货方式
+            <span class="text-n-ruby-11">*</span>
+          </label>
+          <SelectCard
+            v-model="settlement.deliveryMethod"
+            :options="DELIVERY_METHOD_OPTIONS"
+          />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
             信保订单号
           </label>
           <Input v-model="settlement.insuranceOrderNo" />
-          <span class="text-xs text-n-slate-11">走阿里信保的单才填</span>
         </div>
         <!-- 收款水单这类单据：挂到订单附件上，和订单详情里看到的是同一批 -->
         <div class="flex flex-col min-w-0 gap-1">

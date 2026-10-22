@@ -12,6 +12,7 @@ import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { useMapGetter } from 'dashboard/composables/store';
 import camelcaseKeys from 'camelcase-keys';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { emitter } from 'shared/helpers/mitt';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import SalesOrdersAPI from 'dashboard/api/crm/salesOrders';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
@@ -314,6 +315,8 @@ const runApproval = async (order, fn, okText) => {
     // 库存单审核通过会自动转出库单，后端把结果（转成了 / 为什么没转成）带回来。
     // 有它就显示它——「已通过审核」这句盖住的话，审核人不知道单子转没转。
     useAlert(data?.auto_convert_note || okText);
+    // 侧栏「待我审」角标当场重算，不用等下次进系统。
+    emitter.emit('SALES_ORDER_APPROVAL_CHANGED');
     await fetchRecords();
   } catch (err) {
     useAlert(err?.response?.data?.error || '操作失败，请重试');
@@ -352,6 +355,10 @@ const detailSections = computed(() => {
     {
       title: '基本信息',
       rows: [
+        // 客户摆第一行：审一张单最先要看的是「卖给谁」，以前它在第三块「关联」里，
+        // 审核人得往下滚两屏才看得到。
+        { label: '客户', value: o.customerName },
+        { label: '国家', value: o.customerCountry },
         { label: '名称', value: o.name },
         { label: 'PI号', value: o.piNo, copyable: true },
         { label: '订单号', value: o.orderNo, copyable: true },
@@ -385,14 +392,7 @@ const detailSections = computed(() => {
         // 结算方式存的是字典 code，这里换成中文名显示
         { label: '结算方式', value: paymentTermLabel(o.paymentTerm) },
         { label: '收款账户', value: o.receiptAccountName },
-      ],
-    },
-    {
-      title: '关联',
-      rows: [
-        { label: '客户', value: o.customerName },
-        { label: '国家', value: o.customerCountry },
-        { label: 'PI 号', value: o.piNo },
+        { label: '交货方式', value: o.deliveryMethodLabel },
       ],
     },
     // PI 抬头：只有 pi_no 对得上系统里的 PI 记录才有（生产上 488 张订单里 106 张）。
@@ -1435,11 +1435,24 @@ v-if="!row.tag && !row.value" class="text-n-slate-10"
             </div>
           </div>
 
-          <!-- 订单明细 -->
+          <!-- 订单明细：空的也要显示。以前整块 v-if 掉，审核人打开只看到一个金额，
+               不知道卖的是什么货，还以为是页面没加载出来。 -->
           <div
-            v-if="selectedOrder.lineItems && selectedOrder.lineItems.length"
+            v-if="!selectedOrder.lineItems || !selectedOrder.lineItems.length"
             class="px-5 py-4 border-b border-n-weak"
           >
+            <div
+              class="mb-3 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              {{ t('CRM.SALES_ORDERS.FORM.SECTION_ITEMS') }}
+            </div>
+            <div
+              class="px-3 py-2.5 text-xs rounded-lg bg-n-ruby-2 text-n-ruby-11"
+            >
+              未填写订单明细——这单卖的是什么货、几台、什么价都没写。审核前让业务员补上。
+            </div>
+          </div>
+          <div v-else class="px-5 py-4 border-b border-n-weak">
             <div
               class="mb-3 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
             >

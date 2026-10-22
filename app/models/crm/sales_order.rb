@@ -11,6 +11,7 @@
 #  cost_amount_micros   :bigint
 #  deleted_at           :datetime
 #  delivery_date        :datetime
+#  delivery_method      :string
 #  exchange_rate        :decimal(12, 6)
 #  insurance_order_no   :string
 #  line_items           :jsonb            not null
@@ -74,6 +75,8 @@
 class Crm::SalesOrder < ApplicationRecord
   # 审核：通过了才能转生产订单、才进财务「待建账」（与 status 正交，见 concern 注释）。
   include Crm::SalesOrderApproval
+  # 建单必填项（附件 / 订单类型 / 订单明细 / 结算方式 + 收款账户），都只卡 create。
+  include Crm::SalesOrderRequiredFields
 
   STATUSES = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT SHIPPED COMPLETED CANCELLED].freeze
   # 给后端消息用（前端各页自己有一份同口径的映射）。
@@ -86,6 +89,14 @@ class Crm::SalesOrder < ApplicationRecord
   #   STOCK  库存 → 现货出库单（直接扣成品库存）
   # 存量订单为空＝未分类，转单时补选。
   ORDER_KINDS = %w[CUSTOM STOCK].freeze
+
+  # 交货方式：这单货怎么送到客户手上。仓管备货、派车、通知客户来提都看它，
+  # 以前只能写在备注里，出库的人还得翻备注猜。
+  DELIVERY_METHODS = {
+    'LOGISTICS' => '物流发货',
+    'VEHICLE' => '车辆配送',
+    'SELF_PICKUP' => '客户自提'
+  }.freeze
   ORDER_KIND_LABELS = { 'CUSTOM' => '定制单', 'STOCK' => '库存单' }.freeze
 
   # 折算人民币的金额表达式（现汇买入价锁定在 exchange_rate；CNY/无汇率按 1）。
@@ -122,6 +133,8 @@ class Crm::SalesOrder < ApplicationRecord
   end
 
   # 明细里的品名清单（空行、重名都去掉）。应收台账、待建账清单都要「这笔钱是什么货」。
+  def delivery_method_label = DELIVERY_METHODS[delivery_method]
+
   def product_names
     Array(line_items).filter_map { |item| item.is_a?(Hash) ? item['name'].presence : nil }.uniq
   end
@@ -254,10 +267,9 @@ class Crm::SalesOrder < ApplicationRecord
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
   validates :order_kind, inclusion: { in: ORDER_KINDS }, allow_blank: true
+  validates :delivery_method, inclusion: { in: DELIVERY_METHODS.keys }, allow_blank: true
   validates :tax_rate, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
                        allow_nil: true
-  validate :require_attachment_on_create, on: :create, unless: :system_generated
-  validate :require_order_kind_on_create, on: :create, unless: :system_generated
 
   after_destroy :rollup_customer_deals
   after_save :rollup_customer_deals
@@ -307,18 +319,6 @@ class Crm::SalesOrder < ApplicationRecord
     on = order_date || Time.zone.today
     rate = Crm::FxRate.rate_for(order_currency, on) || Crm::FxRate.rate_on_or_after(order_currency, on)
     self.exchange_rate = rate if rate
-  end
-
-  # 新建订单必须至少上传一个附件（如 PI、生产订单）。
-  def require_attachment_on_create
-    errors.add(:files, '请至少上传一个附件（如 PI、生产订单）') unless files.attached?
-  end
-
-  # 订单类型决定这单往下走哪条线（定制→MES 生产订单 / 库存→现货出库单）。
-  # 金蝶过渡期它还兼当「这单在哪套系统结算」的标记，空着下游就无从分流，故人工建单必选。
-  # 只校验 create：存量未分类的老单照常能改，不逼业务员回填历史。
-  def require_order_kind_on_create
-    errors.add(:order_kind, '请选择订单类型（定制单/库存单）') if order_kind.blank?
   end
 
   # 订单所属团队按 owner 自动反写（对应 Twenty sales-order-team-rollup 触发器）。

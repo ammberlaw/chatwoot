@@ -275,6 +275,15 @@ const onSaved = () => {
   fetchSummary();
 };
 
+// 一键标「已付款」：以前要点进编辑弹窗改状态再保存。标完 PI 会自动转成销售订单
+// （幂等，重复点不会多出单），所以先确认一次——误点生成的订单还得回头去删。
+const markPaid = async record => {
+  const tip = `把 ${record.piNo} 标为已付款？系统会自动给它开一张销售订单。`;
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(tip)) return;
+  await formRef.value?.markPaid(record);
+};
+
 const removeRecord = async record => {
   if (!window.confirm(t('CRM.PI.DELETE.CONFIRM', { no: record.piNo }))) return;
   try {
@@ -326,7 +335,9 @@ onMounted(() => {
       class="flex flex-col gap-3 sm:flex-row items-start justify-between flex-shrink-0 px-4 sm:px-[26px] pt-4 sm:pt-[18px] pb-1.5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div class="min-w-0">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1
+          class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           {{ t('CRM.PI.HEADER') }}
         </h1>
       </div>
@@ -680,6 +691,19 @@ onMounted(() => {
                   @click="openPreview(record)"
                 >
                   <span class="i-lucide-eye size-4" />
+                </button>
+                <button
+                  v-if="
+                    !isCrmFinanceOnly &&
+                    record.status !== 'PAID' &&
+                    record.status !== 'VOID'
+                  "
+                  type="button"
+                  class="hover:text-n-teal-11"
+                  title="标为已付款"
+                  @click="markPaid(record)"
+                >
+                  <span class="i-lucide-circle-dollar-sign size-4 shrink-0" />
                 </button>
                 <button
                   v-if="!isCrmFinanceOnly"

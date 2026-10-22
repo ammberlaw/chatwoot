@@ -208,7 +208,10 @@ defineExpose({ open });
 
       <div class="grid grid-cols-2 gap-4">
         <div class="flex flex-col min-w-0 gap-1">
-          <label class="text-heading-3 text-n-slate-12">转成什么单</label>
+          <label class="text-heading-3 text-n-slate-12">
+            转订单类型
+            <span class="text-n-ruby-11">*</span>
+          </label>
           <SelectCard v-model="kind" block :options="KIND_OPTIONS" />
         </div>
         <div v-if="kind === 'STOCK'" class="flex flex-col min-w-0 gap-1">
@@ -227,20 +230,12 @@ defineExpose({ open });
           <input v-model="includesTax" type="checkbox" class="w-4 h-4" />
           订单金额已含税
         </label>
-        <p class="text-xs text-n-slate-11">
-          <template v-if="taxRate > 0">
-            税率 {{ taxRate }}%。勾上＝金额里已经含了税，收入按 金额÷(1+税率)
-            确认、应收等于金额；不勾＝金额是不含税价，税额另加，应收 = 金额 +
-            税额。
-          </template>
-          <template v-else>
-            这张单税率为 0（出口免税），两种算法结果一样，勾不勾都不影响记账。
-          </template>
+        <p v-if="taxRate > 0" class="text-xs text-n-slate-11">
+          税率 {{ taxRate }}%。勾上＝金额里已经含了税，收入按 金额÷(1+税率)
+          确认、应收等于金额；不勾＝金额是不含税价，税额另加，应收 = 金额 +
+          税额。
         </p>
       </div>
-      <span v-if="!order.orderKind" class="-mt-2 text-xs text-n-amber-11">
-        这张订单还没标订单类型，这次选的类型不会写回订单；建议回订单里补上，以后转单就自动分流。
-      </span>
 
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">

@@ -67,6 +67,7 @@ const hasOrderMeta = s =>
   s.sales_order_amount_micros != null ||
   s.sales_order_date ||
   s.sales_delivery_date ||
+  s.delivery_method_label ||
   s.owner_name ||
   s.submitted_at ||
   s.sales_order_remark ||
@@ -236,6 +237,10 @@ const submitReject = async () => {
             </span>
             <span v-if="day(s.sales_delivery_date)">
               交期 {{ day(s.sales_delivery_date) }}
+            </span>
+            <span v-if="s.delivery_method_label">
+              交货
+              <b class="ml-1 text-n-slate-12">{{ s.delivery_method_label }}</b>
             </span>
             <span v-if="s.owner_name">制单 {{ s.owner_name }}</span>
             <span v-if="day(s.submitted_at)">

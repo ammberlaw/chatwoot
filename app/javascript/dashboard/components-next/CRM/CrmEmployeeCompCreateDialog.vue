@@ -286,6 +286,7 @@ defineExpose({ dialogRef, onSuccess, open, openEdit });
       <Input
         v-model="form.name"
         :label="t('CRM.EMPLOYEE_COMPS.FORM.NAME')"
+        required
         autofocus
       />
       <label class="flex flex-col gap-1 text-sm text-n-slate-12">

@@ -288,6 +288,7 @@ defineExpose({ dialogRef, onSuccess, open });
         <Input
           v-model="form.name"
           :label="t('CRM.CUSTOMERS.CREATE.FIELDS.NAME')"
+          required
           :disabled="isLoading"
           autofocus
         />

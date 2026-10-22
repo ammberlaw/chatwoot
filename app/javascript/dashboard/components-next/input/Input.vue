@@ -6,6 +6,9 @@ const props = defineProps({
   customInputClass: { type: [String, Object, Array], default: '' },
   placeholder: { type: String, default: '' },
   label: { type: String, default: '' },
+  // 必填：标签后面挂个红星。必填项不标出来，人要到点保存那一刻才发现，
+  // 还以为是系统坏了——所以凡是挡住保存的字段都该带上它。
+  required: { type: Boolean, default: false },
   id: { type: String, default: '' },
   size: {
     type: String,
@@ -118,6 +121,7 @@ onMounted(() => {
       class="mb-0.5 text-heading-3 text-n-slate-12"
     >
       {{ label }}
+      <span v-if="required" class="text-n-ruby-11">*</span>
     </label>
     <!-- Added prefix slot to allow adding icons to the input -->
     <slot name="prefix" />
