@@ -245,11 +245,49 @@ class Erp::AutoVoucherService
   def for_stock_receipt(entry)
     return if stock_receipt_voucher_blocker(entry).present?
 
-    lines = stock_receipt_lines(entry, stock_receipt_rows(entry), cny_payable_account)
+    rows = stock_receipt_rows(entry)
+    lines = stock_receipt_lines(entry, rows, cny_payable_account)
     create_voucher!(source_type: entry.class.name, source_id: entry.id,
                     date: entry.posted_at || entry.created_at,
-                    summary: "#{return_entry?(entry) ? '采购退货' : '采购入库'} #{entry.entry_no}",
+                    summary: stock_receipt_summary(entry, rows),
                     lines: lines)
+  end
+
+  # 摘要带供应商名（2026-10-21 财务定）：凭证列表里按供应商找账是常态，
+  # 「采购入库 SE-20261015-06」搜不出人来。多供应商的单把名字全排出来——
+  # 生产上 40 张里 13 张跨 2~7 家，压成「等 N 家」的话被省掉的那几家照样搜不到。
+  def stock_receipt_summary(entry, rows)
+    [return_entry?(entry) ? '采购退货' : '采购入库',
+     supplier_names_for(rows), entry.entry_no].compact_blank.join(' ')
+  end
+
+  def supplier_names_for(rows)
+    ids = rows.filter_map { |row| row[:supplier_id] }.uniq
+    return if ids.empty?
+
+    names = @account.mes_suppliers.where(id: ids).pluck(:id, :name).to_h
+    ids.filter_map { |id| names[id] }.join(' + ')
+  end
+
+  # 该出应付凭证却还没有的入库单名单（应付台账的「补出凭证」面板用）。
+  # 每行带上供应商、能补出多少钱、出不了的原因——财务要先看清再决定补哪几张，
+  # 不是一按就全补（2026-10-21 用户：「一个月的入库单核对好了后，怎么选中入库单生成凭证」）。
+  def pending_stock_receipts
+    issued = @account.erp_vouchers.where(source_type: 'Mes::StockEntry').select(:source_id)
+    @account.mes_stock_entries
+            .where(purpose: Mes::StockEntry::PAYABLE_VOUCHER_PURPOSES, status: 'POSTED')
+            .where.not(id: issued)
+            .includes(:purchase_order, { stock_entry_items: :crm_product })
+            .order(:posted_at, :id)
+            .map { |entry| pending_stock_receipt_row(entry) }
+  end
+
+  def pending_stock_receipt_row(entry)
+    rows = stock_receipt_rows(entry)
+    { id: entry.id, entry_no: entry.entry_no, purpose: entry.purpose,
+      posted_on: entry.posted_at&.to_date, po_no: entry.purchase_order&.po_no,
+      supplier_names: supplier_names_for(rows), amount_micros: rows.sum { |row| row[:amount] },
+      blocker: stock_receipt_voucher_blocker(entry) }
   end
 
   # 这张入库单已经出过的应付凭证（没有就是 nil）。

@@ -113,5 +113,7 @@ json.stock_entry_items do
 end
 json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource
 json.receipts resource.receipts.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+# 打印次数：仓库每月整叠打给财务核对，列表上要分出打过的和没打的。
+json.print_count resource.print_count
 json.created_at resource.created_at
 json.updated_at resource.updated_at

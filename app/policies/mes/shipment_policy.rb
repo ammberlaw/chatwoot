@@ -14,9 +14,18 @@ class Mes::ShipmentPolicy < ApplicationPolicy
   def submit? = create?
   # ⚠️ Pundit 按 action 名找 policy 方法，少一个就是 500。
   def pending_count? = true
-  def approve? = approver?
-  def reject? = approver?
+  # 打印计数：看得到这张单就打得了（打印本身是只读动作，计数只是留个痕）。
+  def mark_printed? = true
+  # 审核/驳回这道门要放仓库进来——小额单由仓库自己批（Mes::Shipment#warehouse_self_approvable?）。
+  # 具体哪张单谁能批由控制器 can_approve_shipment? 按单判定，这里只管「有没有资格走到那一步」。
+  def approve? = approver? || @account_user.mes_can?(:shipment)
+  def reject? = approve?
+  # 「出库审核」清单仍是财务那张台子，不放宽。
   def approval_inbox? = approver?
+
+  # 退回草稿 / 作废：与删单同一道门，控制器再按状态和制单人收敛。
+  def revert_to_draft? = destroy?
+  def void? = destroy?
 
   # 删单与开单同一道门（控制器再按「草稿/被驳回」和制单人收敛）。
   # 原先只许管理员删，连制单人自己都删不掉自己的重复草稿，只能挂在列表里。

@@ -4,6 +4,10 @@ import { withReturnActions } from './_returnable';
 
 const client = withReturnActions(buildMesClient('stock_entries'));
 
+// 批量打印后记一次打印次数（仓库每月整叠打给财务核对，要分出打过没打过）。
+client.markPrinted = ids =>
+  axios.post(`${client.url}/mark_printed`, { ids });
+
 // 过账：刷结存 + 记流水 + 阶段推进。
 client.post = id => axios.post(`${client.url}/${id}/post`);
 

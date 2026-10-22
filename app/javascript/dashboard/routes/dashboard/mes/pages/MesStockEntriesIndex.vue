@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted, watch } from 'vue';
+import { ref, computed, reactive, nextTick, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -202,6 +202,8 @@ const ORDER_COLUMN_DEFS = [
   { key: 'checked', label: '核对', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'approval', label: '审核', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
+  // 打印次数：仓库每月把整叠入库单打出来给财务核对，要分出打过的和没打的。
+  { key: 'printCount', label: '打印', tdClass: 'px-3 py-3 text-n-slate-11' },
   // 列名用仓管的说法：过账＝库存真正变动的那一刻，就是货入库的时间。
   // 叫「过账时间」是财务口径，采购在列表里找「入库时间」找不到（问题点 A1：
   // 「这里要加一个入库时间，因为审核和入库不一定是同一天」——其实就是这一列）。
@@ -312,31 +314,38 @@ const ROW_FILTER_FIELDS = {
 const matchesRowFilters = row =>
   Object.entries(ROW_FILTER_FIELDS).every(([key, field]) => {
     const v = (colFilters[key] || '').trim().toLowerCase();
-    return !v || String(row[field] || '').toLowerCase().includes(v);
+    return (
+      !v ||
+      String(row[field] || '')
+        .toLowerCase()
+        .includes(v)
+    );
   });
 
 // 把当页入库单摊平成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
 const itemRows = computed(() =>
-  records.value.flatMap(e =>
-    (e.stockEntryItems || []).map(it => ({
-      key: `${e.id}-${it.id}`,
-      entry: e,
-      entryNo: e.entryNo,
-      sourceNo: it.sourcePoNo || e.purchaseOrderNo || '—',
-      supplier: it.supplierName || '—',
-      code: it.materialNo || '—',
-      name: it.materialName || it.productName || '—',
-      spec: it.specification || '—',
-      warehouse: whName(it.warehouseId || e.toWarehouseId),
-      unit: it.unit || '—',
-      qty: it.qty,
-      receivedQty: it.receivedQty ?? it.qty,
-      unitPrice: money(it.unitPriceMicros),
-      amount: money(it.amountMicros),
-      status: e.status,
-      remark: it.remark || '—',
-    }))
-  ).filter(matchesRowFilters)
+  records.value
+    .flatMap(e =>
+      (e.stockEntryItems || []).map(it => ({
+        key: `${e.id}-${it.id}`,
+        entry: e,
+        entryNo: e.entryNo,
+        sourceNo: it.sourcePoNo || e.purchaseOrderNo || '—',
+        supplier: it.supplierName || '—',
+        code: it.materialNo || '—',
+        name: it.materialName || it.productName || '—',
+        spec: it.specification || '—',
+        warehouse: whName(it.warehouseId || e.toWarehouseId),
+        unit: it.unit || '—',
+        qty: it.qty,
+        receivedQty: it.receivedQty ?? it.qty,
+        unitPrice: money(it.unitPriceMicros),
+        amount: money(it.amountMicros),
+        status: e.status,
+        remark: it.remark || '—',
+      }))
+    )
+    .filter(matchesRowFilters)
 );
 
 // 「列」面板与「恢复默认列序」必须跟着当前视图走：两套列完全不同，
@@ -438,6 +447,67 @@ const printEntry = () =>
     `采购入库单 ${viewing.value?.entryNo || ''}`,
     { page: TRIPLICATE_PAGE, brandHeader: false }
   );
+
+// ── 批量打印 ──
+// 仓库每月把整叠入库单打出来给财务核对（2026-10-21）。一张张点进详情再打，
+// 几十张单根本没法做。勾完一次打，打完各记一次打印次数。
+const selectedIds = ref([]);
+const isSelected = id => selectedIds.value.includes(id);
+const toggleSelect = id => {
+  selectedIds.value = isSelected(id)
+    ? selectedIds.value.filter(x => x !== id)
+    : [...selectedIds.value, id];
+};
+const allSelected = computed(
+  () => records.value.length > 0 && records.value.every(e => isSelected(e.id))
+);
+const toggleSelectAll = () => {
+  const ids = records.value.map(e => e.id);
+  selectedIds.value = allSelected.value
+    ? selectedIds.value.filter(id => !ids.includes(id))
+    : [...new Set([...selectedIds.value, ...ids])];
+};
+// 换页/换筛选后选中的单已经不在屏幕上，留着只会让「打印选中 N 张」对不上。
+watch(records, () => {
+  selectedIds.value = [];
+});
+
+const printAreaRef = ref(null);
+const printSheets = ref([]);
+const printing = ref(false);
+const sheetRows = e =>
+  (e.stockEntryItems || []).map(it => ({
+    sourceNo: it.sourcePoNo || e.purchaseOrderNo,
+    materialNo: it.materialNo,
+    name: it.materialName || it.productName,
+    spec: it.specification,
+    warehouse: whName(it.warehouseId || e.toWarehouseId),
+    unit: it.unit,
+    qty: it.qty,
+    receivedQty: it.receivedQty ?? it.qty,
+    remark: it.remark,
+  }));
+const sheetSupplier = e => (e.supplierNames || []).join('、');
+const printSelected = async () => {
+  const rows = records.value.filter(e => isSelected(e.id));
+  if (!rows.length) return;
+  printing.value = true;
+  try {
+    printSheets.value = rows;
+    await nextTick();
+    printElement(printAreaRef.value, `采购入库单 ${rows.length} 张`, {
+      page: TRIPLICATE_PAGE,
+      brandHeader: false,
+    });
+    // 打印对话框是浏览器自己弹的，点没点「打印」收不到回执——以「送去打印」记一次。
+    await MesStockEntryAPI.markPrinted(rows.map(e => e.id));
+    await fetchList();
+  } catch (error) {
+    useAlert('打印失败，请重试');
+  } finally {
+    printing.value = false;
+  }
+};
 
 const VIEW_ITEM_COLS = computed(() => [
   { label: '物料/产品', key: 'name' },
@@ -962,6 +1032,15 @@ useRouteQueryReentry(query => {
           @click="toggleDensity"
         />
         <Button
+          v-if="selectedIds.length"
+          :label="`打印选中 ${selectedIds.length} 张`"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="printing"
+          @click="printSelected"
+        />
+        <Button
           v-if="mesCan('stock')"
           label="新建入库单"
           color="iris"
@@ -1083,6 +1162,16 @@ useRouteQueryReentry(query => {
             <tr
               class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
             >
+              <!-- 勾选列固定在最前，不参与列拖拽：它不是数据列，拖走了就找不回来 -->
+              <th class="px-3 py-3 w-9">
+                <input
+                  type="checkbox"
+                  class="align-middle"
+                  :checked="allSelected"
+                  :disabled="!records.length"
+                  @change="toggleSelectAll"
+                />
+              </th>
               <th
                 v-for="col in visibleOrderCols"
                 :key="col.key"
@@ -1122,6 +1211,14 @@ useRouteQueryReentry(query => {
           </thead>
           <tbody>
             <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
+              <td class="px-3 py-3">
+                <input
+                  type="checkbox"
+                  class="align-middle"
+                  :checked="isSelected(e.id)"
+                  @change="toggleSelect(e.id)"
+                />
+              </td>
               <td
                 v-for="col in visibleOrderCols"
                 :key="col.key"
@@ -1164,6 +1261,12 @@ useRouteQueryReentry(query => {
                 </template>
                 <template v-else-if="col.key === 'status'">
                   <MesStatusPill :label="STATUS_LABELS[e.status]" />
+                </template>
+                <template v-else-if="col.key === 'printCount'">
+                  <span v-if="e.printCount > 0" class="text-n-teal-11">
+                    已打 {{ e.printCount }} 次
+                  </span>
+                  <span v-else class="text-n-slate-10">未打印</span>
                 </template>
                 <template v-else-if="col.key === 'posted'">
                   {{ day(e.postedAt) }}
@@ -1638,6 +1741,19 @@ useRouteQueryReentry(query => {
         :items="printRows"
         :supplier="printSupplier"
       />
+    </div>
+
+    <!-- 批量打印用的票面：勾中几张就渲染几张，printElement 把整块送去打印。 -->
+    <div aria-hidden="true" class="fixed -left-[9999px] top-0 w-[920px]">
+      <div ref="printAreaRef">
+        <MesStockEntryPrintSheet
+          v-for="sheet in printSheets"
+          :key="sheet.id"
+          :entry="sheet"
+          :items="sheetRows(sheet)"
+          :supplier="sheetSupplier(sheet)"
+        />
+      </div>
     </div>
 
     <!-- 看图层：就地渲染，跟弹窗一起在顶层，点缩略图放大看 -->

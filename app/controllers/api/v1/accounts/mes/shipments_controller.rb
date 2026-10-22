@@ -2,7 +2,8 @@
 # rubocop:disable Metrics/ClassLength
 class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_shipment, only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject]
+  before_action :fetch_shipment,
+                only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject, :revert_to_draft, :void]
   before_action -> { ensure_owner_or_admin!(@shipment, '出库单') }, only: [:update]
   before_action :ensure_can_delete!, only: [:destroy]
 
@@ -13,9 +14,13 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   def index
     scope = scope_by_product_line_or_stock(Current.account.mes_shipments)
     COLUMN_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
-    scope = scope_visible(scope)
+    scope = scope_visible(search_scope(scope))
     @shipments_count = scope.count
-    @shipments = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    # 列表视图逐行要取客户 / 发货仓 / 制单人 / 销售订单（含业务员和订单明细行），
+    # 不预加载就是每行七八条查询。
+    @shipments = scope.includes(:crm_customer, :warehouse, :owner, :manager, { production_order: :owner },
+                                { crm_sales_order: [:owner, :crm_customer] }, { shipment_items: :crm_product })
+                      .order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
     # with_receivable=1：财务的「出库审核」清单要在列表上直接看到「款收齐没有」，
     # 否则得逐张点开。只在这个场景开，普通列表不算——逐行跑回款进度是 N+1。
     @with_receivable = params[:with_receivable].present?
@@ -23,8 +28,12 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   # 待我审核的出库单数量（ERP 侧栏角标用）。财务不进 MES 也该知道有几张等着批。
   def pending_count
+    # 小额单（仓库自己批那些）不计进财务的角标，否则角标永远清不掉——财务不该再去看它们。
+    # 逐条判定是 Ruby 侧的事，但待审单常年个位数，不值得为它拼一段 join 销售订单的 SQL。
     count = if Mes::Shipment.approver?(Current.account, Current.account_user)
-              scope_visible(Current.account.mes_shipments).where(status: 'PENDING_APPROVAL').count
+              scope_visible(Current.account.mes_shipments)
+                .where(status: 'PENDING_APPROVAL').includes(:crm_sales_order)
+                .count { |shipment| !shipment.warehouse_self_approvable? }
             else
               0
             end
@@ -32,6 +41,17 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   def show; end
+
+  # 打印后记一次。仓库每月要把整叠单打出来给财务核对，列表上得能分出哪些打过了。
+  # 不记谁打的、不记时间——仓库要的就是一个「打过没打过」的计数（2026-10-21）。
+  def mark_printed
+    ids = Array(params[:ids]).map(&:to_i).select(&:positive?)
+    return render json: { payload: [] } if ids.empty?
+
+    scope = scope_visible(Current.account.mes_shipments).where(id: ids)
+    scope.update_all('print_count = print_count + 1') # rubocop:disable Rails/SkipsModelValidations
+    render json: { payload: scope.pluck(:id, :print_count).map { |id, count| { id: id, print_count: count } } }
+  end
 
   # 从销售订单一键转现货出库单（库存单轨道的起点）。
   # 明细由前端带来（销售订单明细是自由文本，产品档案在转单弹窗里逐行确认过），
@@ -98,6 +118,26 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     end
     @shipment.destroy!
     head :ok
+  end
+
+  # 退回草稿：做错了就地改，不用删了重建。
+  def revert_to_draft
+    return render json: { error: '无权退回该出库单' }, status: :forbidden unless can_revert?(@shipment)
+
+    @shipment.revert_to_draft!(current_user)
+    render 'api/v1/accounts/mes/shipments/show'
+  rescue StandardError => e
+    render json: { error: business_error(e) }, status: :unprocessable_entity
+  end
+
+  # 作废：整张单不要了，置「已作废」留痕，销售订单可以重新转单。
+  def void
+    return render json: { error: '无权作废该出库单' }, status: :forbidden unless can_revert?(@shipment)
+
+    @shipment.void!(current_user, reason: params[:reason])
+    render 'api/v1/accounts/mes/shipments/show'
+  rescue StandardError => e
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 通知出库（XMind 节点8）。
@@ -185,6 +225,11 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   # 删草稿不止制单人：重复草稿多半是仓管在准备出库时才发现的，只许制单人或管理员删，
   # 那张单就会一直挂着（生产上 SO-20260916-06 挂了两张草稿、谁都删不掉）。
   # 仓管（shipment 能力）可以删——destroy 本身已经把范围限死在草稿/被驳回单。
+  # 退回/作废的门槛同删单：仓管能做，开单人自己也能做（做错的多半是自己）。
+  def can_revert?(shipment)
+    Current.account_user.mes_can?(:shipment) || shipment.owner_id == current_user.id || admin_like?
+  end
+
   def ensure_can_delete!
     return if Current.account_user.mes_can?(:shipment)
 
@@ -279,6 +324,30 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     items.each { |i| i.crm_product_id = pid }
   end
 
+  # 列表关键字：出库单号 / 销售订单号 / 客户名 / 信保订单号 / 产品名。
+  # 一个月几十张单，原先这页既没有搜索也没有状态筛选，只能靠翻页找。
+  SEARCH_SQL = <<~SQL.squish
+    mes_shipments.shipment_no ILIKE :kw
+    OR so.order_no ILIKE :kw
+    OR so.insurance_order_no ILIKE :kw
+    OR COALESCE(c.name, soc.name) ILIKE :kw
+    OR EXISTS (
+      SELECT 1 FROM mes_shipment_items si
+      JOIN crm_products p ON p.id = si.crm_product_id
+      WHERE si.shipment_id = mes_shipments.id AND (p.name ILIKE :kw OR p.sku ILIKE :kw)
+    )
+  SQL
+
+  def search_scope(scope)
+    keyword = params[:q].to_s.strip
+    return scope if keyword.blank?
+
+    scope.joins('LEFT JOIN crm_sales_orders so ON so.id = mes_shipments.crm_sales_order_id')
+         .joins('LEFT JOIN crm_customers c ON c.id = mes_shipments.crm_customer_id')
+         .joins('LEFT JOIN crm_customers soc ON soc.id = so.crm_customer_id')
+         .where(SEARCH_SQL, kw: "%#{keyword}%")
+  end
+
   def fetch_shipment
     @shipment = Current.account.mes_shipments.find(params[:id])
   end
@@ -293,8 +362,8 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   # 能否审核该现货出库单：管理员/副管理员，或本单指定审核人（业务员所属部门主管）本人。
   # 审核人是「财务这组人」，不再是提交时解析出的某一个主管——所以不比 manager_id。
-  def can_approve_shipment?(_shipment)
-    Mes::Shipment.approver?(Current.account, Current.account_user)
+  def can_approve_shipment?(shipment)
+    shipment.approver_for?(Current.account_user)
   end
 
   # 出库单可见范围：现货出库看开单人(owner)可见范围；生产出库看其生产订单归属可见范围。

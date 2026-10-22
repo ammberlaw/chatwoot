@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, watch, onMounted } from 'vue';
+import { ref, computed, reactive, watch, nextTick, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
@@ -42,13 +42,8 @@ const isAdminLike = computed(
 );
 const { isMyDoc } = useMesDocOwner();
 // 财务审核「款收齐没有」：财务 / 副管理员 / 管理员（用户给的金蝶流程）。
-// 口径与后端 Mes::Shipment.approver? 对齐——那边还支持配「出库审核人」，
-// 配了之后非配置人点下去会 403；前端只做显隐，不复制那套配置判断。
-// ⚠️ 财务是独立的 crm_finance 布尔（与业务员身份叠加），不是 crm_role 的取值——
-// 写成 crmRole === 'finance' 恒为 false，财务永远看不到审核按钮。
-const canApprove = computed(
-  () => isAdminLike.value || currentUser.value?.crm_finance === true
-);
+// 「谁能审这张单」不再在前端算：财务始终能审，小额单仓库自己也能批，后端按单下发
+// can_approve（Mes::Shipment#approver_for?）。原来这里按角色一刀切，判不了金额。
 // 仓库出库能力。
 const canShip = computed(() => mesCan('shipment'));
 // 现货出库开单：CRM 业务条线（业务员/主管/副管理员）或管理员。
@@ -68,7 +63,7 @@ const STATUS_LABELS = {
   APPROVED: '待出库',
   REJECTED: '已驳回',
   SHIPPED: '已出库',
-  CANCELLED: '已取消',
+  CANCELLED: '已作废',
 };
 const KIND_LABELS = { PRODUCTION: '生产出库', STOCK: '现货出库' };
 
@@ -78,7 +73,9 @@ const KIND_LABELS = { PRODUCTION: '生产出库', STOCK: '现货出库' };
 //
 // 审核人不再是提交时解析出的那一个主管，而是「财务这组人谁看到谁批」，
 // 所以这里不再比 managerId——真正的把关在后端 Mes::Shipment.approver?。
-const canApproveRow = s => s.status === 'PENDING_APPROVAL' && canApprove.value;
+// 能不能批这张单由后端按单给（财务始终能批；小额单仓库自己批，见
+// Mes::Shipment#approver_for?）——不是看角色，所以不能在前端拿 canApprove 一刀切。
+const canApproveRow = s => s.status === 'PENDING_APPROVAL' && s.canApprove;
 const canResubmitRow = s =>
   s.status === 'REJECTED' &&
   (s.ownerId === currentUserId.value || isAdminLike.value);
@@ -562,8 +559,144 @@ const submitReject = async () => {
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
-const fetchList = () => store.get({ page: currentPage.value });
+// 搜索 / 状态筛选：一个月几十张单，原先这页只能翻页找（2026-10-21 仓库提的）。
+// 都走服务端——列表是分页的，前端筛只能筛到当前这 15 条。
+const keyword = ref('');
+const statusFilter = ref('');
+const STATUS_OPTIONS = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+];
+const fetchList = () =>
+  store.get({
+    page: currentPage.value,
+    q: keyword.value.trim() || undefined,
+    status: statusFilter.value || undefined,
+  });
 watch(currentPage, fetchList);
+
+// 做错了要重来：待审核 / 待出库 / 已驳回的单可以退回草稿改，或整张作废。
+// 已出库的不在此列（动了库存和凭证，要撤得走退货）。草稿直接删就行，不给作废。
+const REVERTIBLE = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+const canRevertRow = s =>
+  REVERTIBLE.includes(s.status) &&
+  (canShip.value || isMyDoc(s) || isAdminLike.value);
+
+const revertToDraft = async s => {
+  const tip = `把 ${s.shipmentNo} 退回草稿？退回后可以改，改完要重新提交审核。`;
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(tip)) return;
+  acting.value = true;
+  try {
+    await MesShipmentAPI.revertToDraft(s.id);
+    useAlert(`${s.shipmentNo} 已退回草稿`);
+    await fetchList();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '退回失败');
+  } finally {
+    acting.value = false;
+  }
+};
+
+const voidDialogRef = ref(null);
+const voiding = ref(null);
+const voidReason = ref('');
+const openVoid = s => {
+  voiding.value = s;
+  voidReason.value = '';
+  voidDialogRef.value?.open();
+};
+const submitVoid = async () => {
+  if (!voidReason.value.trim()) return;
+  acting.value = true;
+  try {
+    await MesShipmentAPI.void(voiding.value.id, voidReason.value.trim());
+    useAlert(`${voiding.value.shipmentNo} 已作废，这张销售订单可以重新转单了`);
+    voidDialogRef.value?.close();
+    await fetchList();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '作废失败');
+  } finally {
+    acting.value = false;
+  }
+};
+
+// ── 批量打印 ──
+// 仓库每月把整叠出库单打出来给财务核对（2026-10-21）。一张一张点进详情再打，
+// 几十张单根本没法做。勾完一次打，打完各记一次打印次数。
+const selectedIds = ref([]);
+const isSelected = id => selectedIds.value.includes(id);
+const toggleSelect = id => {
+  selectedIds.value = isSelected(id)
+    ? selectedIds.value.filter(x => x !== id)
+    : [...selectedIds.value, id];
+};
+const allSelected = computed(
+  () => records.value.length > 0 && records.value.every(s => isSelected(s.id))
+);
+const toggleSelectAll = () => {
+  const ids = records.value.map(s => s.id);
+  selectedIds.value = allSelected.value
+    ? selectedIds.value.filter(id => !ids.includes(id))
+    : [...new Set([...selectedIds.value, ...ids])];
+};
+// 换页/换筛选条件后，选中的单已经不在屏幕上了，留着只会让「打印选中 N 张」对不上。
+watch(records, () => {
+  selectedIds.value = [];
+});
+
+const printAreaRef = ref(null);
+const printSheets = ref([]);
+const printing = ref(false);
+const sheetRows = s =>
+  (s.shipmentItems || []).map(it => ({
+    sku: it.productSku,
+    name: it.productName,
+    spec: it.specification,
+    warehouse: s.warehouseName,
+    unit: it.unit,
+    qty: it.qty,
+    unitPrice: it.unitPrice,
+    amount: it.amount,
+    remark: it.remark,
+  }));
+const printSelected = async () => {
+  const rows = records.value.filter(s => isSelected(s.id));
+  if (!rows.length) return;
+  printing.value = true;
+  try {
+    printSheets.value = rows;
+    await nextTick();
+    printElement(printAreaRef.value, `销售出库单 ${rows.length} 张`, {
+      page: '@page{size:9.5in 5.5in;margin:8mm}',
+      brandHeader: false,
+    });
+    // 打印对话框是浏览器自己弹的，点没点「打印」我们收不到——以「送去打印」记一次。
+    await MesShipmentAPI.markPrinted(rows.map(s => s.id));
+    await fetchList();
+  } catch (error) {
+    useAlert('打印失败，请重试');
+  } finally {
+    printing.value = false;
+  }
+};
+// 换条件要回到第 1 页：筛完还停在第 3 页，看到的是空的。
+const reload = () => {
+  if (currentPage.value !== 1) currentPage.value = 1;
+  else fetchList();
+};
+watch(statusFilter, reload);
+
+// 列表上的「名称 / 数量」：一张出库单常常不止一行，第一行品名 + 「等 N 项」，
+// 数量给合计——财务核的是这一车总共出了多少。
+const itemSummary = s => {
+  const items = s.shipmentItems || [];
+  if (!items.length) return '—';
+  const first = items[0].productName || '—';
+  return items.length > 1 ? `${first} 等 ${items.length} 项` : first;
+};
+const itemQty = s =>
+  (s.shipmentItems || []).reduce((acc, it) => acc + Number(it.qty || 0), 0);
 
 onMounted(() => {
   fetchList();
@@ -596,7 +729,30 @@ onMounted(() => {
       >
         销售出库
       </h1>
-      <div class="flex flex-wrap justify-end gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <Input
+          v-model="keyword"
+          size="sm"
+          placeholder="搜单号 / 订单 / 客户 / 信保单号 / 产品"
+          custom-input-class="w-60"
+          @keyup.enter="reload"
+        />
+        <SelectCard
+          :model-value="statusFilter"
+          :options="STATUS_OPTIONS"
+          trigger-class="w-28 h-8"
+          @update:model-value="v => (statusFilter = v)"
+        />
+        <Button label="查询" color="slate" size="sm" @click="reload" />
+        <Button
+          v-if="selectedIds.length"
+          :label="`打印选中 ${selectedIds.length} 张`"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="printing"
+          @click="printSelected"
+        />
         <Button
           v-if="canOpenStock"
           label="新建现货出库"
@@ -720,6 +876,23 @@ onMounted(() => {
                 @click.stop="ship(s)"
               />
               <Button
+                v-if="canRevertRow(s)"
+                label="退回草稿"
+                variant="ghost"
+                color="slate"
+                size="sm"
+                :is-loading="acting"
+                @click.stop="revertToDraft(s)"
+              />
+              <Button
+                v-if="canRevertRow(s)"
+                label="作废"
+                color="ruby"
+                variant="ghost"
+                size="sm"
+                @click.stop="openVoid(s)"
+              />
+              <Button
                 v-if="canDeleteRow(s)"
                 label="删单"
                 color="ruby"
@@ -738,17 +911,40 @@ onMounted(() => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 w-9">
+                <input
+                  type="checkbox"
+                  class="align-middle"
+                  :checked="allSelected"
+                  :disabled="!records.length"
+                  @change="toggleSelectAll"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">出库单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">客户</th>
+              <th class="px-3 py-3 font-medium">名称</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                数量
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">信保单号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">打印</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
+              <td class="px-3 py-3">
+                <input
+                  type="checkbox"
+                  class="align-middle"
+                  :checked="isSelected(s.id)"
+                  @change="toggleSelect(s.id)"
+                />
+              </td>
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ s.shipmentNo }}
               </td>
@@ -770,11 +966,27 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ s.customerName || '—' }}
               </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ itemSummary(s) }}</td>
+              <td
+                class="px-3 py-3 text-right tabular-nums whitespace-nowrap text-n-slate-11"
+              >
+                {{ itemQty(s) || '—' }}
+              </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ s.productionOrderOwnerName || s.ownerName || '—' }}
               </td>
               <td class="px-3 py-3">
                 <MesStatusPill :label="STATUS_LABELS[s.status]" />
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
+                {{ s.insuranceOrderNo || '—' }}
+              </td>
+              <!-- 打过的标次数，没打过的留一道「未打印」——仓库核对时一眼扫得出漏了哪张 -->
+              <td class="px-3 py-3 whitespace-nowrap">
+                <span v-if="s.printCount > 0" class="text-n-teal-11">
+                  已打 {{ s.printCount }} 次
+                </span>
+                <span v-else class="text-n-slate-10">未打印</span>
               </td>
               <td class="px-3 py-3 text-right">
                 <div class="flex justify-end gap-1">
@@ -836,6 +1048,23 @@ onMounted(() => {
                     @click="ship(s)"
                   />
                   <Button
+                    v-if="canRevertRow(s)"
+                    label="退回草稿"
+                    variant="ghost"
+                    color="slate"
+                    size="sm"
+                    :is-loading="acting"
+                    @click="revertToDraft(s)"
+                  />
+                  <Button
+                    v-if="canRevertRow(s)"
+                    label="作废"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    @click="openVoid(s)"
+                  />
+                  <Button
                     v-if="canDeleteRow(s)"
                     label="删单"
                     color="ruby"
@@ -848,7 +1077,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
                 还没有出库单。
               </td>
             </tr>
@@ -1158,6 +1387,33 @@ onMounted(() => {
       </template>
     </MesViewDialog>
 
+    <!-- 作废：整张单不要了。必须写原因——「这张单怎么废的」事后一定会被问到。 -->
+    <Dialog
+      ref="voidDialogRef"
+      :dismissible="false"
+      width="md"
+      confirm-button-color="ruby"
+      title="作废出库单"
+      confirm-button-label="确认作废"
+      :disable-confirm-button="!voidReason.trim()"
+      @confirm="submitVoid"
+    >
+      <div v-if="voiding" class="flex flex-col gap-3">
+        <p class="text-sm text-n-slate-11">
+          {{ voiding.shipmentNo }} · {{ voiding.customerName || '—' }}
+        </p>
+        <div class="flex flex-col gap-2">
+          <label class="text-heading-3 text-n-slate-12">
+            作废原因 <span class="text-n-ruby-11">*</span>
+          </label>
+          <Input v-model="voidReason" placeholder="例：开错客户，重新开一张" />
+        </div>
+        <p class="text-xs text-n-slate-11">
+          作废后这张单留在列表里可查，销售订单可以重新转单。
+        </p>
+      </div>
+    </Dialog>
+
     <!-- 出库单票面：只在打印时用，平时不占版面（printElement 克隆它去打印）。 -->
     <div
       v-if="viewing"
@@ -1169,6 +1425,18 @@ onMounted(() => {
         :shipment="viewing"
         :items="printRows"
       />
+    </div>
+
+    <!-- 批量打印用的票面：勾中几张就渲染几张，printElement 把整块送去打印。 -->
+    <div aria-hidden="true" class="fixed -left-[9999px] top-0 w-[920px]">
+      <div ref="printAreaRef">
+        <MesShipmentPrintSheet
+          v-for="sheet in printSheets"
+          :key="sheet.id"
+          :shipment="sheet"
+          :items="sheetRows(sheet)"
+        />
+      </div>
     </div>
   </div>
 </template>

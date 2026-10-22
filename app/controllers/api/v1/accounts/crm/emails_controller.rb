@@ -365,6 +365,11 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
   # 来路二：这个客户归我，但是同事分配给我的 —— 抄送分配人名下的发信邮箱。
   # 认领公海客户、以及自己分给自己都不算（分配人为空，见 CustomersController#reassign）。
+  #
+  # ⚠️ 只有**领导分给下属**才抄（2026-10-22 用户定）。原来不看分配人是谁：业务员把客户
+  # 往上转给总经理，总经理发信照样抄回给那个业务员（生产上 Amico Group 就这么抄的，
+  # 而且那是本功能上线至今唯一一条分配记录）。往上转、平级互转都不该抄——
+  # 这条规则的本意是「领导分下去的客户，往来要让领导看得见」。
   def cc_from_assigner(addrs)
     by_contact = Current.account.contacts.where('lower(email) IN (?)', addrs).pluck(:crm_customer_id).compact
     assigner_ids = Current.account.crm_customers
@@ -373,12 +378,25 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
                                  ids: by_contact, addrs: addrs)
                           .where.not(assigned_by_id: [nil, current_user.id])
                           .distinct.pluck(:assigned_by_id)
+    assigner_ids = leader_ids_among(assigner_ids)
     return [] if assigner_ids.empty?
 
     # 每位分配人只抄一个邮箱（默认邮箱优先）——有人名下配了五个，全抄等于给同一个人发五份。
     Current.account.crm_mail_accounts.where(owner_id: assigner_ids)
            .order(is_default: :desc, id: :asc)
            .group_by(&:owner_id).values.map { |boxes| boxes.first.email_address }
+  end
+
+  # 这批人里哪些算「领导」：总经理（系统管理员）/ 副管理员 / CRM 团队负责人。
+  # 「主管」只认 CRM 团队负责人（用户 2026-10-22 定），不按 crm_role 的 manager，
+  # 也不按组织部门负责人——那边挂着生产、行政各条线的负责人，与客户分配无关。
+  def leader_ids_among(user_ids)
+    return [] if user_ids.empty?
+
+    team_lead_ids = Current.account.crm_teams.where(team_lead_id: user_ids).pluck(:team_lead_id)
+    Current.account.account_users.where(user_id: user_ids).filter_map do |au|
+      au.user_id if au.administrator? || au.crm_deputy_admin? || team_lead_ids.include?(au.user_id)
+    end
   end
 
   # 单条分发记录：若被分发邮件的对方(客户)命中本次收件人，返回分发人自有邮箱(应抄送地址)。

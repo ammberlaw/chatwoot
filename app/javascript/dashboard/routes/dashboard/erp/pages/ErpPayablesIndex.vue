@@ -20,6 +20,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ErpPayableDetailDialog from 'dashboard/components-next/erp/ErpPayableDetailDialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
@@ -328,6 +329,26 @@ const loadRecon = async () => {
 const reconKey = row => `${row.mes_purchase_order_id}-${row.mes_supplier_id}`;
 // 差额＝该欠的减去台账已建的。首次建账时已建为 0，差额就是全额。
 const reconDiff = row => (row.received_micros || 0) - (row.booked_micros || 0);
+// 收货日期：同一张采购单上不同供应商的货未必同一天到，所以这是**这家**的收货区间。
+// 同一天就写一个日期；跨天后半段省掉年份，不然一列塞 23 个字符把表撑歪。
+const reconDate = row => {
+  const first = row.first_receipt_on;
+  const last = row.last_receipt_on;
+  if (!first) return '—';
+  return !last || last === first ? first : `${first} ~ ${last.slice(5)}`;
+};
+// 按月对账：财务是一个月一个月核的，默认不筛（全看）。按**最近收货日**归月——
+// 跨月到货的那一笔算在收尾那个月，与应付台账「发生日期」取最后一次入库是同一口径。
+const reconMonth = ref('');
+const filteredReconRows = computed(() => {
+  if (!reconMonth.value) return reconRows.value;
+  return reconRows.value.filter(
+    row => (row.last_receipt_on || '').slice(0, 7) === reconMonth.value
+  );
+});
+const reconPendingTotal = computed(() =>
+  filteredReconRows.value.reduce((acc, row) => acc + reconDiff(row), 0)
+);
 const confirmRecon = async row => {
   confirmingRecon.value = reconKey(row);
   try {
@@ -700,10 +721,44 @@ const exportStatement = async () => {
   );
 };
 
+// 待对账：屏幕上就是全量（接口不分页），导的就是月份筛完剩下的那些。
+// 财务拿这张表去跟供应商核，核完回来点「对好了，建账」。
+const exportReconcile = async () => {
+  if (!reconRows.value.length) await loadRecon();
+  exportRowsToExcel(
+    {
+      title: '应付待对账',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '收货月份', value: reconMonth.value || '全部' },
+        { label: '单位', value: '元（本位币）' },
+        { label: '条数', value: filteredReconRows.value.length },
+        { label: '待建合计', value: money(reconPendingTotal.value) },
+      ],
+      columns: [
+        { label: '首次收货', key: 'first_receipt_on' },
+        { label: '最近收货', key: 'last_receipt_on' },
+        { label: '入库单数', key: 'entry_count', num: true },
+        { label: '采购单', key: 'po_no' },
+        { label: '供应商', key: 'supplier_name' },
+        { label: '已收货金额', key: 'received_micros', money: true },
+        { label: '台账已建', key: 'booked_micros', money: true },
+        { label: '待建金额', key: 'diff_micros', money: true },
+      ],
+      rows: filteredReconRows.value.map(row => ({
+        ...row,
+        diff_micros: reconDiff(row),
+      })),
+    },
+    `应付待对账_${stamp().slice(0, 10)}`
+  );
+};
+
 const EXPORTERS = {
   ledger: exportLedger,
   payments: exportPayments,
   statement: exportStatement,
+  reconcile: exportReconcile,
 };
 const canExport = computed(() => Boolean(EXPORTERS[activeTab.value]));
 const exportCurrent = async () => {
@@ -738,8 +793,92 @@ const loadPendingVouchers = async () => {
     pendingVouchers.value = [];
   }
 };
+// 面板：把名单摆出来让财务挑，而不是一按全补。
+// 用户原话「一个月的入库单核对好了后，怎么选中入库单生成凭证」——按月核、按月出凭证
+// 是财务的实际节奏，一次性全补对不上她手里的那叠单。
+const voucherDialogRef = ref(null);
+const voucherMonth = ref('');
+const selectedVouchers = ref([]);
+const openVoucherPanel = async () => {
+  await loadPendingVouchers();
+  voucherMonth.value = '';
+  // 默认勾上所有能出的：多数时候就是全补，逐个点一遍是白费力气。
+  selectedVouchers.value = pendingVouchers.value
+    .filter(row => !row.blocker)
+    .map(row => row.id);
+  voucherDialogRef.value?.open();
+};
+const filteredVouchers = computed(() => {
+  if (!voucherMonth.value) return pendingVouchers.value;
+  return pendingVouchers.value.filter(
+    row => (row.posted_on || '').slice(0, 7) === voucherMonth.value
+  );
+});
+// 出不了的不参与勾选——勾了也只会换来一条失败提示。
+const buildableVouchers = computed(() =>
+  filteredVouchers.value.filter(row => !row.blocker)
+);
+const voucherChecked = id => selectedVouchers.value.includes(id);
+const toggleVoucher = id => {
+  selectedVouchers.value = voucherChecked(id)
+    ? selectedVouchers.value.filter(x => x !== id)
+    : [...selectedVouchers.value, id];
+};
+const allVouchersChecked = computed(
+  () =>
+    buildableVouchers.value.length > 0 &&
+    buildableVouchers.value.every(row => voucherChecked(row.id))
+);
+const toggleAllVouchers = () => {
+  const ids = buildableVouchers.value.map(row => row.id);
+  selectedVouchers.value = allVouchersChecked.value
+    ? selectedVouchers.value.filter(id => !ids.includes(id))
+    : [...new Set([...selectedVouchers.value, ...ids])];
+};
+// 只统计屏幕上这批里勾中的：筛了月份还把别的月算进合计，财务对不上数。
+const selectedVoucherRows = computed(() =>
+  filteredVouchers.value.filter(row => voucherChecked(row.id))
+);
+const selectedVoucherTotal = computed(() =>
+  selectedVoucherRows.value.reduce(
+    (acc, row) => acc + (row.amount_micros || 0),
+    0
+  )
+);
+const purposeLabel = row =>
+  row.purpose === 'MATERIAL_RETURN' ? '采购退货' : '采购入库';
+
+const exportPendingVouchers = () => {
+  exportRowsToExcel(
+    {
+      title: '待补应付凭证',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '过账月份', value: voucherMonth.value || '全部' },
+        { label: '单位', value: '元（本位币）' },
+        { label: '入库单数', value: filteredVouchers.value.length },
+      ],
+      columns: [
+        { label: '过账日', key: 'posted_on' },
+        { label: '类型', key: 'purpose_label' },
+        { label: '入库单号', key: 'entry_no' },
+        { label: '采购单', key: 'po_no' },
+        { label: '供应商', key: 'supplier_names' },
+        { label: '金额', key: 'amount_micros', money: true },
+        { label: '出不了的原因', key: 'blocker' },
+      ],
+      rows: filteredVouchers.value.map(row => ({
+        ...row,
+        purpose_label: purposeLabel(row),
+        blocker: row.blocker || '',
+      })),
+    },
+    `待补应付凭证_${stamp().slice(0, 10)}`
+  );
+};
+
 const buildPendingVouchers = async () => {
-  const targets = pendingVouchers.value.slice();
+  const targets = selectedVoucherRows.value.filter(row => !row.blocker);
   if (!targets.length) return;
   buildingVouchers.value = true;
   let done = 0;
@@ -762,6 +901,11 @@ const buildPendingVouchers = async () => {
     buildingVouchers.value = false;
   }
   await loadPendingVouchers();
+  // 补完的已经从名单里消失，勾选跟着收敛到还剩下的那些。
+  selectedVouchers.value = selectedVouchers.value.filter(id =>
+    pendingVouchers.value.some(row => row.id === id)
+  );
+  if (!pendingVouchers.value.length) voucherDialogRef.value?.close();
   useAlert(
     failures.length
       ? `补出 ${done} 张，${failures.length} 张没出：${failures[0]}${
@@ -804,6 +948,13 @@ onMounted(() => {
         >
           本页付款合计 {{ money(paymentMeta.amount_micros) }}
         </span>
+        <span
+          v-else-if="activeTab === 'reconcile'"
+          class="text-sm text-n-slate-11"
+        >
+          待对账 {{ filteredReconRows.length }} 条 · 待建合计
+          <span class="text-n-slate-12">{{ money(reconPendingTotal) }}</span>
+        </span>
       </div>
       <div class="flex items-center gap-2">
         <Input
@@ -813,6 +964,13 @@ onMounted(() => {
           placeholder="搜单号 / 供应商 / 采购单号"
           custom-input-class="w-44"
           @keyup.enter="reload"
+        />
+        <!-- 按月对账：财务一个月一个月地核，没有月份就只能从头翻到尾 -->
+        <MonthPicker
+          v-if="activeTab === 'reconcile'"
+          v-model="reconMonth"
+          placeholder="收货月份"
+          trigger-class="w-32 h-8"
         />
         <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事 -->
         <Button
@@ -864,8 +1022,7 @@ onMounted(() => {
           color="amber"
           variant="faded"
           size="sm"
-          :is-loading="buildingVouchers"
-          @click="buildPendingVouchers"
+          @click="openVoucherPanel"
         />
         <Button
           v-if="canLedger && activeTab === 'ledger'"
@@ -1271,6 +1428,7 @@ onMounted(() => {
       >
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium whitespace-nowrap">收货日期</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">采购单</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
@@ -1289,10 +1447,16 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr
-            v-for="row in reconRows"
+            v-for="row in filteredReconRows"
             :key="reconKey(row)"
             class="border-b border-n-weak"
           >
+            <td class="px-3 py-2 whitespace-nowrap text-n-slate-12">
+              {{ reconDate(row) }}
+              <span v-if="row.entry_count > 1" class="ml-1 text-n-slate-10">
+                {{ row.entry_count }} 张
+              </span>
+            </td>
             <td class="px-3 py-2 text-n-slate-12">{{ row.po_no }}</td>
             <td class="px-3 py-2 text-n-slate-12">{{ row.supplier_name }}</td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-12">
@@ -1318,9 +1482,14 @@ onMounted(() => {
               />
             </td>
           </tr>
-          <tr v-if="!reconRows.length && !reconLoading">
-            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
-              没有待对账的收货——收到的货都已经跟供应商核对过并建了账。
+          <tr v-if="!filteredReconRows.length && !reconLoading">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+              <template v-if="reconMonth">
+                {{ reconMonth }} 没有待对账的收货，换个月份看看。
+              </template>
+              <template v-else>
+                没有待对账的收货——收到的货都已经跟供应商核对过并建了账。
+              </template>
             </td>
           </tr>
         </tbody>
@@ -1518,6 +1687,140 @@ onMounted(() => {
             v-model="paymentForm.remark"
             size="sm"
             custom-input-class="!h-9"
+          />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 补出应付凭证：名单摆出来按月挑着补。正常过账的入库单凭证是自动出的，
+         这里只会出现「该出没出」的那些（多半是自动规则上线前过的账）。 -->
+    <Dialog
+      ref="voucherDialogRef"
+      width="5xl"
+      title="补出应付凭证"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+    >
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm text-n-slate-11">
+            这些入库单已过账、但没有应付凭证
+          </span>
+          <MonthPicker
+            v-model="voucherMonth"
+            placeholder="过账月份"
+            trigger-class="w-32 h-8"
+          />
+          <span class="flex-1" />
+          <Button
+            label="导出 Excel"
+            color="slate"
+            variant="faded"
+            size="sm"
+            @click="exportPendingVouchers"
+          />
+        </div>
+
+        <div class="overflow-auto max-h-[52vh]">
+          <table class="w-full text-sm min-w-[860px]">
+            <thead class="sticky top-0 bg-n-solid-1">
+              <tr class="text-left border-b text-n-slate-11 border-n-weak">
+                <th class="px-3 py-2 w-9">
+                  <input
+                    type="checkbox"
+                    class="align-middle"
+                    :checked="allVouchersChecked"
+                    :disabled="!buildableVouchers.length"
+                    @change="toggleAllVouchers"
+                  />
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">过账日</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  入库单号
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">采购单</th>
+                <th class="px-3 py-2 font-medium min-w-[220px]">供应商</th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  金额
+                </th>
+                <th class="px-3 py-2 font-medium min-w-[200px]">能不能出</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in filteredVouchers"
+                :key="row.id"
+                class="border-b border-n-weak"
+              >
+                <td class="px-3 py-2 align-top">
+                  <input
+                    type="checkbox"
+                    class="mt-1 align-middle"
+                    :checked="voucherChecked(row.id)"
+                    :disabled="Boolean(row.blocker)"
+                    @change="toggleVoucher(row.id)"
+                  />
+                </td>
+                <td
+                  class="px-3 py-2 align-top whitespace-nowrap text-n-slate-11"
+                >
+                  {{ row.posted_on }}
+                </td>
+                <td
+                  class="px-3 py-2 align-top whitespace-nowrap text-n-slate-12"
+                >
+                  {{ row.entry_no }}
+                  <span
+                    v-if="row.purpose === 'MATERIAL_RETURN'"
+                    class="ml-1 text-n-ruby-11"
+                  >
+                    退货
+                  </span>
+                </td>
+                <td
+                  class="px-3 py-2 align-top whitespace-nowrap text-n-slate-11"
+                >
+                  {{ row.po_no || '—' }}
+                </td>
+                <!-- 一张入库单可以跨好几家供应商（生产上最多 7 家），名字全排出来是为了
+                     凭证摘要能搜到人，但列宽得按住，否则整张表被一行撑到横向滚动。 -->
+                <td class="px-3 py-2 align-top break-words text-n-slate-11">
+                  {{ row.supplier_names || '—' }}
+                </td>
+                <td
+                  class="px-3 py-2 font-mono text-right align-top text-n-slate-12"
+                >
+                  {{ money(row.amount_micros) }}
+                </td>
+                <td class="px-3 py-2 text-xs align-top">
+                  <span v-if="!row.blocker" class="text-n-teal-11">能出</span>
+                  <span v-else class="text-n-amber-11">{{ row.blocker }}</span>
+                </td>
+              </tr>
+              <tr v-if="!filteredVouchers.length">
+                <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+                  {{ voucherMonth }} 这个月没有要补的入库单。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+          <span class="text-sm text-n-slate-11">
+            已选 {{ selectedVoucherRows.length }} 张 · 合计
+            <b class="font-mono text-n-slate-12">
+              {{ money(selectedVoucherTotal) }}
+            </b>
+          </span>
+          <span class="flex-1" />
+          <Button
+            :label="`补出选中 (${selectedVoucherRows.length})`"
+            color="amber"
+            size="sm"
+            :disabled="!selectedVoucherRows.length"
+            :is-loading="buildingVouchers"
+            @click="buildPendingVouchers"
           />
         </div>
       </div>

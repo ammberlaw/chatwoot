@@ -3,6 +3,10 @@
 # 应收：一张销售订单一条账（重复建账直接拦），金额/币种/汇率/归属业务员都从订单带。
 # 应付：按采购单**明细行的供应商分组**，每个供应商一条账——一张采购单向三家买料就是三条应付。
 class Erp::LedgerBuilderService
+  # 「待对账」是收货与建账之间独立的一段流程，方法成组地只服务那一件事——
+  # 拆出去读起来更清楚，建账这边也回到它自己的职责上。
+  include Erp::PayableReconciliation
+
   class Error < StandardError; end
 
   # 建账成功、但收入凭证没出来的原因（期间已结账、科目没配…）。
@@ -63,34 +67,6 @@ class Erp::LedgerBuilderService
     end
   end
 
-  # ── 应付「先对账再建账」 ──────────────────────────────────────────
-  # 收了货不再直接起账（见 Mes::StockEntry#post!：自动建账那一步 2026-10-21 停掉了），
-  # 先在这里按「采购单 × 供应商」把该欠多少列出来，财务跟供应商核对无误再确认建账。
-  # 粒度与应付台账一行完全一致，确认走的就是原来那个 upsert——口径不会分叉。
-  #
-  # 只看**已过账**的原料入库：草稿单上的数字还会改，拿去跟供应商对账等于对了个寂寞。
-  def pending_reconciliation
-    order_ids = @account.mes_stock_entries
-                        .where(purpose: 'MATERIAL_RECEIPT', status: 'POSTED')
-                        .where.not(purchase_order_id: nil).distinct.pluck(:purchase_order_id)
-    booked = booked_amounts(order_ids)
-    @account.mes_purchase_orders.where(id: order_ids)
-            .includes(purchase_items: :mes_supplier)
-            .flat_map { |order| reconciliation_rows(order, booked) }
-            .sort_by { |row| [row[:po_no].to_s, row[:supplier_name].to_s] }
-  end
-
-  # 确认建账：按实收金额建/更新这一行（就是原来入库过账时自动做的那一步）。
-  def confirm_reconciliation!(purchase_order:, supplier_id:)
-    items = purchase_order.purchase_items.select { |item| item.mes_supplier_id == supplier_id }
-    raise Error, "采购单 #{purchase_order.po_no} 上没有这家供应商的明细行" if items.empty?
-
-    amount = received_amount(supplier_id, items)
-    raise Error, '这家供应商在本单上还没有已过账的收货，没有可建账的金额' if amount <= 0
-
-    upsert_payable(purchase_order, supplier_id, amount)
-  end
-
   # 金额优先取采购明细上的行金额；行上没有金额（MES 侧未填价）就按供应商报价单算：
   # Σ(数量 × SupplierItem 未税单价) × (1 + 供应商税率)，与 ERP_SPEC §3.1 口径一致。
   def supplier_amount(supplier_id, items)
@@ -111,29 +87,6 @@ class Erp::LedgerBuilderService
   end
 
   private
-
-  # 实收金额：行上有金额的按「实收/订购」等比折算，没金额的按供应商报价 × 实收 × (1+税率)。
-  # 差额 ≠ 0 才算待对账：一分不差就是已经对过账建过了，不该再占着清单。
-  def reconciliation_rows(order, booked)
-    order.purchase_items.group_by(&:mes_supplier_id).filter_map do |supplier_id, items|
-      next if supplier_id.blank?
-
-      amount = received_amount(supplier_id, items)
-      next if amount <= 0
-
-      booked_micros = booked[[order.id, supplier_id]].to_i
-      next if booked_micros == amount
-
-      { mes_purchase_order_id: order.id, po_no: order.po_no, mes_supplier_id: supplier_id,
-        supplier_name: items.first.mes_supplier&.name, received_micros: amount, booked_micros: booked_micros }
-    end
-  end
-
-  def booked_amounts(order_ids)
-    @account.erp_payables.where(mes_purchase_order_id: order_ids)
-            .pluck(:mes_purchase_order_id, :mes_supplier_id, :total_amount_micros)
-            .to_h { |order_id, supplier_id, amount| [[order_id, supplier_id], amount] }
-  end
 
   def received_amount(supplier_id, items)
     supplier = @account.mes_suppliers.find_by(id: supplier_id)

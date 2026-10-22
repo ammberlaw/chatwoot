@@ -7,6 +7,7 @@
 #  approved_at         :datetime
 #  kind                :string           default("PRODUCTION"), not null
 #  notified_at         :datetime
+#  print_count         :integer          default(0), not null
 #  product_line        :string
 #  reject_reason       :text
 #  remark              :text
@@ -14,6 +15,8 @@
 #  shipped_at          :datetime
 #  status              :string           default("DRAFT"), not null
 #  submitted_at        :datetime
+#  void_reason         :string
+#  voided_at           :datetime
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  account_id          :bigint           not null
@@ -22,6 +25,7 @@
 #  manager_id          :bigint
 #  owner_id            :bigint
 #  production_order_id :bigint
+#  voided_by_id        :bigint
 #  warehouse_id        :bigint
 #
 # Indexes
@@ -64,6 +68,7 @@ class Mes::Shipment < ApplicationRecord
   belongs_to :warehouse, class_name: 'Mes::Warehouse', optional: true
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true # 现货出库审核人（CRM 部门主管）
+  belongs_to :voided_by, class_name: 'User', optional: true
   has_many :shipment_items, class_name: 'Mes::ShipmentItem', dependent: :destroy, inverse_of: :shipment
   accepts_nested_attributes_for :shipment_items, allow_destroy: true
   has_many_attached :files
@@ -106,6 +111,36 @@ class Mes::Shipment < ApplicationRecord
     return configured.include?(account_user.user_id) if configured.any?
 
     account_user.administrator? || account_user.crm_deputy_admin? || account_user.crm_finance?
+  end
+
+  # 出库审批的金额闸（2026-10-21 陈总与财务定）：订单货款不超过 5000 美金 / 3 万人民币的，
+  # 仓库自己批就能出货；超过才通知财务审。原先一张单等一次财务审核，出一张等一张。
+  # 按近 180 天的实绩，33 张出库单里 26 张落进仓库直批，财务要审的降到 7 张。
+  SELF_APPROVE_LIMITS = { 'USD' => 5_000, 'CNY' => 30_000 }.freeze
+
+  # 这张单仓库能不能自己批。
+  # 「不含运费，仅产品金额」是用户的原话——order_amount_micros 本来就不含运费（运费另存
+  # shipping_micros，见 Crm::SalesOrder#gross_sales_micros），拿它正好。
+  # 查不到金额的（没挂销售订单、金额空着）一律按大额走财务：这道闸是为放行小单设的，
+  # 拿不准的时候不该替财务做主。
+  def warehouse_self_approvable?
+    order = crm_sales_order
+    return false if order.nil? || order.order_amount_micros.to_i <= 0
+
+    amount = order.order_amount_micros.to_i / 1_000_000.0
+    limit = SELF_APPROVE_LIMITS[order.order_currency]
+    return amount <= limit if limit
+
+    usd = usd_amount(amount, order.order_currency)
+    usd.present? && usd <= SELF_APPROVE_LIMITS['USD']
+  end
+
+  # 谁能审这张单：财务（及配置的审核人）始终能审；小额单仓库自己也能批。
+  def approver_for?(account_user)
+    return false if account_user.blank?
+    return true if self.class.approver?(account, account_user)
+
+    warehouse_self_approvable? && account_user.mes_can?(:shipment)
   end
 
   # 提交审核：等财务看「这张单的款收齐没有」。
@@ -172,6 +207,51 @@ class Mes::Shipment < ApplicationRecord
     self
   end
 
+  # ── 做错了要重来：退回草稿 / 作废 ──────────────────────────────
+  # CANCELLED 这个状态从一开始就在 STATUSES 里，却从来没有谁能把单置过去。
+  # 结果是做错一张**待出库**的单彻底没救：删不掉（destroy 只许草稿/被驳回）、
+  # 驳不回（reject! 只认待审核）、重开又撞「该订单已生成出库单 DN-xxx」。
+  #
+  # 预占不用手工释放：reserving scope 按状态算（只认 PENDING_APPROVAL/APPROVED），
+  # 状态一离开这两个，可用现货自己就回来了。
+  REVERTIBLE_STATUSES = %w[PENDING_APPROVAL APPROVED REJECTED].freeze
+
+  # 退回草稿：单号和历史都留着，业务员改完重新提交审核——比「删了重建」更贴近
+  # 「做错了要改」这件事本身。
+  def revert_to_draft!(actor)
+    with_lock do
+      raise StandardError, revert_blocker unless REVERTIBLE_STATUSES.include?(status)
+
+      update!(status: 'DRAFT', submitted_at: nil, manager_id: nil, approved_at: nil,
+              approve_note: nil, reject_reason: nil)
+    end
+    Mes::Notifier.resolve(account: account, kinds: 'shipment_approval_pending', title_like: shipment_no)
+    notify_owner_of_rollback("出库单退回草稿：#{shipment_no}", "#{actor_name(actor)} 把这张单退回草稿，改完请重新提交审核")
+    self
+  end
+
+  # 作废：整张单不要了。置 CANCELLED 留痕（不硬删，账要查得到），
+  # 作废掉的单不算重复开单（duplicate/convert 两处都排除 CANCELLED），销售订单可以重新转。
+  def void!(actor, reason:)
+    raise StandardError, '作废要填原因' if reason.to_s.strip.blank?
+
+    with_lock do
+      raise StandardError, revert_blocker unless REVERTIBLE_STATUSES.include?(status) || status == 'DRAFT'
+
+      update!(status: 'CANCELLED', void_reason: reason.to_s.strip,
+              voided_at: Time.current, voided_by_id: actor&.id)
+    end
+    Mes::Notifier.resolve(account: account, kinds: 'shipment_approval_pending', title_like: shipment_no)
+    notify_owner_of_rollback("出库单已作废：#{shipment_no}", "#{actor_name(actor)} 作废了这张单，原因：#{reason.to_s.strip}")
+    self
+  end
+
+  def revert_blocker
+    return '已出库的单不能退回或作废，要退货请走退货流程' if status == 'SHIPPED'
+
+    "这张单是「#{status}」，退不回也作废不了"
+  end
+
   # 主管驳回 → 退回业务员（可改后重提）。需填原因。
   def reject!(actor, reason:)
     raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
@@ -230,6 +310,29 @@ class Mes::Shipment < ApplicationRecord
   end
 
   private
+
+  def actor_name(actor)
+    actor&.crm_display_name.presence || '有人'
+  end
+
+  # 退回/作废都要让开单的业务员知道——单子不在他那儿了，不通知他会一直等审核结果。
+  def notify_owner_of_rollback(title, body)
+    return if owner_id.blank?
+
+    Mes::Notifier.notify(account: account, recipients: owner_id, kind: 'shipment_rejected',
+                         title: title, body: body)
+  end
+
+  # 两套阈值不是同一个汇率关系（5000 美金 ≈ 3.6 万人民币，而人民币线是 3 万），所以不能
+  # 统一折一种币比。USD/CNY 各比各的，其余币种（生产上只有 2 张 EUR）折成美金比 5000。
+  # rate_for 给的是 CNY / 1 单位，两边同除以美金牌价即得美金额。
+  def usd_amount(amount, currency)
+    rate = Crm::FxRate.rate_for(currency, Date.current)
+    usd_rate = Crm::FxRate.rate_for('USD', Date.current)
+    return nil if rate.blank? || usd_rate.to_d.zero?
+
+    amount * rate.to_d / usd_rate.to_d
+  end
 
   def items_present
     errors.add(:base, '出库单至少要有一行明细') if shipment_items.reject(&:marked_for_destruction?).empty?

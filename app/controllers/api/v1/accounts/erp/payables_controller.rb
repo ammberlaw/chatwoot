@@ -42,11 +42,7 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   # 规则 2026-10-09 才上线，在那之前过账的单一张凭证都没有，而台账上又没有任何补出的
   # 入口：财务看到的就是「应付有账、总账没账」，还问不出为什么。这里把名单和原因一起给出来。
   def pending_vouchers
-    service = Erp::AutoVoucherService.new(Current.account)
-    rows = unvouchered_receipts.map do |entry|
-      { id: entry.id, entry_no: entry.entry_no, purpose: entry.purpose, posted_on: entry.posted_at&.to_date,
-        po_no: entry.purchase_order&.po_no, blocker: service.stock_receipt_voucher_blocker(entry) }
-    end
+    rows = Erp::AutoVoucherService.new(Current.account).pending_stock_receipts
     render json: { payload: rows, count: rows.size }
   end
 
@@ -209,13 +205,6 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   end
 
   # 已过账、按口径该出应付凭证、但一张也没出的入库单（采购入库 / 采购退货）。
-  def unvouchered_receipts
-    issued = Current.account.erp_vouchers.where(source_type: 'Mes::StockEntry').select(:source_id)
-    Current.account.mes_stock_entries
-           .where(purpose: Mes::StockEntry::PAYABLE_VOUCHER_PURPOSES, status: 'POSTED')
-           .where.not(id: issued).includes(:purchase_order).order(:posted_at, :id)
-  end
-
   def fetch_payable
     @payable = Current.account.erp_payables.find(params[:id])
   end

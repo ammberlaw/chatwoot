@@ -11,6 +11,7 @@
 #  extra_purchase_order_ids  :bigint           default([]), not null, is an Array
 #  is_checked                :boolean          default(FALSE), not null
 #  posted_at                 :datetime
+#  print_count               :integer          default(0), not null
 #  product_line              :string
 #  purpose                   :string           not null
 #  reject_reason             :text
@@ -70,10 +71,12 @@ class Mes::StockEntry < ApplicationRecord
   IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
   STATUSES = %w[DRAFT POSTED CANCELLED].freeze
 
-  # 原料入库的财务审核：审核通过才能过账（过账会刷库存、起应付，所以闸设在过账前）。
-  # 只管原料入库——成品入库是车间开单、仓管清点确认后直接过账，那条线不加闸。
+  # 过账前的财务审核闸。2026-10-21 财务与仓库约定**原料入库不再逐单审批**：仓管自行
+  # 过账，月底把送货单整叠转给财务核对——一张单等一次审核，生产上 40 张入库单就这么
+  # 卡在「待审核」上。清空这个清单即整条闸失效（needs_approval? 恒 false，过账按钮不再
+  # 禁用、审核/驳回按钮不再出现），审核机制本身留着：流程要收回去，把 purpose 填回来即可。
   APPROVAL_STATUSES = %w[PENDING APPROVED REJECTED].freeze
-  APPROVAL_REQUIRED_PURPOSES = %w[MATERIAL_RECEIPT].freeze
+  APPROVAL_REQUIRED_PURPOSES = [].freeze
   # 审核人按产品线配置，复用 Mes::BoardOwner（同采购审批人那套，见 Mes::PurchaseOrder）。
   APPROVER_BOARD_KEY = 'mes_stock_approver'.freeze
 

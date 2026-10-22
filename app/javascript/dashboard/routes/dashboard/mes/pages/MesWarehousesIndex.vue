@@ -22,6 +22,12 @@ const KINDS = [
   { value: 'WIP', label: '在制品仓' },
   { value: 'FINISHED', label: '成品仓' },
   { value: 'SCRAP', label: '废料仓' },
+  // 下面四类是仓库 2026-10-21 要的分类。期初导入建的那批仓（样品仓/不良品仓/
+  // 四个委外仓…）当时没有对应分类可选，类型一直空着，现在能补上了。
+  { value: 'DEFECT', label: '不良品仓' },
+  { value: 'SAMPLE', label: '样品仓' },
+  { value: 'OUTSOURCE', label: '委外仓' },
+  { value: 'OTHER', label: '其他' },
 ];
 const kindLabel = v => KINDS.find(k => k.value === v)?.label || '—';
 
@@ -49,8 +55,14 @@ onMounted(() => store.get());
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">仓库</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        仓库
+      </h1>
       <Button
         v-if="mesCan('master')"
         label="新增仓库"
@@ -61,7 +73,9 @@ onMounted(() => store.get());
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -106,8 +120,8 @@ onMounted(() => store.get());
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       title="新增仓库"

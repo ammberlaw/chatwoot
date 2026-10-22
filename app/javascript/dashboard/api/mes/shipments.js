@@ -16,6 +16,14 @@ client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 做错了要重来：退回草稿就地改 / 整张作废（作废要填原因）。
+client.revertToDraft = id => axios.post(`${client.url}/${id}/revert_to_draft`);
+client.void = (id, reason) => axios.post(`${client.url}/${id}/void`, { reason });
+
+// 批量打印后记一次打印次数（仓库每月整叠打给财务核对，要分出打过没打过）。
+client.markPrinted = ids =>
+  axios.post(`${client.url}/mark_printed`, { ids });
+
 // 销售订单一键转现货出库单（库存单轨道）。
 client.convert = payload => axios.post(`${client.url}/convert`, payload);
 

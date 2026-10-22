@@ -600,7 +600,11 @@ Rails.application.routes.draw do
                 post :return_document
                 post :reactivate
               end
-              collection { post :stage_blob }
+              # 批量打印后记一次打印次数（仓库每月整叠打给财务核对，要分出打过没打过）
+              collection do
+                post :stage_blob
+                post :mark_printed
+              end
             end
             resources :stock_balances, only: [:index]
             # 期初库存导入（上线前把仓库里的实物库存搬进来，见 Mes::StockOpeningImportService）
@@ -625,12 +629,17 @@ Rails.application.routes.draw do
                 # 财务的「出库审核」角标（ERP 侧栏用，财务不进 MES 也知道有几张等着批）。
                 get :pending_count
                 post :convert
+                # 同原料入库：批量打印后记打印次数
+                post :mark_printed
               end
               member do
                 post :notify
                 post :submit
                 post :approve
                 post :reject
+                # 做错了要重来：退回草稿改 / 整张作废（已出库的不走这里）
+                post :revert_to_draft
+                post :void
                 post :ship
               end
             end

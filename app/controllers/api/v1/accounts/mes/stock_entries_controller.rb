@@ -95,6 +95,16 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   def show; end
 
+  # 打印后记一次（同销售出库）：仓库每月整叠打给财务核对，列表上要分出哪些打过了。
+  def mark_printed
+    ids = Array(params[:ids]).map(&:to_i).select(&:positive?)
+    return render json: { payload: [] } if ids.empty?
+
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries)).where(id: ids)
+    scope.update_all('print_count = print_count + 1') # rubocop:disable Rails/SkipsModelValidations
+    render json: { payload: scope.pluck(:id, :print_count).map { |id, count| { id: id, print_count: count } } }
+  end
+
   def create
     @stock_entry = Current.account.mes_stock_entries.new(
       stock_entry_params.merge(owner_id: stock_entry_params[:owner_id] || current_user.id)

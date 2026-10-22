@@ -7,6 +7,8 @@ class Mes::StockEntryPolicy < ApplicationPolicy
 
   # 收货单暂存 blob：与建单同权（原料入库前上传留证）。
   def stage_blob? = create?
+  # 打印计数：看得到这张单就打得了（打印本身是只读动作，计数只是留个痕）。
+  def mark_printed? = true
   def update? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
   def post? = @account_user.mes_can?(:stock)
 

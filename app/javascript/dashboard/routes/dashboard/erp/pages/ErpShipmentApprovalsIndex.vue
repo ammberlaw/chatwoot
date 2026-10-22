@@ -60,6 +60,18 @@ const itemsTotal = s => {
 
 const pendingCount = computed(() => records.value.length);
 
+// 只到日，审核看的是「几号下的单、几号要交货」，时分秒是噪音。
+const day = v => (v ? String(v).slice(0, 10) : '');
+// 整行都没内容就别占那 mt-2 的空档（生产出库单常常没挂销售订单）。
+const hasOrderMeta = s =>
+  s.sales_order_amount_micros != null ||
+  s.sales_order_date ||
+  s.sales_delivery_date ||
+  s.owner_name ||
+  s.submitted_at ||
+  s.sales_order_remark ||
+  s.remark;
+
 // —— 审核通过：款没收齐要写理由 ——
 const approveDialogRef = ref(null);
 const approving = ref(null);
@@ -169,6 +181,27 @@ const submitReject = async () => {
             >
               {{ s.sales_order_no }}
             </span>
+            <!-- 没挂销售订单的生产出库单，生产单号是唯一能往回追的线索 -->
+            <span
+              v-else-if="s.production_order_no"
+              class="font-mono text-xs text-n-slate-10"
+            >
+              {{ s.production_order_no }}
+            </span>
+            <span class="text-xs text-n-slate-11">
+              业务
+              <b class="ml-0.5 text-n-slate-12">
+                {{ s.sales_owner_name || '—' }}
+              </b>
+            </span>
+            <!-- 小额单（≤5000 美金 / 3 万人民币）仓库自己就能批，不用财务逐张看。
+                 仍列在这里是留个兜底：仓库没动的，财务照样批得了。 -->
+            <span
+              v-if="s.warehouse_self_approvable"
+              class="px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+            >
+              仓库可批
+            </span>
             <span class="flex-1" />
             <Button
               label="审核通过"
@@ -184,6 +217,34 @@ const submitReject = async () => {
               size="sm"
               @click="openReject(s)"
             />
+          </div>
+
+          <!-- 单据头：本次出库往往只是整张订单的一车，财务要对得上订单总额和交期；
+               制单/提交是出了问题该找谁。备注独占一行（客户的特别交代常写在这）。 -->
+          <div
+            v-if="hasOrderMeta(s)"
+            class="flex flex-wrap items-center mt-2 text-xs gap-x-5 gap-y-1 text-n-slate-11"
+          >
+            <span v-if="s.sales_order_amount_micros != null">
+              订单金额
+              <b class="ml-1 tabular-nums text-n-slate-12">
+                {{ money(s.sales_order_amount_micros, s.sales_order_currency) }}
+              </b>
+            </span>
+            <span v-if="day(s.sales_order_date)">
+              下单 {{ day(s.sales_order_date) }}
+            </span>
+            <span v-if="day(s.sales_delivery_date)">
+              交期 {{ day(s.sales_delivery_date) }}
+            </span>
+            <span v-if="s.owner_name">制单 {{ s.owner_name }}</span>
+            <span v-if="day(s.submitted_at)">
+              提交 {{ day(s.submitted_at) }}
+            </span>
+            <span v-if="s.sales_order_remark" class="w-full">
+              订单备注 {{ s.sales_order_remark }}
+            </span>
+            <span v-if="s.remark" class="w-full">出库备注 {{ s.remark }}</span>
           </div>
 
           <!-- 收款情况：财务放不放行就看这一行 -->

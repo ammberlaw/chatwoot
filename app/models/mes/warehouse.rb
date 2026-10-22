@@ -26,7 +26,9 @@
 #  fk_rails_...  (parent_id => mes_warehouses.id) ON DELETE => nullify
 #
 class Mes::Warehouse < ApplicationRecord
-  KINDS = %w[RAW WIP FINISHED SCRAP].freeze
+  # 仓库分类。前四个是开账时自动建的；后面几个按仓库 2026-10-21 的实际分类补上
+  # （期初导入建的那批仓一直没有分类可选，只能留空）。
+  KINDS = %w[RAW WIP FINISHED SCRAP DEFECT SAMPLE OUTSOURCE OTHER].freeze
 
   # 首访自动建的 4 个默认仓（code => [name, kind]）。
   DEFAULT_WAREHOUSES = {
