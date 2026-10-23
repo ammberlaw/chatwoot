@@ -119,6 +119,9 @@ json.awaiting_bom_confirm resource.awaiting_bom_confirm?
 json.bom_confirmed_at resource.bom_confirmed_at
 json.bom_confirmed_by_name mes_staff_name(resource.bom_confirmed_by)
 json.can_return_to_sales resource.can_return_to_sales?(Current.user)
+# 「现在这个人能不能点」——带单据当下状态，不只判角色（App 据此显按钮/算待办）。
+json.can_confirm_bom resource.can_confirm_bom?(Current.account_user)
+json.can_resolve_sales_return resource.can_resolve_sales_return?(Current.account_user)
 json.sales_return_at resource.sales_return_at
 json.sales_return_reason resource.sales_return_reason
 json.sales_return_by_name mes_staff_name(resource.sales_return_by)

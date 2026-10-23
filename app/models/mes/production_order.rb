@@ -379,6 +379,25 @@ class Mes::ProductionOrder < ApplicationRecord
     bom_confirm_required? && bom_id.present? && stage == 'BOM_READY' && !bom_confirmed?
   end
 
+  # 「现在这个人能不能点这一步」——**身份与单据当下的状态，两样都要**。
+  # 只判身份的话，单子根本不在等这一步时按钮也亮着；App 拿它当待办判定，
+  # 更会把已经办完的事当成待办（Codex 2026-10-23 点名要求带状态条件）。
+  # 控制器挡写与 jbuilder 显按钮共用这两个谓词，不各写一份。
+  def can_confirm_bom?(account_user)
+    awaiting_bom_confirm? && owner_or_admin?(account_user)
+  end
+
+  def can_resolve_sales_return?(account_user)
+    awaiting_sales_confirm? && owner_or_admin?(account_user)
+  end
+
+  # 这两步都是「业务把细节定下来」，只有这张单的归属业务员本人说了算；管理员/副管兜底。
+  def owner_or_admin?(account_user)
+    return false if account_user.blank?
+
+    account_user.administrator? || account_user.crm_deputy_admin? || owner_id == account_user.user_id
+  end
+
   # 业务点「确认用料无误」。确认完工程/PMC 才能把单下发给采购。
   def confirm_bom!(actor:)
     raise StandardError, '库存备货单没有客户，不需要业务确认用料' unless bom_confirm_required?

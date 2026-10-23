@@ -438,7 +438,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   # 业务补完细节点「已确认」：解除退回，通知退单的人可以接着做。
+  # 权限与 confirm_bom 同口径——这一步是「业务把细节定下来」，只有这张单的归属业务员
+  # 本人（或管理员）说了算。原先控制器一道判定都没有：任何能调到这个接口的人都能
+  # 替别人把退回点成已确认，退单的工程/PMC 就以为细节谈妥了、照着往下做。
   def resolve_sales_return
+    return render json: { error: '只有这张单的归属业务员能确认退回' }, status: :forbidden unless can_resolve_sales_return?
+
     @production_order.resolve_sales_return!(actor: current_user)
     render 'api/v1/accounts/mes/production_orders/show'
   rescue ArgumentError => e
@@ -653,9 +658,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
   end
 
-  def can_confirm_bom?
-    admin_like? || @production_order.owner_id == current_user.id
-  end
+  # 判定收在模型（Mes::ProductionOrder#can_confirm_bom? / #can_resolve_sales_return?），
+  # 控制器挡写与 jbuilder 显按钮共用同一处，不各写一份。
+  def can_confirm_bom? = @production_order.can_confirm_bom?(Current.account_user)
+  def can_resolve_sales_return? = @production_order.can_resolve_sales_return?(Current.account_user)
 
   # 能否审批当前环节：管理员，或本环节指定审批人本人。
   # 回避：上一级已经是我批的，这一级就不给我点了——一个人连批两级等于这道闸没有。
