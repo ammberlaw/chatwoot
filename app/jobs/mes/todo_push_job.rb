@@ -34,15 +34,50 @@ class Mes::TodoPushJob < ApplicationJob
   # 对通知脱敏，真正该处理的反而被淹掉（gm_approve! 里不发通过知会是同一个道理）。
   ACTIONABLE_GROUPS = %w[todo rejected].freeze
 
+  # 这些 kind 在统一可办出口（Mes::TodoList）里有对应的 action_type，
+  # 重试时可以按「这个人现在还有没有这件事要办」精确复核。
+  # 没列进来的（待下发采购、成品待清点、单据被退回等）出口还没覆盖，
+  # 维持原有判定——宁可多推一条，也不能因为出口没覆盖就把人家的推送静默掐掉。
+  KIND_TO_ACTION = {
+    'approval_pending' => 'production_approval',
+    'stage_assigned' => 'stage_ack',
+    'bom_reconfirm' => 'confirm_bom',
+    'sales_return_pending' => 'sales_return_confirm',
+    'po_approval_pending' => 'purchase_approval',
+    'shipment_approval_pending' => 'shipment_approval'
+  }.freeze
+
   def pushable?(note)
     # 已办结就别再吵人。read_at 是 Mes::Notifier.resolve 在真正的办结动作
     # （审批通过/驳回、确认 BOM、接单、出库）时打的，不是「点开看过」。
-    # 正常路径上 job 几毫秒就跑了，这条是给失败重试用的——DeliveryError 退避重试
-    # 最多跨好几分钟，那期间这件事很可能已经有人处理掉了。
     return false if note.read_at.present?
     return false if Mes::Notification::ERP_KINDS.include?(note.kind)
     return false unless ACTIONABLE_GROUPS.include?(Mes::Notification::GROUP_BY_KIND[note.kind])
+    return false unless AccountUser.exists?(account_id: note.account_id, user_id: note.recipient_id,
+                                            deactivated_at: nil)
 
-    AccountUser.exists?(account_id: note.account_id, user_id: note.recipient_id, deactivated_at: nil)
+    still_actionable?(note)
+  end
+
+  # 重试前按**当下**复核：这个人现在还有没有这件事要办。
+  #
+  # read_at 只能告诉我们「有没有人办结」，告不了「这个人还有没有权限办」。
+  # DeliveryError 退避重试最多跨好几分钟，那期间审批可能流转到下一级、阶段负责人
+  # 可能换人、这个人可能被撤权——再推给他，他点开也办不了。
+  #
+  # 只在重试时跑：首次执行就在通知落库后几毫秒，状态不可能变，而建一次 TodoList
+  # 要好几次查询，没必要摊到正常路径上。
+  def still_actionable?(note)
+    return true if executions <= 1
+
+    action = KIND_TO_ACTION[note.kind]
+    return true if action.nil?
+
+    au = AccountUser.find_by(account_id: note.account_id, user_id: note.recipient_id, deactivated_at: nil)
+    Mes::TodoList.new(account: note.account, account_user: au).items.any? do |i|
+      # 按单号比对：通知标题里一定带着单号（「待审核：生产出库 DN-20261022-02」），
+      # 这也是 Mes::Notifier.resolve 认单的同一套办法（title_like）。
+      i[:action_type] == action && i[:subject_no].present? && note.title.to_s.include?(i[:subject_no])
+    end
   end
 end
