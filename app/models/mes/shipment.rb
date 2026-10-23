@@ -103,14 +103,30 @@ class Mes::Shipment < ApplicationRecord
   # 没配回落到财务 + 管理员/副管——同原料入库那套（Mes::StockEntry.approver?）。
   APPROVER_BOARD_KEY = 'mes_shipment_approver'.freeze
 
+  # 谁能审出库单。按人问走 approver?，取全量走 approver_ids——**两个必须同一口径**：
+  # 一个管挡写和显按钮，一个管发待审核通知，分家就会出现「通知发给了 A，A 点进去 403」
+  # 或者反过来（2026-10-23 之前就是反过来：通知的收件人是提交时刚被置空的 manager_id，
+  # 于是八张单提交审核、一条通知都没发出去，有张单在那儿挂了一天多没人知道）。
+  def self.approver_ids(account)
+    configured = account.mes_board_owners.where(board_key: APPROVER_BOARD_KEY)
+                        .pluck(:manager_ids).flatten.compact.uniq
+    return configured if configured.any?
+
+    # 没配审核人时回落财务 + 管理员/副管。crm_finance? 把管理员也算进财务，
+    # 这里的三个条件与它展开后完全对应。
+    account.account_users.active_members
+           .where(role: roles_administrator)
+           .or(account.account_users.active_members.where(crm_finance: true))
+           .or(account.account_users.active_members.where(crm_role: 'deputy_admin'))
+           .pluck(:user_id).uniq
+  end
+
+  def self.roles_administrator = AccountUser.roles[:administrator]
+
   def self.approver?(account, account_user)
     return false if account_user.blank?
 
-    configured = account.mes_board_owners.where(board_key: APPROVER_BOARD_KEY)
-                        .pluck(:manager_ids).flatten.compact.uniq
-    return configured.include?(account_user.user_id) if configured.any?
-
-    account_user.administrator? || account_user.crm_deputy_admin? || account_user.crm_finance?
+    approver_ids(account).include?(account_user.user_id)
   end
 
   # 出库审批的金额闸（2026-10-21 陈总与财务定）：订单货款不超过 5000 美金 / 3 万人民币的，
@@ -442,11 +458,29 @@ class Mes::Shipment < ApplicationRecord
     notify_warehouse_ready
   end
 
+  # 待审核通知的收件人 = **这张单实际能审的人**，与 approver_for? 同一口径。
+  # 小额单仓库自己批（2026-10-21 定的金额闸），就别再去吵财务——那道闸本来就是
+  # 为了把 33 张里的 26 张从财务台上拿走的，照样通知等于白设。
+  def approval_notify_ids
+    ids = if warehouse_self_approvable?
+            account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
+          else
+            self.class.approver_ids(account)
+          end
+    ids = (ids.map(&:to_i) - [owner_id]).uniq # 自己提交的单不用通知自己
+    # 兜底：算下来一个人都没有（板块负责人没配、或唯一的负责人正好就是提交人自己——
+    # 生产上出库板块负责人就是提交这张单的人）时回落到审核人组。这张单照样等着人审，
+    # 宁可多吵一个人，也绝不能又变成「通知零人」。
+    ids.presence || (self.class.approver_ids(account) - [owner_id]).uniq
+  end
+
   def notify_approval_pending
+    who = warehouse_self_approvable? ? '仓库' : '财务'
     Mes::Notifier.notify(
-      account: account, recipients: manager_id, kind: 'shipment_approval_pending',
-      title: "待审核：现货出库 #{shipment_no}",
-      body: "#{owner&.name || '业务员'} 提交了现货出库单，待你（部门主管）审核。"
+      account: account, recipients: approval_notify_ids, kind: 'shipment_approval_pending',
+      title: "待审核：#{stock? ? '现货' : '生产'}出库 #{shipment_no}",
+      body: "#{owner&.name || '业务员'} 提交了出库单，待你（#{who}）审核。",
+      order: production_order
     )
   end
 
