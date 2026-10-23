@@ -1,6 +1,10 @@
 class Api::V1::Accounts::Mes::StockBalancesController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
 
+  # 可直接等值过滤的查询参数。crm_product_id 是给出库弹窗用的：只取这一个编码的
+  # 原料存货，不必把一千多条原料结存整个拉下来（见 MesShipmentsIndex 的 materialHint）。
+  EQ_FILTERS = %i[item_type crm_product_id warehouse_id].freeze
+
   def index
     @balances = filtered_scope.to_a
     @balances = @balances.select(&:short?) if params[:short] == 'true'
@@ -14,8 +18,7 @@ class Api::V1::Accounts::Mes::StockBalancesController < Api::V1::Accounts::Mes::
     scope = scoped_by_product_line(
       Current.account.mes_stock_balances.includes(:mes_material, :crm_product, :warehouse).where('qty <> 0')
     )
-    scope = scope.where(item_type: params[:item_type]) if params[:item_type].present?
-    scope = scope.where(warehouse_id: params[:warehouse_id]) if params[:warehouse_id].present?
+    EQ_FILTERS.each { |key| scope = scope.where(key => params[key]) if params[key].present? }
     scope = search(scope) if params[:q].present?
     scope
   end

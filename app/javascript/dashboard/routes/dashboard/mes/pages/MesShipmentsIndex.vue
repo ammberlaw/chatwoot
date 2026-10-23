@@ -281,6 +281,26 @@ const stockFor = (productId, warehouseId) => {
   );
 };
 
+// 这个编码在**原料账**上的存货。出库只扣成品账（ensure_stock_sufficient! 写死
+// item_type='PRODUCT'），而买来的屏这类货常常既是原料又是成品——有时装机，有时
+// 直接转手卖。成品账是 0、原料仓却堆着货时必须把这句话说出来：人在库存结存页
+// 明明看到原料仓有 160 片，这里只写「可用 0」，只会以为系统算错了
+// （2026-10-23 就为这个连开了两张出不掉的单）。
+const materialStock = ref([]);
+const loadMaterialStock = async productId => {
+  materialStock.value = [];
+  if (!productId) return;
+
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/stock_balances`,
+      { params: { item_type: 'MATERIAL', crm_product_id: productId } }
+    );
+    materialStock.value = data?.payload || [];
+  } catch {
+    materialStock.value = [];
+  }
+};
 // ── 生产出库（仓库从生产订单开单；草稿可编辑）──
 const dialogRef = ref(null);
 const editingId = ref(null); // 非空=编辑现有草稿出库单
@@ -309,6 +329,7 @@ const onPickOrder = v => {
     : '';
   form.crmProductId = po.crm_product_id ? String(po.crm_product_id) : '';
   form.productName = po.product_name || '';
+  loadMaterialStock(form.crmProductId);
   // 默认出库数量 = 该成品可用现货（物理结存，真实可发货量），无现货数据时退回订单数量。
   // 不用 produced_qty——报工可能重复/超报被灌大（曾出现订单 104、produced_qty 却 304）。
   const avail = form.crmProductId
@@ -334,6 +355,18 @@ const availableInWarehouse = computed(() =>
 const overAvailable = computed(
   () => Number(form.qty) > Number(availableInWarehouse.value)
 );
+// 只在「成品确实没有」时提示，有货时不添乱。
+const materialHint = computed(() => {
+  if (!form.crmProductId || Number(availableInWarehouse.value) > 0) return '';
+
+  const rows = materialStock.value.filter(b => Number(b.qty) > 0);
+  if (!rows.length) return '';
+
+  const where = rows
+    .map(b => `${b.warehouse_name || '原料仓'} ${Number(b.qty)}`)
+    .join('、');
+  return `· 原料账有货（${where}），需先转成成品才能出货`;
+});
 // 换仓库时把数量重置成该仓的可用量，省得人工算。
 const onPickWarehouse = value => {
   form.warehouseId = value;
@@ -1157,8 +1190,11 @@ onMounted(() => {
             v-if="form.crmProductId && form.warehouseId"
             :class="overAvailable ? 'text-n-ruby-11' : 'text-n-slate-10'"
           >
-            · 该仓可用 {{ availableInWarehouse }}
+            · 该仓成品可用 {{ availableInWarehouse }}
           </span>
+          <span v-if="materialHint" class="text-n-amber-11">{{
+            materialHint
+          }}</span>
         </p>
       </div>
     </Dialog>
