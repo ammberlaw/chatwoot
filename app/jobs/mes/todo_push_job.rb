@@ -32,6 +32,11 @@ class Mes::TodoPushJob < ApplicationJob
   ACTIONABLE_GROUPS = %w[todo rejected].freeze
 
   def pushable?(note)
+    # 已办结就别再吵人。read_at 是 Mes::Notifier.resolve 在真正的办结动作
+    # （审批通过/驳回、确认 BOM、接单、出库）时打的，不是「点开看过」。
+    # 正常路径上 job 几毫秒就跑了，这条是给失败重试用的——DeliveryError 退避重试
+    # 最多跨好几分钟，那期间这件事很可能已经有人处理掉了。
+    return false if note.read_at.present?
     return false if Mes::Notification::ERP_KINDS.include?(note.kind)
     # entity_id 必须是正整数，App 端缺了会整条丢弃；而 mes_todo 点开要落到
     # 生产待办列表，挂不上订单的那几类（现货出库审批回执等）本来也不在那张列表里。
