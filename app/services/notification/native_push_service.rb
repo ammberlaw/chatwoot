@@ -14,6 +14,8 @@ class Notification::NativePushService
   DEFAULT_ALERT = { title: 'WINTOUCH 新消息', body: '你收到一条新消息，打开 App 查看。' }.freeze
   ALERTS = {
     'sales_order_approval' => { title: 'WINTOUCH 待审批提醒', body: '有一张销售订单等你审核，打开 App 查看。' },
+    # 审核结果（通过/驳回，推给业务员）。同 approval_result：载荷 kind 不变，只换锁屏。
+    'sales_order_result' => { title: 'WINTOUCH 审核结果', body: '你的一张销售订单有了审核结果，打开 App 查看。' },
     'approval' => { title: 'WINTOUCH 待审批提醒', body: '有一条审批等你处理，打开 App 查看。' },
     # 结果类（通过/驳回/撤回，推给申请人）。载荷里的 kind 仍是 approval——App 白名单只认那个——
     # 这里只换锁屏文案：单子已经办完了还说「等你处理」，点开发现没事可做。
