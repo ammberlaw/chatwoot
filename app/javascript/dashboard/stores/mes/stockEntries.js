@@ -36,6 +36,19 @@ export const useMesStockEntriesStore = createStore({
       }
     },
 
+    // 原料↔成品转换：后端建单即过账，返回那张单。
+    async convert(payload) {
+      this.setUIFlag({ creatingItem: true });
+      try {
+        const { data } = await MesStockEntryAPI.convert(payload);
+        return camelize(data);
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ creatingItem: false });
+      }
+    },
+
     async create(obj) {
       this.setUIFlag({ creatingItem: true });
       try {

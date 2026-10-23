@@ -365,7 +365,8 @@ const materialHint = computed(() => {
   const where = rows
     .map(b => `${b.warehouse_name || '原料仓'} ${Number(b.qty)}`)
     .join('、');
-  return `· 原料账有货（${where}），需先转成成品才能出货`;
+  // 指路到人不到页面：转换是仓管的动作（mes_can?(:stock)），开出库单的业务员点进去也转不了。
+  return `· 原料账有货（${where}），需仓管先在「原料成品转换」里转成成品才能出货`;
 });
 // 换仓库时把数量重置成该仓的可用量，省得人工算。
 const onPickWarehouse = value => {

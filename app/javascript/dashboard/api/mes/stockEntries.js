@@ -23,6 +23,9 @@ client.approve = id => axios.post(`${client.url}/${id}/approve`);
 client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 
+// 原料↔成品转换：建单即过账，一张单两行（见 Mes::StockConvertService）。
+client.convert = payload => axios.post(`${client.url}/convert`, payload);
+
 // 收货单文件暂存为 blob，返回 signed_id（原料入库必传）。
 client.stageBlob = formData =>
   axios.post(`${client.url}/stage_blob`, formData, {

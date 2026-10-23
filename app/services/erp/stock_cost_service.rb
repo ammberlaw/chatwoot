@@ -25,7 +25,14 @@ class Erp::StockCostService
   end
 
   # 过账后调用：入库建层 / 出库耗层。返回本单成品成本合计（micros，出库为正数）。
+  # 原料↔成品转换：**成本层不动**。层按 (商品, 仓库) 记、没有 item_type，MES 那两本数量账
+  # 共用同一批层——货还在同一个仓、还是同一批，只是在 MES 里换了个身份。这里再建层/扣层，
+  # 同一批货的成本就被算两遍（而且会打乱 FIFO 的先后次序）。
+  CONVERT_PURPOSES = %w[CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL].freeze
+
   def sync_entry!(entry)
+    return 0 if CONVERT_PURPOSES.include?(entry.purpose)
+
     case entry.purpose
     when MATERIAL_ISSUE then material_items(entry).sum { |item| consume!(entry, item) }
     when MATERIAL_RETURN then return_materials!(entry)
@@ -36,6 +43,8 @@ class Erp::StockCostService
   # 作废：入库单撤层（已被出库消耗过的层不能撤——货都发出去了，撤层会让后续成本算错）；
   # 出库单按消耗记录原样还回各层。
   def reverse_entry!(entry)
+    return if CONVERT_PURPOSES.include?(entry.purpose) # 过账时没动层，作废自然也没得回滚
+
     # 领料作废＝把扣掉的层原样还回；退料作废＝撤掉回库建的那些层。
     if IN_PURPOSES.include?(entry.purpose) || entry.purpose == MATERIAL_RETURN
       revert_layers!(entry)

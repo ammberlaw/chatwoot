@@ -479,6 +479,7 @@
     "MES_SERIAL_NUMBERS": "SN 追溯",
     "MES_SHIPMENTS": "销售出库",
     "MES_STOCK_BALANCES": "库存",
+    "MES_STOCK_CONVERSIONS": "原料成品转换",
     "MES_SUPPLIER_RETURNS": "退料返修",
     "MES_MATERIALS": "物料",
     "MES_SUPPLIERS": "供应商",

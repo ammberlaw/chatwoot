@@ -67,8 +67,22 @@ class Mes::StockEntry < ApplicationRecord
   # 给谁都不是的供应商凭空挂一笔应付。期初只加结存、记流水，不出凭证、不绑生产订单、
   # 不推阶段（故 FLOW_MIN_STAGE / STAGE_ADVANCE / PAYABLE_VOUCHER_PURPOSES 都不收录它），
   # 成本层也不建——成品的 FIFO 期初要带单价，走 Erp::StockOpeningImportService 单独导。
-  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT OPENING].freeze
+  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT OPENING
+                CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL].freeze
   IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
+
+  # ── 原料↔成品转换 ─────────────────────────────────────────────
+  # 同一个编码在 MES 里有两本数量账（item_type=MATERIAL / PRODUCT）：采购入库永远落原料账，
+  # 销售出库永远从成品账扣。整机外购转卖、或同一个屏既当零件又整台卖的货，买进来在原料账、
+  # 要卖却得从成品账扣，中间缺一个换身份的动作——以前只能手开两张互不相干的单，台账上看着
+  # 像「原料莫名少了、成品莫名多了」。
+  #
+  # 转换单一单两行：同一个商品、同一个仓库，一行 MATERIAL 一行 PRODUCT，数量相等，
+  # 方向由 purpose 定（转成品=成品进原料出，转原料=反过来）。
+  #
+  # ⚠️ 成本层(erp_stock_layers)一根手指都不碰：层按 (商品, 仓库) 记、**没有 item_type**，
+  # 两本数量账共用同一批层。转换时再建层/扣层就是把同一批货的成本算两遍。
+  CONVERT_PURPOSES = %w[CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL].freeze
   STATUSES = %w[DRAFT POSTED CANCELLED].freeze
 
   # 过账前的财务审核闸。2026-10-21 财务与仓库约定**原料入库不再逐单审批**：仓管自行
@@ -109,6 +123,7 @@ class Mes::StockEntry < ApplicationRecord
   validates :purpose, inclusion: { in: PURPOSES }
   validates :status, inclusion: { in: STATUSES }
   validate :enforce_flow_prerequisite, on: :create
+  validate :enforce_convert_pairing
   # 建单当场拦重复/超量成品入库：当面说清「已入 X/Y」，而不是放它存下去、几天后在仓管那儿爆。
   validate :enforce_fg_inbound_quota, on: :create
 
@@ -276,7 +291,7 @@ class Mes::StockEntry < ApplicationRecord
       raise StandardError, '单据尚未过账，草稿可直接删除、无需作废' unless status == 'POSTED'
 
       ts = Time.current
-      stock_entry_items.each { |item| move_stock!(item, ts, -direction_sign) }
+      stock_entry_items.each { |item| move_stock!(item, ts, -line_sign(item)) }
       # 作废原料入库：对称回退采购单收货量与在途（正向 sync_purchase_receipt! 累加过，作废须冲回）。
       reverse_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
       revert_production_order_stage_on_void(ts)
@@ -297,6 +312,38 @@ class Mes::StockEntry < ApplicationRecord
     Erp::StockCostService.new(account).sync_entry!(self)
   rescue StandardError => e
     Rails.logger.error("[Erp::StockCost] 库存单 #{entry_no} 成本核算失败: #{e.message}")
+  end
+
+  # 转换单的两行必须真正配成一对：同商品、同仓库、一进一出、数量相等。
+  # 不配对就不是「换身份」而是凭空增减库存——两本账会从此对不上，且没人知道该信哪本。
+  def enforce_convert_pairing
+    return unless CONVERT_PURPOSES.include?(purpose)
+
+    rows = stock_entry_items.reject(&:marked_for_destruction?)
+    blocker = convert_rows_blocker(rows)
+    return errors.add(:base, blocker) if blocker
+
+    rows.group_by { |i| [i.crm_product_id, i.warehouse_id] }.each_value { |pair| validate_convert_pair(pair) }
+  end
+
+  def convert_rows_blocker(rows)
+    return '转换单至少要有一个商品' if rows.empty?
+    return '转换单只认商品档（不支持物料档条目）' if rows.any? { |i| i.crm_product_id.blank? }
+
+    nil
+  end
+
+  def validate_convert_pair(pair)
+    by_type = pair.group_by(&:item_type)
+    name = item_display_name(pair.first)
+    return errors.add(:base, "#{name}：转换单每个商品要一行原料、一行成品") unless
+      by_type.keys.sort == %w[MATERIAL PRODUCT] && pair.size == 2
+
+    out_qty = by_type['MATERIAL'].first.effective_qty
+    in_qty = by_type['PRODUCT'].first.effective_qty
+    return errors.add(:base, "#{name}：转换数量要大于 0") unless out_qty.positive?
+
+    errors.add(:base, "#{name}：转换前后数量必须一致（原料 #{fnum(out_qty)}、成品 #{fnum(in_qty)}）") if out_qty != in_qty
   end
 
   # 流程硬锁校验：越级开下游单直接拦下（前端也会隐藏不可选订单，此处为后端兜底）。
@@ -395,9 +442,10 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   def post_item(item, timestamp)
-    balance_after = move_stock!(item, timestamp, direction_sign)
+    sign = line_sign(item)
+    balance_after = move_stock!(item, timestamp, sign)
     # 出库兜底：持锁扣减后结存为负=超领/超发，抛错回滚整单(领料/报废/出库),杜绝负库存。
-    return unless direction_sign == -1 && balance_after.negative?
+    return unless sign == -1 && balance_after.negative?
 
     raise StandardError, "#{item_display_name(item)} 库存不足（扣减后结存 #{fnum(balance_after)}），无法过账"
   end
@@ -425,9 +473,7 @@ class Mes::StockEntry < ApplicationRecord
 
   # 出库(领料/报废/出库)过账前预检结存充足，一次性列出所有缺料，避免超领把库存刷成负数。
   def ensure_stock_available_for_out!
-    return unless direction_sign == -1
-
-    shortages = stock_entry_items.filter_map do |item|
+    shortages = outgoing_items.filter_map do |item|
       wh = item.warehouse_id || default_warehouse_id
       bal = account.mes_stock_balances.find_by(
         item_type: item.item_type, mes_material_id: item.mes_material_id,
@@ -439,6 +485,11 @@ class Mes::StockEntry < ApplicationRecord
       "#{item_display_name(item)}（结存 #{fnum(on_hand)}，需 #{fnum(item.effective_qty)}）"
     end
     raise StandardError, "库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
+  end
+
+  # 要扣库存的那些行。整单同向的 purpose 要么全是、要么一行没有；转换单一单两行各占一个方向。
+  def outgoing_items
+    stock_entry_items.select { |item| line_sign(item) == -1 }
   end
 
   # 作废回退阶段：仅当生产订单仍停在本单过账时推进到的阶段（to_stage）、
@@ -476,6 +527,14 @@ class Mes::StockEntry < ApplicationRecord
 
   def direction_sign
     IN_PURPOSES.include?(purpose) ? 1 : -1
+  end
+
+  # 转换单一单两行、方向相反，所以符号要按行算，不能按单算。其余 purpose 整单同向。
+  def line_sign(item)
+    return direction_sign unless CONVERT_PURPOSES.include?(purpose)
+
+    gains = purpose == 'CONVERT_TO_PRODUCT' ? 'PRODUCT' : 'MATERIAL'
+    item.item_type == gains ? 1 : -1
   end
 
   def default_warehouse_id

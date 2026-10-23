@@ -606,6 +606,8 @@ Rails.application.routes.draw do
               collection do
                 post :stage_blob
                 post :mark_printed
+                # 原料↔成品转换（建单即过账，见 Mes::StockConvertService）
+                post :convert
               end
             end
             resources :stock_balances, only: [:index]

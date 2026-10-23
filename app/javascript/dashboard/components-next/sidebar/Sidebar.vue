@@ -1473,6 +1473,7 @@ const menuItems = computed(() => {
           'mes_stock_entries_index',
           'mes_supplier_returns_index',
           'mes_stock_balances_index',
+          'mes_stock_conversions_index',
           'mes_warehouses_index',
           'mes_serial_numbers_index',
           'mes_material_issues_index',
@@ -1598,6 +1599,13 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_STOCK_BALANCES'),
             to: accountScopedRoute('mes_stock_balances_index'),
             activeOn: ['mes_stock_balances_index'],
+          },
+          // 原料↔成品转换：紧挨着结存放，看到哪本账没货就在旁边转。
+          {
+            name: 'MES Stock Conversions',
+            label: t('SIDEBAR.MES_STOCK_CONVERSIONS'),
+            to: accountScopedRoute('mes_stock_conversions_index'),
+            activeOn: ['mes_stock_conversions_index'],
           },
           // 退料返修：退给供应商修的料，紧挨着入库/库存放（都是料的进出）。
           {
@@ -2362,6 +2370,7 @@ const ROUTE_MODULE = {
   mes_materials_index: 'mes',
   mes_warehouses_index: 'mes',
   mes_stock_balances_index: 'mes',
+  mes_stock_conversions_index: 'mes',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 

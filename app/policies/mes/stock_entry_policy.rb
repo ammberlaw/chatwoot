@@ -12,6 +12,9 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   def update? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
   def post? = @account_user.mes_can?(:stock)
 
+  # 原料↔成品转换（建单即过账）：仓管（stock）能力，同过账。
+  def convert? = @account_user.mes_can?(:stock)
+
   # 仓库清点确认（确认即过账）：仓管（stock）能力。
   def confirm_warehouse? = @account_user.mes_can?(:stock)
 

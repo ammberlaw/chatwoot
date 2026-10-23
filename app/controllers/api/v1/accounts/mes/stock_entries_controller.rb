@@ -87,13 +87,28 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   def index
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries))
-    COLUMN_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
+    # 值按逗号拆：转换记录列表要一次查「转成品 + 转原料」两个 purpose。
+    # 单值拆出来是一元数组，where(col => [v]) 与 where(col => v) 等价，其余筛选不受影响。
+    COLUMN_FILTERS.each do |param, column|
+      scope = scope.where(column => params[param].to_s.split(',')) if params[param].present?
+    end
     scope = apply_column_filters(scope)
     @stock_entries_count = scope.count
     @stock_entries = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end
+
+  # 原料↔成品转换：建单即过账，一张单两行（见 Mes::StockConvertService）。
+  def convert
+    @stock_entry = Mes::StockConvertService.new(
+      account: Current.account, actor: current_user, direction: params[:direction],
+      warehouse_id: params[:warehouse_id], lines: convert_lines, remark: params[:remark]
+    ).perform
+    render :show
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
 
   # 打印后记一次（同销售出库）：仓库每月整叠打给财务核对，列表上要分出哪些打过了。
   def mark_printed
@@ -254,6 +269,10 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     end
 
     items.each { |i| i.crm_product_id = pid }
+  end
+
+  def convert_lines
+    Array(params[:lines]).map { |l| l.permit(:crm_product_id, :qty).to_h.symbolize_keys }
   end
 
   def stock_entry_params

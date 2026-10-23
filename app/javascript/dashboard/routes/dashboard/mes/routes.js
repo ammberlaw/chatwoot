@@ -22,6 +22,7 @@ import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
 import MesShipmentsIndex from './pages/MesShipmentsIndex.vue';
 import MesNotificationsIndex from './pages/MesNotificationsIndex.vue';
 import MesStockBalancesIndex from './pages/MesStockBalancesIndex.vue';
+import MesStockConversionsIndex from './pages/MesStockConversionsIndex.vue';
 import MesWarehousesIndex from './pages/MesWarehousesIndex.vue';
 import MesSerialNumbersIndex from './pages/MesSerialNumbersIndex.vue';
 
@@ -106,6 +107,11 @@ export const routes = [
   mesPage('shipments', 'mes_shipments_index', MesShipmentsIndex),
   mesPage('notifications', 'mes_notifications_index', MesNotificationsIndex),
   mesPage('stock-balances', 'mes_stock_balances_index', MesStockBalancesIndex),
+  mesPage(
+    'stock-conversions',
+    'mes_stock_conversions_index',
+    MesStockConversionsIndex
+  ),
   mesPage('warehouses', 'mes_warehouses_index', MesWarehousesIndex),
   mesPage('serial-numbers', 'mes_serial_numbers_index', MesSerialNumbersIndex),
 ];
