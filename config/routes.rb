@@ -655,6 +655,8 @@ Rails.application.routes.draw do
                 get :inbox
                 get :approval_inbox
                 get :todo_count
+                # 「我现在能办的事」统一出口（见 Mes::TodoList）
+                get :todos
                 post :stage_blob
                 # 成本导出（财务月度核算底稿：汇总页 + 用料明细页）
                 get :cost_export

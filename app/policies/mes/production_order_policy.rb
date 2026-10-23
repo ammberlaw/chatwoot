@@ -27,6 +27,9 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def deny? = true
   def approval_inbox? = true
   def todo_count? = true
+  # 统一待办：只返回这个人自己能办的（Mes::TodoList 内部逐条过各自谓词），
+  # 所以这道门放开即可，收口在服务里。⚠️ Pundit 按 action 名找方法，少一个就是 500。
+  def todos? = true
 
   # 建单/编辑放开给 CRM 业务角色——业务员建定制单走「草稿→三级审批」流转；
   # 无 :order 能力者仅限本人草稿+按单生产（控制器 ensure_own_draft! 收紧）。
