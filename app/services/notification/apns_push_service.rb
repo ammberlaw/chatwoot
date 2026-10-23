@@ -29,7 +29,7 @@ class Notification::ApnsPushService
     end
   end
 
-  def send_message(token:, attributes:, data:)
+  def send_message(token:, attributes:, data:, alert: nil)
     environment = attributes.fetch('environment')
     host = environment == 'development' ? 'api.sandbox.push.apple.com' : 'api.push.apple.com'
     headers = {
@@ -37,7 +37,7 @@ class Notification::ApnsPushService
       'apns-push-type' => 'alert', 'apns-priority' => '10', 'apns-expiration' => (Time.now.to_i + 3600).to_s,
       'apns-collapse-id' => "#{data[:kind]}-#{data[:message_id]}"
     }
-    alert = Notification::NativePushService.alert_for(data[:kind])
+    alert ||= Notification::NativePushService.alert_for(data[:kind])
     payload = data.merge(aps: { alert: { title: alert[:title], body: alert[:body] }, sound: 'default' })
     response = Notification::NativePushService.http.with(ssl: { alpn_protocols: ['h2'] }, fallback_protocol: 'h2')
                                               .post("https://#{host}/3/device/#{token}", headers: headers, json: payload)

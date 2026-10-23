@@ -4,8 +4,11 @@
 # 既有的判定——那套口径同时供 inbox / approval_inbox / 出库审批 / todo_count 用，
 # 另写一份迟早和它们对不上（「角标说 3 条、点进去 2 条」）。
 #
-# message_id 用通知记录自己的 id：天然持久化，而且同一张单、同一阶段、不同收件人
-# 各是一条记录，推送去重键因此自动区分到人，不会出现甲已读把乙的推送也去掉。
+# entity_id / message_id 都用通知记录自己的 id：天然持久化，而且同一张单、同一阶段、
+# 不同收件人各是一条记录，推送去重键因此自动区分到人，不会出现甲已读把乙的推送也去掉。
+# 不用 production_order_id——点开 mes_todo 固定落 /mes/todo 由服务端重载当前用户待办，
+# 根本不拿 entity_id 寻址；而现货出库、现货采购这些待办压根不挂生产订单，
+# 拿它当 entity_id 等于把这些人的推送全掐掉。
 class Mes::TodoPushJob < ApplicationJob
   queue_as :default
   retry_on Notification::NativePushService::DeliveryError, wait: :polynomially_longer, attempts: 5
@@ -19,7 +22,7 @@ class Mes::TodoPushJob < ApplicationJob
 
       Notification::NativePushService.new.deliver(
         subscription: subscription, account_id: note.account_id, user_id: note.recipient_id,
-        kind: 'mes_todo', entity_id: note.production_order_id, message_id: note.id
+        kind: 'mes_todo', entity_id: note.id, message_id: note.id
       )
     end
   end
@@ -38,9 +41,6 @@ class Mes::TodoPushJob < ApplicationJob
     # 最多跨好几分钟，那期间这件事很可能已经有人处理掉了。
     return false if note.read_at.present?
     return false if Mes::Notification::ERP_KINDS.include?(note.kind)
-    # entity_id 必须是正整数，App 端缺了会整条丢弃；而 mes_todo 点开要落到
-    # 生产待办列表，挂不上订单的那几类（现货出库审批回执等）本来也不在那张列表里。
-    return false if note.production_order_id.blank?
     return false unless ACTIONABLE_GROUPS.include?(Mes::Notification::GROUP_BY_KIND[note.kind])
 
     AccountUser.exists?(account_id: note.account_id, user_id: note.recipient_id, deactivated_at: nil)

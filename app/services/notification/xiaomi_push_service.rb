@@ -4,8 +4,8 @@ class Notification::XiaomiPushService
     { enabled: enabled, app_id: ENV['XIAOMI_APP_ID'].to_s }
   end
 
-  def send_message(token:, attributes:, data:)
-    alert = Notification::NativePushService.alert_for(data[:kind])
+  def send_message(token:, attributes:, data:, alert: nil)
+    alert ||= Notification::NativePushService.alert_for(data[:kind])
     form = { registration_id: token, restricted_package_name: 'com.wintouchspace.app',
              title: alert[:title], description: alert[:body], payload: data.to_json,
              time_to_live: 3_600_000, notify_type: -1, 'extra.notify_effect' => '2',

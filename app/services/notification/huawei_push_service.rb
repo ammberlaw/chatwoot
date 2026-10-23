@@ -16,8 +16,8 @@ class Notification::HuaweiPushService
     end
   end
 
-  def send_message(token:, attributes:, data:)
-    alert = Notification::NativePushService.alert_for(data[:kind])
+  def send_message(token:, attributes:, data:, alert: nil)
+    alert ||= Notification::NativePushService.alert_for(data[:kind])
     payload = { message: { token: [token], data: data.to_json,
                           notification: { title: alert[:title], body: alert[:body] },
                           android: { ttl: '3600s', category: 'IM',

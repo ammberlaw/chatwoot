@@ -19,8 +19,8 @@ class Notification::OppoPushService
     end
   end
 
-  def send_message(token:, attributes:, data:)
-    alert = Notification::NativePushService.alert_for(data[:kind])
+  def send_message(token:, attributes:, data:, alert: nil)
+    alert ||= Notification::NativePushService.alert_for(data[:kind])
     notification = { app_message_id: Digest::SHA256.hexdigest(data.to_json + token)[0, 32],
                      title: alert[:title], content: alert[:body],
                      click_action_type: 4, click_action_activity: 'com.wintouchspace.app.MainActivity',

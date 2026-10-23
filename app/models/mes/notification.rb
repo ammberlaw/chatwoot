@@ -36,7 +36,7 @@ class Mes::Notification < ApplicationRecord
     po_approval_pending po_approval_approved po_approval_rejected
     order_revised
     production_reported fg_count_pending
-    shipment_approval_pending shipment_approved shipment_rejected
+    shipment_approval_pending shipment_approved shipment_rejected shipment_notified
     document_returned
     forwarded
     sales_return_pending sales_return_resolved

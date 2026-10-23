@@ -6,7 +6,7 @@ class Chat::MobilePushJob < ApplicationJob
     message = Chat::Message.find_by(id: message_id)
     return unless message
 
-    kind, entity_id = push_target(message)
+    kind, entity_id, alert_kind = push_target(message)
     return if kind.nil?
 
     NotificationSubscription.native.where(user_id: unread_member_ids(message)).find_each do |subscription|
@@ -14,7 +14,8 @@ class Chat::MobilePushJob < ApplicationJob
 
       Notification::NativePushService.new.deliver(
         subscription: subscription, account_id: message.account_id, user_id: subscription.user_id,
-        kind: kind, conversation_id: message.conversation_id, entity_id: entity_id, message_id: message.id
+        kind: kind, conversation_id: message.conversation_id, entity_id: entity_id, message_id: message.id,
+        alert_kind: alert_kind
       )
     end
   end
@@ -40,12 +41,19 @@ class Chat::MobilePushJob < ApplicationJob
 
     case message.ref_type
     when 'sales_order' then ['sales_order_approval', message.ref_id]
-    when 'oa_approval' then ['approval', message.ref_id]
+    when 'oa_approval' then ['approval', message.ref_id, oa_alert_kind(message)]
     # 新询盘初筛挂的也是 email ref，但新邮件本身已由 Crm::MailPushJob 推过一条了
     # （kind='mail'），这里再推一条就是同一封信响两次。初筛那 600 字 AI 分析
     # 本来就该在 Web 上细看，不适合塞进锁屏。
     when 'email' then nil
     else ['team', nil]
     end
+  end
+
+  # OA 一个 kind 两种锁屏：轮到你审 vs 你的单有了结果。办结了还弹「有一条审批等你处理」，
+  # 点开发现没事可做。靠卡片快照里的状态后缀分辨——Oa::ApprovalNotifier 写的是
+  # 「申请人 · 待审批 / 已通过 / 已驳回 / 已撤回」。载荷 kind 不变，App 白名单只认 approval。
+  def oa_alert_kind(message)
+    message.ref_snapshot.to_h['subtitle'].to_s.include?('待审批') ? 'approval' : 'approval_result'
   end
 end

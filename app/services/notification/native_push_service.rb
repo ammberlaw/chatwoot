@@ -15,8 +15,11 @@ class Notification::NativePushService
   ALERTS = {
     'sales_order_approval' => { title: 'WINTOUCH 待审批提醒', body: '有一张销售订单等你审核，打开 App 查看。' },
     'approval' => { title: 'WINTOUCH 待审批提醒', body: '有一条审批等你处理，打开 App 查看。' },
-    'mail' => { title: 'WINTOUCH 新邮件', body: '收到一封新邮件，打开 App 查看。' },
-    'mes_todo' => { title: 'WINTOUCH 生产待办', body: '有一条生产待办等你处理，打开 App 查看。' }
+    # 结果类（通过/驳回/撤回，推给申请人）。载荷里的 kind 仍是 approval——App 白名单只认那个——
+    # 这里只换锁屏文案：单子已经办完了还说「等你处理」，点开发现没事可做。
+    'approval_result' => { title: 'WINTOUCH 审批结果', body: '你的一条审批有了结果，打开 App 查看。' },
+    'mail' => { title: 'WINTOUCH 新邮件', body: '你收到一封新邮件，打开 App 查看。' },
+    'mes_todo' => { title: 'WINTOUCH 生产待办', body: '你有一项新的生产事项需要处理，打开 App 查看。' }
   }.freeze
 
   def self.client_config
@@ -67,7 +70,9 @@ class Notification::NativePushService
   end
 
   # Recheck ownership after a queued message and send only to this installation.
-  def deliver(subscription:, account_id:, user_id:, kind:, message_id:, conversation_id: nil, entity_id: nil)
+  # alert_kind：只影响锁屏文案，不进载荷。同一个 kind 要两种说法时用（见 ALERTS 的 approval_result）。
+  def deliver(subscription:, account_id:, user_id:, kind:, message_id:, conversation_id: nil, entity_id: nil,
+              alert_kind: nil)
     attrs = delivery_key = reservation = nil
     subscription.with_lock do
       subscription.reload
@@ -90,7 +95,8 @@ class Notification::NativePushService
       data = self.class.message_data(account_id: account_id, user_id: user_id, kind: kind,
                                      conversation_id: conversation_id, entity_id: entity_id,
                                      message_id: message_id)
-      result = sender.new.send_message(token: attrs.fetch('push_token'), attributes: attrs, data: data)
+      result = sender.new.send_message(token: attrs.fetch('push_token'), attributes: attrs, data: data,
+                                       alert: self.class.alert_for(alert_kind || kind))
       Redis::Alfred.set(delivery_key, 'delivered', ex: 7.days.to_i)
       result
     end

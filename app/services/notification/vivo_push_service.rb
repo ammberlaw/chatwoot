@@ -20,8 +20,8 @@ class Notification::VivoPushService
     end
   end
 
-  def send_message(token:, attributes:, data:)
-    alert = Notification::NativePushService.alert_for(data[:kind])
+  def send_message(token:, attributes:, data:, alert: nil)
+    alert ||= Notification::NativePushService.alert_for(data[:kind])
     payload = { appId: ENV.fetch('VIVO_APP_ID').to_i, regId: token, notifyType: 4, category: 'IM',
                 title: alert[:title], content: alert[:body], timeToLive: 3600,
                 skipType: 4, skipContent: Notification::NativePushService.android_intent(data),

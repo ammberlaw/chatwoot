@@ -92,6 +92,12 @@ const KIND_META = {
     dot: 'bg-n-ruby-9',
     group: 'rejected',
   },
+  // 货已安排出库，知会订单归属业务员。周知类，不进待办。
+  shipment_notified: {
+    label: '已安排出库',
+    dot: 'bg-n-teal-9',
+    group: 'progress',
+  },
   document_returned: {
     label: '单据被退回',
     dot: 'bg-n-amber-9',
