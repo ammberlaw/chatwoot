@@ -1541,9 +1541,16 @@ const canEditSelected = computed(
   () => mesCan('order') || (canCreateOrder.value && isOwner.value)
 );
 // 列表行级「编辑」：与 canEditSelected 同口径（order 能力 / 本人订单），
-// 且订单须有定制规格表（编辑弹窗基于规格模板，外购单无规格不走此入口）。
+// 外购单不走此入口（不自己生产，没有要填的定制规格），其余看有没有规格表可填——
+// 判定与 openEditSpec 的模板回落一致：spec 里写过就用它，没写过就看产品线有没有模板。
+//
+// 原来只认 spec.template，而转单建出来的单 spec 是空的（converted_order_attrs
+// 不写规格，规格本来就该转完再补），于是这些单在列表里永远没有编辑入口——
+// 偏偏它们才是最需要进去补规格的。详情面板的「编辑订单」又没这道门槛，
+// 同一个动作两个入口两套标准，生产上 14 张单卡在这儿。
 const canEditRow = po =>
-  !!po.spec?.template &&
+  !po.isOutsourced &&
+  (!!po.spec?.template || !!SPEC_TEMPLATES[po.productLine]) &&
   (mesCan('order') ||
     (canCreateOrder.value && po.ownerId === currentUserId.value));
 // 删除：管理员删任意；归属业务仅删**本人草稿**（已下发进入生产流程不可删，后端 ensure_deletable! 同口径）。
