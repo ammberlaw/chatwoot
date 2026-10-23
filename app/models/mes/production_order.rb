@@ -961,7 +961,14 @@ class Mes::ProductionOrder < ApplicationRecord
     raise ArgumentError, '这张单没有待确认的退回' unless awaiting_sales_confirm?
 
     returner_id = sales_return_by_id
-    update!(sales_return_resolved_at: Time.current, sales_return_resolved_by_id: actor&.id)
+    # 确认与销待办放同一事务：订单标成已确认、而「退回待确认」还挂在业务的待办里，
+    # 正是 2026-10-23 用户报的那个现象——刷新也去不掉（App 按 unread 拉，Web 待办页同口径）。
+    transaction do
+      update!(sales_return_resolved_at: Time.current, sales_return_resolved_by_id: actor&.id)
+      # 放在 returner_id 空值的提前返回**之前**：退单人可能已停用，但待办照样得清。
+      # 不传 recipients＝这张单的收件人一起销（退回时制单人和销售各收到一条）。
+      Mes::Notifier.resolve(account: account, kinds: 'sales_return_pending', order: self)
+    end
     return self if returner_id.blank?
 
     Mes::Notifier.notify(

@@ -3,7 +3,8 @@
 class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_shipment,
-                only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject, :revert_to_draft, :void]
+                only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject, :revert_to_draft, :void,
+                       :diagnose]
   before_action -> { ensure_owner_or_admin!(@shipment, '出库单') }, only: [:update]
   before_action :ensure_can_delete!, only: [:destroy]
 
@@ -186,6 +187,14 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
     render json: { error: business_error(e) }, status: :unprocessable_entity
+  end
+
+  # 「我为什么干不了这件事」——只读自助诊断（见 Mes::ShipmentDiagnosis）。
+  # 不只解释报错：按钮不见、提交完没动静，挡住人的是同一套判定，这里一并答。
+  def diagnose
+    render json: { payload: Mes::ShipmentDiagnosis.new(
+      shipment: @shipment, account_user: Current.account_user
+    ).call(params[:do_action]) }
   end
 
   # 待我审核：停在我这一级（部门主管/副管理员/管理员）的现货出库单。

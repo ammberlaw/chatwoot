@@ -114,6 +114,24 @@ const isMesPurchaseApprover = computed(
 // 财务：对账要看采购单和入库单（花了多少、货什么时候到的），但不进生产/BOM/供应商那些。
 // 判的是 crm_finance 布尔列，不是 crm_role === 'finance'——生产上两位财务的 crm_role 是空的。
 const isFinanceViewer = computed(() => currentUser.value?.crm_finance === true);
+// MES 侧栏的分组壳（2026-10-23，用户：菜单太长太乱）。分组本身不是路由，只是个壳。
+// 权限条件留在各自的叶子上，这里只负责两件事：
+//   ① 被权限滤空的组整个丢掉——否则采购岗会看到一个点开是空的「仓库」；
+//   ② activeOn 由子项自动汇总，不手写——手写一份迟早漏登记，进了页面整组不高亮。
+const mesGroup = (name, label, children) =>
+  children.length
+    ? {
+        name,
+        label,
+        icon: '',
+        collapsible: true,
+        defaultCollapsed: true,
+        showTreeLine: true,
+        activeOn: children.flatMap(c => c.activeOn || []),
+        children,
+      }
+    : null;
+
 // AI 助手是否对这个人开放（名单在「AI 设置」里配，见 Crm::AiSetting.agent_allowed?）
 const canUseCrmAgent = computed(() => currentUser.value?.crm_agent === true);
 // 能不能看物料成本（物料单价表、任务单上的单价、成本导出）。
@@ -1498,9 +1516,7 @@ const menuItems = computed(() => {
           },
           // MES 站内通知是生产流转待办（接单/审批/报工），只给 MES 岗和采购审批人。
           // 财务有自己的「财务通知」，这一条对她是噪音（用户 2026-10-13 定）。
-          // 业务员不是 MES 岗，但**退回待确认、订单知会这些通知是发给他的**，
-          // 原来他连这个入口都没有，收得到看不着（10.19 反馈：迪拜账号没有站内通知模块）。
-          // 所以再放一个口子：手上有未读 MES 通知的人也显示。
+          // 不收进分组：它带未读角标，收起来就看不见了。
           ...(isMesStaff.value ||
           isMesPurchaseApprover.value ||
           mesUnreadCount.value > 0
@@ -1514,17 +1530,24 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
+          // 销售订单是 MES 的入口单据，点得最多，不收进分组。
           {
             name: 'MES Production Orders',
             label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
             to: accountScopedRoute('mes_production_orders_index'),
             activeOn: ['mes_production_orders_index'],
           },
+          // ── 以下按一张单子从头走到尾的顺序分组（2026-10-23，用户：菜单太长太乱）──
+          // 常用的四个留在外面；其余 15 项收进 5 个组，一级从 19 行降到 9 行。
+          // 分组本身不是路由，只是壳：权限条件原样留在各自的叶子上，
+          // 并在组装时丢掉被滤空的组（mesGroup），免得留一个点开是空的壳。
+          // 生产任务单与产品档案不分组：只有两项，收起来省不下几行，反而多一层点击；
+          // 而且开单前常要查 BOM / 查产品，属于常用项（用户 2026-10-23 定）。
           {
             name: 'MES BOMs',
             label: t('SIDEBAR.MES_BOMS'),
             to: accountScopedRoute('mes_boms_index'),
-            activeOn: ['mes_boms_index', 'mes_bom_intake_index'],
+            activeOn: ['mes_boms_index'],
           },
           {
             name: 'MES Products',
@@ -1532,139 +1555,130 @@ const menuItems = computed(() => {
             to: accountScopedRoute('mes_products_index'),
             activeOn: ['mes_products_index'],
           },
-          // 物料单价表含成本，只给财务/管理员/采购（口径同后端 can_view_material_cost?）
-          ...(canViewMaterialCost.value
-            ? [
-                {
-                  name: 'MES Material Prices',
-                  label: t('SIDEBAR.MES_MATERIAL_PRICES'),
-                  to: accountScopedRoute('mes_material_prices_index'),
-                  activeOn: ['mes_material_prices_index'],
-                },
-              ]
-            : []),
-          // 采购单/供应商含采购价与供应商资料，销售端不可见（生态硬约束）。
-          ...(isMesStaff.value
-            ? [
-                {
-                  name: 'MES Purchase Requisitions',
-                  label: t('SIDEBAR.MES_PURCHASE_REQUISITIONS'),
-                  to: accountScopedRoute('mes_purchase_requisitions_index'),
-                  activeOn: ['mes_purchase_requisitions_index'],
-                },
-              ]
-            : []),
-          // 采购单单独放行采购审批人（只审批，不进请购/供应商）与财务（只读对账）。
-          ...(isMesStaff.value ||
-          isMesPurchaseApprover.value ||
-          isFinanceViewer.value
-            ? [
-                {
-                  name: 'MES Purchase Orders',
-                  label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
-                  to: accountScopedRoute('mes_purchase_orders_index'),
-                  activeOn: [
-                    'mes_purchase_orders_index',
-                    'mes_purchase_order_intake_index',
-                  ],
-                },
-              ]
-            : []),
-          // 供应商/仓库也放行财务（用户 2026-10-13 定）：按供应商对账、看库存都是本职。
-          // 采购申请单与 MES 站内通知不放——请购流程财务不参与，生产待办对她是噪音。
-          ...(isMesStaff.value || isFinanceViewer.value
-            ? [
-                {
-                  name: 'MES Suppliers',
-                  label: t('SIDEBAR.MES_SUPPLIERS'),
-                  to: accountScopedRoute('mes_suppliers_index'),
-                  activeOn: ['mes_suppliers_index'],
-                },
-                {
-                  name: 'MES Warehouses',
-                  label: t('SIDEBAR.MES_WAREHOUSES'),
-                  to: accountScopedRoute('mes_warehouses_index'),
-                  activeOn: ['mes_warehouses_index'],
-                },
-              ]
-            : []),
-          {
-            name: 'MES Stock Entries',
-            label: t('SIDEBAR.MES_STOCK_ENTRIES'),
-            to: accountScopedRoute('mes_stock_entries_index'),
-            activeOn: ['mes_stock_entries_index'],
-          },
-          {
-            name: 'MES Stock Balances',
-            label: t('SIDEBAR.MES_STOCK_BALANCES'),
-            to: accountScopedRoute('mes_stock_balances_index'),
-            activeOn: ['mes_stock_balances_index'],
-          },
-          // 原料↔成品转换：紧挨着结存放，看到哪本账没货就在旁边转。
-          {
-            name: 'MES Stock Conversions',
-            label: t('SIDEBAR.MES_STOCK_CONVERSIONS'),
-            to: accountScopedRoute('mes_stock_conversions_index'),
-            activeOn: ['mes_stock_conversions_index'],
-          },
-          // 退料返修：退给供应商修的料，紧挨着入库/库存放（都是料的进出）。
-          {
-            name: 'MES Supplier Returns',
-            label: t('SIDEBAR.MES_SUPPLIER_RETURNS'),
-            to: accountScopedRoute('mes_supplier_returns_index'),
-            activeOn: ['mes_supplier_returns_index'],
-          },
-          {
-            name: 'MES Shopfloor',
-            label: t('SIDEBAR.MES_G_SHOPFLOOR'),
-            icon: '',
-            collapsible: true,
-            showTreeLine: true,
-            activeOn: [
-              'mes_material_issues_index',
-              'mes_production_records_index',
-              'mes_inspections_index',
-            ],
-            children: [
-              {
-                name: 'MES Material Issues',
-                label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
-                to: accountScopedRoute('mes_material_issues_index'),
-                activeOn: ['mes_material_issues_index'],
-              },
-              {
-                name: 'MES Production Records',
-                label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
-                to: accountScopedRoute('mes_production_records_index'),
-                activeOn: ['mes_production_records_index'],
-              },
-              {
-                name: 'MES Inspections',
-                label: t('SIDEBAR.MES_INSPECTIONS'),
-                to: accountScopedRoute('mes_inspections_index'),
-                activeOn: ['mes_inspections_index'],
-              },
-            ],
-          },
-          {
-            name: 'MES FG Inbound',
-            label: t('SIDEBAR.MES_FG_INBOUND'),
-            to: accountScopedRoute('mes_fg_inbound_index'),
-            activeOn: ['mes_fg_inbound_index'],
-          },
-          {
-            name: 'MES Shipments',
-            label: t('SIDEBAR.MES_SHIPMENTS'),
-            to: accountScopedRoute('mes_shipments_index'),
-            activeOn: ['mes_shipments_index'],
-          },
-          {
-            name: 'MES Serial Numbers',
-            label: t('SIDEBAR.MES_SERIAL_NUMBERS'),
-            to: accountScopedRoute('mes_serial_numbers_index'),
-            activeOn: ['mes_serial_numbers_index'],
-          },
-        ],
+          mesGroup('MES Purchasing', t('SIDEBAR.MES_G_PURCHASING'), [
+            ...(isMesStaff.value
+              ? [
+                  {
+                    name: 'MES Purchase Requisitions',
+                    label: t('SIDEBAR.MES_PURCHASE_REQUISITIONS'),
+                    to: accountScopedRoute('mes_purchase_requisitions_index'),
+                    activeOn: ['mes_purchase_requisitions_index'],
+                  },
+                ]
+              : []),
+            ...(isMesStaff.value || isMesPurchaseApprover.value
+              ? [
+                  {
+                    name: 'MES Purchase Orders',
+                    label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
+                    to: accountScopedRoute('mes_purchase_orders_index'),
+                    activeOn: ['mes_purchase_orders_index'],
+                  },
+                ]
+              : []),
+            ...(isMesStaff.value || isFinanceViewer.value
+              ? [
+                  {
+                    name: 'MES Suppliers',
+                    label: t('SIDEBAR.MES_SUPPLIERS'),
+                    to: accountScopedRoute('mes_suppliers_index'),
+                    activeOn: ['mes_suppliers_index'],
+                  },
+                ]
+              : []),
+            // 物料单价表归采购：财务/采购维护的标准价，而任务单的三级定价里
+            // 「本单采购价 / 最近采购价」两级也都来自采购单——整条链都是采购口径。
+            // （放「生产准备」里是错的，那组是工程档案：任务单、产品档案。）
+            ...(canViewMaterialCost.value
+              ? [
+                  {
+                    name: 'MES Material Prices',
+                    label: t('SIDEBAR.MES_MATERIAL_PRICES'),
+                    to: accountScopedRoute('mes_material_prices_index'),
+                    activeOn: ['mes_material_prices_index'],
+                  },
+                ]
+              : []),
+          ]),
+          mesGroup('MES Warehouse', t('SIDEBAR.MES_G_WAREHOUSE'), [
+            {
+              name: 'MES Stock Entries',
+              label: t('SIDEBAR.MES_STOCK_ENTRIES'),
+              to: accountScopedRoute('mes_stock_entries_index'),
+              activeOn: ['mes_stock_entries_index'],
+            },
+            {
+              name: 'MES Stock Balances',
+              label: t('SIDEBAR.MES_STOCK_BALANCES'),
+              to: accountScopedRoute('mes_stock_balances_index'),
+              activeOn: ['mes_stock_balances_index'],
+            },
+            // 原料↔成品转换：紧挨着结存放，看到哪本账没货就在旁边转。
+            {
+              name: 'MES Stock Conversions',
+              label: t('SIDEBAR.MES_STOCK_CONVERSIONS'),
+              to: accountScopedRoute('mes_stock_conversions_index'),
+              activeOn: ['mes_stock_conversions_index'],
+            },
+            // 退料返修：退给供应商修的料，紧挨着入库/库存放（都是料的进出）。
+            {
+              name: 'MES Supplier Returns',
+              label: t('SIDEBAR.MES_SUPPLIER_RETURNS'),
+              to: accountScopedRoute('mes_supplier_returns_index'),
+              activeOn: ['mes_supplier_returns_index'],
+            },
+            ...(isMesStaff.value || isFinanceViewer.value
+              ? [
+                  {
+                    name: 'MES Warehouses',
+                    label: t('SIDEBAR.MES_WAREHOUSES'),
+                    to: accountScopedRoute('mes_warehouses_index'),
+                    activeOn: ['mes_warehouses_index'],
+                  },
+                ]
+              : []),
+          ]),
+          mesGroup('MES Shopfloor', t('SIDEBAR.MES_G_SHOPFLOOR'), [
+            {
+              name: 'MES Material Issues',
+              label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
+              to: accountScopedRoute('mes_material_issues_index'),
+              activeOn: ['mes_material_issues_index'],
+            },
+            {
+              name: 'MES Production Records',
+              label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
+              to: accountScopedRoute('mes_production_records_index'),
+              activeOn: ['mes_production_records_index'],
+            },
+            {
+              name: 'MES Inspections',
+              label: t('SIDEBAR.MES_INSPECTIONS'),
+              to: accountScopedRoute('mes_inspections_index'),
+              activeOn: ['mes_inspections_index'],
+            },
+          ]),
+          mesGroup('MES Outbound', t('SIDEBAR.MES_G_OUTBOUND'), [
+            {
+              name: 'MES FG Inbound',
+              label: t('SIDEBAR.MES_FG_INBOUND'),
+              to: accountScopedRoute('mes_fg_inbound_index'),
+              activeOn: ['mes_fg_inbound_index'],
+            },
+            {
+              name: 'MES Shipments',
+              label: t('SIDEBAR.MES_SHIPMENTS'),
+              to: accountScopedRoute('mes_shipments_index'),
+              activeOn: ['mes_shipments_index'],
+            },
+            {
+              name: 'MES Serial Numbers',
+              label: t('SIDEBAR.MES_SERIAL_NUMBERS'),
+              to: accountScopedRoute('mes_serial_numbers_index'),
+              activeOn: ['mes_serial_numbers_index'],
+            },
+          ]),
+        ].filter(Boolean),
       },
       {
         name: 'CRM Knowledge',

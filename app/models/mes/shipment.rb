@@ -325,6 +325,47 @@ class Mes::Shipment < ApplicationRecord
     self
   end
 
+  # ── 只读查询：拦截与「我为什么干不了」的诊断共用（见 Mes::ShipmentDiagnosis）──
+  # 诊断另写一遍迟早和这里对不上，那会让它理直气壮地说错话。
+
+  # 成品缺口。出库拦截与诊断用的是同一份结果——
+  # 诊断另写一遍迟早和这里对不上，那会让它理直气壮地说错话。
+  # 返回 [{item:, product_name:, on_hand:, need:}, ...]，空数组=够。
+  def stock_shortages
+    shipment_items.filter_map do |item|
+      balance = account.mes_stock_balances.find_by(
+        item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
+      )
+      on_hand = balance&.qty.to_d
+      next if on_hand >= item.qty.to_d
+
+      { item: item, product_name: item.crm_product&.name || "成品##{item.crm_product_id}",
+        on_hand: on_hand, need: item.qty.to_d }
+    end
+  end
+
+  # 可用现货缺口（只读）。同 stock_shortages，给提交拦截与诊断共用。
+  def reservation_shortages
+    reserved = self.class.reserved_qty_map(account, exclude_id: id)
+    shipment_items.filter_map { |item| reservation_shortage(item, reserved) }
+  end
+
+  # 待审核通知的收件人 = **这张单实际能审的人**，与 approver_for? 同一口径。
+  # 小额单仓库自己批（2026-10-21 定的金额闸），就别再去吵财务——那道闸本来就是
+  # 为了把 33 张里的 26 张从财务台上拿走的，照样通知等于白设。
+  def approval_notify_ids
+    ids = if warehouse_self_approvable?
+            account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
+          else
+            self.class.approver_ids(account)
+          end
+    ids = (ids.map(&:to_i) - [owner_id]).uniq # 自己提交的单不用通知自己
+    # 兜底：算下来一个人都没有（板块负责人没配、或唯一的负责人正好就是提交人自己——
+    # 生产上出库板块负责人就是提交这张单的人）时回落到审核人组。这张单照样等着人审，
+    # 宁可多吵一个人，也绝不能又变成「通知零人」。
+    ids.presence || (self.class.approver_ids(account) - [owner_id]).uniq
+  end
+
   private
 
   def actor_name(actor)
@@ -409,22 +450,13 @@ class Mes::Shipment < ApplicationRecord
 
   # 库存不足拦截：逐行校验成品仓结存 ≥ 出库量，不足报错列出缺口（正/现货出库均适用，杜绝负库存）。
   def ensure_stock_sufficient!
-    shortages = shipment_items.filter_map do |item|
-      balance = account.mes_stock_balances.find_by(
-        item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
-      )
-      on_hand = balance&.qty.to_d
-      next if on_hand >= item.qty.to_d
-
-      "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（现货 #{fnum(on_hand)}，需 #{fnum(item.qty)}）"
-    end
+    shortages = stock_shortages.map { |s| "#{s[:product_name]}（现货 #{fnum(s[:on_hand])}，需 #{fnum(s[:need])}）" }
     raise StandardError, "成品库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
   end
 
   # 提交预占校验：可用（物理结存 − 其他待出库单已预占）≥ 本单出库量，否则拦截，防多人抢同一批现货。
   def ensure_available_for_reservation!
-    reserved = self.class.reserved_qty_map(account, exclude_id: id)
-    shortages = shipment_items.filter_map { |item| reservation_shortage(item, reserved) }
+    shortages = reservation_shortages.map { |s| "#{s[:product_name]}（可用 #{fnum(s[:available])}，需 #{fnum(s[:need])}）" }
     raise StandardError, "可用现货不足（已被其他待出库单预占），无法提交：#{shortages.join('；')}" if shortages.any?
   end
 
@@ -435,7 +467,8 @@ class Mes::Shipment < ApplicationRecord
     available = balance&.qty.to_d - reserved[[item.crm_product_id, warehouse_id]].to_d
     return if available >= item.qty.to_d
 
-    "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（可用 #{fnum(available)}，需 #{fnum(item.qty)}）"
+    { item: item, product_name: item.crm_product&.name || "成品##{item.crm_product_id}",
+      available: available, need: item.qty.to_d }
   end
 
   # 现货出库审核人=业务员所属（主）部门负责人；本人即负责人则向上找上级部门负责人。
@@ -456,22 +489,6 @@ class Mes::Shipment < ApplicationRecord
   def approve_without_manager!
     update!(status: 'APPROVED', approved_at: Time.current)
     notify_warehouse_ready
-  end
-
-  # 待审核通知的收件人 = **这张单实际能审的人**，与 approver_for? 同一口径。
-  # 小额单仓库自己批（2026-10-21 定的金额闸），就别再去吵财务——那道闸本来就是
-  # 为了把 33 张里的 26 张从财务台上拿走的，照样通知等于白设。
-  def approval_notify_ids
-    ids = if warehouse_self_approvable?
-            account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
-          else
-            self.class.approver_ids(account)
-          end
-    ids = (ids.map(&:to_i) - [owner_id]).uniq # 自己提交的单不用通知自己
-    # 兜底：算下来一个人都没有（板块负责人没配、或唯一的负责人正好就是提交人自己——
-    # 生产上出库板块负责人就是提交这张单的人）时回落到审核人组。这张单照样等着人审，
-    # 宁可多吵一个人，也绝不能又变成「通知零人」。
-    ids.presence || (self.class.approver_ids(account) - [owner_id]).uniq
   end
 
   def notify_approval_pending

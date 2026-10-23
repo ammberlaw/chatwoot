@@ -12,6 +12,9 @@ class Mes::ShipmentPolicy < ApplicationPolicy
 
   # 现货出库审核：CRM 部门主管 / 副管理员 / 管理员（具体到人由控制器按 manager_id 收敛）。
   def submit? = create?
+  # 自助诊断：看得到这张单就问得了。它只读，而且只回答「这张单为什么卡着、该谁动」——
+  # 都是他在页面上本来就看得到的东西，不放宽任何数据面。
+  def diagnose? = show?
   # ⚠️ Pundit 按 action 名找 policy 方法，少一个就是 500。
   def pending_count? = true
   # 打印计数：看得到这张单就打得了（打印本身是只读动作，计数只是留个痕）。

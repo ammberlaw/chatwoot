@@ -637,6 +637,8 @@ Rails.application.routes.draw do
                 post :mark_printed
               end
               member do
+                # 「我为什么干不了这件事」只读诊断（见 Mes::ShipmentDiagnosis）
+                get :diagnose
                 post :notify
                 post :submit
                 post :approve

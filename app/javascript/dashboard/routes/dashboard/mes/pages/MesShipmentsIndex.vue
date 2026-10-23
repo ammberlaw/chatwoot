@@ -527,6 +527,47 @@ const fmtAmount = micros =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+/* ---------------- 「这张单为什么卡着」自助诊断 ---------------- */
+// 入口不挂在报错旁边：用户卡住最常见的形态是「按钮根本不在」「提交完没动静」，
+// 那些场景一条报错都没有。所以每行常驻一个入口，有没有报错都问得了。
+// 后端只读（Mes::ShipmentDiagnosis），不改数据、不发通知。
+const diagDialogRef = ref(null);
+const diagRow = ref(null);
+const diagResults = ref([]);
+const diagLoading = ref(false);
+
+const openDiagnose = async s => {
+  diagRow.value = s;
+  diagResults.value = [];
+  diagLoading.value = true;
+  diagDialogRef.value?.open();
+  try {
+    const list = await Promise.all(
+      ['submit', 'approve', 'ship'].map(a =>
+        MesShipmentAPI.diagnose(s.id, a).then(r =>
+          camelcaseKeys(r.data?.payload || {}, { deep: true })
+        )
+      )
+    );
+    diagResults.value = list;
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '查不出来，请稍后再试');
+    diagDialogRef.value?.close();
+  } finally {
+    diagLoading.value = false;
+  }
+};
+
+// 三次诊断问的是同一张单，所以「等谁」「通知到没到」只摆一次。
+const diagSummary = computed(
+  () => diagResults.value.find(r => r.waitingOn) || {}
+);
+const diagHours = computed(() => {
+  const since = diagSummary.value?.waitingOn?.since;
+  if (!since) return null;
+  return Math.round((Date.now() - new Date(since).getTime()) / 36e5);
+});
+
 const approveDialogRef = ref(null);
 const approving = ref(null);
 const approveNote = ref('');
@@ -903,6 +944,13 @@ onMounted(() => {
                 @click.stop="notify(s)"
               />
               <Button
+                label="为什么卡着"
+                variant="ghost"
+                color="slate"
+                size="sm"
+                @click.stop="openDiagnose(s)"
+              />
+              <Button
                 v-if="canShipRow(s)"
                 label="出库"
                 color="iris"
@@ -1073,6 +1121,13 @@ onMounted(() => {
                     size="sm"
                     :is-loading="acting"
                     @click="notify(s)"
+                  />
+                  <Button
+                    label="为什么卡着"
+                    variant="ghost"
+                    color="slate"
+                    size="sm"
+                    @click="openDiagnose(s)"
                   />
                   <Button
                     v-if="canShipRow(s)"
@@ -1331,6 +1386,85 @@ onMounted(() => {
           v-model="rejectReason"
           placeholder="请填写驳回原因，退回业务员修改"
         />
+      </div>
+    </Dialog>
+
+    <!-- 「这张单为什么卡着」：只读诊断，不改任何东西 -->
+    <Dialog
+      ref="diagDialogRef"
+      width="2xl"
+      :title="`${diagRow?.shipmentNo || ''} 为什么卡着`"
+      description="下面是系统现在查到的实情。它只是查，不会动这张单。"
+      :show-confirm-button="false"
+      cancel-button-label="知道了"
+    >
+      <div v-if="diagLoading" class="py-6 text-center text-n-slate-11">
+        正在查…
+      </div>
+      <div v-else class="flex flex-col gap-4">
+        <div
+          v-if="diagSummary.waitingOn"
+          class="p-3 rounded-lg bg-n-alpha-1 border border-n-weak"
+        >
+          <div class="text-heading-3 text-n-slate-12">
+            {{ diagSummary.waitingOn.label
+            }}{{
+              diagSummary.waitingOn.names.length
+                ? ` — ${diagSummary.waitingOn.names.join('、')}`
+                : ''
+            }}
+          </div>
+          <div
+            v-if="diagHours !== null"
+            class="text-label-small text-n-slate-11"
+          >
+            已经等了 {{ diagHours }} 小时
+          </div>
+          <div
+            v-if="diagSummary.notice"
+            class="mt-2 text-label-small"
+            :class="
+              diagSummary.notice.level === 'warn'
+                ? 'text-n-amber-11'
+                : 'text-n-slate-11'
+            "
+          >
+            {{ diagSummary.notice.text }}
+            <span v-if="diagSummary.notice.fix" class="text-n-slate-11">
+              → {{ diagSummary.notice.fix }}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div
+            v-for="r in diagResults"
+            :key="r.action"
+            class="flex flex-col gap-1"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-heading-3 text-n-slate-12">
+                {{ r.actionLabel }}
+              </span>
+              <span
+                class="text-label-small"
+                :class="r.blocked ? 'text-n-ruby-11' : 'text-n-teal-11'"
+              >
+                {{ r.blocked ? '现在干不了' : '现在可以做' }}
+              </span>
+            </div>
+            <div
+              v-for="(b, i) in r.blockers"
+              :key="i"
+              class="pl-3 border-l-2 border-n-weak"
+            >
+              <div class="text-sm text-n-slate-12">{{ b.text }}</div>
+              <div v-if="b.fix" class="text-label-small text-n-slate-11">
+                → {{ b.fix }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </Dialog>
 

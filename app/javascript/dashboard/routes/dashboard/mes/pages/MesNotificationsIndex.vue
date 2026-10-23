@@ -104,6 +104,18 @@ const KIND_META = {
     group: 'rejected',
   },
   forwarded: { label: '被知会', dot: 'bg-n-violet-9', group: 'progress' },
+  // 这两个以前漏登记：标签会回落成通用的「通知」，未读左侧那根竖条也回落成灰色，
+  // 在灰边框上几乎看不见——用户因此「标题说有 1 条未读，三个页签都找不到在哪」。
+  bom_revised: {
+    label: '任务单已变更',
+    dot: 'bg-n-violet-9',
+    group: 'progress',
+  },
+  order_revised: {
+    label: '订单已变更',
+    dot: 'bg-n-violet-9',
+    group: 'progress',
+  },
   // 退回给业务（工程/PMC 说细节没确认清楚）。分组必须与后端 GROUP_BY_KIND 一致。
   sales_return_pending: {
     label: '退回待确认',
@@ -180,6 +192,12 @@ const groupUnread = computed(() => {
   return counts;
 });
 const unreadCount = computed(() => store.getUnreadCount);
+// 标题上的角标与**侧栏角标同口径**：只数要动手的（待处理 + 未读的退回/驳回）。
+// 原来数的是「全部未读」，把周知类也算进去，于是出现侧栏没角标、标题却写「1 未读」，
+// 用户点遍三个页签也找不到那条——因为它根本不用他管。
+const actionCount = computed(
+  () => groupUnread.value.todo + groupUnread.value.rejected
+);
 const fetching = computed(() => store.getUIFlags.fetchingList);
 
 // 时间给人看，不是给日志看：今天只给时:分，昨天标「昨天」，更早给月-日。
@@ -294,10 +312,10 @@ onMounted(load);
           {{ pageTitle }}
         </h1>
         <span
-          v-if="unreadCount > 0"
+          v-if="actionCount > 0"
           class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-amber-9 text-[#1a1c20]"
         >
-          {{ unreadCount }} 未读
+          {{ actionCount }} 项待处理
         </span>
       </div>
       <div class="flex items-center gap-2 shrink-0">

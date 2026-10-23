@@ -1357,8 +1357,11 @@ const linkBomBusy = ref(false);
 const linkBomOptions = computed(() =>
   linkBomList.value.map(b => ({
     value: String(b.id),
-    // 带上机型和产成品代码：光看 BOM 号和产品名分不出 K705 还是 A80，挂错了要退回重挂。
-    label: `${b.bom_no} · ${[b.model, b.product_code].filter(Boolean).join(' ') || b.product_name || '—'} × ${b.base_qty || 1}${b.unit || ''}${b.status === 'DRAFT' ? '（草稿）' : ''}`,
+    // 摆投单号(WT 号)不摆 BOM 号：业务认的是投单号，BOM-xxxxx 对他们没有意义
+    // （2026-10-23 用户原话「这个BOM号看不懂，不要有BOM号」）。没投单号的才回落 BOM 号，
+    // 否则这一项就没有任何能认的标识了。
+    // 带上机型和产成品代码：光看单号和产品名分不出 K705 还是 A80，挂错了要退回重挂。
+    label: `${b.doc_no || b.bom_no} · ${[b.model, b.product_code].filter(Boolean).join(' ') || b.product_name || '—'} × ${b.base_qty || 1}${b.unit || ''}${b.status === 'DRAFT' ? '（草稿）' : ''}`,
   }))
 );
 const loadLinkBoms = async () => {
@@ -2049,6 +2052,15 @@ watch(currentPage, fetchRecords);
           color="ruby"
           size="sm"
           @click="clearColFilters"
+        />
+        <!-- 刷新：用户不想为了看最新状态每次重进页面（2026-10-23 反馈） -->
+        <Button
+          label="刷新"
+          variant="outline"
+          color="slate"
+          size="sm"
+          :is-loading="isFetching"
+          @click="fetchRecords"
         />
         <Button
           :label="compact ? '宽松行高' : '紧凑行高'"

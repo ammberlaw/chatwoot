@@ -105,12 +105,27 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     render 'api/v1/accounts/mes/boms/show'
   end
 
+  # 删单：只许删**草稿**，且**没有任何生产订单挂着它**。
+  # 两道闸都是硬的：mes_production_orders.bom_id 是 on_delete: nullify，删掉一张被挂着的
+  # BOM 不会报错——订单会悄悄失去用料，谁都看不出来发生过什么。已下发的更不能删。
   def destroy
+    blocker = destroy_blocker
+    return render json: { error: blocker }, status: :unprocessable_entity if blocker
+
     @bom.destroy!
     head :ok
   end
 
   private
+
+  def destroy_blocker
+    return '只有草稿状态的生产任务单可以删除；已下发的请改用修订或作废' unless @bom.status == 'DRAFT'
+
+    linked = Current.account.mes_production_orders.where(bom_id: @bom.id)
+    return nil if linked.empty?
+
+    "这张生产任务单已被 #{linked.pluck(:order_no).join('、')} 挂着，删了那些订单就没有用料了；请先在订单上解除关联"
+  end
 
   def fetch_bom
     @bom = Current.account.mes_boms.find(params[:id])

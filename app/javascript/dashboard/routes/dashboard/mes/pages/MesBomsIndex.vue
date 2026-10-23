@@ -666,6 +666,35 @@ watch(autoQty, v => {
 // 这里只负责判脏：onHand / qtyTouched 是选料时服务端带回来的实时库存和交互标记，
 // 不算用户改动，算进去会让刚打开的单子就被判成「已修改」。
 
+// 删单：只给**草稿**露按钮，且与「编辑」同口径（有 bom 能力 + 本人的单）。
+// 已下发的不给删——它多半已经被订单挂上，删了订单会悄悄失去用料（后端也挡，这里先不显示）。
+// 多建了一张重复草稿自己删不掉，只能挂在列表里占着投单号（2026-10-23 用户反馈）。
+const canDeleteRow = b => b.status === 'DRAFT' && canEditRow(b);
+const deletingId = ref(null);
+const pendingDelete = ref(null);
+const deleteDialogRef = ref(null);
+const askDelete = bom => {
+  pendingDelete.value = bom;
+  deleteDialogRef.value?.open();
+};
+const confirmDelete = async () => {
+  const bom = pendingDelete.value;
+  if (!bom) return;
+
+  deletingId.value = bom.id;
+  try {
+    await MesBomAPI.delete(bom.id);
+    deleteDialogRef.value?.close();
+    await load();
+    useAlert(`已删除 ${bomNoOf(bom)}`);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '删除失败');
+  } finally {
+    deletingId.value = null;
+    pendingDelete.value = null;
+  }
+};
+
 // 列表里把草稿一键下发。
 const release = async bom => {
   releasingId.value = bom.id;
@@ -887,6 +916,16 @@ onMounted(async () => {
                 class="shrink-0"
                 @click.stop="goEdit(b)"
               />
+              <Button
+                v-if="canDeleteRow(b)"
+                label="删除"
+                variant="ghost"
+                color="ruby"
+                size="sm"
+                class="shrink-0"
+                :is-loading="deletingId === b.id"
+                @click.stop="askDelete(b)"
+              />
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
               型号 / 成品：{{ b.model || b.productName || '—' }}
@@ -1068,6 +1107,15 @@ onMounted(async () => {
                       variant="ghost"
                       size="sm"
                       @click="goEdit(b)"
+                    />
+                    <Button
+                      v-if="canDeleteRow(b)"
+                      label="删除"
+                      variant="ghost"
+                      color="ruby"
+                      size="sm"
+                      :is-loading="deletingId === b.id"
+                      @click="askDelete(b)"
                     />
                   </div>
                 </td>
@@ -1345,6 +1393,21 @@ onMounted(async () => {
     </div>
 
     <!-- 只读查看：完整明细，无需进编辑态 -->
+
+    <!-- 删除确认：删的是草稿，但几十行用料没了也是没了，当面问一句 -->
+    <Dialog
+      ref="deleteDialogRef"
+      type="alert"
+      title="删除这张生产任务单？"
+      :description="
+        pendingDelete
+          ? `${bomNoOf(pendingDelete)}（${pendingDelete.model || pendingDelete.productName || '—'}）会被整张删掉，连同里面的用料行。删了找不回来。`
+          : ''
+      "
+      confirm-button-label="删除"
+      :is-loading="!!deletingId"
+      @confirm="confirmDelete"
+    />
 
     <Dialog
       ref="viewDialogRef"
