@@ -7,6 +7,8 @@ class Chat::MobilePushJob < ApplicationJob
     return unless message
 
     kind, entity_id = push_target(message)
+    return if kind.nil?
+
     NotificationSubscription.native.where(user_id: unread_member_ids(message)).find_each do |subscription|
       next unless subscription.subscription_attributes['account_id'].to_i == message.account_id
 
@@ -33,9 +35,17 @@ class Chat::MobilePushJob < ApplicationJob
   # 只认系统通知这一个发送人：同事在团队沟通里手动引用一张订单说「这单你看下」，
   # 那是会话消息，点开必须进聊天看他说了什么，不能跳走。
   def push_target(message)
-    return ['team', nil] unless message.ref_type == 'sales_order' && message.ref_id.present?
+    return ['team', nil] if message.ref_id.blank?
     return ['team', nil] unless message.sender_id == Crm::SystemUser.existing_id_for(message.account_id)
 
-    ['sales_order_approval', message.ref_id]
+    case message.ref_type
+    when 'sales_order' then ['sales_order_approval', message.ref_id]
+    when 'oa_approval' then ['approval', message.ref_id]
+    # 新询盘初筛挂的也是 email ref，但新邮件本身已由 Crm::MailPushJob 推过一条了
+    # （kind='mail'），这里再推一条就是同一封信响两次。初筛那 600 字 AI 分析
+    # 本来就该在 Web 上细看，不适合塞进锁屏。
+    when 'email' then nil
+    else ['team', nil]
+    end
   end
 end

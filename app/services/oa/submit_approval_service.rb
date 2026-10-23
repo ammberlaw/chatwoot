@@ -3,9 +3,11 @@
 #
 # flow 支持两类节点（有序）：
 #   固定步骤：{ type: 'user'|'dept_leader', user_id? }
-#   条件分支：{ type: 'condition', branches: [{ conditions: [{var, op, value}], flow: [固定步骤…] }, …] }
+#   条件分支：{ type: 'condition', branches: [{ conditions: [{var, op, value}], flow: [步骤…] }, …] }
 #     branches 自上而下取首个「全部条件命中」的分支（conditions 为空=默认兜底），展开其 flow 为步骤。
-#   条件变量 var：leave_days（按日期区间算的请假天数）/ department（申请人部门id）/ field:<字段key>（表单值）。
+#     分支的 flow 里可以再放条件分支：先按发起人分组、组内再按天数分，按需递归展开。
+#   条件变量 var：leave_days（按日期区间算的请假天数）/ field:<字段key>（表单值）/
+#     department（申请人部门 id，单选等于）/ applicant（发起人属于，值是 ["dept:1","user:9"] 多选，op=in|not_in）。
 class Oa::SubmitApprovalService
   # 审批流物化后一个有效审批人都没有（部门没配负责人 / 指定审批人已离职失效）→ 抛此错，
   # 由控制器提示，绝不静默「自动通过」（尤其请假/补卡会误写考勤）。
@@ -36,17 +38,20 @@ class Oa::SubmitApprovalService
 
   def perform
     # 物化+定位同一事务：settle_start 判定「无有效审批人」时抛错回滚，绝不留下半物化的孤儿单。
-    ApplicationRecord.transaction do
-      request = @account.oa_approval_requests.create!(
+    request = ApplicationRecord.transaction do
+      created = @account.oa_approval_requests.create!(
         template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
         revokes_request_id: @revokes_request_id,
         form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
         cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
       )
-      build_steps(request)
-      settle_start(request)
-      request
+      build_steps(created)
+      settle_start(created)
+      created
     end
+    # 提醒放事务外：通知发不出去是小事，不该把已经成立的审批单回滚掉。
+    Oa::ApprovalNotifier.new(request).submitted
+    request
   end
 
   # 重建审批链：清掉旧步骤，按当前 flow/部门/条件重新展开并定位首个可办步骤。
@@ -55,8 +60,9 @@ class Oa::SubmitApprovalService
       request.steps.destroy_all
       build_steps(request)
       settle_start(request)
-      request
     end
+    Oa::ApprovalNotifier.new(request).submitted(resubmit: true)
+    request
   end
 
   private
@@ -72,13 +78,14 @@ class Oa::SubmitApprovalService
   end
 
   # 把含条件分支的 flow 展开成一串固定步骤（条件按 form_data 求值、取首个命中分支）。
+  # 命中分支的 flow 再递归展开——分支里还能套分支（发起人分组→组内按天数分）。
   def expand_flow(flow)
     Array(flow).flat_map do |entry|
       e = entry.with_indifferent_access
       next [e] unless e[:type] == 'condition'
 
       branch = pick_branch(e[:branches])
-      branch ? Array(branch.with_indifferent_access[:flow]).map(&:with_indifferent_access) : []
+      branch ? expand_flow(Array(branch.with_indifferent_access[:flow])) : []
     end
   end
 
@@ -91,9 +98,13 @@ class Oa::SubmitApprovalService
   end
 
   def match_condition?(cond)
-    actual = condition_value(cond[:var])
-    expected = cond[:value]
-    case cond[:op]
+    return match_applicant?(cond) if cond[:var].to_s == 'applicant'
+
+    compare(cond[:op], condition_value(cond[:var]), cond[:value])
+  end
+
+  def compare(operator, actual, expected)
+    case operator
     when 'eq' then actual.to_s == expected.to_s
     when 'neq' then actual.to_s != expected.to_s
     when 'in' then Array(expected).map(&:to_s).include?(actual.to_s)
@@ -102,6 +113,36 @@ class Oa::SubmitApprovalService
     when 'gt' then to_num(actual) > to_num(expected)
     when 'gte' then to_num(actual) >= to_num(expected)
     else false
+    end
+  end
+
+  # 发起人属于：选中的成员里有本人，或本人所在部门落在选中部门（含其下级部门）里。
+  # value 形如 ["dept:3", "user:17"]，部门与具体的人混选；op=not_in 时取反。
+  def match_applicant?(cond)
+    hit = applicant_among?(Array(cond[:value]))
+    cond[:op].to_s == 'not_in' ? !hit : hit
+  end
+
+  def applicant_among?(tokens)
+    user_ids = []
+    dept_ids = []
+    tokens.each do |token|
+      kind, raw = token.to_s.split(':', 2)
+      user_ids << raw.to_i if kind == 'user'
+      dept_ids << raw.to_i if kind == 'dept'
+    end
+    return true if user_ids.include?(@applicant.id)
+    return false if dept_ids.empty?
+
+    applicant_department_ids.intersect?(Org::Department.subtree_ids(@account, dept_ids))
+  end
+
+  # 本人所在的全部部门（可能跨多个），再带上提交时所选部门。
+  def applicant_department_ids
+    @applicant_department_ids ||= begin
+      ids = @account.org_memberships.where(user_id: @applicant.id).pluck(:department_id).compact
+      ids << @department_id.to_i if @department_id.present?
+      ids.uniq
     end
   end
 

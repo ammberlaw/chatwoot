@@ -76,8 +76,16 @@ module Crm::EmailIngestion
     rewritten = attach_files(email, mail, html)
     email.update!(body_html: truncate_text(rewritten)) if rewritten != html
     maybe_create_reply_reminder(email)
+    enqueue_mail_push(email)
     enqueue_ai_followups(email)
     email
+  end
+
+  # 新信推手机。异步、失败不影响收信——收不到推送是小事，收不到信是大事。
+  def enqueue_mail_push(email)
+    Crm::MailPushJob.perform_later(email.id)
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::MailFetch] enqueue mail push failed email=#{email.id}: #{e.message}")
   end
 
   # 收信后的 AI 自动化（异步、失败不影响收信）：

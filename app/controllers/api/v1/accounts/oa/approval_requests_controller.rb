@@ -81,15 +81,17 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     return head :unprocessable_entity unless @request.applicant_id == current_user.id
 
     # 锁内复检 pending：避免与审批人同意/驳回并发时，撤回把已流转的单据覆盖回撤销态。
-    canceled = false
+    canceled = approver_id = nil
     @request.with_lock do
       next unless @request.pending?
 
+      approver_id = @request.current_step&.approver_id # 改成 canceled 后就问不出 current_step 了
       @request.update!(status: 'canceled')
       canceled = true
     end
     return head :unprocessable_entity unless canceled
 
+    Oa::ApprovalNotifier.new(@request).canceled(approver_id)
     render :show
   end
 

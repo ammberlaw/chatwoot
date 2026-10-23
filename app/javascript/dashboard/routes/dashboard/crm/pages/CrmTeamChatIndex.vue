@@ -566,6 +566,13 @@ const REF_ROUTES = {
     name: 'crm_quote_requests_index',
     params: { accountId: accountId.value },
   }),
+  // OA 审批：审批页目前只能跳到列表，focus 先带着——等那页支持了深链就自动生效，
+  // 现在多一个用不上的 query 参数不影响跳转。
+  oa_approval: t => ({
+    name: 'crm_approvals_index',
+    params: { accountId: accountId.value },
+    query: { focus: String(t.id) },
+  }),
   // 邮件深链要「客户 + 邮件」两个参数才打得开那一封；没关联客户就只到邮件中心。
   email: t =>
     t.snapshot?.customer_id
@@ -587,6 +594,7 @@ const REF_ICONS = {
   commission_sheet: 'i-lucide-badge-percent',
   quote_request: 'i-lucide-calculator',
   email: 'i-lucide-mail',
+  oa_approval: 'i-lucide-stamp',
 };
 
 const refIcon = t => REF_ICONS[t?.type] || 'i-lucide-file-text';

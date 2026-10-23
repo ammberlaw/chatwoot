@@ -21,6 +21,8 @@ class Oa::ActOnApprovalService
       step.update!(status: @decision, comment: @comment, acted_at: Time.current)
       @decision == 'rejected' ? @request.update!(status: 'rejected') : advance
     end
+    # 事务外：通知失败不该回滚已经落定的审批动作（尤其 advance 里已写了考勤/备用金）。
+    Oa::ApprovalNotifier.new(@request).acted
     @request
   end
 

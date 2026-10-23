@@ -55,6 +55,9 @@ class Mes::Notification < ApplicationRecord
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :title, presence: true
 
+  # 待办类通知同时推手机（该不该推由 job 按 GROUP_BY_KIND 判，见 Mes::TodoPushJob）。
+  after_create_commit -> { Mes::TodoPushJob.perform_later(id) }
+
   # 通知分类（页面三个 tab）。**必须与前端 `MesNotificationsIndex.vue` 的 `KIND_META[].group` 一致**，
   # 两边不一致会出现「tab 角标说 5 条、点进去 3 条」。这里是权威口径：过滤与计数都走后端，
   # 前端那份只用来上色/取标签。未列出的 kind 一律归 progress（同前端 kindMeta 的兜底）。

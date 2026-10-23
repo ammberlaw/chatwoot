@@ -13,7 +13,10 @@ class Notification::NativePushService
   # 一律只说「有什么等你处理」，不把单号、客户、金额放锁屏。
   DEFAULT_ALERT = { title: 'WINTOUCH 新消息', body: '你收到一条新消息，打开 App 查看。' }.freeze
   ALERTS = {
-    'sales_order_approval' => { title: 'WINTOUCH 待审批提醒', body: '有一张销售订单等你审核，打开 App 查看。' }
+    'sales_order_approval' => { title: 'WINTOUCH 待审批提醒', body: '有一张销售订单等你审核，打开 App 查看。' },
+    'approval' => { title: 'WINTOUCH 待审批提醒', body: '有一条审批等你处理，打开 App 查看。' },
+    'mail' => { title: 'WINTOUCH 新邮件', body: '收到一封新邮件，打开 App 查看。' },
+    'mes_todo' => { title: 'WINTOUCH 生产待办', body: '有一条生产待办等你处理，打开 App 查看。' }
   }.freeze
 
   def self.client_config
