@@ -116,6 +116,7 @@ const form = ref({
   icon: ICONS[2],
   active: true,
   attendanceKind: '',
+  cashKind: '',
   erpExpense: false,
   fields: [],
   flow: [],
@@ -159,6 +160,7 @@ const resetForm = () => {
     icon: ICONS[2],
     active: true,
     attendanceKind: '',
+    cashKind: '',
     erpExpense: false,
     fields: [],
     flow: [],
@@ -181,6 +183,7 @@ const openEdit = tpl => {
     icon: tpl.icon || ICONS[2],
     active: tpl.active !== false,
     attendanceKind: tpl.attendance_kind || '',
+    cashKind: tpl.cash_kind || '',
     erpExpense: !!tpl.erp_expense,
     fields: (tpl.form_fields || []).map(f => ({
       seq: nextSeq(),
@@ -327,6 +330,14 @@ const attendanceKindOptions = computed(() => [
   { value: 'reclock', label: '补卡申请（该日补为正常）' },
   { value: 'trip', label: '出差单（按日期区间标记外勤）' },
 ]);
+// 备用金台账联动。后端一直支持（Crm::PettyCashApprovalService），但这个字段
+// 从来没在表单里露过头，所以生产上 8 个模板全是空的——备用金/报销审批通过了
+// 一笔账都没自动落，财务只能手工补录（2026-10-24 排查发现）。
+const cashKindOptions = computed(() => [
+  { value: '', label: '不联动' },
+  { value: 'advance', label: '备用金申请（通过后往台账记一笔「存入」）' },
+  { value: 'reimburse', label: '费用报销（通过后往台账记一笔「支出」）' },
+]);
 const ccCandidateOptions = computed(() => [
   { value: '', label: L.ccAdd },
   ...ccCandidates.value.map(a => ({ value: String(a.id), label: a.name })),
@@ -367,6 +378,7 @@ const save = async () => {
     icon: form.value.icon,
     active: form.value.active,
     attendance_kind: form.value.attendanceKind || null,
+    cash_kind: form.value.cashKind || null,
     erp_expense: form.value.erpExpense,
     form_fields: form.value.fields.map(f => ({
       key: f.key,
@@ -437,7 +449,11 @@ onMounted(async () => {
       class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
+        <h1
+          class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
+          {{ L.header }}
+        </h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
@@ -463,7 +479,10 @@ onMounted(async () => {
       <p class="text-sm text-n-slate-11">{{ L.noAccess }}</p>
     </div>
 
-    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      v-else
+      class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div
         v-if="!templates.length"
         class="p-8 text-sm text-center text-n-slate-10"
@@ -547,6 +566,20 @@ onMounted(async () => {
           >
             下面的日期字段现在是「日期」，申请人只能选到哪一天。要像外出申请那样精确到几点，
             把它改成「日期时间」——半天假、请两小时才填得出来。
+          </span>
+        </label>
+
+        <!-- 备用金联动：审批通过后往部门的备用金台账自动落一笔流水 -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-n-slate-12">备用金联动</span>
+          <SelectCard
+            v-model="form.cashKind"
+            :options="cashKindOptions"
+            block
+          />
+          <span v-if="form.cashKind" class="text-xs text-n-slate-10">
+            表单需包含金额字段；整单通过后按申请人填的部门找备用金台账本自动落账。
+            该部门没有台账本就不落账（审批照常通过），财务可到「备用金」页手工补。
           </span>
         </label>
 
