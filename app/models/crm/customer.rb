@@ -212,6 +212,30 @@ class Crm::Customer < ApplicationRecord
   # 建档录入的联系人：按邮箱建/复用一条 Contact 并挂到本客户，
   # 使采购/经理/客户任一邮箱来信都能识别归属（收信识别走 Contact.crm_customer_id）。
   # 无邮箱的行跳过（识别以邮箱为键）；单个联系人建失败不阻断建档。
+  # 邮件地址 token（与 Crm::EmailsController::EMAIL_RE 同一套）。
+  # 收件人栏常是 "张三 <a@x.com>, b@y.com" 这种串，必须按完整 token 比，
+  # 不能用 LIKE '%a@x.com%'——那会让 a@x.com 命中 xa@x.com。
+  EMAIL_TOKEN_RE = /[^\s,;<>"']+@[^\s,;<>"']+/
+
+  # 把这些邮箱的**历史**邮件补挂到本客户。
+  #
+  # 收信时是按 Contact 认客户的（见 Crm::EmailIngestion#inbound_attrs），所以建档
+  # **之前**到的邮件 crm_customer_id 一直是空的。业务看到的现象是「客户明明建了档，
+  # 鼠标悬停却说『该邮箱尚未建档为客户』、也点不出往来邮件」——因为那张卡读的就是
+  # 邮件上的 crm_customer_id（2026-10-24 反馈，Brite Star 那单的头两封正是如此）。
+  #
+  # 收发两个方向都补：发件箱里对方地址在 to_address 上，只认 from_address 会把自己
+  # 发出去的回信漏掉。只补**还没归属**的，绝不把别的客户的邮件抢过来。
+  def absorb_unlinked_emails!(addresses)
+    addrs = Array(addresses).map { |a| a.to_s.strip.downcase }.select { |a| a.include?('@') }.uniq
+    return 0 if addrs.empty?
+
+    ids = unlinked_email_candidates(addrs).select { |e| counterparty_hit?(e, addrs) }.map(&:id)
+    return 0 if ids.empty?
+
+    account.crm_emails.where(id: ids).update_all(crm_customer_id: id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
+
   def sync_contacts(entries)
     Array(entries).each do |entry|
       attrs = entry.symbolize_keys
@@ -223,6 +247,18 @@ class Crm::Customer < ApplicationRecord
   end
 
   private
+
+  # 先用 LIKE 粗筛（走得动索引、把候选压到个位数），再在 Ruby 里按完整 token 精确比。
+  def unlinked_email_candidates(addrs)
+    cond = (['LOWER(from_address) LIKE ? OR LOWER(to_address) LIKE ?'] * addrs.size).join(' OR ')
+    account.crm_emails.where(crm_customer_id: nil)
+           .where(cond, *addrs.flat_map { |a| ["%#{a}%", "%#{a}%"] })
+  end
+
+  def counterparty_hit?(email, addrs)
+    tokens = "#{email.from_address} #{email.to_address}".downcase.scan(EMAIL_TOKEN_RE)
+    tokens.intersect?(addrs)
+  end
 
   def upsert_contact(email, attrs)
     contact = account.contacts.where('LOWER(email) = ?', email).first_or_initialize

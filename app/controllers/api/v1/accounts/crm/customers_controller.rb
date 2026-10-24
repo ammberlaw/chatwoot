@@ -92,6 +92,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
     @customer = Current.account.crm_customers.create!(customer_params)
     @customer.sync_contacts(contact_entries)
+    # 建档之前到的邮件 crm_customer_id 是空的（收信按 Contact 认客户），不补的话
+    # 业务悬停在那几封上会看到「该邮箱尚未建档为客户」，也点不出往来邮件。
+    @customer.absorb_unlinked_emails!(contact_entries.pluck(:email))
     link_source_contact
   end
 
@@ -166,9 +169,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     return render json: { error: '邮箱无效' }, status: :unprocessable_entity unless email.include?('@')
 
     @customer.sync_contacts([{ email: email, name: params[:name].to_s.strip }])
-    Current.account.crm_emails.where(crm_customer_id: nil)
-           .where('LOWER(from_address) = ?', email)
-           .update_all(crm_customer_id: @customer.id)
+    # 原来这里只认 from_address，于是自己发出去的回信（对方地址在 to_address 上）
+    # 永远补不上。改走模型上的统一口径，收发两个方向一起补。
+    @customer.absorb_unlinked_emails!([email])
     render json: { ok: true, customer: dedupe_row(@customer) }
   end
 
@@ -219,6 +222,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @customer.update!(attrs)
     # 编辑弹窗带来的「其他联系人」：upsert（不删除既有邮件自动挂接的联系人）。
     @customer.sync_contacts(contact_entries) if params.dig(:customer, :contacts).present?
+    # 改了主邮箱或加了联系人，同样要把这些地址的历史邮件补挂过来。
+    @customer.absorb_unlinked_emails!(contact_entries.pluck(:email))
   end
 
   # 批量分配：任何 CRM 角色都可把「自己名下」的私海客户分配给任意成员；
