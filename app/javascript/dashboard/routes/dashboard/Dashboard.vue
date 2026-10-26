@@ -29,6 +29,14 @@ const FloatingCallWidget = defineAsyncComponent(
 import CopilotContainer from 'dashboard/components/copilot/CopilotContainer.vue';
 
 import MobileSidebarLauncher from 'dashboard/components-next/sidebar/MobileSidebarLauncher.vue';
+// AI 助手球挂在这一层 = 工作台和所有板块（CRM / MES / ERP / 客户消息…）都有。
+// 不挂在各板块的布局壳里：那样每加一个板块就得记得补一次，漏掉的那个板块
+// 恰恰是用户卡住时在看的页面（MES 原先就是这么漏掉的）。
+// 显隐规则在组件自己的 canUse 里，这里不判。
+import CrmAiAssistant from 'dashboard/components-next/CRM/CrmAiAssistant.vue';
+// 「今天要做的事」悬浮窗：和 AI 球同一层挂在外壳上，左下角（右下角是球）。
+// 日程不会来找人是它没人用的根因，这个窗让它一天里随时看得见、顺手能勾掉。
+import CrmTodayTasks from 'dashboard/components-next/CRM/CrmTodayTasks.vue';
 import { useCallsStore } from 'dashboard/stores/calls';
 
 export default {
@@ -41,6 +49,8 @@ export default {
     CopilotContainer,
     FloatingCallWidget,
     MobileSidebarLauncher,
+    CrmAiAssistant,
+    CrmTodayTasks,
   },
   setup() {
     const upgradePageRef = ref(null);
@@ -179,6 +189,8 @@ export default {
         />
         <CopilotContainer />
         <FloatingCallWidget v-if="hasActiveCall || hasIncomingCall" />
+        <CrmAiAssistant />
+        <CrmTodayTasks />
       </template>
       <AddAccountModal
         :show="showCreateAccountModal"
