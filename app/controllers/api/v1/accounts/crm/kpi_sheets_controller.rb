@@ -203,15 +203,41 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     )
   end
 
-  # 业绩类指标（CRM_SALES）按公式硬算建议分 = 完成 ÷ 保底 × 权重（保底取薪资配置），其余指标交 AI 参考。
+  # 建议分分三条路：
+  #   业绩类（CRM_SALES）  —— 公式硬算：完成 ÷ 保底 × 权重（保底取薪资配置）
+  #   系统判定（SYSTEM）   —— 查库硬算：订单PI录入 / 客户完整度 / 目标对齐（见 Crm::KpiSystemScorer）
+  #   其余                 —— 交 AI 参考
+  # 前两条是「数得出来」的，不该让 AI 去猜；AI 猜出来的数看着像有依据，错了没人发现。
   # 返回 [{ 'i', 'score', 'reason' }, ...]，'i' 为在 rows 中的原始序号。
   def ai_score_suggestions(rows)
     indexed = rows.each_with_index.to_a
-    formula_rows, ai_rows = indexed.partition { |item, _| item.data_source == 'CRM_SALES' && perf_baseline_micros.to_i.positive? }
+    perf_rows, rest = indexed.partition { |item, _| formula_perf?(item) }
+    system_rows, ai_rows = rest.partition { |item, _| system_scorable?(item) }
 
-    results = formula_rows.map { |item, idx| formula_perf_suggestion(item, idx) }
+    results = perf_rows.map { |item, idx| formula_perf_suggestion(item, idx) }
+    results.concat(system_rows.map { |item, idx| system_suggestion(item, idx) })
     results.concat(ai_suggestions_for(ai_rows)) if ai_rows.any?
     results
+  end
+
+  def formula_perf?(item)
+    item.data_source == 'CRM_SALES' && perf_baseline_micros.to_i.positive?
+  end
+
+  def system_scorable?(item)
+    item.data_source == 'SYSTEM' && system_scorer.call(item).present?
+  end
+
+  def system_scorer
+    @system_scorer ||= Crm::KpiSystemScorer.new(
+      account: Current.account, owner_id: @sheet.owner_id, month: @sheet.period_month
+    )
+  end
+
+  # 认不出的 SYSTEM 指标（名字对不上、或那几项系统判不了的）落回 AI 那条路，不硬算。
+  def system_suggestion(item, idx)
+    r = system_scorer.call(item)
+    { 'i' => idx, 'score' => r[:score], 'reason' => r[:reason] }
   end
 
   # 调 AI 给非业绩指标打建议分；AI 返回的 'i' 是它收到列表内的位置，需映射回 rows 原始序号。
