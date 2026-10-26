@@ -67,7 +67,14 @@ class Mes::StockEntry < ApplicationRecord
   # 给谁都不是的供应商凭空挂一笔应付。期初只加结存、记流水，不出凭证、不绑生产订单、
   # 不推阶段（故 FLOW_MIN_STAGE / STAGE_ADVANCE / PAYABLE_VOUCHER_PURPOSES 都不收录它），
   # 成本层也不建——成品的 FIFO 期初要带单价，走 Erp::StockOpeningImportService 单独导。
-  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT OPENING
+  # PURCHASE_RETURN 采购退货：供应商送错货/送来不合格的，退回去。
+  # 出库方向（货离开仓库），过账时把采购单的到货量冲回去——不冲的话采购单还显示「已到料」，
+  # 齐套徽标和到货明细都会以为这批料在库，没人知道要催供应商重发。
+  # 退了不打算再要的，去采购单上按「关闭」结掉（已有动作，回冲在途并退出齐套判定）。
+  #
+  # ⚠️ 不要复用 MATERIAL_RETURN：那个是**生产退料回库**（入库方向，成本侧 return_materials!
+  # 建层、备注写「生产退料」）。只有 ERP 应付侧把它误当成采购退货——见下面 PAYABLE_VOUCHER_PURPOSES。
+  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN PURCHASE_RETURN MANUFACTURE SCRAP SHIPMENT OPENING
                 CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL].freeze
   IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
 
@@ -163,7 +170,8 @@ class Mes::StockEntry < ApplicationRecord
   RETURN_LABEL_BY_PURPOSE = {
     'MATERIAL_RECEIPT' => '原料入库单',
     'MATERIAL_ISSUE' => '生产领料单',
-    'MANUFACTURE' => '成品入库单'
+    'MANUFACTURE' => '成品入库单',
+    'PURCHASE_RETURN' => '采购退货单'
   }.freeze
 
   def document_board_key = RETURN_BOARD_BY_PURPOSE[purpose] || 'mes_stock_entries_index'
@@ -184,6 +192,22 @@ class Mes::StockEntry < ApplicationRecord
   def approved? = !needs_approval? || approval_status == 'APPROVED'
 
   # 过账前的审核闸。拦住就把原因原话抛给前端，别让仓管对着一个灰按钮猜。
+  # 缺料明细（只读）。过账预检和 AI 诊断共用——两边各查一遍迟早对不上。
+  def stock_shortages
+    outgoing_items.filter_map do |item|
+      wh = item.warehouse_id || default_warehouse_id
+      on_hand = account.mes_stock_balances.find_by(
+        item_type: item.item_type, mes_material_id: item.mes_material_id,
+        crm_product_id: item.crm_product_id, warehouse_id: wh
+      )&.qty.to_d
+      next if on_hand >= item.effective_qty.to_d
+
+      { item: item, item_name: item_display_name(item), item_type: item.item_type,
+        crm_product_id: item.crm_product_id, warehouse_id: wh,
+        on_hand: on_hand, need: item.effective_qty.to_d }
+    end
+  end
+
   def approval_blocker
     return nil if approved?
     return '这张入库单被驳回了，改完会自动回到待审核，等财务重新审核' if approval_status == 'REJECTED'
@@ -256,7 +280,7 @@ class Mes::StockEntry < ApplicationRecord
       ts = Time.current
       stock_entry_items.each { |item| post_item(item, ts) }
       update_columns(status: 'POSTED', posted_at: ts, updated_at: ts)
-      sync_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
+      apply_purchase_receipt(posting: true)
       advance_production_order_on_receipt(ts)
       complete_production_order_if_fg_full(ts)
       complete_production_order_if_shipped(ts)
@@ -274,7 +298,12 @@ class Mes::StockEntry < ApplicationRecord
   # 采购入库与采购退货生成待过账的应付凭证（口径见 ERP_SPEC §8.2bis）。
   # 其它用途（领料/成品入库/报废/销售出库）不在此列：
   # 领料与成品入库是存货内部结转、销售出库的凭证由出库单自己出。
-  PAYABLE_VOUCHER_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN].freeze
+  #
+  # 2026-10-26 把 MATERIAL_RETURN 换成 PURCHASE_RETURN：MATERIAL_RETURN 在 MES 和成本侧
+  # 都是**生产退料回库**（车间把没用完的料退回仓库），跟供应商没有半点关系，却会凭空
+  # 生成一张红字应付凭证冲供应商的账。生产上至今一张退料单都没开过，所以没发作——
+  # 谁开第一张就中。
+  PAYABLE_VOUCHER_PURPOSES = %w[MATERIAL_RECEIPT PURCHASE_RETURN].freeze
 
   def generate_erp_receipt_voucher
     return unless PAYABLE_VOUCHER_PURPOSES.include?(purpose)
@@ -292,8 +321,7 @@ class Mes::StockEntry < ApplicationRecord
 
       ts = Time.current
       stock_entry_items.each { |item| move_stock!(item, ts, -line_sign(item)) }
-      # 作废原料入库：对称回退采购单收货量与在途（正向 sync_purchase_receipt! 累加过，作废须冲回）。
-      reverse_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
+      apply_purchase_receipt(posting: false)
       revert_production_order_stage_on_void(ts)
       # 存货层回滚：入库撤层、出库还层。这里**不吞异常**——「已出库的入库单不许作废」是
       # 成本正确性的硬闸，吞掉就会让层被撤掉、后续出库拿错成本。
@@ -473,18 +501,11 @@ class Mes::StockEntry < ApplicationRecord
 
   # 出库(领料/报废/出库)过账前预检结存充足，一次性列出所有缺料，避免超领把库存刷成负数。
   def ensure_stock_available_for_out!
-    shortages = outgoing_items.filter_map do |item|
-      wh = item.warehouse_id || default_warehouse_id
-      bal = account.mes_stock_balances.find_by(
-        item_type: item.item_type, mes_material_id: item.mes_material_id,
-        crm_product_id: item.crm_product_id, warehouse_id: wh
-      )
-      on_hand = bal&.qty.to_d
-      next if on_hand >= item.effective_qty.to_d
+    rows = stock_shortages
+    return if rows.empty?
 
-      "#{item_display_name(item)}（结存 #{fnum(on_hand)}，需 #{fnum(item.effective_qty)}）"
-    end
-    raise StandardError, "库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
+    text = rows.map { |r| "#{r[:item_name]}（结存 #{fnum(r[:on_hand])}，需 #{fnum(r[:need])}）" }
+    raise StandardError, "库存不足，无法出库：#{text.join('；')}"
   end
 
   # 要扣库存的那些行。整单同向的 purpose 要么全是、要么一行没有；转换单一单两行各占一个方向。
@@ -612,6 +633,19 @@ class Mes::StockEntry < ApplicationRecord
   # 回写要覆盖**本单关联的每一张采购单**（主单 + 追加的）。
   # 只认主单的话，追加那张单的料收了也不记账：received_qty 不涨、收货状态永远「未收」、
   # 在途量不冲减，下次建入库单这些料还会被当成没收完再铺一遍。
+  # 采购单到货量的加减，过账和作废走同一个口子、方向相反。
+  #   原料入库：过账 +到货，作废 −到货
+  #   采购退货：过账 −到货，作废 +到货（退回去的货又算回来了）
+  # 不对称就会出现「退了货采购单还显示已到料」——齐套和到货明细跟着一起错。
+  def apply_purchase_receipt(posting:)
+    return if purchase_order_id.blank?
+
+    adds = (purpose == 'MATERIAL_RECEIPT') == posting
+    case purpose
+    when 'MATERIAL_RECEIPT', 'PURCHASE_RETURN' then adds ? sync_purchase_receipt! : reverse_purchase_receipt!
+    end
+  end
+
   def sync_purchase_receipt!
     arrival = receipt_arrival_at
     orders = related_purchase_orders.to_a

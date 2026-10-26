@@ -15,10 +15,12 @@ class Erp::StockCostService
   PRODUCT = 'PRODUCT'.freeze
   MATERIAL = 'MATERIAL'.freeze
   IN_PURPOSES = %w[MATERIAL_RECEIPT MANUFACTURE].freeze
-  OUT_PURPOSES = %w[SHIPMENT SCRAP].freeze
+  # 采购退货和销售出库/报废一样是真出库：按 FIFO 扣层，作废时原样还回。
+  OUT_PURPOSES = %w[SHIPMENT SCRAP PURCHASE_RETURN].freeze
   # 原料侧：领料是出（扣层），退料是回（按当初领出去的价重新建层）。
   MATERIAL_ISSUE = 'MATERIAL_ISSUE'.freeze
   MATERIAL_RETURN = 'MATERIAL_RETURN'.freeze
+  PURCHASE_RETURN = 'PURCHASE_RETURN'.freeze
 
   def initialize(account)
     @account = account
@@ -36,6 +38,10 @@ class Erp::StockCostService
     case entry.purpose
     when MATERIAL_ISSUE then material_items(entry).sum { |item| consume!(entry, item) }
     when MATERIAL_RETURN then return_materials!(entry)
+    # 采购退货：原料和成品都可能退（外购成品也走采购），所以两种行都要扣层。
+    # 不能落到 sync_stock_entry! 那条——它的出库分支只认成品行（卖出去/报废的是成品），
+    # 退一批原料回去会一层都扣不到，结存掉了、成本层没动，两边从此对不上。
+    when PURCHASE_RETURN then (material_items(entry) + product_items(entry)).sum { |item| consume!(entry, item) }
     else sync_stock_entry!(entry)
     end
   end

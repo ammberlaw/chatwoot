@@ -326,7 +326,9 @@ class Erp::AutoVoucherService
     '分录凑不齐一借一贷（多半是存货科目没配）' if stock_receipt_lines(entry, rows, payable).size < 2
   end
 
-  def return_entry?(entry) = entry.purpose == 'MATERIAL_RETURN'
+  # 红字（冲应付）的是**采购退货**。原先写的是 MATERIAL_RETURN，但那个 purpose 在 MES
+  # 和成本侧都是「生产退料回库」——车间退回仓库的料跟供应商没关系，不该冲供应商的账。
+  def return_entry?(entry) = entry.purpose == 'PURCHASE_RETURN'
 
   def cny_payable_account
     scope = @account.erp_ledger_accounts.active.leaves.where(account_type: 'PAYABLE')
