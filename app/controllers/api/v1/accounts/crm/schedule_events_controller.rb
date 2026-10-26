@@ -37,15 +37,21 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
   end
 
   # 侧栏角标：本人可见、今日到期或已逾期、且未打勾的日程发生数（近 60 天窗口内展开重复）。
+  # 侧栏角标：今天该做的 + 已经逾期的。
+  #
+  # 原先窗口是「过去 60 天至今」的全部未完成，报的是积压不是待办——生产实测
+  # 陈云钢 47、张欢 23，而且只涨不落（回完信提醒不会自动销，没人手工去点）。
+  # 一个永远不归零的角标，人第三天就学会无视它，真正该办的那几条也跟着被埋。
+  #
+  # 逾期仍然计入，但单独报：挂太久的事不能装作没有，只是不该和今天的混成一个数。
+  OVERDUE_WINDOW_DAYS = 30
+
   def pending_count
     today = Time.zone.today
-    win_start = (today - 60).beginning_of_day
-    win_end = today.end_of_day
-    count = Current.account.crm_schedule_events.visible_to(current_user.id).sum do |ev|
-      done = ev.completed_dates.map(&:to_s)
-      ev.occurrences_in(win_start, win_end).count { |occ| done.exclude?(occ[:starts_at].to_date.to_s) }
-    end
-    render json: { count: count }
+    events = Current.account.crm_schedule_events.visible_to(current_user.id).to_a
+    due_today = pending_in(events, today.beginning_of_day, today.end_of_day)
+    overdue = pending_in(events, (today - OVERDUE_WINDOW_DAYS).beginning_of_day, (today - 1).end_of_day)
+    render json: { count: due_today + overdue, today: due_today, overdue: overdue }
   end
 
   # 在日程里直接完成一条「跟进提醒」：落一条客户跟进记录，并把提醒顺延到下次跟进时间（清空则删除提醒）。
@@ -75,6 +81,13 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
   end
 
   private
+
+  def pending_in(events, from, to)
+    events.sum do |ev|
+      done = ev.completed_dates.to_a.map(&:to_s)
+      ev.occurrences_in(from, to).count { |occ| done.exclude?(occ[:starts_at].to_date.to_s) }
+    end
+  end
 
   def fetch_event
     @event = Current.account.crm_schedule_events.where(owner_id: current_user.id).find(params[:id])

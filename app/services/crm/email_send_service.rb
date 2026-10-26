@@ -14,11 +14,40 @@ class Crm::EmailSendService
     deliver(account)
     @email.update!(send_status: 'SENT', folder: 'SENT', is_read: true, send_error: nil,
                    from_address: account.email_address, email_date: Time.current, send_now: false)
+    resolve_reply_reminder
   rescue StandardError => e
     fail_with(e.message)
   end
 
   private
+
+  # 回完信就把日程里那条「回复客户来信」销掉。
+  #
+  # 这条提醒是客户来信时自动建的（Crm::EmailIngestion#maybe_create_reply_reminder），
+  # 但原先只能人工去日程里点完成——于是回了信提醒还挂着。2026-10-26 实查：
+  # 133 条回复提醒里 103 条早就回过信了，84 条挂了两周以上，侧栏角标因此只涨不落，
+  # 人学会无视它，真正还没回的那 30 条也跟着被埋了。
+  #
+  # 销掉用的是「标完成」而不是删：日程上留一条划掉的记录，比凭空消失好查。
+  # 失败只记日志——信已经发出去了，不能因为销提醒出错把发信判成失败。
+  def resolve_reply_reminder
+    customer_id = @email.crm_customer_id
+    return if customer_id.blank?
+
+    @email.account.crm_schedule_events
+          .where(customer_id: customer_id, kind: 'reply_reminder', owner_id: @email.owner_id)
+          .find_each { |event| mark_done_today(event) }
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::EmailSend] 销回复提醒失败 email=#{@email.id}: #{e.message}")
+  end
+
+  def mark_done_today(event)
+    today = Time.zone.today.to_s
+    dates = event.completed_dates.to_a.map(&:to_s)
+    return if dates.include?(today)
+
+    event.update_columns(completed_dates: dates + [today], updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
 
   def pick_mail_account
     accounts = Crm::MailAccount.active.where(account_id: @email.account_id, owner_id: @email.owner_id)
