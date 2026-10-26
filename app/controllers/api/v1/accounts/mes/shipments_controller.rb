@@ -198,10 +198,17 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   # 待我审核：停在我这一级（部门主管/副管理员/管理员）的现货出库单。
+  # 待我审核的出库单。判定走统一出口，不在这儿另写一条 where。
+  #
+  # 原先是 `where(kind: 'STOCK').where(manager_id: current_user.id)`，两处都错：
+  # manager_id 在 submit_for_approval! 里被置成 nil（提交时还不知道该谁审），
+  # 按它过滤等于永远查不到；kind 又把生产出库整类漏掉。
+  # 于是「待我处理」面板少显示出库单，侧栏角标（走 Mes::TodoList）却算得出来，
+  # 两边对不上（2026-10-26：角标 5、面板 4，差的就是这一条）。
   def approval_inbox
-    base = Current.account.mes_shipments.where(kind: 'STOCK', status: 'PENDING_APPROVAL')
-    scope = admin_like? ? base : base.where(manager_id: current_user.id)
-    @shipments = scope.includes(:owner, :crm_customer).order(submitted_at: :desc)
+    rows = Mes::TodoList.new(account: Current.account, account_user: Current.account_user)
+                        .shipment_approvals
+    @shipments = rows.sort_by { |s| s.submitted_at || s.created_at }.reverse
     @shipments_count = @shipments.size
     render 'api/v1/accounts/mes/shipments/index'
   end

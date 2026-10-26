@@ -112,12 +112,16 @@ class Mes::Shipment < ApplicationRecord
                         .pluck(:manager_ids).flatten.compact.uniq
     return configured if configured.any?
 
-    # 没配审核人时回落财务 + 管理员/副管。crm_finance? 把管理员也算进财务，
-    # 这里的三个条件与它展开后完全对应。
+    # 没配审核人时回落**财务 + 管理员**。
+    #
+    # 原先这里还带着 crm_role='deputy_admin'。副管能看全公司的业务数据，但看得见
+    # ≠ 该他审——这道审的是「这张单的款收齐没有」，是财务的活。2026-10-26 实例：
+    # 副管 crm_finance=false、也没配进审核人名单，却天天收到别人的出库审核待办
+    # 和手机推送，还真能点通过。
+    # 兜底只是「没配名单时别让单子卡死」，不是给人发职责。
     account.account_users.active_members
            .where(role: roles_administrator)
            .or(account.account_users.active_members.where(crm_finance: true))
-           .or(account.account_users.active_members.where(crm_role: 'deputy_admin'))
            .pluck(:user_id).uniq
   end
 
@@ -156,7 +160,18 @@ class Mes::Shipment < ApplicationRecord
     return false if account_user.blank?
     return true if self.class.approver?(account, account_user)
 
-    warehouse_self_approvable? && account_user.mes_can?(:shipment)
+    warehouse_self_approvable? && warehouse_staff?(account_user)
+  end
+
+  # 小额单「仓库自己批」这条路要的是**他真的在仓库岗**，不能用 account_user.mes_can?：
+  # 那个对管理员/副管是全量放行（见 AccountUser#mes_can?），副管会从这扇门又被放进来——
+  # 兜底那边刚把他挡住，这边原样再放一次，等于没修（2026-10-26 实测：DN-20261026-01
+  # 这张小额单上副管仍然 approver_for? == true）。
+  # 管理员和财务不受影响：他们走上面 approver? 那一支，本来就在。
+  def warehouse_staff?(account_user)
+    account_user.effective_mes_roles.any? do |role|
+      AccountUser::MES_CAPABILITIES.fetch(role, []).include?('shipment')
+    end
   end
 
   # 提交审核：等财务看「这张单的款收齐没有」。

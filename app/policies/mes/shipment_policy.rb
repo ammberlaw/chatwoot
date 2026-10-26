@@ -37,7 +37,8 @@ class Mes::ShipmentPolicy < ApplicationPolicy
   private
 
   # 出库审核＝**财务**审「款收齐没有」（用户给的金蝶流程）。配了「出库审核人」认配的人，
-  # 没配回落财务 + 管理员/副管——口径收在 Mes::Shipment.approver?，控制器也问同一个。
+  # 没配回落财务 + 管理员（副管不算，见 Mes::Shipment.approver_ids）——
+  # 口径收在 Mes::Shipment.approver?，控制器也问同一个。
   def approver?
     Mes::Shipment.approver?(@account_user.account, @account_user)
   end
