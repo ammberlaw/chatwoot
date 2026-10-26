@@ -73,6 +73,9 @@ client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
 // 首页 MES 入口卡的角标：只要数字，不拉整份列表。
 client.todoCount = () => axios.get(`${client.url}/todo_count`);
+// 统一可办出口（Mes::TodoList 的六类待办）。角标走的就是它的 counts，
+// 面板也得认这一份，否则两边各算各的——见 MesTodoPanel 里的说明。
+client.todos = () => axios.get(`${client.url}/todos`);
 
 // 产品编码（工程/PMC 编，唯一，供 ERP 共享）。
 client.setProductCode = (id, productCode) =>

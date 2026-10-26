@@ -529,8 +529,14 @@ const fmtAmount = micros =>
   });
 /* ---------------- 「这张单为什么卡着」自助诊断 ---------------- */
 // 入口不挂在报错旁边：用户卡住最常见的形态是「按钮根本不在」「提交完没动静」，
-// 那些场景一条报错都没有。所以每行常驻一个入口，有没有报错都问得了。
+// 那些场景一条报错都没有。所以在流程还没走完的行上常驻一个入口，有没有报错都问得了。
 // 后端只读（Mes::ShipmentDiagnosis），不改数据、不发通知。
+//
+// 已出库 / 已作废的不挂：这两种是终点，没有「卡着」可言。原先每行无条件常驻，
+// 一屏十几行里十来行都是已出库，入口反而被当成噪音（2026-10-26 反馈：
+// 「这是什么」——整列都是它，看不出是干嘛的）。
+const DIAGNOSABLE = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+const canDiagnose = s => DIAGNOSABLE.includes(s.status);
 const diagDialogRef = ref(null);
 const diagRow = ref(null);
 const diagResults = ref([]);
@@ -944,6 +950,7 @@ onMounted(() => {
                 @click.stop="notify(s)"
               />
               <Button
+                v-if="canDiagnose(s)"
                 label="为什么卡着"
                 variant="ghost"
                 color="slate"
@@ -1123,6 +1130,7 @@ onMounted(() => {
                     @click="notify(s)"
                   />
                   <Button
+                    v-if="canDiagnose(s)"
                     label="为什么卡着"
                     variant="ghost"
                     color="slate"

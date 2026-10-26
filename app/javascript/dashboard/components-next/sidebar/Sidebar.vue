@@ -379,10 +379,13 @@ const REJECTED_KINDS = [
   'shipment_rejected',
   'document_returned',
   'stage_returned',
-  // 工程/PMC 把单退回给业务要业务确认细节——这是实打实要业务动手的事，
-  // 漏在这里角标就不跳，业务不知道单子回到自己手上了（10.19 反馈）。
-  'sales_return_pending',
 ];
+// ⚠️ 'sales_return_pending' 不能放进上面这个表。
+// 10.19 加过一次（当时统一待办还不认这类，不加角标就不跳）；后来 Mes::TodoList
+// 补上了 sales_return_confirm，同一张单于是被数两遍——todo_count 里一遍、
+// 未读通知里再一遍。2026-10-26 实例：Vivien Yu 名下 3 张退回待确认，
+// 角标显示 6，三张单两边各算一次。
+// 这类待办现在由 todo_count 负责，角标照样会跳。
 const mesUnreadCount = computed(() =>
   Number(mesNotificationsStore.getUnreadCount || 0)
 );

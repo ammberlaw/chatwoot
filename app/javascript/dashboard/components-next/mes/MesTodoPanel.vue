@@ -47,29 +47,42 @@ const shipmentInbox = ref([]); // 停在我这一级的现货出库单
 // 总经理那边 13 张待批采购单一张都不出现，站内通知虽然发了却只躺在「进展」里，
 // 人只看到「待我处理 1 条」，以为没事。
 const purchaseInbox = ref([]);
+// 业务要确认的两类（确认用料 / 确认退回）。
+//
+// 这四个 inbox 接口是按「谁在等这张单」切的，压根没有业务确认这一面——
+// 于是业务员侧栏角标写着 6，点进来「暂无待你处理的事」，6 条全在这两类里
+// （2026-10-26 实例：Vivien Yu 3 张退回待确认，面板一条都不显示）。
+// 角标走的是 Mes::TodoList 的六类，这里补的就是它多出来的那两类，
+// 两边同一份口径才不会再各说各话。
+const confirmTodos = ref([]);
+const CONFIRM_ACTIONS = ['confirm_bom', 'sales_return_confirm'];
 
 const load = async () => {
   loading.value = true;
   try {
     const empty = { data: { payload: [] } };
-    const [approvalRes, inboxRes, shipmentRes, purchaseRes] = await Promise.all(
-      [
+    const [approvalRes, inboxRes, shipmentRes, purchaseRes, todoRes] =
+      await Promise.all([
         MesProductionOrderAPI.approvalInbox(),
         MesProductionOrderAPI.inbox(),
         MesShipmentAPI.approvalInbox().catch(() => empty),
         // 无采购权限的人调这个会 403，吞掉即可——不该让整个待办面板空掉。
         MesPurchaseOrderAPI.approvalInbox().catch(() => empty),
-      ]
-    );
+        MesProductionOrderAPI.todos().catch(() => empty),
+      ]);
     approvalInbox.value = approvalRes?.data?.payload || [];
     inbox.value = inboxRes?.data?.payload || [];
     shipmentInbox.value = shipmentRes?.data?.payload || [];
     purchaseInbox.value = purchaseRes?.data?.payload || [];
+    confirmTodos.value = (todoRes?.data?.payload || []).filter(t =>
+      CONFIRM_ACTIONS.includes(t.action_type)
+    );
   } catch {
     approvalInbox.value = [];
     inbox.value = [];
     shipmentInbox.value = [];
     purchaseInbox.value = [];
+    confirmTodos.value = [];
   } finally {
     loading.value = false;
   }
@@ -208,6 +221,24 @@ const items = computed(() => [
     tag: '待你审批',
     tagClass: 'text-n-iris-11',
     open: () => goPurchase(p.po_no),
+  })),
+  ...confirmTodos.value.map(t => ({
+    key: t.key,
+    // 后端的 key 已经带了动作，状态变了（确认完）条目直接消失，不需要额外指纹位。
+    sig: `cf|${t.action_type}|${t.status}`,
+    bar:
+      t.action_type === 'sales_return_confirm' ? 'bg-n-ruby-9' : 'bg-n-amber-9',
+    title: t.title,
+    body: t.subtitle,
+    tag:
+      t.action_type === 'sales_return_confirm'
+        ? '待你确认退回'
+        : '待你确认用料',
+    tagClass:
+      t.action_type === 'sales_return_confirm'
+        ? 'text-n-ruby-11'
+        : 'text-n-amber-11',
+    open: () => goOrder(t.subject_no),
   })),
   ...shipmentInbox.value.map(s => ({
     key: `sh-${s.id}`,
