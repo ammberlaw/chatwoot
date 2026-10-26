@@ -29,9 +29,25 @@ class Crm::MonthlyReportJob < ApplicationJob
         account: account,
         recipient: account_user.user.email,
         recipient_name: account_user.user.name,
-        report: report,
+        report: jsonify(report),
         month_label: label
       ).monthly_digest.deliver_later
+    end
+  end
+
+  # sidekiq 参数必须是原生 JSON 类型。几个金额字段是 SQL SUM 出来的 BigDecimal，
+  # 直接丢给 deliver_later 会抛 ArgumentError——而异常发生在本 job 里，整个循环当场中断，
+  # **后面的人一封都收不到**（2026-10-01 全公司月报就是这么没发出去的）。
+  # 同样的坑 Mes::DailyAlertJob 早就踩过并修了，这里照抄它的做法。
+  #
+  # micros 本来就是整数，取 to_i 不丢精度；百分比那几个是 round(2) 的 Float，原样传。
+  def jsonify(report)
+    report.transform_values do |v|
+      case v
+      when BigDecimal then v.frac.zero? ? v.to_i : v.to_f
+      when Time, ActiveSupport::TimeWithZone then v.iso8601
+      else v
+      end
     end
   end
 

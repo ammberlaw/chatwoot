@@ -40,6 +40,7 @@ class Mes::Notification < ApplicationRecord
     document_returned
     forwarded
     sales_return_pending sales_return_resolved
+    alert_digest
     erp_installment_due erp_payable_due erp_expense_paid
   ].freeze
 
@@ -69,7 +70,10 @@ class Mes::Notification < ApplicationRecord
     'approval_rejected' => 'rejected', 'po_approval_rejected' => 'rejected', 'stage_returned' => 'rejected',
     'shipment_rejected' => 'rejected', 'document_returned' => 'rejected',
     # 退回给业务：业务那边是「有东西等你处理」进待办；退单人收到的确认回执是进度。
-    'sales_return_pending' => 'todo'
+    'sales_return_pending' => 'todo',
+    # 生产预警周报（Mes::DailyAlertJob）：是知会不是待办——它汇总的是「这些单该注意了」，
+    # 不对应任何一个可点的动作，放进待办会让角标常年不归零。
+    'alert_digest' => 'progress'
   }.freeze
   GROUPS = %w[todo progress rejected].freeze
 
