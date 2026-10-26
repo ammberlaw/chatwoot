@@ -11,6 +11,13 @@
 #
 # 口径：需求量 = BOM 行用量 × 订单量/基准量；下单/到货量按**产品档案**归集，
 # 关闭的采购单不算（它的货不会来了）。实时库存那列对齐金蝶领料单上的「即时库存」。
+#
+# 2026-10-26 加「可用 / 还要买」两列：原先只有「还差到货 = 需求 − 本单到货」，
+# 库存里现成有的货一概不算，于是库存 5762 的动物卡片、需求 3000，这里照样写
+# 「还差 3000 · 未下单」——照着它去买就是白买一批。
+#   可用   = 库存结存里分得到这张单头上的那部分（Mes::MaterialAvailability，按交期排队分）
+#   还要买 = 还要领 − 可用 − 在途（已下单还没到的）
+# 「还差到货」那列保留不动：它回答的是采购单履约进度，和「要不要再买」是两件事。
 class Mes::MaterialArrival
   CATEGORY_LABELS = { 'MACHINE' => '整机物料', 'PACKAGING' => '包装物料' }.freeze
 
@@ -21,7 +28,7 @@ class Mes::MaterialArrival
   end
 
   # [{ category:, category_label:, material_no:, name:, specification:, unit:,
-  #    required:, ordered:, received:, outstanding:, on_hand:, po_nos: [] }]
+  #    required:, ordered:, received:, outstanding:, on_hand:, available:, to_buy:, po_nos: [] }]
   # 没挂 BOM / 基准量为 0 → 空数组（料还没定出来，没什么可列的）。
   def call
     return [] if rows.empty? || factor.zero?
@@ -60,15 +67,30 @@ class Mes::MaterialArrival
 
   # 这颗料「走到哪了」——需求 / 下单 / 到货 / 还差 / 实时库存 / 挂在哪几张采购单。
   def quantities(item, pid)
-    required = item.qty.to_d * factor
     stat = purchase_stats[pid] || {}
-    received = stat[:received].to_d
-    {
-      required: required, ordered: stat[:ordered].to_d, received: received,
-      # 还差多少到货。超收不显示负数。
-      outstanding: [required - received, 0].max,
-      on_hand: on_hand[pid].to_d, po_nos: stat[:po_nos].to_a
-    }
+    purchased = { required: item.qty.to_d * factor, ordered: stat[:ordered].to_d,
+                  received: stat[:received].to_d }
+    purchased.merge(
+      # 还差多少到货（采购单履约进度）。超收不显示负数。
+      outstanding: [purchased[:required] - purchased[:received], 0].max,
+      on_hand: on_hand[pid].to_d,
+      po_nos: stat[:po_nos].to_a,
+      **supply_columns(pid, purchased)
+    )
+  end
+
+  # 可用 = 分到这张单头上的库存；还要买 = 还要领 − 可用 − 在途（下了单还没到的）。
+  # 库存够用的行 to_buy 会是 0——这正是加这两列的目的。
+  def supply_columns(pid, purchased)
+    supply = availability[pid] || {}
+    in_transit = [purchased[:ordered] - purchased[:received], 0].max
+    available = supply[:available].to_d
+    { available: available,
+      to_buy: [supply[:pending].to_d - available - in_transit, 0].max }
+  end
+
+  def availability
+    @availability ||= Mes::MaterialAvailability.for(@order.account, [@order])[@order.id] || {}
   end
 
   def product_ids
