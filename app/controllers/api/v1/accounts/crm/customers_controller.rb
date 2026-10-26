@@ -1041,8 +1041,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def owner_label(customer)
-    return '🌊 公海' if customer.is_in_public_pool
-    return "👤 #{customer.account_owner.crm_display_name}" if customer.account_owner_id
+    return '公海' if customer.is_in_public_pool
+    return customer.account_owner.crm_display_name.to_s if customer.account_owner_id
 
     '未分配'
   end
