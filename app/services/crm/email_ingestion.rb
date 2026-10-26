@@ -211,11 +211,35 @@ module Crm::EmailIngestion
     mail.multipart? ? nil : (mail.mime_type == 'text/html' ? decoded(mail) : nil)
   end
 
+  # 整封 HTML 源码当纯文本发过来的特征。有些表单/通知服务（如 formsubmit.co）
+  # 把同一份 HTML 同时塞进 text/plain 和 text/html 两个 part，两边字节完全一样。
+  # 只认「开头就是一份 HTML 文档」。不能顺手把「正文里出现 </html>」也算进来：
+  # 业务员自己写的纯文本信，引用历史里常夹着一段 HTML，那种是正常正文（实查 59 封）。
+  HTML_DOC = %r{\A\s*(<!doctype\s*html|<html[\s>])}i
+
   def text_body(mail)
     part = mail.text_part
-    return decoded(part) if part
+    raw = if part
+            decoded(part)
+          elsif !mail.multipart?
+            decoded(mail)
+          end
+    # 照收的话 body 里存的就是一串「<!doctype html>…」：列表摘要、AI 摘要/翻译、
+    # 阅读区的纯文本兜底全在吃源码（2026-10-26 用户反馈"邮件乱码"）。
+    # HTML 那一份照常进 body_html，不受影响。
+    raw&.match?(HTML_DOC) ? html_to_text(raw) : raw
+  end
 
-    mail.multipart? ? nil : decoded(mail)
+  # 块级标签先换成换行再去标签——直接 full_sanitizer 会把整张表压成一长行。
+  def html_to_text(html)
+    text = html.gsub(%r{<head\b[^>]*>.*?</head>}mi, ' ')
+               .gsub(%r{<(script|style)\b[^>]*>.*?</\1>}mi, ' ')
+               .gsub(%r{</(tr|p|div|h[1-6]|li|table)>}i, "\n")
+               .gsub(%r{<br\s*/?>}i, "\n")
+               .gsub(%r{</t[dh]>}i, ' ')
+    ActionView::Base.full_sanitizer.sanitize(text).to_s
+                    .gsub(/[ \t]+/, ' ').split("\n").map(&:strip).join("\n")
+                    .gsub(/\n{3,}/, "\n\n").strip
   end
 
   # 字符集处理拆在 Crm::MailCharset（GBK 中文邮件兼容，别再 force_encoding 二次错解）。
