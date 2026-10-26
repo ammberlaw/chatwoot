@@ -25,6 +25,7 @@ class Crm::MonthlyReportJob < ApplicationJob
       report = Crm::MonthlyReportService.new(account, account_user, report_month).call
       next if skip_empty?(report)
 
+      notify_in_app(account, account_user, report, label)
       Crm::MonthlyReportMailer.with(
         account: account,
         recipient: account_user.user.email,
@@ -33,6 +34,59 @@ class Crm::MonthlyReportJob < ApplicationJob
         month_label: label
       ).monthly_digest.deliver_later
     end
+  end
+
+  # 站内通知是主通道，邮件是捎带。
+  #
+  # users.email 是**登录账号**，不保证是能收信的邮箱——41 个成员里只有 12 个在 CRM 里
+  # 绑了真实邮箱，而且绑的那个常常和登录账号不是同一个地址。已证实至少 4 个登录账号
+  # 投不进去（550 Mailbox not found，见 Mes::DailyAlertJob 的说明）。
+  # 月报是本系统最后一个只走邮件的定时任务，其余六个早就都走站内通知了。
+  #
+  # 金额在正文里按元摆出来，点开就看得到，不用等邮件。
+  def notify_in_app(account, account_user, report, label)
+    sender = Crm::SystemUser.for(account)
+    conversation = Chat::CreateConversationService.new(account: account, creator: sender)
+                                                  .find_or_create_direct(account_user.user_id)
+    text = digest_text(report, label)
+    # 同一个月只发一次：手动补发（perform('2026-09')）不该把上次那条再刷一遍。
+    return if conversation.messages.exists?(['content LIKE ?', "#{Chat::Message.sanitize_sql_like(text.lines.first.to_s.strip)}%"])
+
+    Chat::NotifyService.new(account: account, sender: sender).notify(account_user.user_id, text)
+  rescue StandardError => e
+    Rails.logger.warn("[MonthlyReport] 站内通知失败 user=#{account_user.user_id}: #{e.message}")
+  end
+
+  def digest_text(report, label)
+    [
+      "【#{label} 工作月报】#{report[:scope_label]}",
+      "成交额 #{yuan(report[:amount_micros])}#{pct(report[:amount_mom_pct])}",
+      "新增客户 #{report[:new_customers].to_i}#{pct(report[:customers_mom_pct])}",
+      target_line(report),
+      champion_line(report)
+    ].compact.join("\n")
+  end
+
+  def target_line(report)
+    return nil unless report[:year_target_micros].to_i.positive?
+
+    "年度目标 #{yuan(report[:year_target_micros])}，累计完成 #{yuan(report[:ytd_amount_micros])}"
+  end
+
+  def champion_line(report)
+    return nil if report[:champion_name].blank?
+
+    "本月冠军 #{report[:champion_name]} #{yuan(report[:champion_amount_micros])}"
+  end
+
+  def yuan(micros)
+    "¥#{ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', micros.to_i / 1e6))}"
+  end
+
+  def pct(value)
+    return '' if value.nil?
+
+    "（环比 #{value.to_f.positive? ? '+' : ''}#{value}%）"
   end
 
   # sidekiq 参数必须是原生 JSON 类型。几个金额字段是 SQL SUM 出来的 BigDecimal，
