@@ -139,6 +139,14 @@ erp_daily_alert_job:
   class: 'Erp::DailyAlertJob'
   queue: scheduled_jobs
 
+# CRM：绩效考核催办（把「等你动手的考核表」摘要推给对应的人），北京时间周一 09:30 = UTC 01:30。
+# 周报不日报：考核是月度节奏，挂两天很正常，天天催会让人把通知当背景噪音。
+# 即时通知解决「不知道」，这个解决「知道了但忘了」——实查最久一张挂了 81 天。
+crm_kpi_reminder_job:
+  cron: '30 1 * * 1'
+  class: 'Crm::KpiReminderJob'
+  queue: scheduled_jobs
+
 # CRM：人事到期提醒（试用期到期前 7 天 / 劳动合同到期前 1 个月推人事），北京时间 09:15 = UTC 01:15
 crm_hr_expiry_reminder_job:
   cron: '15 1 * * *'
