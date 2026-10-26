@@ -103,6 +103,7 @@ class Account < ApplicationRecord
   has_many :crm_teams, class_name: 'Crm::Team', dependent: :destroy_async
   has_many :crm_sales_targets, class_name: 'Crm::SalesTarget', dependent: :destroy_async
   has_many :crm_mail_accounts, class_name: 'Crm::MailAccount', dependent: :destroy_async
+  has_many :crm_mail_blocklists, class_name: 'Crm::MailBlocklist', dependent: :destroy_async
   has_many :crm_email_templates, class_name: 'Crm::EmailTemplate', dependent: :destroy_async
   has_many :crm_email_signatures, class_name: 'Crm::EmailSignature', dependent: :destroy_async
   has_many :crm_email_folders, class_name: 'Crm::EmailFolder', dependent: :destroy_async
@@ -163,6 +164,7 @@ class Account < ApplicationRecord
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
+  has_many :crm_issue_reports, dependent: :destroy_async, class_name: 'Crm::IssueReport'
   has_many :mes_material_prices, dependent: :destroy_async, class_name: 'Mes::MaterialPrice'
   has_many :mes_boms, class_name: 'Mes::Bom', dependent: :destroy_async
   has_many :mes_bom_items, class_name: 'Mes::BomItem', dependent: :destroy_async

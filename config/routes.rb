@@ -144,7 +144,11 @@ Rails.application.routes.draw do
                 post :toggle_done
                 post :complete_follow_up
               end
-              collection { get :pending_count }
+              collection do
+                get :pending_count
+                # 「今天要做的」：日程 + 各板块待我动手的，合并读（见 Crm::MyDay）
+                get :my_day
+              end
             end
             get 'home_stats', to: 'home_stats#index'
             resources :sales_orders do
@@ -312,6 +316,8 @@ Rails.application.routes.draw do
             resources :mail_accounts do
               member { post :test }
             end
+            # 收信黑名单（按发件域名/地址丢弃推销信）
+            resources :mail_blocklists, only: [:index, :create, :destroy]
             resources :email_templates
             resources :members, only: [:index, :create, :update, :destroy] do
               member do

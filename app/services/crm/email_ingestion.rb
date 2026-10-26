@@ -18,6 +18,7 @@ module Crm::EmailIngestion
 
     from = Crm::MailCharset.scrub(Array(mail.from).first.to_s)
     return false if notification_sender?(from)
+    return false if blocked_sender?(from, mail)
 
     create_email(mail, message_id, from, owner_id)
     true
@@ -55,6 +56,26 @@ module Crm::EmailIngestion
     return false if self_address.blank?
 
     [*Array(mail.to), *Array(mail.cc)].any? { |addr| address_tokens(addr).include?(self_address) }
+  end
+
+  # 黑名单拦截：和上面的 notification_sender? 一个路子——**入库前直接丢弃**，
+  # 不是收进来再挪进垃圾箱。收进来就还会占列表、进搜索、喂给 AI 摘要，
+  # 等于没屏蔽。规则由人维护（Crm::MailBlocklist），命中就记一笔拦截数，
+  # 误伤看得见、随时能删。
+  #
+  # 一次抓取会连着处理一批信，名单在实例上缓存一次就够（抓取服务是每轮新建的）。
+  def blocked_sender?(from, mail)
+    address = Crm::MailBlocklist.sender_address(from)
+    rule = blocklist_rules.find { |r| r.matches?(address) }
+    return false if rule.nil?
+
+    rule.record_hit!(from, Crm::MailCharset.scrub(mail.subject.to_s))
+    Rails.logger.info("[Crm::MailFetch] 黑名单拦截 rule=#{rule.value} from=#{address}")
+    true
+  end
+
+  def blocklist_rules
+    @blocklist_rules ||= Crm::MailBlocklist.where(account_id: @account.account_id).to_a
   end
 
   def notification_sender?(from)
