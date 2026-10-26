@@ -97,6 +97,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return render_error('已发放的考核表不能重开打分，请先让财务撤销发放', :unprocessable_entity) if @sheet.paid_at.present?
 
     @sheet.reopen_scoring!(reason: params[:reason].to_s.strip, by: current_user)
+    notify_reopened(params[:reason].to_s.strip)
     render 'show'
   end
 
@@ -125,6 +126,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       @sheet.hr_confirmed_at = Time.current
     end
 
+    notify_gm_pending
     render 'show'
   end
 
@@ -162,6 +164,28 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   def sheet_ref(subtitle)
     { type: 'kpi_sheet', id: @sheet.id, label: '考核表',
       title: @sheet.scheme_name, subtitle: subtitle }
+  end
+
+  # HR 确认完就轮到总经理签了，但这一步原先是哑的——总经理不进「考核表」页面
+  # 就不知道有东西等他。2026-10-26 实查：10 张停在 HR_CONFIRMED，最久的等了 18 天，
+  # 其余 10~13 天，全是在等这一签。整条链上只有这一步和「退回主管改分」没通知。
+  def notify_gm_pending
+    gm_id = perf_setting.gm_owner_id
+    return if gm_id.blank? || gm_id == current_user.id
+
+    crm_notify(gm_id,
+               "【绩效考核】#{@sheet.owner&.name} 的「#{@sheet.scheme_name}」人事已确认，等你最终确认归档。",
+               ref: sheet_ref("#{@sheet.owner&.name} · 待总经理确认"))
+  end
+
+  # 退回主管改分：主管不知道分被打回了，表就停在「待打分」没人动。
+  def notify_reopened(reason)
+    return if @sheet.manager_id.blank? || @sheet.manager_id == current_user.id
+
+    why = reason.presence ? "，原因：#{reason}" : ''
+    crm_notify(@sheet.manager_id,
+               "【绩效考核】#{@sheet.owner&.name} 的「#{@sheet.scheme_name}」被退回重新打分#{why}。",
+               ref: sheet_ref("#{@sheet.owner&.name} · 待重新打分"))
   end
 
   # 主管打分后自动在团队沟通通知被考核成员打分结果。失败只记日志、不阻断打分。
