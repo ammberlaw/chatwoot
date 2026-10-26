@@ -779,7 +779,8 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 生产领料计划：在 BOM 推料基础上，补每行「已领量 / 实时库存 / 待领量」（供领料页展示）。
   # warehouse_id 传入则算该仓实时库存；已领量按本订单已过账的领料单累计（按产品档案 crm_product_id）。
-  def issue_plan(warehouse_id: nil, category: 'MACHINE')
+  # category 传 nil = 全部类别（组装 + 包装）；传 MACHINE / PACKAGING 只推一类。
+  def issue_plan(warehouse_id: nil, category: nil)
     reqs = material_requirements(category: category)
     issued = issued_qty_map
     onhand = warehouse_id.present? ? onhand_qty_map(warehouse_id) : {}

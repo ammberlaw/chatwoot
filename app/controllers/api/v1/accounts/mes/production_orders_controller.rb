@@ -164,10 +164,17 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   # 生产领料计划：BOM 推料 + 每行「已领量/实时库存/待领量」。warehouse_id 传入算该仓库存。
+  #
+  # 不按类别过滤（传 category=MACHINE / PACKAGING 可单推一类）。
+  # 原先这里和采购算料一样默认只推 MACHINE，但领料页从没给过切类别的入口，
+  # 结果**包装物料根本领不出来**——一张 27 行的 BOM 只推得出 9 行组装料，
+  # 另外 18 行包装料在界面上无路可走（2026-10-26 用户反馈）。
+  # 领料和采购的口径本来就不同：采购关心「缺什么料会挡开产」，所以分类下单；
+  # 领料关心「这张单还欠仓库多少」，已领的行 pending_qty 自然归零，推全量不会重复领。
   def issue_plan
     rows = @production_order.issue_plan(
       warehouse_id: params[:warehouse_id].presence,
-      category: params[:category].presence || 'MACHINE'
+      category: params[:category].presence
     )
     rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
     # 折算口径一并给前端摆出来：基准量和明细用量填拧了（基准量 3、明细按整单 300 填）时，
