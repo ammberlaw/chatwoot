@@ -125,7 +125,12 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
       stock_entry_params.merge(owner_id: stock_entry_params[:owner_id] || current_user.id)
     )
     # 成品入库(MANUFACTURE)由车间(report)开单；其余库存单仍限仓管(stock)。
-    raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
+    #
+    # 不能再抛裸的 Pundit::NotAuthorizedError：前端收到 403 弹的是英文
+    # 「You are not authorized to do this action」，当事人既看不懂、也不知道该找谁。
+    # 生产上真发生过——生产岗把整张领料单填完、推完料，点保存才被这句话弹回来
+    # （2026-10-26）。
+    return render_not_allowed if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
 
     # 收货单据号改到收货明细每项备注上填写，不再强制上传收货单文件。
     @stock_entry.fallback_product_line = current_product_line
@@ -139,6 +144,14 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     # 原先没 rescue，车间开成品入库单时直接弹黑框 Internal Server Error，
     # 写得很清楚的那句话用户一个字也看不到（2026-10-09 生产反馈）。
     render json: { error: business_error(e) }, status: :unprocessable_entity
+  end
+
+  # 403 带一句说得清的中文：谁能开、现在该找谁。
+  ISSUE_ROLE_HINT = '领料单由仓管开（MES 角色「仓管」），生产岗开不了。' \
+                    '要自己开请让管理员在「wintouchspace 成员管理」加上仓管角色，加完需重新登录。'.freeze
+
+  def render_not_allowed
+    render json: { error: ISSUE_ROLE_HINT }, status: :forbidden
   end
 
   # 建单前把收货单文件暂存为 blob，拿到 signed_id，建单时通过 receipts 一并挂载。

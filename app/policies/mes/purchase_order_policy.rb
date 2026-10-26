@@ -23,7 +23,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   # 提交审批：采购员本人。审批/驳回：本单审批人或管理员（代批）——本单是否归他批由控制器按
   # gm_id 逐单核对（authorize 这里拿不到记录，只能拦掉「完全没有审批身份的人」）。
   def submit? = @account_user.mes_can?(:purchase)
-  def approval_inbox? = readable?
+  # 同出库：清单本身就是 awaiting_gm_for(current_user)，不是审批人拿到的是空清单。
+  # 用 403 表达「没有待办」会让前端弹英文报错（实测每天几十次）。
+  def approval_inbox? = true
   def approve? = approver_or_admin?
   def reject? = approver_or_admin?
 

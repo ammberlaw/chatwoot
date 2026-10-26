@@ -23,8 +23,13 @@ class Mes::ShipmentPolicy < ApplicationPolicy
   # 具体哪张单谁能批由控制器 can_approve_shipment? 按单判定，这里只管「有没有资格走到那一步」。
   def approve? = approver? || @account_user.mes_can?(:shipment)
   def reject? = approve?
-  # 「出库审核」清单仍是财务那张台子，不放宽。
-  def approval_inbox? = approver?
+  # 「待我审核」清单：放行到接口这一层，返回什么由 Mes::TodoList#shipment_approvals
+  # 逐条按 approver_for? 过滤——不是审核人的人拿到的就是一张空清单。
+  #
+  # 原先这里挡的是 approver?，于是 2026-10-26 收紧「副管不再默认是出库审核人」之后，
+  # 副管的待办角标每次轮询都 403，前端弹一次英文「You are not authorized to do this
+  # action」（6 小时里 50 次）。空清单和没权限是两回事，别用 403 表达「没有待办」。
+  def approval_inbox? = true
 
   # 退回草稿 / 作废：与删单同一道门，控制器再按状态和制单人收敛。
   def revert_to_draft? = destroy?
