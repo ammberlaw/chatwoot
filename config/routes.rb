@@ -328,6 +328,11 @@ Rails.application.routes.draw do
               end
             end
             resources :kpi_sheets do
+              collection do
+                # 侧栏角标：等我动手的考核表数。口径收在 Crm::KpiReminderJob.actionable_for，
+                # 和每周催办同一份判定——两边分家就会「角标说 3 张、点进去找不到」。
+                get :pending_count
+              end
               member do
                 post :submit
                 post :score

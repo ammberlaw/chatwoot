@@ -21,6 +21,19 @@ class Crm::KpiReminderJob < ApplicationJob
   # 覆盖检查从每月几号开始报。月初几天还在陆续下发，太早报全是假警。
   COVERAGE_CHECK_DAY = 7
 
+  # 「这个人现在有几张考核表该他动」——侧栏角标和每周催办共用这一份判定。
+  # 控制器反过来调这里：分家写两份，迟早出现「角标说 3 张、点进去找不到」
+  # （MES 那个待办面板就是这么对不上的，2026-10-26 修过一轮）。
+  def self.actionable_for(account, account_user)
+    return Crm::KpiSheet.none if account_user.blank?
+
+    job = new
+    ids = account.crm_kpi_sheets.where(status: STEPS.keys).select do |sheet|
+      Array(job.send(:actors_for, account, sheet)).compact.include?(account_user.user_id)
+    end.map(&:id)
+    account.crm_kpi_sheets.where(id: ids)
+  end
+
   def perform
     Account.where(id: Crm::KpiSheet.distinct.select(:account_id)).find_each do |account|
       remind_pending(account)

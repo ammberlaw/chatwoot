@@ -24,6 +24,12 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def show; end
 
+  # 侧栏角标：等我动手的考核表数（待我填报/打分/人事确认/总经理确认）。
+  # 判定走 Crm::KpiReminderJob.actionable_for，与每周催办同一口径。
+  def pending_count
+    render json: { count: Crm::KpiReminderJob.actionable_for(Current.account, Current.account_user).count }
+  end
+
   # 保存完成值(员工)/得分(主管)。按行 id 更新。备注/补充条款仅主管·管理员可改。
   def update
     # 严格分权按状态：员工仅在「待填报」改自己的完成值；主管仅在「已提交(待打分)」改核对值/得分。
