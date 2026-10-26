@@ -61,7 +61,10 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     return render json: { message: '请输入邮箱、公司域名或公司名' }, status: :unprocessable_entity if query.blank?
 
     result = Crm::CompanyLookupService.new(account: Current.account).call(query: query)
-    result[:db_match] = company_db_match(result[:domain]) if result[:domain].present?
+    if result[:domain].present?
+      result[:db_match] = company_db_match(result[:domain])
+      stamp_bg_check(result)
+    end
     render json: result
   end
 
@@ -102,6 +105,23 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
 
   # 该域名在系统里是否已建档：total 为全账户命中数（供去重预警），visible 仅返回当前用户可见范围的详情
   # （业务员只看自己/团队，其余只知数量不露客户名，守住数据可见性边界）。
+  # 背调留痕：查到的是已建档客户时，在客户上记一笔「什么时候背调的、结论是什么」。
+  #
+  # 原先这个接口是纯实时查、不落库，结果渲染完就没了。绩效考核里
+  # 「客户信息完整（含公司背调）」这一项因此系统判不了（见 Crm::KpiSystemScorer）。
+  # 只盖在当前用户自己名下的客户上——背调别人的客户不该算到别人的完整度里。
+  def stamp_bg_check(result)
+    return if result[:status].to_s == 'invalid' || result[:summary].blank?
+
+    ids = Array(result.dig(:db_match, :visible)).filter_map { |c| c[:id] if c[:mine] }
+    return if ids.empty?
+
+    summary = result[:summary].to_s.truncate(2000)
+    Current.account.crm_customers.where(id: ids).find_each do |customer|
+      customer.update(bg_checked_at: Time.current, bg_summary: summary)
+    end
+  end
+
   def company_db_match(domain)
     all = Current.account.crm_customers.where('LOWER(contact_email) LIKE ?', "%@#{domain.downcase}")
     ids = crm_visible_owner_ids

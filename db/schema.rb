@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_22_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_26_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1155,6 +1155,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_140000) do
     t.datetime "ai_next_step_at"
     t.string "alibaba_account"
     t.bigint "assigned_by_id"
+    t.datetime "bg_checked_at"
+    t.text "bg_summary"
     t.index "account_id, lower((alibaba_account)::text)", name: "index_crm_customers_on_account_id_and_alibaba_account"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
@@ -1474,6 +1476,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_22_140000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["currency", "quote_date"], name: "index_crm_fx_rates_on_currency_and_quote_date", unique: true
+  end
+
+  create_table "crm_issue_reports", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "reporter_id", null: false
+    t.text "body", null: false
+    t.string "subject_type"
+    t.bigint "subject_id"
+    t.string "subject_no"
+    t.string "action_type"
+    t.jsonb "context", default: {}, null: false
+    t.string "status", default: "new", null: false
+    t.text "resolution"
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "status", "created_at"], name: "index_crm_issue_reports_on_account_status_created"
+    t.index ["reporter_id"], name: "index_crm_issue_reports_on_reporter_id"
+    t.index ["subject_type", "subject_id"], name: "index_crm_issue_reports_on_subject_type_and_subject_id"
   end
 
   create_table "crm_knowledge_categories", force: :cascade do |t|

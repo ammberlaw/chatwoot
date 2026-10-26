@@ -60,10 +60,13 @@ class Crm::KpiSystemScorer
   end
 
   # ── 客户/商机录入完整度：完整率≥95% 满分；90%~95% 六成；<90% 零分 ──
-  # 「完整」按评分标准列的四项里**系统查得到的三项**算：联系人、邮箱、产品。
-  # 「公司背调」没有对应字段（只有 website / customer_remark，都不是背调结论），
-  # 不拿它们硬凑——理由里说明，让主管自己补这一项。
+  # 「完整」＝评分标准列的四项全有：公司背调、产品、联系人、邮箱，外加已建商机。
+  # 背调原先没有落库（AI 背调是实时查、查完就没了），2026-10-26 起在客户上留痕，
+  # 所以只对那天之后建的客户查这一项——历史客户没数据，算他们缺是冤枉。
   COMPLETE_TIERS = [[95, 1.0], [90, 0.6]].freeze
+
+  # 背调留痕是哪天上线的。之前建的客户没这个数据，不能算他们缺。
+  BG_TRACKED_SINCE = Time.zone.parse('2026-10-26').freeze
 
   def customer_completeness(weight)
     customers = @account.crm_customers.where(account_owner_id: @owner_id, created_at: month_range).to_a
@@ -75,7 +78,7 @@ class Crm::KpiSystemScorer
     ratio = COMPLETE_TIERS.find { |floor, _| pct >= floor }&.last || 0.0
     { score: (weight * ratio).round(1),
       reason: "当月新建 #{total} 个客户，#{ok} 个四项齐全，完整率 #{pct}%。缺的是：#{gaps_text(customers)}。" \
-              '（「公司背调」系统里没有对应字段，这一项请人工确认）' }
+              "#{bg_note}" }
   end
 
   # 光说「#{ok} 个齐全」主管不知道该催什么。把每一项各缺多少摆出来——
@@ -85,8 +88,18 @@ class Crm::KpiSystemScorer
     '联系人' => ->(c, _) { c.primary_contact_name.present? },
     '邮箱' => ->(c, _) { c.contact_email.present? },
     '产品' => ->(c, _) { c.product_group.present? },
-    '商机' => ->(c, acc) { acc.crm_opportunities.exists?(crm_customer_id: c.id) }
+    '商机' => ->(c, acc) { acc.crm_opportunities.exists?(crm_customer_id: c.id) },
+    # 背调从 2026-10-26 才开始留痕（此前 AI 背调是实时查、不落库）。
+    # 在那之前建的客户一律不算缺——否则历史客户会把完整率永远压在 0。
+    '背调' => ->(c, _) { c.created_at < Crm::KpiSystemScorer::BG_TRACKED_SINCE || c.bg_checked_at.present? }
   }.freeze
+
+  # 背调留痕上线前建的客户不参与这一项，说明一下，免得主管以为漏判了。
+  def bg_note
+    return '' if @month >= BG_TRACKED_SINCE.to_date.beginning_of_month
+
+    '（当月客户建于背调留痕上线前，这一项未计入）'
+  end
 
   def gaps_text(customers)
     gaps = CHECKS.filter_map do |label, check|
@@ -100,27 +113,61 @@ class Crm::KpiSystemScorer
     CHECKS.values.all? { |check| check.call(customer, @account) }
   end
 
-  # ── 目标对齐：每月 1 日前设定当月目标（标准里是 1.5 分）──
-  # 标准另有「每季度首月 5 日前完成季度分解」和「年度目标已录入并更新」各一项，
-  # 但 crm_sales_targets 只有月度一种粒度，系统里根本没有季度/年度目标这个东西，
-  # 所以这两项判不了。只给月度那一项的分，剩下的在理由里交代清楚。
-  MONTHLY_TARGET_POINTS = 1.5
+  # ── 目标对齐：三项各自计分 ──────────────────────────────
+  #   月度目标    1.5 分  当月有目标，且当月 1 日前就录好了
+  #   季度分解    1.5 分  该季度三个月都有目标，且季度首月 5 日前录完
+  #   年度目标    1.0 分  当年 12 个月都有目标
+  #
+  # 一开始以为要给 crm_sales_targets 加「季度/年度」粒度才算得了，重读标准后发现不用：
+  # 「季度目标**分解**」指的就是把季度拆到月，而月就是这张表在存的东西；
+  # 「年度目标已录入」同理＝12 个月都录了。实测张欢、Candice 都录满 12 个月，
+  # 罗家明只录到 10 月——这个判法分得开，不用动表结构。
+  TARGET_PARTS = [
+    ['月度目标', 1.5, :monthly_target_ok?],
+    ['季度分解', 1.5, :quarter_target_ok?],
+    ['年度目标', 1.0, :annual_target_ok?]
+  ].freeze
 
   def target_alignment(weight)
-    target = @account.crm_sales_targets.find_by(owner_id: @owner_id, target_month: @month)
-    cap = [MONTHLY_TARGET_POINTS, weight].min
-    if target.nil?
-      return { score: 0.0,
-               reason: "没查到 #{@month.strftime('%-m 月')}的月度目标。" \
-                       "（本指标共 #{weight} 分，系统只判得了「月度目标」这 #{cap} 分，" \
-                       '季度分解与年度目标系统里没有对应数据，请人工评）' }
+    earned = []
+    lost = []
+    TARGET_PARTS.each do |label, points, check|
+      (send(check) ? earned : lost) << "#{label} #{points} 分"
     end
+    score = TARGET_PARTS.sum { |_, points, check| send(check) ? points : 0 }
+    { score: [score, weight].min.round(1), reason: target_reason(earned, lost, weight) }
+  end
 
-    on_time = target.created_at.to_date <= @month
-    verdict = on_time ? "在当月 1 日前，得 #{cap} 分" : "晚于当月 1 日，这 #{cap} 分不得分"
-    { score: on_time ? cap : 0.0,
-      reason: "#{@month.strftime('%-m 月')}目标于 #{target.created_at.to_date} 设定，#{verdict}。" \
-              "（本指标共 #{weight} 分，系统只判得了「月度目标」这 #{cap} 分，" \
-              '季度分解与年度目标系统里没有对应数据，请人工评）' }
+  def target_reason(earned, lost, weight)
+    got = earned.presence&.join('、') || '无'
+    missed = lost.presence ? "；未达：#{lost.join('、')}" : ''
+    base = "得分项：#{got}#{missed}。"
+    weight > 4.0 ? "#{base}（本指标共 #{weight} 分，标准只列了 4 分的细则，余量请人工评）" : base
+  end
+
+  # 当月目标在当月 1 日前就录好了。晚录＝没按时设定。
+  def monthly_target_ok?
+    t = targets_this_year.find { |x| x.target_month.to_date == @month.to_date }
+    t.present? && t.created_at.to_date <= @month
+  end
+
+  # 季度三个月都有目标，且都在季度首月 5 日前录完。
+  def quarter_target_ok?
+    q_start = Date.new(@month.year, ((@month.month - 1) / 3 * 3) + 1, 1)
+    months = (0..2).map { |i| q_start >> i }
+    rows = targets_this_year.select { |t| months.include?(t.target_month.to_date) }
+    rows.size == 3 && rows.all? { |t| t.created_at.to_date <= q_start + 4 }
+  end
+
+  # 当年 12 个月都有目标。
+  def annual_target_ok?
+    targets_this_year.map { |t| t.target_month.to_date.month }.uniq.size == 12
+  end
+
+  def targets_this_year
+    @targets_this_year ||= @account.crm_sales_targets
+                                   .where(owner_id: @owner_id,
+                                          target_month: @month.all_year)
+                                   .to_a
   end
 end
