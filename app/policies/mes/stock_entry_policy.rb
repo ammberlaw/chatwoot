@@ -10,7 +10,10 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   # 打印计数：看得到这张单就打得了（打印本身是只读动作，计数只是留个痕）。
   def mark_printed? = true
   def update? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
-  def post? = @account_user.mes_can?(:stock)
+  # 过账这道门只放行到「有没有资格走到这一步」，真正判谁能过账在控制器
+  # can_operate_entry?（要看这张单属于哪条产线、该板块的负责人是谁）。
+  # 和同文件里 approve?/reject? 一个路子——policy 看不见单据，判不了产线。
+  def post? = true
 
   # 原料↔成品转换（建单即过账）：仓管（stock）能力，同过账。
   def convert? = @account_user.mes_can?(:stock)

@@ -124,13 +124,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     @stock_entry = Current.account.mes_stock_entries.new(
       stock_entry_params.merge(owner_id: stock_entry_params[:owner_id] || current_user.id)
     )
-    # 成品入库(MANUFACTURE)由车间(report)开单；其余库存单仍限仓管(stock)。
-    #
-    # 不能再抛裸的 Pundit::NotAuthorizedError：前端收到 403 弹的是英文
-    # 「You are not authorized to do this action」，当事人既看不懂、也不知道该找谁。
-    # 生产上真发生过——生产岗把整张领料单填完、推完料，点保存才被这句话弹回来
-    # （2026-10-26）。
-    return render_not_allowed if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
+    return render_not_allowed(@stock_entry) unless can_operate_entry?(@stock_entry)
 
     # 收货单据号改到收货明细每项备注上填写，不再强制上传收货单文件。
     @stock_entry.fallback_product_line = current_product_line
@@ -146,12 +140,44 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
-  # 403 带一句说得清的中文：谁能开、现在该找谁。
-  ISSUE_ROLE_HINT = '领料单由仓管开（MES 角色「仓管」），生产岗开不了。' \
-                    '要自己开请让管理员在「wintouchspace 成员管理」加上仓管角色，加完需重新登录。'.freeze
+  # 谁能开 / 改 / 过账这张库存单。
+  #
+  # 仓管（stock 能力）全线通吃；成品入库由车间（report）自己开。
+  # 除此之外，**「这条产线这个板块的负责人」也能操作本板块的单**——负责人配置在
+  # 「设置阶段负责人」里（Mes::BoardOwner，按产线 × 板块），平板车间的生产领料
+  # 配的就是杨义（MES 角色「生产」）。只按 MES 角色判的话他开不了自己车间的领料单，
+  # 而那条配置本来表达的就是「这个环节归他」（2026-10-26 用户：平板车间的领料单
+  # 和入库都是车间自己开）。好处是以后调人在界面上改配置即可，不用动代码。
+  def can_operate_entry?(entry)
+    au = Current.account_user
+    return true if au.mes_can?(:stock)
+    return true if entry.purpose == 'MANUFACTURE' && au.mes_can?(:report)
 
-  def render_not_allowed
-    render json: { error: ISSUE_ROLE_HINT }, status: :forbidden
+    Mes::BoardOwner.manager?(Current.account, entry.document_board_key,
+                             effective_product_line(entry), au.user_id)
+  end
+
+  # 建单时 product_line 还没 stamp（那是模型的 before_validation 干的），
+  # 按 Mes::LineScoped 同样的优先级现算一遍：显式 > 父级带出 > 当前切换的产线。
+  def effective_product_line(entry)
+    entry.product_line.presence ||
+      entry.production_order&.product_line.presence ||
+      entry.purchase_order&.product_line.presence ||
+      current_product_line
+  end
+
+  # 403 要说清两件事：这张单归谁、怎么把自己加进去。
+  # 只回一句英文「You are not authorized to do this action」的时候，当事人是把整张
+  # 领料单填完、推完料、点保存才被弹回来的，既看不懂也不知道该找谁（2026-10-26 生产反馈）。
+  def render_not_allowed(entry)
+    owners = Mes::BoardOwner.where(account_id: Current.account.id, board_key: entry.document_board_key)
+                            .flat_map(&:manager_ids).uniq
+    names = User.where(id: owners).pluck(:name).presence
+    who = names ? "现在配的是#{names.join('、')}" : '现在还没配负责人'
+    render json: {
+      error: "#{entry.return_document_label}由仓管、或这条产线该板块的负责人来开（#{who}）。" \
+             '要自己开，请管理员在 MES 页面左上角「设置阶段负责人」里把你加进对应产线，加完需重新登录。'
+    }, status: :forbidden
   end
 
   # 建单前把收货单文件暂存为 blob，拿到 signed_id，建单时通过 receipts 一并挂载。
@@ -166,7 +192,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   end
 
   def update
-    raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
+    return render_not_allowed(@stock_entry) unless can_operate_entry?(@stock_entry)
 
     @stock_entry.update!(stock_entry_params)
     render 'api/v1/accounts/mes/stock_entries/show'
@@ -191,6 +217,8 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   # 过账：刷结存 + 记流水 + 阶段推进。
   def post
+    return render_not_allowed(@stock_entry) unless can_operate_entry?(@stock_entry)
+
     @stock_entry.post!
     render 'api/v1/accounts/mes/stock_entries/show'
   rescue StandardError => e
