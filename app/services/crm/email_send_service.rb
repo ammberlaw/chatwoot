@@ -85,25 +85,106 @@ class Crm::EmailSendService
   # ⚠ 有附件时必须显式把 html/text 包进一层 multipart/alternative：否则 Mail 会把附件
   # 直接并入顶层 multipart/alternative，收件端把附件当成"正文的备选格式"忽略——
   # 表现为"正文收到、附件不见"。包一层后顶层随附件成为 multipart/mixed，附件正常显示。
+  # 纯文本 part 里的 markdown 图片语法：收件人切到纯文本视图会看到 `![](一长串链接)`。
+  MD_IMAGE = /!\[[^\]]*\]\([^)\s]*\)/
+
   def apply_body(message, has_files)
-    plain_body = @email.body.to_s.gsub(TEXT_COLOR_MARKER, '')
+    plain_body = @email.body.to_s.gsub(TEXT_COLOR_MARKER, '').gsub(MD_IMAGE, '[图片]')
     unless @email.body_html.present?
       message.body = plain_body
       message.charset = 'UTF-8'
       return
     end
 
+    source, inline_images = inline_images_as_cid(html_with_tracking_pixel)
     text = Mail::Part.new(body: plain_body, content_type: 'text/plain; charset=UTF-8')
-    html = Mail::Part.new(body: html_with_tracking_pixel, content_type: 'text/html; charset=UTF-8')
-    if has_files
-      alternative = Mail::Part.new(content_type: 'multipart/alternative')
-      alternative.add_part(text) # text 在前、html 在后：客户端优先展示更"富"的 html
-      alternative.add_part(html)
-      message.add_part(alternative)
+    html = Mail::Part.new(body: source, content_type: 'text/html; charset=UTF-8')
+    if inline_images.any?
+      message.add_part(related_part(text, html, inline_images))
+    elsif has_files
+      message.add_part(alternative_part(text, html))
     else
       message.text_part = text
       message.html_part = html
     end
+  end
+
+  # text 在前、html 在后：客户端优先展示更"富"的 html。
+  def alternative_part(text, html)
+    part = Mail::Part.new(content_type: 'multipart/alternative')
+    part.add_part(text)
+    part.add_part(html)
+    part
+  end
+
+  AS_BLOB_PATH = %r{/rails/active_storage/blobs/redirect/([^/"]+)/}
+
+  # 发出的副本把站内内联图换成 CID 内嵌附件。
+  #
+  # 原先内联图是以 <img src="https://wintouchspace.com/rails/active_storage/..."> 发出去的，
+  # 链接本身匿名可访问（验过 302→COS 200），但远程图在企业邮箱/工单系统里默认不加载、
+  # 不少平台直接把它整段剥掉——我们这边显示"发送成功"，客户那边只看到一行字。
+  # 2026-10-26 客户回「这边没有看到有截图哦」，生产上已有 411 封发出的信是这个形态。
+  # 截图当场嵌在信里（cid:）才是邮件客户端通用做法，不依赖收件端回站上取图。
+  #
+  # 取不到的（blob 被删 / 对象存储抽风）保留原链接：不能为一张图把整封信判成发送失败。
+  # 引用块的起始标记：由写信弹窗生成（CrmEmailComposeDialog 的 quoteBlockHtml），
+  # 样式串在那里写死。编辑器自己的引用按钮走 markdown，出来的是不带 style 的 <blockquote>，
+  # 不会误命中。新邮件没有引用块 → 找不到标记 → 整封都算"本次写的"。
+  QUOTE_BLOCK = '<blockquote style="margin:8px 0 0;padding-left:12px;border-left:2px solid #d1d5db">'.freeze
+
+  def inline_images_as_cid(html)
+    # 只内嵌「本次写的」那一段里的图，引用历史里的图保持原来的远程链接。
+    # 一条 46 封往来的长链里攒了 24 张历史图，全嵌单封就 1.4 MB，越回越大；
+    # 而那些历史图在收件人自己那份原邮件里本来就有，不用我们再塞一遍。
+    cut = html.index(QUOTE_BLOCK) || html.length
+    cache = {}
+    rewritten = html[0...cut].gsub(/src="([^"]+)"/i) do |matched|
+      # ⚠ matched 必须用块参数接住：下一行的 String#[正则] 会重置 Regexp.last_match，
+      # 之后再读 last_match(0) 拿到的是 AS_BLOB_PATH 的结果（不匹配时为 nil），
+      # 会把追踪像素这类非站内图的 src 整个抹掉。
+      signed_id = matched[AS_BLOB_PATH, 1]
+      next matched if signed_id.blank?
+
+      cache[signed_id] = downloadable_image(signed_id) unless cache.key?(signed_id)
+      image = cache[signed_id]
+      image ? %(src="cid:#{image[:cid]}") : matched
+    end
+    ["#{rewritten}#{html[cut..]}", cache.values.compact]
+  end
+
+  def downloadable_image(signed_id)
+    blob = ActiveStorage::Blob.find_signed(signed_id)
+    return nil if blob.nil? || !blob.content_type.to_s.start_with?('image/')
+
+    { cid: "#{blob.key}@wintouchspace.com", filename: blob.filename.to_s,
+      content_type: blob.content_type, bytes: blob.download }
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::EmailSend] 内联图取不到，保留原链接 email=#{@email.id} blob=#{signed_id}: #{e.message}")
+    nil
+  end
+
+  # multipart/related：html 用 cid: 引用，图片作为同层 part 跟在后面。
+  # 图片必须和 html 同在 related 里（不能平铺到顶层），否则收件端把它们当普通附件、
+  # 正文里的 cid: 解析不到——表现就是"附件有图、正文裂图"。
+  def related_part(text, html, images)
+    related = Mail::Part.new(content_type: 'multipart/related')
+    related.add_part(alternative_part(text, html))
+    # ⚠ 别用 related.attachments[...]=：它会把 related 的 Content-Type 重写成
+    # multipart/mixed 并连带丢掉 boundary，收件端解析不出子 part（实测重解析后
+    # related 底下空无一物）。手工建 part + add_part 才保住 related 和 boundary。
+    images.each { |image| related.add_part(inline_part(image)) }
+    related
+  end
+
+  def inline_part(image)
+    part = Mail::Part.new
+    part.content_type = %(#{image[:content_type]}; name="#{image[:filename]}")
+    part.content_transfer_encoding = 'base64'
+    part.content_disposition = %(inline; filename="#{image[:filename]}")
+    part.content_id = "<#{image[:cid]}>"
+    part.body = [image[:bytes]].pack('m') # 已声明 base64，Mail 不会再编码，这里必须自己编
+    part
   end
 
   # 在 HTML 正文末尾埋 1×1 追踪像素；收件人邮件客户端加载它即命中回调，记录打开。
