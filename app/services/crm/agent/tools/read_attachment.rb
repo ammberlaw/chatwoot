@@ -9,7 +9,7 @@
 # 返回的明细刻意排成「型号 | 描述 | 数量 | 单价」一行一项——
 # 和 draft_quote / draft_pi 的 items 参数同一个格式，模型抽完能直接拿去建单。
 class Crm::Agent::Tools::ReadAttachment < Crm::Agent::Tools::Base
-  description '读某封客户来信的附件（PDF/Excel/CSV 的询价单、PI、订单），把里面的品名、规格、数量、单价抽出来，拿到后可以接着建报价单或 PI 草稿。只认能抽出文字的文件，图片和扫描件读不了。邮件ID 和附件序号从 customer_emails 的结果里取。'
+  description '读某封客户来信的附件（PDF/Excel/CSV 的询价单、PI、订单），把里面的品名、规格、数量、单价抽出来，拿到后可以接着建报价单或 PI 草稿。PDF/Excel/CSV 抽文字；图片（手机拍的规格表、手写询价、实物照）走视觉模型读，需管理员先配好读图模型。邮件ID 和附件序号从 customer_emails 的结果里取。'
   param :email_id, type: 'integer', desc: '邮件ID（customer_emails 结果里每封信开头的那个）'
   param :index, type: 'integer', desc: '读第几个附件，从 1 开始；不传读第一个', required: false
 
@@ -32,6 +32,9 @@ class Crm::Agent::Tools::ReadAttachment < Crm::Agent::Tools::Base
   def names(files) = files.each_with_index.map { |a, i| "#{i + 1}. #{a.blob.filename}" }.join('　')
 
   def parse(attachment)
+    # 图片走视觉模型（手机拍的规格表、手写询价、实物照），抽不出文字的老路子读不了它们。
+    return read_image(attachment) if attachment.blob.content_type.to_s.start_with?('image/')
+
     result = Crm::PiParseService.from_attachment(account: scope.account, user: scope.user,
                                                  attachment: attachment).call
     render(attachment, result)
@@ -41,6 +44,24 @@ class Crm::Agent::Tools::ReadAttachment < Crm::Agent::Tools::Base
     Rails.logger.warn("[crm_agent] read_attachment 失败 blob=#{attachment.blob.id}: #{e.class} #{e.message}")
     "附件「#{attachment.blob.filename}」解析失败：#{e.message}"
   end
+
+  # 读图。两道闸：没配视觉模型就直说没配（别让用户以为是图有问题），
+  # 以及签名内嵌图不读——生产同期 5065 张图里约 3900 张是 image001.png 这类签名图，
+  # 不挡的话每张都要花一次视觉调用的钱。
+  def read_image(attachment)
+    blob = attachment.blob
+    reader = Crm::Agent::VisionReader.new(scope.account)
+    return "附件「#{blob.filename}」是图片，但系统还没配 AI Key，读不了。" unless reader.enabled?
+
+    unless Crm::Agent::VisionReader.worth_reading?(blob)
+      return "附件「#{blob.filename}」只有 #{(blob.byte_size / 1024.0).round}KB、文件名是邮件客户端自动生成的那种，" \
+             '看着是签名档里的图标而不是内容，没花钱去读。确认它是内容的话，让用户直接说要读第几个附件。'
+    end
+
+    text = reader.read(blob)
+    "【附件·图片】#{blob.filename}\n#{text}"
+  end
+
 
   def render(attachment, result)
     [head(attachment, result), items_block(result), tail(result)].compact_blank.join("\n")

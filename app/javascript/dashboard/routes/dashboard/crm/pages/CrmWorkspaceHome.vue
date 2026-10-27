@@ -433,9 +433,9 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="wsh-layout md:flex-1 md:!items-stretch md:!grid-cols-[minmax(0,1fr)_250px] !gap-3.5">
+        <div class="wsh-layout md:h-[clamp(580px,calc(100dvh-140px),720px)] md:min-h-0 md:flex-none md:!items-stretch md:!grid-cols-[minmax(0,1fr)_250px] !gap-3.5">
           <!-- 左侧三列 bento -->
-          <div class="wsh-main md:!grid-rows-[minmax(176px,1fr)_minmax(184px,1fr)_auto] md:[&_.text-4xl]:!leading-none md:[&_.mt-4]:!mt-1 md:[&_.wsh-art]:!my-0 md:[&_.wsh-art_.min-h-32]:!min-h-24 md:[&_.wsh-art_.h-48]:!h-32 md:[&_.p-5]:!p-[18px] md:[&_.p-4]:!px-[18px] md:[&_.p-4]:!py-3 md:[&_.mt-4]:!mt-2 md:[&_.mt-3]:!mt-2 md:[&_.size-20]:!size-12 md:[&_.py-3\.5]:!py-1 md:[&_.text-4xl]:!text-3xl md:[&_.text-3xl]:!text-2xl md:[&_.wsh-card]:!px-[18px] md:[&_.wsh-card]:!py-3 md:[&_.chips>span]:!py-1 md:[&_.wsh-art_.h-48>div]:!py-2 md:[&_.big]:!text-4xl md:[&_.cta]:!mt-2 md:[&_.unit]:!mt-1 md:[&_.wsh-art]:!my-1 !grid-cols-6 !gap-3.5 [&_.text-heading-2]:!text-[14px] [&_.text-heading-3]:!text-[14px] [&_strong]:!font-medium [&_b]:!font-medium [&_.text-label-small]:!font-normal [&_.size-5]:!size-4 [&_.text-2xl]:!text-[22px] !items-stretch [&_.statrow]:!mt-2 [&_.cta2]:!mt-3 [&_.week]:!mt-2 [&_.chips]:!mt-2 [&_.sub2]:!mt-2 [&_.wsh-card]:!rounded-[22px] [&_.wsh-card]:!p-[18px] [&_.wsh-card]:!shadow-sm [&_.wsh-card]:!border-white/70 [&_.lbl]:!text-heading-3 [&_.lbl]:!text-[#20241f] [&_.unit]:!text-[#687064] [&_.cta]:!text-[#20241f] [&_.cta]:!bg-black/5 [&_.blob]:!hidden">
+          <div class="wsh-main md:min-h-0 md:!grid-rows-[minmax(0,1fr)_minmax(0,1fr)_auto] md:[&_.text-4xl]:!leading-none md:[&_.mt-4]:!mt-1 md:[&_.wsh-art]:!my-0 md:[&_.wsh-art_.min-h-32]:!min-h-24 md:[&_.wsh-art_.h-48]:!h-32 md:[&_.p-5]:!p-[18px] md:[&_.p-4]:!px-[18px] md:[&_.p-4]:!py-3 md:[&_.mt-4]:!mt-2 md:[&_.mt-3]:!mt-2 md:[&_.size-20]:!size-12 md:[&_.py-3\.5]:!py-1 md:[&_.text-4xl]:!text-3xl md:[&_.text-3xl]:!text-2xl md:[&_.wsh-card]:!px-[18px] md:[&_.wsh-card]:!py-3 md:[&_.chips>span]:!py-1 md:[&_.wsh-art_.h-48>div]:!py-2 md:[&_.big]:!text-4xl md:[&_.cta]:!mt-2 md:[&_.unit]:!mt-1 md:[&_.wsh-art]:!my-1 !grid-cols-6 !gap-3.5 [&_.text-heading-2]:!text-[14px] [&_.text-heading-3]:!text-[14px] [&_strong]:!font-medium [&_b]:!font-medium [&_.text-label-small]:!font-normal [&_.size-5]:!size-4 [&_.text-2xl]:!text-[22px] !items-stretch [&_.statrow]:!mt-2 [&_.cta2]:!mt-3 [&_.week]:!mt-2 [&_.chips]:!mt-2 [&_.sub2]:!mt-2 [&_.wsh-card]:!rounded-[22px] [&_.wsh-card]:!p-[18px] [&_.wsh-card]:!shadow-sm [&_.wsh-card]:!border-white/70 [&_.lbl]:!text-heading-3 [&_.lbl]:!text-[#20241f] [&_.unit]:!text-[#687064] [&_.cta]:!text-[#20241f] [&_.cta]:!bg-black/5 [&_.blob]:!hidden">
 <div
                 class="wsh-card wsh-solid c-crm col-span-2 col-start-1 row-start-1 row-span-2 !flex !flex-col !items-start !justify-start !gap-2 !bg-none !bg-[#dffb94] !text-[#20241f]"
                 :class="{ locked: !canOpenCrmCard }"
@@ -477,40 +477,48 @@ onMounted(async () => {
             </button>
 <button type="button" class="wsh-glass col-span-2 col-start-5 row-start-2 flex min-w-0 flex-col rounded-[24px] !bg-none !bg-white/95 p-4 text-left text-[#20241f] shadow-sm" @click="canAccessErp ? go('erp_dashboard_index') : soon('ERP 进销存')">
               <div class="flex w-full items-center justify-between gap-2 text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-chart-no-axes-combined" class="size-5" />财务 ERP</span><span class="grid size-7 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>
-              <div class="my-auto grid w-full grid-cols-2 gap-2 pt-4">
-                <div class="rounded-2xl bg-[#f7f8f5] p-3"><div class="flex items-center justify-between gap-2"><strong class="text-2xl tabular-nums">{{ erpDraftCount ?? '—' }}</strong><Icon icon="i-lucide-receipt-text" class="size-4 text-[#428c70]" /></div><div class="mt-2 text-label-small text-[#8b9481]">待处理凭证</div></div>
-                <div class="rounded-2xl bg-[#f7f8f5] p-3"><div class="flex items-center justify-between gap-2"><strong class="text-2xl tabular-nums">—</strong><Icon icon="i-lucide-chart-pie" class="size-4 text-[#428c70]" /></div><div class="mt-2 text-label-small text-[#8b9481]">本月报表</div></div>
+              <div class="my-auto grid w-full grid-cols-[1.15fr_1fr] items-center gap-4 py-3">
+                <div class="min-w-0">
+                  <strong class="block text-[32px] font-medium leading-none tabular-nums text-[#20241f]">{{ erpDraftCount ?? '—' }}</strong>
+                  <div class="mt-3 flex items-center gap-1.5 text-label-small text-[#8a9184]"><Icon icon="i-lucide-receipt-text" class="size-3.5 shrink-0 text-[#428c70]" />待处理凭证</div>
+                </div>
+                <div class="min-w-0 border-l border-black/10 py-1 pl-4">
+                  <span class="block text-label !font-normal text-[#8a9184]">暂无数据</span>
+                  <div class="mt-3 flex items-center gap-1.5 text-label-small text-[#8a9184]"><Icon icon="i-lucide-chart-pie" class="size-3.5 shrink-0 text-[#428c70]" />本月报表</div>
+                </div>
               </div>
             </button>
 
-<button type="button" class="col-span-2 col-start-1 row-start-3 flex min-h-0 min-w-0 flex-col rounded-[21px] bg-[#fafafa] px-[18px] py-3 md:h-[clamp(184px,24dvh,240px)] text-left text-[#20241f]" @click="go('crm_approvals_index')">
-              <div class="flex h-6 w-full shrink-0 items-center justify-between text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-clipboard-check" class="size-4" />OA 审批</span><span class="grid size-7 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>
-              <div class="mt-[4px] flex shrink-0 items-baseline gap-1.5"><strong class="text-[28px] font-medium leading-none tabular-nums">{{ oaMetric }}</strong><span class="text-label-small text-[#20241f]">{{ stats.approverView ? '项待处理' : '项申请' }}</span></div>
-              <WorkspaceCardRecords kind="oa" compact :approver-view="stats.approverView" class="!mt-[10px] w-full !space-y-[8px]" />
-            </button>
+<div class="col-span-2 col-start-1 row-start-3 grid min-w-0 grid-rows-2 gap-2.5 md:h-[clamp(184px,24dvh,240px)]">
+              <button type="button" class="flex min-h-0 min-w-0 flex-col justify-center rounded-[21px] bg-[#fafafa] px-[18px] py-2.5 text-left text-[#20241f]" @click="go('crm_approvals_index')">
+                <div class="flex h-6 w-full shrink-0 items-center justify-between text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-clipboard-check" class="size-4" />OA 审批</span><span class="grid size-6 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-3.5" /></span></div>
+                <div class="mt-1 flex items-baseline gap-1.5"><strong class="text-[28px] font-medium leading-none tabular-nums">{{ oaMetric }}</strong><span class="text-label-small text-[#73796f]">{{ stats.approverView ? '项待处理' : '项申请' }}</span></div>
+              </button>
+              <button type="button" class="flex min-h-0 min-w-0 flex-col justify-center gap-2 rounded-[21px] bg-[#fafafa] px-[18px] py-2.5 text-left text-[#20241f]" @click="go('crm_doc_center_index')">
+                <div class="flex w-full items-center gap-2 text-heading-3"><Icon icon="i-lucide-folder" class="size-4" />文档中心<Icon icon="i-lucide-arrow-up-right" class="ml-auto size-3.5 text-[#8a9184]" /></div>
+                <div class="grid w-full grid-cols-4 gap-1.5">
+                  <span v-for="label in ['制度', '流程', '培训', '知识']" :key="label" class="flex min-h-8 items-center justify-center rounded-lg bg-[#eaf0f6] px-1 py-1 text-label-small !font-medium text-[#646d79]">{{ label }}</span>
+                </div>
+              </button>
+            </div>
 <button type="button" class="col-span-2 col-start-3 row-start-3 flex min-h-0 min-w-0 flex-col rounded-[21px] bg-[#fafafa] px-[18px] py-3 text-left text-[#20241f] md:h-[clamp(184px,24dvh,240px)]" @click="go('crm_org_structure_index')">
               <div class="flex h-6 w-full shrink-0 items-center justify-between text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-users" class="size-4" />HR 组织人事</span></div>
-              <div class="mt-[4px] flex h-[50px] w-full shrink-0 items-center gap-1.5"><strong class="text-[28px] font-medium leading-none tabular-nums">{{ hrDays.filter(d => d.workday && d.present).length }}</strong><span class="text-label-small text-[#8a9184]">/ {{ hrDays.filter(d => d.workday).length }} 本周出勤</span>
-                <svg viewBox="0 0 80 80" class="ml-auto size-14 shrink-0 self-center" role="img" :aria-label="`本周出勤率 ${attendancePercent}%`"><circle cx="40" cy="40" r="33" fill="none" stroke="#e9ece5" stroke-width="8" /><circle cx="40" cy="40" r="33" fill="none" stroke="#bfdf72" stroke-width="8" pathLength="100" :stroke-dasharray="`${attendancePercent} 100`" transform="rotate(-90 40 40)" /><text x="40" y="44" text-anchor="middle" class="fill-current text-label-small">{{ attendancePercent }}%</text></svg>
+              <div class="my-auto flex w-full items-center gap-2 py-2">
+                <div class="flex min-w-0 flex-1 items-baseline gap-1.5"><strong class="text-[28px] font-medium leading-none tabular-nums">{{ hrDays.filter(d => d.workday && d.present).length }}</strong><span class="text-label-small text-[#8a9184]">/ {{ hrDays.filter(d => d.workday).length }} 本周出勤</span></div>
+                <svg viewBox="0 0 80 80" class="size-14 shrink-0" role="img" :aria-label="`本周出勤率 ${attendancePercent}%`"><circle cx="40" cy="40" r="33" fill="none" stroke="#e9ece5" stroke-width="6" /><circle cx="40" cy="40" r="33" fill="none" stroke="#bfdf72" stroke-width="6" pathLength="100" :stroke-dasharray="`${attendancePercent} 100`" transform="rotate(-90 40 40)" /><text x="40" y="44" text-anchor="middle" class="fill-current text-label-small">{{ attendancePercent }}%</text></svg>
               </div>
-              <div class="mt-[10px] grid w-full flex-1 grid-cols-3 items-center gap-2 border-t border-black/5 text-label-small text-[#8b9481]"><div><strong class="text-heading-1 text-[#424b37]">{{ hrDays.filter(d => d.workday).length }}</strong><div class="mt-1">应出勤</div></div><div><strong class="text-heading-1 text-[#424b37]">{{ hrDays.filter(d => d.workday && d.present).length }}</strong><div class="mt-1">已出勤</div></div><div><strong class="text-heading-1 text-[#424b37]">—</strong><div class="mt-1">请假</div></div></div>
-            </button>
-
-<div class="col-span-2 col-start-5 row-start-3 grid gap-2">
-
-
-<button type="button" class="flex min-h-0 min-w-0 flex-col rounded-[21px] bg-[#fafafa] px-[18px] py-3 text-left text-[#20241f] md:h-[clamp(184px,24dvh,240px)]" @click="go('crm_doc_center_index')">
-              <div class="flex h-6 w-full shrink-0 items-center justify-between text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-folder" class="size-4" />文档中心</span><span class="grid size-7 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>
-              <div class="my-auto grid w-full grid-cols-4 gap-2 py-4">
-                <span v-for="label in ['制度', '流程', '培训', '知识']" :key="label" class="flex min-h-11 items-center justify-center rounded-xl bg-[#eaf0f6] px-1 py-2 text-label !font-medium text-[#646d79]">{{ label }}</span>
+              <div class="grid w-full grid-cols-3 gap-3 border-t border-black/5 pb-1 pt-3 text-label-small text-[#8b9481]">
+                <div><strong class="text-heading-1 tabular-nums text-[#424b37]">{{ hrDays.filter(d => d.workday).length }}</strong><div class="mt-1">应出勤</div></div>
+                <div><strong class="text-heading-1 tabular-nums text-[#424b37]">{{ hrDays.filter(d => d.workday && d.present).length }}</strong><div class="mt-1">已出勤</div></div>
+                <div><strong class="text-heading-1 text-[#424b37]">—</strong><div class="mt-1">请假</div></div>
               </div>
             </button>
-</div>
+
           </div>
 
           <!-- 右侧日程主栏：整块可点进日程 -->
           <div
-            class="wsh-rail md:!flex md:!flex-col md:!self-stretch md:[&_.agenda]:!flex-1 md:[&_.agenda]:!max-h-none md:[&_.agenda]:!min-h-32 md:[&_.newbtn]:!mt-4 md:[&_.cal]:!mt-2 md:[&_.cal_.days>span]:!py-1 md:[&_.agenda]:!max-h-32 md:[&_.empty]:!py-3 !rounded-[22px] !bg-[#dffb94] !bg-none !p-[18px] !shadow-sm [&_.r-aura]:!hidden [&_.rl]:!text-[#20241f] [&_.today]:!bg-[#20241f] [&_.today]:!bg-none [&_.agenda]:!max-h-56 [&_.agenda]:!overflow-y-auto [&_.now]:!bg-[#20241f] [&_.newbtn]:!bg-[#20241f] [&_.newbtn]:!bg-none [&_.agenda]:!rounded-2xl [&_.agenda]:!bg-white/95 [&_.agenda]:!p-3"
+            class="wsh-rail md:!flex md:!flex-col md:!self-stretch md:[&_.agenda]:!flex-1 md:[&_.agenda]:!max-h-none md:[&_.agenda]:!min-h-0 md:[&_.agenda]:overscroll-contain [&_.eb]:min-w-0 [&_.eb>b]:!line-clamp-2 [&_.eb>b]:!break-words [&_.eb>small]:!truncate md:[&_.newbtn]:!mt-4 md:[&_.cal]:!mt-2 md:[&_.cal_.days>span]:!py-1 md:[&_.agenda]:!max-h-32 md:[&_.empty]:!py-3 !rounded-[22px] !bg-[#dffb94] !bg-none !p-[18px] !shadow-sm [&_.r-aura]:!hidden [&_.rl]:!text-[#20241f] [&_.today]:!bg-[#20241f] [&_.today]:!bg-none [&_.agenda]:!max-h-56 [&_.agenda]:!overflow-y-auto [&_.now]:!bg-[#20241f] [&_.newbtn]:!bg-[#20241f] [&_.newbtn]:!bg-none [&_.agenda]:!rounded-2xl [&_.agenda]:!bg-white/95 [&_.agenda]:!p-3"
             role="button"
             tabindex="0"
             @click="go('crm_schedule_index')"

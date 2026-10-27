@@ -115,6 +115,6 @@ onMounted(async () => {
         </div>
       </button>
     </div>
-    <button type="button" class="mt-2 flex items-center gap-1 text-label-small text-[#687064] hover:text-black" @click="showOverview ? emit('overview') : emit('open')">{{ showOverview ? '生产看板' : '全部订单' }}<Icon icon="i-lucide-arrow-up-right" class="size-3.5" /></button>
+    <button v-if="!showOverview" type="button" class="mt-2 flex items-center gap-1 text-label-small text-[#687064] hover:text-black" @click="emit('open')">全部订单<Icon icon="i-lucide-arrow-up-right" class="size-3.5" /></button>
   </section>
 </template>

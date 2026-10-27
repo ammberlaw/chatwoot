@@ -15,6 +15,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
+import CrmTodoMascot from './CrmTodoMascot.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
@@ -33,7 +34,7 @@ const acting = ref(null);
 
 // ── 位置（可拖动，记在本地，按距左下角的偏移存）────────────────
 const POS_KEY = 'crmTodayTasksPos';
-const COLLAPSED_H = 44; // 收起时的高度，用来夹取拖动范围
+const COLLAPSED_H = 104; // 收起时的高度，用来夹取拖动范围
 // 默认落在内容区左下角，不是视口左下角——视口左下角是侧栏（实测 212px 宽），
 // 默认就压在导航和头像上。236 让开侧栏；之后用户想挪哪儿挪哪儿。
 const DEFAULT_LEFT = 236;
@@ -46,10 +47,51 @@ try {
 } catch {
   // 忽略损坏的本地存储
 }
-const boxStyle = computed(() => ({
-  left: `${pos.value.left}px`,
-  bottom: `${pos.value.bottom}px`,
-}));
+// 视口尺寸要做成响应式的。
+//
+// 原来 boxStyle 直接读 window.innerWidth/innerHeight——computed 只在**响应式**依赖变化时
+// 重算，而 window 尺寸不是响应式的。于是换个屏幕、缩放窗口、甚至浏览器更新后窗口变矮，
+// 位置都不会重新夹取：localStorage 里存的还是上一个尺寸下的坐标，浮层就卡在视口外
+// 下不来（2026-10-27 生产：Ken 的 to do list 展开后顶在屏幕上沿，只露出半张卡片）。
+const vw = ref(window.innerWidth);
+const vh = ref(window.innerHeight);
+const boxEl = ref(null);
+
+// 展开后的真实高度。原来写死 368，但列表区是 max-h-320 + 标题 48 + 内边距，
+// 实际约 376；标题长的时候更高。写死的数字只要比真值小，顶部就会被切掉一截。
+const panelHeight = () => {
+  const measured = boxEl.value?.offsetHeight;
+  if (measured) return measured;
+
+  return open.value ? Math.min(376, vh.value - 16) : COLLAPSED_H;
+};
+
+const clampPos = ({ left, bottom }) => ({
+  left: Math.max(8, Math.min(left, vw.value - (open.value ? 328 : 112))),
+  bottom: Math.max(8, Math.min(bottom, vh.value - panelHeight() - 8)),
+});
+
+const boxStyle = computed(() => {
+  const { left, bottom } = clampPos(pos.value);
+  return { left: `${left}px`, bottom: `${bottom}px` };
+});
+
+// 视口变了就把坐标**真正改掉并存回去**，而不只是渲染时临时夹一下——
+// 否则换回大屏它又跳回那个越界的老位置。
+const syncViewport = () => {
+  vw.value = window.innerWidth;
+  vh.value = window.innerHeight;
+  const fixed = clampPos(pos.value);
+  if (fixed.left === pos.value.left && fixed.bottom === pos.value.bottom)
+    return;
+
+  pos.value = fixed;
+  try {
+    localStorage.setItem(POS_KEY, JSON.stringify(fixed));
+  } catch {
+    // 存储不可用则忽略
+  }
+};
 
 let startX = 0;
 let startY = 0;
@@ -62,11 +104,11 @@ const onPointerMove = e => {
     moved = true;
   const left = Math.min(
     Math.max(startLeft + (e.clientX - startX), 8),
-    window.innerWidth - 308
+    vw.value - (open.value ? 328 : 112)
   );
   const bottom = Math.min(
     Math.max(startBottom - (e.clientY - startY), 8),
-    window.innerHeight - COLLAPSED_H - 8
+    vh.value - panelHeight() - 8
   );
   pos.value = { left, bottom };
 };
@@ -161,13 +203,29 @@ const pendingCount = computed(() => rows.value.filter(r => !r.done).length);
 // 二次排序会让刚勾掉的那条当场跳走，又变回「消失」的观感。
 
 let timer = null;
+let sizeObserver = null;
+
 onMounted(() => {
+  syncViewport();
+  window.addEventListener('resize', syncViewport);
+  // 光在挂载时夹一次不够：那一刻列表还没渲染出来，量到的高度只有收起时那么点，
+  // 夹出来的位置按小高度算，等内容撑开（实测 370px）顶部就又出界了
+  // ——2026-10-27 实测存成 bottom=885、顶部切掉 255px 就是这么来的。
+  // 所以盯着元素自身的尺寸变化：展开、收起、待办条数变化、标题换行，都会重夹一次。
+  if (window.ResizeObserver && boxEl.value) {
+    sizeObserver = new ResizeObserver(() => syncViewport());
+    sizeObserver.observe(boxEl.value);
+  }
   load();
   // 两分钟拉一次：新来的客户邮件会自动往日程里塞「回复客户来信」，
   // 不刷新的话这个窗会停在打开页面那一刻。
   timer = setInterval(load, 120000);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => {
+  clearInterval(timer);
+  window.removeEventListener('resize', syncViewport);
+  sizeObserver?.disconnect();
+});
 
 // 绑定而不是写死：裸中文属性会被 vue/no-bare-strings 拦下。
 const DRAG_HINT = 'to do list（可拖动）';
@@ -180,27 +238,35 @@ const goTo = row =>
 <template>
   <div
     v-if="canUse"
+    ref="boxEl"
     :style="boxStyle"
-    class="fixed z-[54] hidden md:block w-[300px] rounded-2xl bg-n-amber-9 shadow-lg shadow-black/10 overflow-hidden"
+    class="fixed z-[54] hidden md:block max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] font-sans antialiased"
+    :class="open ? 'w-[320px] overflow-hidden rounded-2xl border border-[#e7e7e4] bg-white shadow-[0_12px_40px_-12px_rgba(0,0,0,0.25)]' : 'size-[104px]'"
   >
-    <!-- 外层黄底只露出底部一条，内层白卡装内容——参考图的层次做法 -->
-    <div class="m-1 mb-0 bg-white rounded-xl ring-1 ring-inset ring-black/5">
+    <button v-if="!open" type="button" class="relative flex size-[104px] cursor-move touch-none select-none items-center justify-center rounded-full border-0 bg-transparent p-0 transition-transform hover:-translate-y-1 motion-reduce:transform-none" :title="DRAG_HINT" :aria-label="`打开 to do list，${pendingCount} 项待办（可拖动）`" @pointerdown="onPointerDown" @click="toggleOpen">
+      <CrmTodoMascot class="pointer-events-none size-[104px] shrink-0 drop-shadow-md" />
+      <span v-if="pendingCount" class="pointer-events-none absolute right-1 top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#fff3cc] px-1 text-label-small !font-medium text-[#8d6914] ring-2 ring-white">{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
+    </button>
+    <!-- 展开时标题固定，列表独立滚动。 -->
+    <div v-else class="bg-white">
       <button
         type="button"
-        class="flex items-center w-full gap-2 px-3 py-2.5 cursor-move touch-none select-none reset-base"
+        class="flex h-12 items-center w-full gap-2.5 px-4 cursor-move touch-none select-none reset-base"
+        :aria-expanded="open"
         :title="DRAG_HINT"
         @pointerdown="onPointerDown"
         @click="toggleOpen"
       >
-        <span class="text-heading-3 text-[#262722]">{{ 'to do list' }}</span>
-        <span class="text-label-small text-n-slate-10">{{ pendingCount }}</span>
+        <CrmTodoMascot class="size-8 shrink-0" />
+        <span class="text-heading-3 !font-medium text-[#262722]">{{ 'to do list' }}</span>
+        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fff3cc] px-1.5 text-label-small !font-medium tabular-nums text-[#8d6914]">{{ pendingCount }}</span>
         <span
           class="ml-auto shrink-0 size-4 text-n-slate-10"
           :class="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
         />
       </button>
 
-      <div v-if="open" class="px-1.5 pb-2 max-h-[280px] overflow-y-auto">
+      <div v-if="open" class="min-h-0 border-t border-[#f0f0ed] p-2 max-h-[min(320px,calc(100dvh-80px))] overflow-y-auto overscroll-contain">
         <p
           v-if="!rows.length && !loading"
           class="px-2 py-3 text-label-small text-n-slate-10"
@@ -212,7 +278,7 @@ const goTo = row =>
           <button
             v-if="row.type === 'schedule'"
             type="button"
-            class="flex items-start w-full gap-2 px-2 py-1.5 text-left transition-colors rounded-lg reset-base hover:bg-n-alpha-1"
+            class="flex items-start w-full gap-2.5 px-3 py-2.5 text-left transition-colors rounded-lg reset-base hover:bg-n-alpha-1"
             :disabled="acting === keyOf(row)"
             @click="toggle(row)"
           >
@@ -227,7 +293,7 @@ const goTo = row =>
             />
             <span class="min-w-0">
               <span
-                class="block text-sm truncate"
+                class="block text-label !font-normal !leading-5 truncate"
                 :class="
                   row.done
                     ? 'line-through decoration-n-slate-8 text-n-slate-10'
@@ -235,7 +301,7 @@ const goTo = row =>
                 "
                 >{{ row.title }}</span
               >
-              <span class="block text-label-small text-n-slate-10">{{
+              <span class="mt-1 block text-label-small !font-normal text-[#92959c]">{{
                 row.label
               }}</span>
             </span>
@@ -244,17 +310,17 @@ const goTo = row =>
           <router-link
             v-else
             :to="goTo(row)"
-            class="flex items-start w-full gap-2 px-2 py-1.5 transition-colors rounded-lg hover:bg-n-alpha-1"
+            class="flex items-start w-full gap-2.5 px-3 py-2.5 transition-colors rounded-lg hover:bg-n-alpha-1"
           >
             <span
-              class="mt-1 shrink-0 size-1.5 rounded-full bg-n-amber-9"
+              class="mt-1.5 shrink-0 size-1.5 rounded-full bg-[#e7b942]"
               aria-hidden="true"
             />
             <span class="min-w-0 flex-1">
-              <span class="block text-sm truncate text-[#262722]">{{
+              <span class="block text-label !font-normal !leading-5 truncate text-[#262722]">{{
                 row.title
               }}</span>
-              <span class="block text-label-small text-n-slate-10">{{
+              <span class="mt-1 block text-label-small !font-normal text-[#92959c]">{{
                 row.label
               }}</span>
             </span>
