@@ -4,6 +4,10 @@
 # 同一家推销公司下周再发，照样进收件箱（实查 mail.theroyalalbatross.asia
 # 标了 8 封、收件箱里还躺着 3 封）。
 #
+# 两级：owner_id 为空＝全公司生效（管理员/副管配）；有值＝只拦投递到这个人名下的信。
+# 业务员只能拉黑自己那一级——推销信最先砸到的就是他们（实查 25 封垃圾标记全是业务员
+# 肖天海打的），但一条全公司规则能掐掉同事的客户来信，这个口不能开给所有人。
+#
 # 拦截动作是**在入库前直接丢弃**（和已有的 notification_sender? 一个路子），
 # 不是收进来再挪文件夹：收进来就还会占列表、进搜索、喂给 AI 摘要。
 # 代价是丢了就找不回来，所以规则上有两条硬护栏（见 BLOCKED_* ），
@@ -23,18 +27,27 @@
 #  updated_at           :datetime         not null
 #  account_id           :bigint           not null
 #  created_by_id        :bigint
+#  owner_id             :bigint
 #
 # Indexes
 #
-#  index_crm_mail_blocklists_on_account_id_and_value  (account_id,value) UNIQUE
+#  idx_crm_mail_blocklists_global_value   (account_id,value) UNIQUE WHERE (owner_id IS NULL)
+#  idx_crm_mail_blocklists_owner_value    (account_id,owner_id,value) UNIQUE WHERE (owner_id IS NOT NULL)
+#  index_crm_mail_blocklists_on_owner_id  (owner_id)
 #
 class Crm::MailBlocklist < ApplicationRecord
   self.table_name = 'crm_mail_blocklists'
 
   belongs_to :account
   belongs_to :created_by, class_name: 'User', optional: true
+  # 规则的生效范围：nil = 全公司；有值 = 只对这个人。
+  belongs_to :owner, class_name: 'User', optional: true
 
-  validates :value, presence: true, uniqueness: { scope: :account_id }
+  validates :value, presence: true, uniqueness: { scope: [:account_id, :owner_id] }
+
+  scope :global, -> { where(owner_id: nil) }
+  # 对某人生效的全部规则 = 全公司的 + 他自己的。
+  scope :effective_for, ->(user_id) { where(owner_id: [nil, user_id]) }
 
   before_validation :normalize_value
 
@@ -82,6 +95,12 @@ class Crm::MailBlocklist < ApplicationRecord
     domain = address.split('@').last.to_s
     domain == value || domain.end_with?(".#{value}")
   end
+
+  def global? = owner_id.nil?
+  def scope_label = global? ? '全公司' : '仅本人'
+
+  # 这条规则管不管「投递到 owner_id 名下的这封信」。
+  def applies_to?(email_owner_id) = global? || owner_id == email_owner_id
 
   def record_hit!(from, subject)
     update_columns(blocked_count: blocked_count + 1, last_blocked_at: Time.current, # rubocop:disable Rails/SkipsModelValidations

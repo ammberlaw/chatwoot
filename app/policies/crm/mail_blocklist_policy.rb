@@ -1,13 +1,9 @@
-# 收信黑名单：规则是全公司生效的（一条规则挡所有人的信），所以只给管理员维护。
-# 不能让单个业务员拉黑一个域名就把别人的客户来信也掐掉。
+# 收信黑名单：全员可用，但**范围**分两级——
+# 业务员建的规则只拦自己名下的信；全公司规则只有管理员/副管能建能删。
+# 这里只放行到「能不能访问这个接口」，范围收口在控制器 can_manage_global?：
+# policy 看不见规则本身，判不了这条是谁的。
 class Crm::MailBlocklistPolicy < ApplicationPolicy
-  def index? = manage?
-  def create? = manage?
-  def destroy? = manage?
-
-  private
-
-  def manage?
-    @account_user.administrator? || @account_user.crm_deputy_admin?
-  end
+  def index? = true
+  def create? = true
+  def destroy? = true
 end

@@ -18,7 +18,7 @@ module Crm::EmailIngestion
 
     from = Crm::MailCharset.scrub(Array(mail.from).first.to_s)
     return false if notification_sender?(from)
-    return false if blocked_sender?(from, mail)
+    return false if blocked_sender?(from, mail, owner_id)
 
     create_email(mail, message_id, from, owner_id)
     true
@@ -64,13 +64,15 @@ module Crm::EmailIngestion
   # 误伤看得见、随时能删。
   #
   # 一次抓取会连着处理一批信，名单在实例上缓存一次就够（抓取服务是每轮新建的）。
-  def blocked_sender?(from, mail)
+  # owner_id＝这封信归谁（见 ingest_owner_id）。全公司规则对谁都拦，个人规则只拦自己名下的——
+  # 同一轮抓取里不同邮件可能归不同的人（抄送各存一份），所以按信逐封判，不能按账号一刀切。
+  def blocked_sender?(from, mail, owner_id)
     address = Crm::MailBlocklist.sender_address(from)
-    rule = blocklist_rules.find { |r| r.matches?(address) }
+    rule = blocklist_rules.find { |r| r.applies_to?(owner_id) && r.matches?(address) }
     return false if rule.nil?
 
     rule.record_hit!(from, Crm::MailCharset.scrub(mail.subject.to_s))
-    Rails.logger.info("[Crm::MailFetch] 黑名单拦截 rule=#{rule.value} from=#{address}")
+    Rails.logger.info("[Crm::MailFetch] 黑名单拦截 rule=#{rule.value}(#{rule.scope_label}) from=#{address}")
     true
   end
 
