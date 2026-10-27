@@ -353,6 +353,12 @@ const detailSections = computed(() => {
   const o = selectedOrder.value;
   if (!o) return [];
   const statusMeta = STATUSES.value[o.status];
+  // 商品编码：编码逐行存在明细里，这里汇总成一行摆进基本信息。
+  // 审一张单先要认出「这是哪个型号」，以前得往下滚到明细表里一行行找；
+  // 一张单多行时去重并列（同型号不同配置很常见，重复列出来没信息量）。
+  const skus = [
+    ...new Set((o.lineItems || []).map(li => li.sku).filter(Boolean)),
+  ];
   return [
     {
       title: '基本信息',
@@ -362,6 +368,7 @@ const detailSections = computed(() => {
         { label: '客户', value: o.customerName },
         { label: '国家', value: o.customerCountry },
         { label: '名称', value: o.name },
+        { label: '商品编码', value: skus.join('、') || null, copyable: true },
         { label: 'PI号', value: o.piNo, copyable: true },
         { label: '订单号', value: o.orderNo, copyable: true },
         { label: '信保订单号', value: o.insuranceOrderNo, copyable: true },

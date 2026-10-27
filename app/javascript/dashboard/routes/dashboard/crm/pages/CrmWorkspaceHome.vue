@@ -454,7 +454,7 @@ onMounted(async () => {
                 <div v-if="!canAccessCrm" class="text-label-small">{{ isCrmFinanceOnly ? '查看销售订单 / PI' : '未开通 · 联系管理员' }}</div>
               </div>
 <div class="col-span-4 col-start-3 row-start-1 grid min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3.5">
-<WorkspaceMyOrders class="h-full md:[&_.mt-2]:!mt-1 md:[&_.py-1]:!py-0" @open="orderNo => router.push(accountScopedRoute('mes_production_orders_index', {}, orderNo ? { q: orderNo } : {}))" />
+<WorkspaceMyOrders @overview="go('mes_dashboard_index')" class="h-full md:[&_.mt-2]:!mt-1 md:[&_.py-1]:!py-0" @open="orderNo => router.push(accountScopedRoute('mes_production_orders_index', {}, orderNo ? { q: orderNo } : {}))" />
 <div class="flex min-w-0 flex-col gap-3 text-[#151817]">
               <button type="button" class="flex w-full flex-1 flex-col items-start gap-3 rounded-[22px] bg-white/95 px-[18px] py-3 text-left shadow-sm" @click="go('crm_team_chat_index')">
                 <div class="flex w-full items-center gap-2 text-heading-3"><span class="relative inline-flex shrink-0"><Icon icon="i-lucide-messages-square" class="size-5" /><span v-if="stats.unread > 0" class="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-label-small !text-[10px] !font-semibold !leading-4 text-white ring-2 ring-white" :aria-label="`${stats.unread} 条未读消息`">{{ stats.unread > 99 ? '99+' : stats.unread }}</span></span>团队协同<span class="ml-auto grid size-7 shrink-0 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>

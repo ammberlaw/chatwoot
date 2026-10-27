@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
@@ -463,7 +464,12 @@ onMounted(() => {
               v-if="item.ownerName"
               class="flex items-center gap-1.5 mt-1.5 text-xs text-n-slate-10"
             >
-              <span class="i-lucide-user size-3.5 shrink-0" />
+              <Avatar
+                :name="item.ownerName"
+                :src="item.ownerAvatarUrl || ''"
+                :size="18"
+                rounded-full
+              />
               <span class="truncate">{{ item.ownerName }}</span>
             </div>
 
