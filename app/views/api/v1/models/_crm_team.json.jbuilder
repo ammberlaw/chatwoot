@@ -8,5 +8,6 @@ json.members do
   json.array! resource.active_members do |user|
     json.id user.id
     json.name user.crm_display_name
+    json.avatar_url user.avatar_url
   end
 end

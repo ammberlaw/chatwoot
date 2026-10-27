@@ -1,5 +1,6 @@
 <script setup>
 /* global axios */
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -318,7 +319,7 @@ const statCards = computed(() => [
     key: 'orders',
     label: '有成交订单',
     value: stats.value.withOrders,
-    icon: 'i-lucide-package',
+    icon: 'i-lucide-handshake',
     tile: 'bg-n-teal-3 text-n-teal-11',
   },
 ]);
@@ -1380,6 +1381,11 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const ownerDisplayName = c =>
   c.isInPublicPool ? c.previousOwnerName : c.accountOwnerName;
 
+// 对应那个人的头像；和上面的显示名取同一边（公海看原跟进人，其余看负责人）。
+// 没上传头像时交给 Avatar 自己回落成首字母，这里不判。
+const ownerAvatarUrl = c =>
+  c.isInPublicPool ? c.previousOwnerAvatarUrl : c.accountOwnerAvatarUrl;
+
 const money = micros => (micros ? `¥${fmtYuan(micros)}` : '¥0.00');
 
 const formatDate = value => (value ? new Date(value).toLocaleDateString() : '');
@@ -2257,11 +2263,12 @@ watch(
                           v-if="ownerDisplayName(customer)"
                           class="flex items-center gap-2"
                         >
-                          <span
-                            class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
-                          >
-                            {{ initial(ownerDisplayName(customer)) }}
-                          </span>
+                          <Avatar
+                            :name="ownerDisplayName(customer)"
+                            :src="ownerAvatarUrl(customer) || ''"
+                            :size="24"
+                            rounded-full
+                          />
                           <span class="truncate">
                             {{ ownerDisplayName(customer) }}
                           </span>
@@ -2366,12 +2373,6 @@ watch(
       class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-n-solid-1 md:static md:z-auto md:inset-auto md:w-[400px] md:flex-shrink-0 md:my-3 md:mr-3 md:rounded-3xl md:border md:border-white/50 md:bg-n-solid-1/40 md:backdrop-blur-2xl md:backdrop-saturate-150 md:shadow-lg md:shadow-n-iris-9/5"
     >
       <div class="flex items-center gap-3 px-5 py-4 border-b border-n-weak">
-        <span
-          class="flex items-center justify-center flex-shrink-0 font-semibold rounded-lg size-9"
-          :class="avatarCls(selectedCustomer.name)"
-        >
-          {{ initial(selectedCustomer.name) }}
-        </span>
         <div class="flex-1 min-w-0">
           <div class="font-semibold truncate text-n-slate-12">
             {{ selectedCustomer.name }}

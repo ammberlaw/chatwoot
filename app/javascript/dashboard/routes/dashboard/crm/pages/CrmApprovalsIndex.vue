@@ -1,4 +1,5 @@
 <script setup>
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
@@ -720,11 +721,12 @@ onMounted(async () => {
 
           <div class="flex-1 p-4 overflow-y-auto sm:p-6">
             <div class="flex items-center gap-2 mb-4 text-sm text-n-slate-11">
-              <div
-                class="flex items-center justify-center rounded-full size-7 bg-n-iris-4 text-n-iris-11 text-xs"
-              >
-                {{ initial(selected.applicant_name) }}
-              </div>
+              <Avatar
+                :name="selected.applicant_name"
+                :src="selected.applicant_avatar_url || ''"
+                :size="28"
+                rounded-full
+              />
               {{ `${L.applicant}：${selected.applicant_name}` }}
               <span class="text-n-slate-10">
                 {{ fmtDateTime(selected.submitted_at) }}

@@ -6,7 +6,7 @@
 # 规矩（用户定的）：**只读 + 出草稿**。工具里没有「发邮件」「提交 PI」这种动作，
 # 想发也发不出去——能力上就不给，比在提示词里嘱咐它「别发」可靠得多。
 class Crm::Agent::Runner
-  pattr_initialize [:conversation!]
+  pattr_initialize [:conversation!, :page_context]
 
   # 流式落库的节流间隔（秒）。模型吐 token 很密（实测 190 字 112 个 chunk），
   # 每个 chunk 写一次库就是每秒几十条 UPDATE，而前端 2 秒才拉一次，写得再密也看不见。
@@ -117,7 +117,7 @@ class Crm::Agent::Runner
       model: settings.model.presence || Crm::EmailAiService::DEFAULT_MODEL,
       provider: :openai, assume_model_exists: true
     )
-    chat.with_instructions(Crm::Agent::Prompt.build(conversation))
+    chat.with_instructions(Crm::Agent::Prompt.build(conversation, page_context: page_context))
     tools(scope).each { |tool| chat.with_tool(tool) }
     replay_history(chat)
     attach_tool_recorder(chat)
@@ -130,7 +130,7 @@ class Crm::Agent::Runner
     Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
     Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers,
     Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::DormantCustomers, Crm::Agent::Tools::CompanyLookup,
-    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi,
+    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftReply, Crm::Agent::Tools::DraftPi,
     Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes,
     Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::Shipments,
     Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
@@ -138,7 +138,9 @@ class Crm::Agent::Runner
     Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment,
     # 「这单为什么卡着」+「这是 bug，帮我报上去」。诊断只读、事实全来自
     # Mes::DocDiagnosis，模型只负责把结果说成人话。
-    Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::ReportIssue
+    Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::ReportIssue,
+    # 跨对话记忆：被纠正过的口径、用惯的写法，下次还算数。
+    Crm::Agent::Tools::Remember, Crm::Agent::Tools::Forget
   ].freeze
 
   def tools(scope)

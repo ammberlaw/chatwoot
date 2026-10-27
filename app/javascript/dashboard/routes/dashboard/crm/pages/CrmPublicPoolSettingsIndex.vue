@@ -44,7 +44,9 @@ const members = ref([]);
 const fetchMembers = async () => {
   try {
     // 只取在职成员：离职停用的人不该再出现在选人下拉里（后端按 deactivated_at 过滤）。
-    const { data } = await CrmMemberAPI.get({ active: true });
+    // 只要 CRM 成员：公海规则管的是客户与商机的归属，车间/仓管/质检从不持有客户，
+    // 列进来只会让人在四十来个名字里翻半天。
+    const { data } = await CrmMemberAPI.get({ active: true, crm: true });
     members.value = data.payload || [];
   } catch {
     members.value = [];

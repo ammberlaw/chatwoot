@@ -675,6 +675,7 @@ onMounted(load);
             @update:model-value="onSwitchVersion"
           />
           <span
+            v-if="detail.status !== 'PUBLISHED'"
             class="px-2 py-0.5 text-xs rounded-full"
             :class="
               detail.status === 'PUBLISHED'

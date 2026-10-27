@@ -311,7 +311,6 @@ const money = (micros, currency) => {
   const symbol = { CNY: '¥', USD: '$', EUR: '€' }[currency] || '';
   return `${symbol}${fmtYuan(micros)}`;
 };
-const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
 // 顶部字段网格
 const fields = computed(() => {
@@ -594,11 +593,6 @@ onMounted(() => {
         class="p-5 mb-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
       >
         <div class="flex items-start gap-4">
-          <div
-            class="flex items-center justify-center text-lg font-semibold text-white rounded-xl size-14 shrink-0 bg-n-teal-9"
-          >
-            {{ initial(customer.name) }}
-          </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-3">
               <h2 class="text-lg font-semibold truncate text-n-slate-12">

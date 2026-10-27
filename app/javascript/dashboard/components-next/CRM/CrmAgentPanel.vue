@@ -114,13 +114,28 @@ const ensureConversation = async () => {
   }
 };
 
+// 用户提问时正开着哪一页。AI 球挂在全局外壳上，这里读到的就是他眼前那一页，
+// 不用去各个页面埋点。subject 取地址栏里的筛选词/单号（列表页点开一条时就是它），
+// 后端只收路由名和这一个词，不照单全收。
+const pageContext = () => {
+  const name = route?.name;
+  if (!name) return undefined;
+  const q = route.query || {};
+  const subject = q.q || q.no || q.order_no || route.params?.id || '';
+  return { route: String(name), subject: String(subject).slice(0, 60) };
+};
+
 const send = async () => {
   const text = input.value.trim();
   if (!text || busy.value) return;
   try {
     const conv = await ensureConversation();
     input.value = '';
-    const { data } = await CrmAgentAPI.sendMessage(conv.id, text);
+    const { data } = await CrmAgentAPI.sendMessage(
+      conv.id,
+      text,
+      pageContext()
+    );
     conversation.value = data.payload;
     // 等第一条问话落库之后才报：标题取的是首个问题，空会话报上去只会多一行没字的。
     emit('conversationChanged');

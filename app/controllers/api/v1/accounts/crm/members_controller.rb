@@ -27,6 +27,11 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     # 成员权限页本身不传这个参数——它要显示已停用的人，还有「已停用」筛选页签。
     scope = scope.where(deactivated_at: nil) if params[:active].to_s == 'true'
     @members = scope.order('users.name')
+    # crm=true 只要 CRM 成员（管理员 + 有 crm_role 且非人事，口径见 AccountUser#can_access_crm?）。
+    # 公海设置的「豁免成员」这类选人场景用：车间、仓管、质检这些岗位从不持有客户，
+    # 把他们摆进名单只是让人在四十来个名字里找人更费劲（2026-10-27 用户反馈）。
+    # 在 Ruby 里筛而不是 SQL：判定含 module_enabled? 这类非列条件，拆进 SQL 会分叉成两套口径。
+    @members = @members.select(&:can_access_crm?) if params[:crm].to_s == 'true'
   end
 
   # 直接新建成员（免邀请链接）：建号即生效，跳过邮箱确认。仅超管/管理员。

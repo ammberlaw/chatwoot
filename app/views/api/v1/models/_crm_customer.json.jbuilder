@@ -4,6 +4,10 @@ json.customer_code resource.customer_code
 json.account_owner_id resource.account_owner_id
 json.account_owner_name resource.account_owner&.crm_display_name
 json.previous_owner_name resource.previous_owner&.crm_display_name
+# 头像：列表里负责人/原跟进人那一格要显示本人头像，没上传才回落首字母。
+# 不下发的话前端只能永远画首字母圈——用户上传了头像却到处看不到（2026-10-27 反馈）。
+json.account_owner_avatar_url resource.account_owner&.avatar_url
+json.previous_owner_avatar_url resource.previous_owner&.avatar_url
 json.shared_user_ids resource.shared_user_ids || []
 # 当前用户是否「特别关注」该客户（每人各标；@favorited_ids 由列表控制器预载，其他渲染处默认 false）。
 json.favorited(@favorited_ids&.include?(resource.id) || false)

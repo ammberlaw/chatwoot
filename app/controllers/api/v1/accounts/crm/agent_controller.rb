@@ -28,7 +28,7 @@ class Api::V1::Accounts::Crm::AgentController < Api::V1::Accounts::Crm::BaseCont
 
     @conversation.messages.create!(role: 'user', content: question)
     @conversation.update!(status: 'RUNNING', last_error: nil)
-    Crm::AgentRunJob.perform_later(@conversation.id, question)
+    Crm::AgentRunJob.perform_later(@conversation.id, question, page_context_param)
     render 'api/v1/accounts/crm/agent/show'
   end
 
@@ -38,6 +38,19 @@ class Api::V1::Accounts::Crm::AgentController < Api::V1::Accounts::Crm::BaseCont
   end
 
   private
+
+  # 用户提问时正开着哪一页。只收两样：路由名和页面上那个筛选词/单号。
+  # 白名单式地收，不照单全收前端塞来的东西——这串会被拼进提示词，
+  # 任人往里塞自由文本等于给提示词注入开后门。
+  def page_context_param
+    ctx = params[:page_context]
+    return nil if ctx.blank?
+
+    route = ctx[:route].to_s[0, 60]
+    return nil if route.blank? || !route.match?(/\A[a-z0-9_]+\z/)
+
+    { 'route' => route, 'subject' => ctx[:subject].to_s.strip[0, 60].presence }.compact
+  end
 
   def customer_id_param
     id = params[:crm_customer_id].presence

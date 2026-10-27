@@ -14,8 +14,13 @@ class CrmAgentApi extends ApiClient {
     });
   }
 
-  sendMessage(id, content) {
-    return axios.post(`${this.url}/${id}/create_message`, { content });
+  // pageContext：用户提问那一刻开着哪一页（{ route, subject }）。
+  // 后端据此理解「这张单」「这个客户」指的是谁，省掉一轮反问。
+  sendMessage(id, content, pageContext) {
+    return axios.post(`${this.url}/${id}/create_message`, {
+      content,
+      page_context: pageContext || undefined,
+    });
   }
 }
 

@@ -457,9 +457,16 @@ onMounted(async () => {
 <WorkspaceMyOrders @overview="go('mes_dashboard_index')" class="h-full md:[&_.mt-2]:!mt-1 md:[&_.py-1]:!py-0" @open="orderNo => router.push(accountScopedRoute('mes_production_orders_index', {}, orderNo ? { q: orderNo } : {}))" />
 <div class="flex min-w-0 flex-col gap-3 text-[#151817]">
               <button type="button" class="flex w-full flex-1 flex-col items-start gap-3 rounded-[22px] bg-white/95 px-[18px] py-3 text-left shadow-sm" @click="go('crm_team_chat_index')">
-                <div class="flex w-full items-center gap-2 text-heading-3"><span class="relative inline-flex shrink-0"><Icon icon="i-lucide-messages-square" class="size-5" /><span v-if="stats.unread > 0" class="absolute -right-2 -top-2 flex min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-label-small !text-[10px] !font-semibold !leading-4 text-white ring-2 ring-white" :aria-label="`${stats.unread} 条未读消息`">{{ stats.unread > 99 ? '99+' : stats.unread }}</span></span>团队协同<span class="ml-auto grid size-7 shrink-0 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>
-                <WorkspaceCardRecords kind="team" compact class="!mt-0 [&_.size-9]:!size-7 [&_.mb-3]:!mb-0" />
-                <span class="mt-auto text-label-small" :class="stats.unread ? 'text-[#d84040]' : 'text-[#8a9184]'">{{ stats.unread ? `${stats.unread} 条未读消息` : '暂无未读消息' }}</span>
+                <div class="flex w-full items-center gap-2 text-heading-3">
+                  <Icon icon="i-lucide-messages-square" class="size-4 shrink-0" />
+                  <span>团队协同</span>
+                  <span v-if="stats.unread > 0" class="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[#fff0ee] px-1 text-label-small !text-[10px] !font-medium !leading-none text-[#d95549]" :aria-label="`${stats.unread} 条未读消息`">{{ stats.unread > 99 ? '99+' : stats.unread }}</span>
+                  <span class="ml-auto grid size-7 shrink-0 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span>
+                </div>
+                <div class="my-auto flex w-full flex-col items-start gap-3 py-3">
+                  <WorkspaceCardRecords kind="team" compact class="!mt-0 [&_.size-9]:!size-8 [&_.mb-3]:!mb-0" />
+                  <span class="text-label-small !font-normal text-[#8a9184]">{{ stats.unread ? '有新消息，点击查看' : '暂无未读消息' }}</span>
+                </div>
               </button>
 
             </div>
@@ -494,7 +501,9 @@ onMounted(async () => {
 
 <button type="button" class="flex min-h-0 min-w-0 flex-col rounded-[21px] bg-[#fafafa] px-[18px] py-3 text-left text-[#20241f] md:h-[clamp(184px,24dvh,240px)]" @click="go('crm_doc_center_index')">
               <div class="flex h-6 w-full shrink-0 items-center justify-between text-heading-3 font-semibold"><span class="flex items-center gap-2"><Icon icon="i-lucide-folder" class="size-4" />文档中心</span><span class="grid size-7 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span></div>
-              <WorkspaceCardRecords kind="docs" compact class="!mt-[4px] min-h-0 w-full flex-1" />
+              <div class="my-auto grid w-full grid-cols-4 gap-2 py-4">
+                <span v-for="label in ['制度', '流程', '培训', '知识']" :key="label" class="flex min-h-11 items-center justify-center rounded-xl bg-[#eaf0f6] px-1 py-2 text-label !font-medium text-[#646d79]">{{ label }}</span>
+              </div>
             </button>
 </div>
           </div>

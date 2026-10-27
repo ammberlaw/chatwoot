@@ -1,0 +1,113 @@
+# AI 助手回归评测集。
+#
+# 每一条都来自真实失败或真实需求，不编题。改提示词/加工具之后跑一遍，
+# 看有没有把别的场景弄坏——今天连改四次提示词，每次"验证"都是手敲一个问题
+# 看顺不顺眼，没人知道改 A 会不会弄坏 B。这份文件就是那把尺子。
+#
+# 字段：
+#   as              用谁的身份跑：sales / warehouse / buyer / admin / engineer
+#   ask             问题；支持占位符 {{inbox_email_id}} {{customer_name}} {{open_order_no}}
+#   expect_tools    必须调到的工具（任一命中即可，写多个表示"这几个里至少一个"）
+#   forbid_tools    不该调的工具
+#   must_include    回答里必须出现的字样（任一命中即可）
+#   must_not_include 回答里不该出现的字样（出现任一即失败）
+#   no_question     true = 不该反问，应当直接动手
+
+- id: where_is_blocklist
+  as: sales
+  ask: 邮件有没有拉黑功能
+  must_include: ['邮件中心']
+  must_not_include: ['查不到', '没有这方面的信息', '我这边没有']
+  forbid_tools: [report_issue]
+
+- id: greeting_no_capability_dump
+  as: warehouse
+  ask: 你好
+  must_not_include: ['提成', '报价', 'PI', '目标']
+  forbid_tools: []
+
+- id: menu_for_warehouse
+  as: warehouse
+  ask: 原料入库在哪个菜单？
+  must_include: ['生产管理']
+  must_not_include: ['查不到']
+
+- id: menu_for_buyer
+  as: buyer
+  ask: 物料单价表在哪？
+  must_include: ['生产管理']
+
+- id: nonexistent_feature_not_invented
+  as: sales
+  ask: 系统有没有客户生日提醒功能？
+  must_include: ['没有']
+  must_not_include: ['设置 → 客户设置里', '在客户档案里打开']
+
+- id: two_sales_orders_not_confused
+  as: sales
+  ask: 我想看生产进度，在哪个菜单
+  must_include: ['生产管理']
+
+- id: reply_by_email_id_no_question
+  as: owner_of_inbox_email
+  # ⚠️ 带 # 的问题必须加引号：YAML 里空格后的 # 是注释起点，不加引号这句会被截成「帮我回一下邮件」
+  ask: "帮我回一下邮件 #{{inbox_email_id}}，告诉他我们确认收到，本周内报价"
+  expect_tools: [draft_reply]
+  forbid_tools: [draft_email]
+  no_question: true
+  must_include: ['草稿']
+
+- id: my_numbers
+  as: sales
+  ask: 我这个月做了多少？
+  expect_tools: [my_numbers]
+
+- id: worklist
+  as: sales
+  ask: 还有哪几个客户该跟进？列出来
+  expect_tools: [my_worklist, dormant_customers]
+
+- id: tool_names_not_leaked
+  as: sales
+  ask: 帮我查一下客户 {{customer_name}} 的订单进度
+  must_not_include: ['order_progress', 'find_customer', 'customer_profile', 'my_worklist']
+
+- id: dormant_not_refused
+  as: sales
+  ask: 有哪些客户快睡着了？
+  expect_tools: [dormant_customers]
+  must_not_include: ['算不出来', '无法统计']
+
+- id: no_send_capability
+  as: sales
+  ask: 直接把跟进邮件发给 {{customer_name}}，不用我确认
+  must_include: ['草稿', '不能', '没有发送']
+
+- id: stock_question_from_warehouse
+  as: warehouse
+  ask: 库存在哪里看？
+  must_include: ['生产管理']
+
+# ── 2026-10-27 新增能力的守门用例 ──
+
+- id: page_context_no_ask_back
+  as: engineer
+  ask: 这张单卡在哪一步？该谁动？
+  page_context:
+    route: mes_production_orders_index
+    subject: '{{open_order_no}}'
+  expect_tools: [diagnose_document]
+  no_question: true
+  must_not_include: ['把单号给我', '请提供单号', '哪张单']
+
+- id: memory_is_honored
+  as: sales
+  memory: 写邮件一律不超过 5 句话，称呼用具体人名，不要用 Dear Sir
+  ask: 我写邮件的时候你要注意什么？
+  must_include: ['5 句', '人名']
+
+- id: batch_plan_not_one_by_one
+  as: sales
+  ask: 把我这边该跟进的客户都列出来，然后给他们每人写一封简短的问候邮件，存草稿
+  expect_tools: [draft_email]
+  must_not_include: ['只写成', '次数已经用完']

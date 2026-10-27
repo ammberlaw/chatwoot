@@ -266,14 +266,5 @@ const goTo = row =>
         </template>
       </div>
     </div>
-
-    <router-link
-      v-if="open"
-      :to="accountScopedRoute('crm_schedule_index')"
-      class="flex items-center justify-between px-3 py-2 text-label-small text-[#4a4328] hover:text-[#262722]"
-    >
-      {{ '打开日程' }}
-      <span class="shrink-0 size-3.5 i-lucide-arrow-right" />
-    </router-link>
   </div>
 </template>

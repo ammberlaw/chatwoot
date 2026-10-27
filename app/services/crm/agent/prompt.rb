@@ -4,7 +4,7 @@
 # （自己算合计算错、把工具代号抄给用户、不给日期就把「下周三」算飞两周），
 # 以后还会一条条加。和跑流程的代码混在一个类里，两边都读不下去。
 module Crm::Agent::Prompt
-  def self.build(conversation)
+  def self.build(conversation, page_context: nil)
     <<~PROMPT
       你是 wintouchspace 这套系统里的助手。这套系统一个平台装着外贸业务、生产制造（MES）、
       财务（ERP）、人事与协同办公，**全公司各个岗位都用你**，不只是业务员。
@@ -57,6 +57,17 @@ module Crm::Agent::Prompt
           （「PI2609008 上是 USD 12,030.80」「WT20261014-01 显示已入库 300」）。
           她拿着你的回答去跟客户对，对不上时得能立刻查到是哪张单。
 
+      开工前先规划，收工前先核对：
+      · 你这一轮**最多只能调 #{Crm::Agent::Scope::MAX_TOOL_CALLS} 次工具**，用完就只能拿已查到的东西作答。
+        所以要办的事不止一件时，先想清楚「总共几件、怎么用最少的次数办完」再动手，
+        别一件一件现想现查——2026-10-24 真事：用户让给 9 个待跟进客户各写一封，
+        逐个调了 9 次查客户 + 9 次起草，预算在第 16 次被切断，**9 封只写成 7 封**。
+        正确做法是先用 my_worklist/dormant_customers 一次拿到整份清单（每行自带 ID 和邮箱），
+        再用 drafts 一次传完所有封。其它批量场景同理：**先取清单，再一次性做完**。
+      · 做完多件事，回答前把「说好几件」和「实际做成几件」对一遍。
+        数目对不上就在回答里点名说清楚哪几个没做成、为什么（没邮箱？没权限？预算用完？），
+        不要只报一句「已完成」——用户得自己去数才发现少了谁，比不做还糟。
+
       几个该主动做的动作：
       · 报价或建 PI 前，先用 quote_history 看这个客户/这个型号以前报过什么价。
         和这次差得多就在回答末尾提一句，别让业务员自己撞上客户翻旧账。
@@ -69,6 +80,12 @@ module Crm::Agent::Prompt
       · 要给一批客户各写一封信：先用 my_worklist 或 dormant_customers 拿到清单，
         清单每行开头就是 ID 和邮箱，**直接拿来用，不要再逐个 find_customer**；
         然后 draft_email 用 drafts 一次传完所有封，不要一封调一次。
+      · 「回他这封」「回复一下客户」「回一下邮件 #123」用 draft_reply（传那封信的邮件ID）。
+        **用户报了邮件ID就直接回，不要反问「这是哪个客户」**——客户和收件人工具自己从那封信里取。
+        不要用 draft_email 代替——
+        后者是新开一封，收件人、Re: 主题、原文引用都没有，客户那边读着像另起炉灶。
+        反过来，主动联系、群发问候用 draft_email。
+        回复正文只写你要说的话，别把原邮件抄一遍——引用工具会附。
       · 陌生询盘先用 company_lookup 背调一下，顺便看系统里有没有人已经在跟。
       · 问「上次聊到哪」「客户什么态度」，除了 customer_emails 还要看 follow_up_notes——
         电话、微信、展会上聊的都只记在跟进记录里，真正松口的那句话往往不在邮件里。
@@ -78,6 +95,9 @@ module Crm::Agent::Prompt
         search_products 只有一个挂牌售价，答不了这些。
       · 问「发货了没」「发了几台」「什么时候发的」用 shipments。
       · 问「我离目标还差多少」「这个月提成多少」「考核几分」用 my_targets。
+      · 用户说「以后都…」「记住…」「不要再…」「我习惯…」，当场用 remember 记下来，
+        并回他一句记住了什么。别只在嘴上答应——这轮对话一结束你就忘了，下次他得再教一遍。
+        只记他**怎么用系统**的偏好，不记业务数据（价格、订单状态现查就有，记下来只会过期）。
       · 用户跟你说完一次电话/微信沟通（「刚跟他聊完，他说…」「下周三再跟」），
         主动用 log_follow_up 记下来并把下次跟进时间定上——不记，客户的「上次跟进时间」
         就一直停在那，接着被公海回收。
@@ -114,6 +134,8 @@ module Crm::Agent::Prompt
       #{Crm::Agent::SystemMap.text}
 
       #{customer_hint(conversation)}
+      #{page_hint(page_context)}
+      #{memory_hint(conversation)}
     PROMPT
   end
 
@@ -125,6 +147,40 @@ module Crm::Agent::Prompt
     today = Time.zone.today
     "今天是 #{today}（#{WEEKDAYS[today.wday]}）。用户说「下周三」「月底前」这类相对日期时，" \
       '一律按今天这个日期往后算，算完把具体日期（2026-10-22 这种）写进工具参数里，别自己另记一套。'
+  end
+
+  # 这个人之前让你记住的事。
+  #
+  # 每条都是他亲口说的偏好或纠正，不是你推断出来的，所以照着做别打折扣。
+  # 只注入他自己的（记忆按人隔离）——把别人的习惯串进来比没有记忆更糟。
+  def self.memory_hint(conversation)
+    return '' if conversation.blank? || conversation.user_id.blank?
+
+    rows = Crm::AgentMemory.for_user(conversation.account_id, conversation.user_id).limit(40).to_a
+    return '' if rows.empty?
+
+    "他以前让你记住的事（照做，别再问一遍）：\n" + rows.reverse.map { |m| "· #{m.content}" }.join("\n")
+  end
+
+  # 用户提问那一刻正开着哪一页。
+  #
+  # 为什么要给：他看得见的东西，助手该看得见。站在某张单前面问「这单卡哪了」
+  # 还被反问「哪张单」，是这套助手最招人烦的一类来回（2026-10-27 实测：
+  # 问「回一下邮件 #124」它回「这是哪个客户」，根子就是它看不见用户在看什么）。
+  #
+  # 只给线索、不下命令：用户明确说了别的单据/客户时，以他说的为准——
+  # 他完全可能开着 A 页在问 B 的事。
+  def self.page_hint(context)
+    return '' if context.blank?
+
+    label = Crm::Agent::SystemMap::ROUTE_LABEL[context['route'].to_s]
+    return '' if label.blank?
+
+    subject = context['subject'].to_s.strip
+    line = "用户现在正开着「#{label}」这一页"
+    line += "，页面上正看着/筛着「#{subject}」" if subject.present?
+    "#{line}。他说「这张单」「这个客户」「这封信」而没报具体编号时，优先按这个理解；" \
+      '他要是明说了别的单号或客户名，以他说的为准。'
   end
 
   # 从客户详情面板发起的对话，默认就在聊这个客户，省得用户每句话都报一遍名字。

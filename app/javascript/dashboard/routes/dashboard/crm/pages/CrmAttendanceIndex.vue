@@ -828,7 +828,7 @@ onMounted(fetchMine);
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
             view === 'mine'
-              ? 'border-n-iris-9 bg-n-iris-9/10 text-n-iris-11 font-medium'
+              ? '!border-[#ffcc33] !bg-[#ffcc33] !text-[#202124] font-medium'
               : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
           "
           @click="switchView('mine')"
@@ -1410,9 +1410,6 @@ onMounted(fetchMine);
                 />
               </label>
             </div>
-            <p class="text-xs text-n-slate-10">
-              午休会从工作时长里扣除，并把一天切成上午/下午两段——请假单按这个切分自动判半天假。两头都留空表示不设午休。
-            </p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">宽限（分钟）</span>
@@ -1444,10 +1441,6 @@ onMounted(fetchMine);
                 />
               </label>
             </div>
-            <p class="text-xs text-n-slate-10">
-              补卡上限 0 = 不允许补卡；补卡时限 0 =
-              不限。提交补卡审批时按申请人所属组校验。
-            </p>
 
             <!-- 打卡范围（钉钉式：定位 + 办公网络，任一命中即可打卡）-->
             <div

@@ -67,6 +67,101 @@ module Crm::Agent::SystemMap
     '「数据看板」是 CRM 销售数据；生产看板、财务看板各在自己板块下。'
   ].freeze
 
+
+  # 路由名 → 这个页面在界面上叫什么。给「用户现在正看着哪一页」用。
+  #
+  # 从 Sidebar.vue 真实抽出来的，不是手敲的；spec 会拿侧栏再对一遍。
+  # 用处：用户站在某张单前面问「这单卡哪了」，不该再被反问「哪张单」——
+  # 他看得见的东西，助手也该看得见（2026-10-27：问「回一下邮件 #124」
+  # 它反问「这是哪个客户」，根子就是它看不见用户在看什么）。
+  ROUTE_LABEL = {
+    'crm_agent_index' => 'AI 助手',
+    'crm_ai_background_check_index' => 'AI 背调',
+    'crm_ai_settings_index' => 'AI 配置',
+    'crm_approval_templates_index' => '审批模板',
+    'crm_approvals_index' => '我的审批',
+    'crm_attendance_index' => '考勤',
+    'crm_commission_sheets_index' => '提成表',
+    'crm_customer_dupes_index' => '客户查重',
+    'crm_customer_intake_index' => '客户建档',
+    'crm_customer_settings_index' => '客户设置',
+    'crm_dashboard_index' => '外贸销售部数据看板',
+    'crm_email_templates_index' => '邮件模板',
+    'crm_emails_index' => '收发邮件',
+    'crm_employee_comps_index' => '员工薪资配置',
+    'crm_employees_index' => '员工档案',
+    'crm_funnel_index' => '商机看板',
+    'crm_inbox_collaborators_index' => '业务分配',
+    'crm_kpi_schemes_index' => '考核方案',
+    'crm_kpi_sheets_index' => '考核表',
+    'crm_mail_accounts_index' => '邮箱账户',
+    'crm_member_invites_index' => '成员邀请',
+    'crm_members_index' => '成员权限',
+    'crm_my_target_index' => '我的目标',
+    'crm_org_chart_index' => '组织架构图',
+    'crm_org_structure_index' => '部门与成员',
+    'crm_performance_settings_index' => '绩效设置',
+    'crm_petty_cash_index' => '备用金台账',
+    'crm_pi_backfill_index' => '历史 PI 补录',
+    'crm_pis_index' => 'PI 管理',
+    'crm_price_lists_index' => '标准价目表',
+    'crm_public_pool_settings_index' => '公海设置',
+    'crm_quote_request_templates_index' => '定制报价模板',
+    'crm_quote_requests_index' => '定制报价',
+    'crm_quotes_index' => '报价单管理',
+    'crm_schedule_index' => '日程 Schedule',
+    'crm_team_chat_index' => '消息',
+    'crm_team_dashboard_index' => '团队数据看板',
+    'crm_teams_index' => 'CRM 团队',
+    'crm_workspace_index' => '工作台',
+    'erp_accounts_index' => '会计科目表',
+    'erp_bom_costs_index' => 'BOM 成本表',
+    'erp_cash_index' => '资金账户',
+    'erp_dashboard_index' => '财务看板',
+    'erp_expenses_index' => '费用报销',
+    'erp_fixed_assets_index' => '固定资产',
+    'erp_ledgers_index' => '账簿',
+    'erp_margin_index' => '成本毛利',
+    'erp_notifications_index' => '财务通知',
+    'erp_payables_index' => '应付台账',
+    'erp_periods_index' => '期末结账',
+    'erp_receivables_index' => '应收台账',
+    'erp_reports_index' => '财务报表',
+    'erp_settings_index' => '财务设置',
+    'erp_shipment_approvals_index' => '出库审核',
+    'erp_vouchers_index' => '记账凭证',
+    'home' => '全部消息',
+    'mes_boms_index' => '生产任务单',
+    'mes_dashboard_index' => '生产看板',
+    'mes_fg_inbound_index' => '成品入库',
+    'mes_inspections_index' => '质量检验',
+    'mes_material_issues_index' => '生产领料',
+    'mes_material_prices_index' => '物料单价表',
+    'mes_notifications_index' => '站内通知',
+    'mes_pipeline_index' => '流水看板',
+    'mes_production_orders_index' => '销售订单',
+    'mes_production_records_index' => '生产报工',
+    'mes_products_index' => '产品档案',
+    'mes_purchase_orders_index' => '采购单',
+    'mes_purchase_requisitions_index' => '采购申请单',
+    'mes_serial_numbers_index' => 'SN 追溯',
+    'mes_shipments_index' => '销售出库',
+    'mes_stock_balances_index' => '库存',
+    'mes_stock_conversions_index' => '原料成品转换',
+    'mes_stock_entries_index' => '原料入库',
+    'mes_supplier_returns_index' => '退料返修',
+    'mes_suppliers_index' => '供应商',
+    'mes_warehouses_index' => '仓库档案',
+    'tiktok_assets_index' => '固定资产',
+    'tiktok_dashboard_index' => '数据看板',
+    'tiktok_departments_index' => '部门管理',
+    'tiktok_expenses_index' => '支出台账',
+    'tiktok_profit_index' => '出库利润表',
+    'tiktok_sales_records_index' => '每日录入',
+    'tiktok_shop_settings_index' => '店铺设置',
+    'tiktok_today_index' => '今日速览',
+  }.freeze
+
   def self.text
     <<~MAP
       ── 系统功能地图 ──
@@ -82,8 +177,12 @@ module Crm::Agent::SystemMap
 
       用这份地图的规矩：
       1. 地图里有 → 直接说位置，说到菜单那一级（「邮件中心 → 邮箱账户」），别再反问他想干嘛。
-      2. 地图里没有 → 就说这功能你在系统里没找到，然后 report_issue 报给管理员，**不要猜**
-         「一般在设置里」「可能在财务模块下」——猜错一次他白跑一趟，下次就不问你了。
+      2. 地图里没有 → **第一句先明说「系统里没有这个功能」**，再问一句要不要帮他报给管理员。
+         不要开口就甩工单号：他问的是「有没有」，收到的却是「已报给管理员 #21」，
+         等于没回答问题（2026-10-27 实测原样如此）。也别猜「一般在设置里」
+         「可能在财务模块下」——猜错一次他白跑一趟，下次就不问你了。
+         只有他明确表达诉求（「这是 bug」「帮我报一下」「为什么没有这个」）才直接
+         report_issue 不再问；纯打听「有没有 X」每次都开单，管理员那头会被淹掉。
       3. 每个人能看到哪些板块是权限决定的，地图上有不等于他账号里有。照实说位置就行，
          不用替他判断权限；他要是说「我这儿没有这个菜单」，那是权限没开，让他找管理员，
          别改口说这功能不存在。

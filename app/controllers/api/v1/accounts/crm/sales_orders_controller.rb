@@ -55,6 +55,10 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   end
 
   def update
+    unless can_delete_order?(@sales_order)
+      return render json: { error: '无权编辑该订单（仅负责人本人或管理员可编辑）' }, status: :forbidden
+    end
+
     was_rejected = @sales_order.approval_status == 'REJECTED'
     @sales_order.update!(order_attributes)
     # 被驳回的单改完自动回待审核（见 Crm::SalesOrderApproval#reopen_approval_on_edit），

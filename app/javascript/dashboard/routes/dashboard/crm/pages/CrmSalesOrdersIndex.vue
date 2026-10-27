@@ -46,15 +46,15 @@ const openConvert = order => convertDialogRef.value?.open(order);
 const { isCrmSales, isCrmTeamLead } = useCrmRole();
 // 财务只读：写操作后端会 403，按钮直接不给，免得点了才报错。
 const { isCrmFinanceOnly } = useCrmFinanceOnly();
-// 删除：负责人本人可删自己的单；管理员/副管可删任意 + 用回收箱。
+// 侧栏仅在本人订单上提供编辑、删除；管理员后台权限保持不变。
 const currentUser = useMapGetter('getCurrentUser');
 const isAdmin = computed(
   () =>
     currentUser.value?.role === 'administrator' ||
     currentUser.value?.crm_role === 'deputy_admin'
 );
-const canDeleteSelected = computed(
-  () => isAdmin.value || selectedOrder.value?.ownerId === currentUser.value?.id
+const canManageSelected = computed(
+  () => !!selectedOrder.value && selectedOrder.value.ownerId === currentUser.value?.id
 );
 // 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
 // 财务要算进「能看全部」：isCrmSales 的口径是「非管理员/副管/主管」，财务也落在里面，
@@ -1166,20 +1166,22 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             "
           >
             <Button
-              label="通过"
+              label="审核通过"
               icon="i-lucide-check"
-              size="xs"
-              color="teal"
-              variant="faded"
+              size="sm"
+              color="iris"
+              variant="solid"
+              class="!bg-[#ffcc33] !text-[#202124] hover:!bg-[#f5bd18]"
               :is-loading="approving"
               @click="approveOrder(selectedOrder)"
             />
             <Button
-              label="驳回"
+              label="驳回订单"
               icon="i-lucide-undo-2"
-              size="xs"
+              size="sm"
               color="ruby"
-              variant="ghost"
+              variant="faded"
+              class="!border !border-[#efc3c8] !bg-[#fff3f4] !text-[#bd3043]"
               :is-loading="approving"
               @click="rejectOrder(selectedOrder)"
             />
@@ -1212,6 +1214,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             @click="openConvert(selectedOrder)"
           />
           <Button
+            v-if="canManageSelected"
             :label="t('CRM.SALES_ORDERS.EDIT.TITLE')"
             icon="i-lucide-pencil"
             size="sm"
@@ -1220,7 +1223,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             @click="openEditDialog(selectedOrder)"
           />
           <Button
-            v-if="canDeleteSelected"
+            v-if="canManageSelected"
             label="删除"
             icon="i-lucide-trash-2"
             size="sm"

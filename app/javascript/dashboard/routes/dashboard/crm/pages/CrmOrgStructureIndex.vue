@@ -1,4 +1,5 @@
 <script setup>
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { ref, computed, watch, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
@@ -555,11 +556,12 @@ onMounted(async () => {
                 :key="m.id"
                 class="flex items-center gap-3 p-3 border rounded-xl border-n-weak bg-n-solid-1"
               >
-                <div
-                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-iris-4 text-n-iris-11"
-                >
-                  {{ initial(m.userName) }}
-                </div>
+                <Avatar
+                  :name="m.userName"
+                  :src="m.thumbnail || ''"
+                  :size="36"
+                  rounded-full
+                />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="text-sm font-medium truncate text-n-slate-12">

@@ -1,4 +1,5 @@
 <script setup>
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
@@ -263,16 +264,12 @@ onMounted(() => {
                   : 'bg-n-alpha-1 text-n-slate-11'
               "
             >
-              <span
-                class="flex items-center justify-center rounded-full size-4 text-[9px] font-medium"
-                :class="
-                  member.id === team.team_lead_id
-                    ? 'bg-n-iris-9 text-white'
-                    : 'bg-n-alpha-2 text-n-slate-11'
-                "
-              >
-                {{ initial(member.name) }}
-              </span>
+              <Avatar
+                :name="member.name"
+                :src="member.avatar_url || ''"
+                :size="16"
+                rounded-full
+              />
               {{ member.name }}
               <span
                 v-if="member.id === team.team_lead_id"
