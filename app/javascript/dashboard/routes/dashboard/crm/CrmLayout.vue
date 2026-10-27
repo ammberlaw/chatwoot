@@ -1,17 +1,11 @@
 <script setup>
 // CRM 常驻布局：包住所有 CRM 页面，写信窗挂在这层 → 在 CRM 各模块间切换不卸载、常驻不消失（仿 Gmail）。
-import { ref, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, watch } from 'vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
-import CrmAiAssistant from 'dashboard/components-next/CRM/CrmAiAssistant.vue';
 
 const composeStore = useCrmComposeStore();
 const composeRef = ref(null);
-
-// 团队沟通页有自己的底部输入栏，AI 悬浮球会挡住发送键——该页隐藏 AI 球（其它页照常）。
-const route = useRoute();
-const showAiAssistant = computed(() => route.name !== 'crm_team_chat_index');
 
 // 任意 CRM 页面调用 composeStore.open(prefill) → 触发这个常驻写信窗打开。
 watch(
@@ -36,6 +30,5 @@ watch(
       ref="composeRef"
       @refresh="composeStore.notifyRefresh()"
     />
-    <CrmAiAssistant v-if="showAiAssistant" />
   </div>
 </template>

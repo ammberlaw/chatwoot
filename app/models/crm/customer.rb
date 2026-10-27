@@ -10,6 +10,8 @@
 #  ai_next_step             :text
 #  ai_next_step_at          :datetime
 #  alibaba_account          :string
+#  bg_checked_at            :datetime
+#  bg_summary               :text
 #  completeness_grade       :string
 #  contact_email            :string
 #  contact_job_title        :string

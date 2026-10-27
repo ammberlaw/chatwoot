@@ -46,6 +46,13 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
   # 逾期仍然计入，但单独报：挂太久的事不能装作没有，只是不该和今天的混成一个数。
   OVERDUE_WINDOW_DAYS = 30
 
+  # 「今天要做的」：今日日程 + 各板块待我动手的事，合并成一个列表。
+  # 日程只有销售线有内容，仓库/生产/财务打开是空的；他们手上真有事，
+  # 只是散在 MES 待办、订单审批、绩效考核里（见 Crm::MyDay）。
+  def my_day
+    render json: { payload: Crm::MyDay.new(account: Current.account, account_user: Current.account_user).items }
+  end
+
   def pending_count
     today = Time.zone.today
     events = Current.account.crm_schedule_events.visible_to(current_user.id).to_a

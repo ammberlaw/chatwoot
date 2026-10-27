@@ -12,19 +12,26 @@
 import { ref, computed, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
+import CrmAiMascot from './CrmAiMascot.vue';
 import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
 
 const open = ref(false);
 const panelRef = ref(null);
 
 // 名单之外的人不显示悬浮球（后端 Crm::AgentController 会再判一次）。
-// 「AI 助手」独立页本身就是这个对话，再浮一颗球上去点开的是**另一个**会话，
-// 用户会以为自己刚问的那句丢了——那一页上收起来。
+//
+// 两处收起来：
+// · 「AI 助手」独立页本身就是这个对话，再浮一颗球上去点开的是**另一个**会话，
+//   用户会以为自己刚问的那句丢了。
+// · 团队沟通页有自己的底部输入栏，球会挡住发送键。
+//
+// 这两条原先写在 CrmLayout 里。球挂到全局外壳（Dashboard.vue）之后那一层没了，
+// 规则跟着搬进组件——放在挂载点上，每多一个挂载点就得抄一遍。
+const HIDE_ON = ['crm_agent_index', 'crm_team_chat_index'];
 const route = useRoute();
 const currentUser = useMapGetter('getCurrentUser');
 const canUse = computed(
-  () =>
-    currentUser.value?.crm_agent === true && route.name !== 'crm_agent_index'
+  () => currentUser.value?.crm_agent === true && !HIDE_ON.includes(route.name)
 );
 
 const toggle = () => {
@@ -33,9 +40,9 @@ const toggle = () => {
 
 // —— 悬浮图标可拖动 + 记忆位置（按距右下角的偏移存 localStorage）——
 const STORAGE_KEY = 'crmAiAssistantPos';
-const LAUNCHER = 56; // size-14
-const PANEL_W = 380;
-const PANEL_H = 560;
+const LAUNCHER = 104; // size-[104px]
+const PANEL_W = 440;
+const PANEL_H = 620;
 const pos = ref({ right: 24, bottom: 24 });
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -121,36 +128,38 @@ onBeforeUnmount(() => {
     v-if="canUse && !open"
     type="button"
     :style="launcherStyle"
-    class="fixed z-50 flex items-center justify-center text-white rounded-full shadow-lg cursor-move touch-none select-none size-14 bg-gradient-to-br from-n-iris-9 to-n-violet-10 shadow-n-iris-9/30 hover:scale-105 transition-transform"
+    class="fixed z-[55] flex items-center justify-center rounded-full cursor-move touch-none select-none size-[104px] p-0 bg-transparent hover:-translate-y-1 hover:scale-110 active:scale-95 transition-transform motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
     title="AI 助手（可拖动）"
     @pointerdown="onPointerDown"
     @click="onLauncherClick"
   >
-    <span class="pointer-events-none i-ph-sparkle-fill size-6" />
+    <CrmAiMascot
+      class="pointer-events-none shrink-0 size-[104px] drop-shadow-md animate-ai-cloud-idle motion-reduce:animate-none"
+    />
   </button>
 
   <!-- 对话面板 -->
   <div
     v-else-if="canUse"
     :style="panelStyle"
-    class="fixed z-50 flex flex-col overflow-hidden border shadow-2xl w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] rounded-2xl border-white/60 bg-n-solid-1/95 backdrop-blur-xl"
+    class="fixed z-[55] flex flex-col overflow-hidden border shadow-2xl w-[440px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-6rem)] rounded-2xl border-[#e8e8e8] bg-white font-sans antialiased text-label !text-[14px] !font-normal !leading-6 !tracking-normal"
   >
     <div
-      class="flex items-center gap-2 px-4 py-3 border-b border-n-weak bg-gradient-to-r from-n-iris-3 to-n-violet-3"
+      class="flex items-center gap-2 px-5 py-4 bg-white"
     >
-      <span class="i-ph-sparkle-fill size-4 text-n-iris-11" />
-      <span class="text-sm font-semibold text-n-slate-12">AI 助手</span>
+      <span class="text-heading-3 !font-sans !text-[14px] !font-medium !tracking-normal text-[#202124]">AI 助手</span>
       <button
         type="button"
-        class="ml-auto mr-1 text-n-slate-10 hover:text-n-slate-12"
+        class="ml-auto mr-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-label !font-sans !text-[14px] !font-normal !tracking-normal text-[#6b7078] hover:bg-black/5 hover:text-[#202124]"
         title="新对话"
         @click="panelRef?.reset()"
       >
-        <span class="i-lucide-rotate-ccw size-3.5" />
+        <span class="i-lucide-plus size-4" aria-hidden="true" />
+        <span>新对话</span>
       </button>
       <button
         type="button"
-        class="text-n-slate-10 hover:text-n-slate-12"
+        class="text-[#858a92] hover:text-[#202124]"
         title="关闭"
         @click="toggle"
       >
@@ -158,8 +167,8 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="flex-1 min-h-0 px-3 py-2">
-      <CrmAgentPanel ref="panelRef" />
+    <div class="flex-1 min-h-0 px-5 pb-4">
+      <CrmAgentPanel ref="panelRef" floating-layout />
     </div>
   </div>
 </template>

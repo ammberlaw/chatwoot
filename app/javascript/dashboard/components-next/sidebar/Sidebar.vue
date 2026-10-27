@@ -15,6 +15,7 @@ import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import CrmQuoteRequestAPI from 'dashboard/api/crm/quoteRequests';
 import CrmSalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import CrmKpiSheetAPI from 'dashboard/api/crm/kpiSheets';
 import ConversationSourceTagsAPI from 'dashboard/api/crm/conversationSourceTags';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
@@ -408,6 +409,18 @@ const fetchQuoteRequestTodoCount = async () => {
   }
 };
 
+// 绩效考核角标：等我动手的考核表数。考核是月度节奏，人不会天天进那个页面看，
+// 不摆角标就只能靠每周催办——实查有张表在「待填报」挂了 81 天。
+const kpiSheetTodoCount = ref(0);
+const fetchKpiSheetTodoCount = async () => {
+  try {
+    const { data } = await CrmKpiSheetAPI.pendingCount();
+    kpiSheetTodoCount.value = data.count || 0;
+  } catch {
+    kpiSheetTodoCount.value = 0;
+  }
+};
+
 // 销售订单审核角标：待我审的单数。和定制报价那个同一个道理——单子开出来主管
 // 不进页面就不知道，只能等业务员来问（用户 2026-10-22 原话：「不是业务问我我根本不知道」）。
 const salesOrderTodoCount = ref(0);
@@ -506,6 +519,7 @@ watch(
     fetchChurnRiskCount();
     fetchQuoteRequestTodoCount();
     fetchSalesOrderTodoCount();
+    fetchKpiSheetTodoCount();
   },
   { immediate: true }
 );
@@ -1333,7 +1347,13 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.CRM_SALES_ORDERS'),
             badgeCount: salesOrderTodoCount.value,
             hint: '有等你审核的销售订单时在此提醒；审完角标自动消。',
-            to: accountScopedRoute('crm_sales_orders_index'),
+            // 角标有数时带上审批筛选：角标算的是「该我审的」，不带参数点进去是全部
+            // 577 张单的列表，那 3 张在哪儿根本看不出来（和 MES 那个待办面板同病）。
+            to: accountScopedRoute(
+              'crm_sales_orders_index',
+              {},
+              salesOrderTodoCount.value > 0 ? { approval: 'PENDING' } : {}
+            ),
             activeOn: ['crm_sales_orders_index'],
           },
           // 历史 PI 补录：把早年只传在客户「文件」页、没建销售订单的 PI 盘出来补建。
@@ -1889,6 +1909,8 @@ const menuItems = computed(() => {
                 {
                   name: 'CRM KPI Sheets',
                   label: t('SIDEBAR.CRM_KPI_SHEETS'),
+                  badgeCount: kpiSheetTodoCount.value,
+                  hint: '有等你填报/打分/确认的考核表时在此提醒；办完角标自动消。',
                   to: accountScopedRoute('crm_kpi_sheets_index'),
                   activeOn: ['crm_kpi_sheets_index', 'crm_kpi_sheet_detail'],
                 },

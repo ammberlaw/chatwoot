@@ -15,10 +15,14 @@ import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
+import { useMapGetter } from 'dashboard/composables/store';
 import CrmAgentAPI from 'dashboard/api/crm/agent';
 import Button from 'dashboard/components-next/button/Button.vue';
+import CrmAiMascot from 'dashboard/components-next/CRM/CrmAiMascot.vue';
 
 const props = defineProps({
+  // Presentation only: the global floating assistant uses a compact welcome layout.
+  floatingLayout: { type: Boolean, default: false },
   // 从客户详情面板进来时带上，对话默认就在谈这个客户
   crmCustomerId: { type: [Number, String], default: null },
   // 独立页会把高度撑满；面板里嵌用传 false
@@ -41,6 +45,31 @@ let timer = null;
 
 const running = computed(() => conversation.value?.status === 'RUNNING');
 const busy = computed(() => running.value || starting.value);
+
+// 等待期的那一行文案。实测一轮 3~17 秒，其中 96~99% 是模型在想和在写——
+// 工具本身每个只要 6~150 毫秒，前端 2 秒轮询一次根本抓不到中间态，
+// 所以这里不做「一步步点亮」的假动画（那是演出来的），只报两件真事：
+// 已经查完几项、已经等了多久。秒数在走，人就知道没卡死。
+const waitTick = ref(0);
+let waitTimer = null;
+const waitStartedAt = ref(0);
+watch(running, on => {
+  clearInterval(waitTimer);
+  if (!on) return;
+
+  waitStartedAt.value = Date.now();
+  waitTick.value = 0;
+  waitTimer = setInterval(() => {
+    waitTick.value = Math.floor((Date.now() - waitStartedAt.value) / 1000);
+  }, 1000);
+});
+onBeforeUnmount(() => clearInterval(waitTimer));
+
+const waitText = computed(() => {
+  const done = messages.value.filter(m => m.role === 'tool').length;
+  const secs = waitTick.value ? ` ${waitTick.value}s` : '';
+  return done ? `已查 ${done} 项 · 正在写回答${secs}` : `正在查…${secs}`;
+});
 
 const scrollToEnd = async () => {
   await nextTick();
@@ -140,26 +169,92 @@ const CUSTOMER_SHORTCUTS = [
     icon: 'i-lucide-file-pen-line',
   },
 ];
-const GENERAL_SHORTCUTS = [
-  {
+// 快捷项按岗位给。
+//
+// 这是全公司的助手（采购、仓管、车间、工程、质检、财务都在名单里），三个入口原本
+// 全是业务口径（业绩/未收款/询盘背景），别的岗位点开第一眼就觉得「这工具不是给我的」。
+// 用户原话：「这是全公司的 AI agent」。
+//
+// 身份取 currentUser 上已有的 crm_role / mes_roles / crm_finance，不另开接口。
+const SHORTCUT = {
+  perf: {
     text: '我这个月做了多少？还有哪几个客户该跟进',
+    label: '查看本月业绩',
     icon: 'i-lucide-chart-no-axes-combined',
   },
-  { text: '列一下还没收完款的，按未收金额从大到小', icon: 'i-lucide-wallet' },
-  {
+  unpaid: {
+    text: '列一下还没收完款的，按未收金额从大到小',
+    label: '梳理未收款',
+    icon: 'i-lucide-wallet',
+  },
+  lead: {
     text: '帮我背调一下这个询盘邮箱：',
+    label: '调查询盘背景',
     icon: 'i-lucide-search-check',
     needsInput: true,
   },
-];
+  // 全岗位通用的两个：卡单诊断和「功能在哪」，谁都用得上。
+  stuck: {
+    text: '这张单卡在哪一步、该谁动？单号：',
+    label: '这张单卡在哪',
+    icon: 'i-lucide-circle-help',
+    needsInput: true,
+  },
+  whereIs: {
+    text: '这个功能在系统哪个菜单下？',
+    label: '功能在哪',
+    icon: 'i-lucide-compass',
+    needsInput: true,
+  },
+  stock: {
+    text: '这个物料还有多少现货、够不够做？物料：',
+    label: '查库存缺料',
+    icon: 'i-lucide-package-search',
+    needsInput: true,
+  },
+};
+
+const currentUser = useMapGetter('getCurrentUser');
+const mesRoles = computed(() => currentUser.value?.mes_roles || []);
+const hasMes = role => mesRoles.value.includes(role);
+
+// 先判岗位特征，最后才落到默认。管理员/副管走默认那条——他们看全公司，
+// 三个里给一个业务、一个生产、一个全局，比三个全是业务贴近实际。
+const GENERAL_SHORTCUTS = computed(() => {
+  if (hasMes('buyer'))
+    return [SHORTCUT.stock, SHORTCUT.stuck, SHORTCUT.whereIs];
+  if (
+    hasMes('warehouse') ||
+    hasMes('production') ||
+    hasMes('qc') ||
+    hasMes('pmc') ||
+    hasMes('engineer')
+  ) {
+    return [SHORTCUT.stuck, SHORTCUT.stock, SHORTCUT.whereIs];
+  }
+  // 纯财务（有 crm_finance、不是业务员）：钱的事在前，单据诊断次之。
+  if (
+    currentUser.value?.crm_finance &&
+    currentUser.value?.crm_role !== 'sales'
+  ) {
+    return [SHORTCUT.unpaid, SHORTCUT.stuck, SHORTCUT.whereIs];
+  }
+  if (currentUser.value?.crm_role === 'sales') {
+    return [SHORTCUT.perf, SHORTCUT.unpaid, SHORTCUT.lead];
+  }
+  return [SHORTCUT.perf, SHORTCUT.stuck, SHORTCUT.whereIs];
+});
+
 const shortcuts = computed(() =>
-  props.crmCustomerId ? CUSTOMER_SHORTCUTS : GENERAL_SHORTCUTS
+  props.crmCustomerId ? CUSTOMER_SHORTCUTS : GENERAL_SHORTCUTS.value
 );
 
 // 能力说明同样分两套。客户详情里这块只有半屏宽，标题又已经写过一遍
 // 「直接问这个客户的事」，再铺三行全量能力纯属把快捷问法挤下去。
+// 全公司都用这个助手，开场白不能只报业务口径的能力（用户：「这是全公司的 AI agent」）。
+// 一句话覆盖三条线：业务、生产、以及谁都会问的「这单卡在哪 / 功能在哪」。
 const INTRO_FULL =
-  '可查询客户资料、往来邮件与线下跟进记录，历史报价与报价单状态，实时库存、订单生产进度与出货情况，统计业绩目标达成与提成考核，梳理待跟进客户与未收款项，查产品价格表与销售资料，对陌生询盘进行背景调查，并代拟邮件与 PI 草稿。';
+  '客户、订单、库存与业绩都能查，也能看单据卡在哪一步、某个功能在哪，还能起草邮件和 PI。';
 const INTRO_CUSTOMER =
   '往来邮件与跟进记录、历史报价、订单进度与出货、库存，问就行；也能直接起草邮件和 PI。';
 const intro = computed(() =>
@@ -178,6 +273,13 @@ const useShortcut = async item => {
 
 // AI 答的是 Markdown（粗体、清单，问数字时还会摆表格）。直接插值出去就是满屏 ** 和竖线，
 // 所以复用客户消息那套 MessageFormatter（markdown-it，html:false 不吃原始 HTML）渲染。
+// 步骤状态（Crm::Agent::StepRecorder 写进 meta）。老消息没有 status 字段，
+// 一律当「无状态」——不能回落成 running，否则翻历史对话会看到一屏转个不停的圈。
+const stepRunning = m => m.meta?.status === 'running';
+const stepDone = m => m.meta?.status === 'done';
+// 这一步在查哪一个东西。「查客户」和「查客户 · Alina.Petrova」差着一个量级。
+const stepSubject = m => (m.meta?.subject ? `· ${m.meta.subject}` : '');
+
 const renderAnswer = text => new MessageFormatter(text || '').formattedMessage;
 
 // 结论经常要贴进邮件或表格里。带表格的回答靠手选根本选不干净，给个复制。
@@ -233,10 +335,11 @@ const artifactRoute = a => {
 <template>
   <div
     class="flex flex-col min-h-0"
-    :class="fullHeight ? 'h-full' : 'h-[32rem]'"
+    :class="[fullHeight ? 'h-full' : 'h-[32rem]', floatingLayout && 'relative pb-9 font-sans antialiased font-normal tracking-normal text-[#292b2d]', floatingLayout && !messages.length && 'justify-center']"
   >
     <div
       ref="scroller"
+      v-show="!floatingLayout || messages.length"
       class="flex-1 min-h-0 px-1 overflow-y-auto [.theme-classic_.crm-agent-workspace_&]:flex [.theme-classic_.crm-agent-workspace_&]:flex-col"
     >
       <div
@@ -247,12 +350,12 @@ const artifactRoute = a => {
           class="hidden [.theme-classic_.crm-agent-workspace_&]:flex flex-col items-center mb-6"
         >
           <div
-            class="mb-4 flex size-12 items-center justify-center text-[#ffc53d]"
+            class="mb-4 flex size-16 items-center justify-center"
           >
-            <span aria-hidden="true" class="i-lucide-sparkles size-10 shrink-0" />
+            <CrmAiMascot aria-hidden="true" class="size-16 shrink-0" />
           </div>
           <h2 class="text-heading-1 !text-[26px] !font-semibold text-[#252a32]">
-            今天，想推进哪一项工作？
+            今天有什么可以帮你？
           </h2>
         </div>
         <p
@@ -263,7 +366,7 @@ const artifactRoute = a => {
         <p
           class="text-xs [.theme-classic_.crm-agent-workspace_&]:text-center [.theme-classic_.crm-agent-workspace_&]:text-label-small [.theme-classic_.crm-agent-workspace_&]:text-[#a1a7b0]"
         >
-          草稿均不会自动发送，生成后存入草稿箱与 PI 列表，经确认后由您手动发出。
+          邮件与 PI 仅生成草稿，由你确认后发送。
         </p>
         <div
           class="flex flex-col gap-1 mt-2 [.theme-classic_.crm-agent-workspace_&]:grid [.theme-classic_.crm-agent-workspace_&]:grid-cols-1 [.theme-classic_.crm-agent-workspace_&]:xl:grid-cols-3 [.theme-classic_.crm-agent-workspace_&]:gap-3 [.theme-classic_.crm-agent-workspace_&]:mt-8"
@@ -281,7 +384,7 @@ const artifactRoute = a => {
             >
               <span class="size-4" :class="item.icon" />
             </span>
-            {{ item.text }}
+            {{ item.label || item.text }}
           </button>
         </div>
       </div>
@@ -295,26 +398,48 @@ const artifactRoute = a => {
         <!-- 气泡配色跟客户消息一个口径：我问的奶黄、AI 答的白。色号别写成主题 token，
              经典灰主题会把 iris 映射成近黑/近灰，黄白就没了。 -->
         <!-- 它中间查了什么，摆出来。不摆的话 AI 说什么就是什么，没人判断得出结论从哪来。 -->
+        <!-- 一步一行，三态：进行中转圈 / 做完实心勾加删除线 / 老记录无状态。
+             不报百分比、也不报「共 N 步」——模型是每一步才决定下一步调什么，
+             开跑时不知道要几步，编个分母出来迟早对不上（见 Crm::Agent::StepRecorder）。 -->
         <div
           v-if="m.role === 'tool'"
-          class="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md text-n-slate-11 bg-n-alpha-1"
+          class="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-n-alpha-1"
+          :class="stepDone(m) ? 'text-n-slate-10' : 'text-n-slate-11'"
         >
-          <span class="i-lucide-search size-3 shrink-0" />
-          {{ m.content }}
+          <span
+            v-if="stepRunning(m)"
+            class="i-lucide-loader-circle size-3 shrink-0 animate-spin"
+          />
+          <span
+            v-else-if="stepDone(m)"
+            class="i-lucide-circle-check size-3 shrink-0 text-n-teal-11"
+          />
+          <span v-else class="i-lucide-search size-3 shrink-0" />
+          <span :class="stepDone(m) ? 'line-through decoration-n-slate-8' : ''">
+            {{ m.content }}
+          </span>
+          <span
+            v-if="m.meta?.subject"
+            class="truncate max-w-[12rem] opacity-70"
+          >
+            {{ stepSubject(m) }}
+          </span>
         </div>
         <div
           v-else-if="m.role === 'user'"
-          class="max-w-[85%] px-3 py-2 text-sm whitespace-pre-wrap rounded-xl rounded-br-sm bg-[#f6e3a0] text-[#29271f]"
+          class="max-w-[85%] px-3 py-2 text-sm whitespace-pre-wrap rounded-xl rounded-br-sm"
+          :class="floatingLayout ? 'bg-[#171717] text-white text-label !text-[14px] !font-normal !leading-[1.7] !tracking-normal' : 'bg-[#f6e3a0] text-[#29271f]'"
         >
           {{ m.content }}
         </div>
-        <div v-else class="max-w-[92%] group">
+        <div v-else class="group" :class="floatingLayout ? 'w-full' : 'max-w-[92%]'">
           <!-- 还在吐字的那条（后端每 1.2 秒落一次库，见 Runner#flush_partial）：
                给个呼吸光标，让人看出是在写而不是卡住了。 -->
           <!-- 表格单独可横滚（display:block + overflow-x），不然一张七列的表把整个气泡撑爆。 -->
           <div
             v-dompurify-html="renderAnswer(m.content)"
-            class="px-3 py-2 rounded-xl rounded-bl-sm bg-white text-[#292b2d] ring-1 ring-inset ring-black/5 prose prose-bubble !max-w-none [&_table]:block [&_table]:overflow-x-auto [&_table]:text-xs [&_th]:!px-2 [&_th]:!py-1.5 [&_td]:!px-2 [&_td]:!py-1.5 [&_thead_tr]:border-b [&_thead_tr]:border-black/10 [&_tbody_tr]:border-b [&_tbody_tr]:border-black/5"
+            :class="floatingLayout ? '!bg-transparent !px-0 !rounded-none !ring-0 !font-sans !text-[14px] !font-normal !leading-[1.7] !tracking-normal [&_p]:!text-[14px] [&_p]:!font-normal [&_p]:!leading-[1.7] [&_p]:!tracking-normal [&_li]:!text-[14px] [&_li]:!leading-[1.7] [&_strong]:!font-semibold text-[#292b2d] [&_p]:!text-[#292b2d] [&_strong]:!text-[#171717] [&_li]:!text-[#292b2d] [&_a]:!text-[#3872b0] [&_th]:!text-[#171717] [&_td]:!text-[#292b2d]' : 'bg-white text-[#292b2d] ring-black/5'"
+            class="px-3 py-2 rounded-xl rounded-bl-sm ring-1 ring-inset prose prose-bubble !max-w-none [&_table]:block [&_table]:overflow-x-auto [&_table]:text-xs [&_th]:!px-2 [&_th]:!py-1.5 [&_td]:!px-2 [&_td]:!py-1.5 [&_thead_tr]:border-b [&_thead_tr]:border-black/10 [&_tbody_tr]:border-b [&_tbody_tr]:border-black/5"
           />
           <div
             v-if="isStreaming(m)"
@@ -326,6 +451,7 @@ const artifactRoute = a => {
           <div v-else class="flex flex-wrap items-center gap-2 mt-1.5">
             <button
               type="button"
+               :class="floatingLayout && '!font-sans !text-[14px] !font-normal !tracking-normal'"
               class="inline-flex items-center gap-1 text-xs transition-opacity opacity-0 reset-base text-n-slate-11 hover:text-n-slate-12 group-hover:opacity-100 focus:opacity-100"
               @click="copyAnswer(m.content)"
             >
@@ -355,23 +481,31 @@ const artifactRoute = a => {
         class="flex items-center gap-2 px-3 py-2 text-xs text-n-slate-11"
       >
         <span class="i-lucide-loader-circle size-3.5 shrink-0 animate-spin" />
-        正在查…（要几十秒，可以先去忙别的）
+        {{ waitText }}
       </div>
     </div>
 
+    <div v-if="floatingLayout && !messages.length" class="mb-6 flex flex-col items-center gap-4">
+      <CrmAiMascot class="size-16 shrink-0" aria-hidden="true" />
+      <h2 class="m-0 text-center text-heading-1 !font-sans !text-[18px] !font-medium !tracking-normal text-[#171717]">今天有什么可以帮你？</h2>
+    </div>
+
     <div
-      class="flex items-end gap-2 px-1 pt-2 border-t border-n-weak [.theme-classic_.crm-agent-workspace_&]:mx-auto [.theme-classic_.crm-agent-workspace_&]:w-full [.theme-classic_.crm-agent-workspace_&]:max-w-[860px] [.theme-classic_.crm-agent-workspace_&]:gap-3 [.theme-classic_.crm-agent-workspace_&]:rounded-2xl [.theme-classic_.crm-agent-workspace_&]:border [.theme-classic_.crm-agent-workspace_&]:border-[#dfe3e9] [.theme-classic_.crm-agent-workspace_&]:bg-white [.theme-classic_.crm-agent-workspace_&]:p-3 [.theme-classic_.crm-agent-workspace_&]:shadow-[0_8px_26px_-12px_rgba(40,50,70,0.16)]"
+      :class="floatingLayout && '!relative !block !rounded-3xl !border !border-[#dedede] !bg-white !p-3 !shadow-sm focus-within:!border-[#aaa]'"
+      class="[.theme-classic_.crm-agent-workspace_&]:focus-within:!border-[#b6b6b6] flex items-end gap-2 px-1 pt-2 border-t border-n-weak [.theme-classic_.crm-agent-workspace_&]:mx-auto [.theme-classic_.crm-agent-workspace_&]:w-full [.theme-classic_.crm-agent-workspace_&]:max-w-[860px] [.theme-classic_.crm-agent-workspace_&]:gap-3 [.theme-classic_.crm-agent-workspace_&]:rounded-2xl [.theme-classic_.crm-agent-workspace_&]:border [.theme-classic_.crm-agent-workspace_&]:border-[#dfe3e9] [.theme-classic_.crm-agent-workspace_&]:bg-white [.theme-classic_.crm-agent-workspace_&]:p-3 [.theme-classic_.crm-agent-workspace_&]:shadow-[0_8px_26px_-12px_rgba(40,50,70,0.16)]"
     >
       <textarea
         ref="inputRef"
         v-model="input"
         rows="2"
-        placeholder="问点什么…（回车发送，Shift+回车换行）"
-        class="flex-1 px-3 py-2 text-sm border rounded-xl outline-none resize-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12 [.theme-classic_.crm-agent-workspace_&]:border-0 [.theme-classic_.crm-agent-workspace_&]:shadow-none [.theme-classic_.crm-agent-workspace_&]:min-h-[76px] [.theme-classic_.crm-agent-workspace_&]:text-label [.theme-classic_.crm-agent-workspace_&]:placeholder:text-[#a2a8b2]"
+        :placeholder="floatingLayout ? '向 AI 助手提问' : '问点什么…（回车发送，Shift+回车换行）'"
+        :class="floatingLayout && '!w-full !min-h-[100px] !border-0 !rounded-none !bg-transparent !shadow-none !pb-10 !text-label !font-sans !text-[14px] !font-normal !leading-[1.7] !tracking-normal placeholder:!font-normal !text-[#292b2d] placeholder:!text-[#858a92] !outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none'"
+        class="!outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus:!border-[#b6b6b6] flex-1 px-3 py-2 text-sm border rounded-xl outline-none resize-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12 [.theme-classic_.crm-agent-workspace_&]:border-0 [.theme-classic_.crm-agent-workspace_&]:shadow-none [.theme-classic_.crm-agent-workspace_&]:min-h-[76px] [.theme-classic_.crm-agent-workspace_&]:text-label [.theme-classic_.crm-agent-workspace_&]:placeholder:text-[#a2a8b2]"
         :disabled="busy"
         @keydown.enter.exact.prevent="send"
       />
       <Button
+        v-if="!floatingLayout"
         label="发送"
         color="iris"
         size="sm"
@@ -379,7 +513,34 @@ const artifactRoute = a => {
         :disabled="!input.trim()"
         @click="send"
       />
+      <button
+        v-else
+        type="button"
+        title="发送"
+        aria-label="发送"
+        class="!absolute bottom-3 right-3 !flex !size-8 !items-center !justify-center !rounded-full !border-0 !bg-[#171717] !p-0 !text-white hover:!bg-[#333] disabled:opacity-35"
+        :disabled="busy || !input.trim()"
+        @click="send"
+      >
+        <span :class="busy ? 'i-lucide-loader-circle animate-spin' : 'i-lucide-arrow-up'" class="size-4" />
+      </button>
     </div>
+    <div v-if="floatingLayout && !messages.length" class="mt-4 flex flex-wrap justify-center gap-2">
+      <button
+        v-for="item in shortcuts"
+        :key="item.text"
+        type="button"
+        :title="item.text"
+        class="!inline-flex !items-center !gap-1.5 !rounded-full !border !border-solid !border-[#dedede] !bg-white !px-3 !py-2 text-label !font-sans !text-[14px] !font-normal !tracking-normal !text-[#333] hover:!bg-[#f5f5f5]"
+        @click="useShortcut(item)"
+      >
+        <span class="size-3.5 shrink-0" :class="item.icon" />
+        {{ item.label || item.text }}
+      </button>
+    </div>
+    <p v-if="floatingLayout" class="absolute inset-x-0 bottom-0 m-0 text-center text-label-small !font-sans !text-[12px] !font-normal !tracking-normal text-[#999]">
+      邮件与 PI 仅生成草稿，由你确认后发送
+    </p>
   </div>
 </template>
 

@@ -129,13 +129,16 @@ class Crm::Agent::Runner
     Crm::Agent::Tools::CustomerEmails, Crm::Agent::Tools::SearchProducts,
     Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
     Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers,
-    Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::CompanyLookup,
+    Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::DormantCustomers, Crm::Agent::Tools::CompanyLookup,
     Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi,
     Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes,
     Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::Shipments,
     Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
     Crm::Agent::Tools::CreateCustomer, Crm::Agent::Tools::DraftQuote,
-    Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment
+    Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment,
+    # 「这单为什么卡着」+「这是 bug，帮我报上去」。诊断只读、事实全来自
+    # Mes::DocDiagnosis，模型只负责把结果说成人话。
+    Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::ReportIssue
   ].freeze
 
   def tools(scope)
@@ -180,12 +183,11 @@ class Crm::Agent::Runner
   # 这里只负责把调用记下来摆给用户看。超限之后那几次照样记，但标出来——
   # 不然用户看到「查客户」却没结果，会以为是查漏了。
   def attach_tool_recorder(chat)
+    recorder = Crm::Agent::StepRecorder.new(conversation: conversation, label: method(:tool_label))
     chat.before_tool_call do |call|
-      label = tool_label(call)
-      label = "#{label}（已达本轮查询上限，改用已查到的信息作答）" if scope.budget_exhausted?
-      conversation.messages.create!(role: 'tool', content: label,
-                                    meta: { tool: call.name.to_s, args: call.arguments })
+      recorder.start(call, note: scope.budget_exhausted? ? '已达本轮查询上限，改用已查到的信息作答' : nil)
     end
+    chat.after_tool_result { recorder.finish }
   end
 
   TOOL_LABELS = {
@@ -193,13 +195,15 @@ class Crm::Agent::Runner
     'customer_emails' => '调往来邮件', 'search_products' => '查产品档案',
     'quote_history' => '翻历史报价', 'stock_lookup' => '查实时库存',
     'order_progress' => '查订单生产进度', 'my_numbers' => '算工作台数字',
-    'my_worklist' => '列待办清单', 'company_lookup' => '做客户背调',
+    'my_worklist' => '列待办清单', 'dormant_customers' => '查沉睡客户',
+    'company_lookup' => '做客户背调',
     'draft_email' => '写邮件草稿', 'draft_pi' => '建 PI 草稿',
     'follow_up_notes' => '翻跟进记录', 'quotes' => '查报价单状态',
     'my_targets' => '算目标与提成', 'shipments' => '查出货情况',
     'product_docs' => '翻产品资料', 'log_follow_up' => '记跟进记录',
     'create_customer' => '建客户档案', 'draft_quote' => '建报价单草稿',
-    'create_opportunity' => '建商机', 'read_attachment' => '读邮件附件'
+    'create_opportunity' => '建商机', 'read_attachment' => '读邮件附件',
+    'diagnose_document' => '诊断这张单卡在哪', 'report_issue' => '把问题提交给管理员'
   }.freeze
 
   def tool_label(call)

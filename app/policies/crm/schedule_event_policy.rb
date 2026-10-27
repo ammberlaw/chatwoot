@@ -29,4 +29,12 @@ class Crm::ScheduleEventPolicy < ApplicationPolicy
   def pending_count?
     true
   end
+
+  # 「今天要做的」：日程 + 各板块待我动手的事。每一类的可见性由 Crm::MyDay 里
+  # 各自的权限出口决定（Mes::TodoList / SalesOrderApprover / KpiReminderJob），
+  # 这里只管「能不能访问这个接口」。
+  # ⚠️ Pundit 按动作名找 policy 方法，少一个就是 500——新增 collection 动作必须同步加这里。
+  def my_day?
+    true
+  end
 end

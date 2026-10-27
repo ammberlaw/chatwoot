@@ -262,12 +262,55 @@ const pushFromBom = async () => {
   }
 };
 
+// 编辑复用同一个弹窗：editId 为空＝新建，有值＝改这张草稿。
+// 只有草稿能改——已过账的单写了不可改的库存流水，要撤得走「作废」冲销。
+const editId = ref(null);
+
 const openCreate = () => {
   const raw = (warehousesStore.getRecords || []).find(w => w.kind === 'RAW');
+  editId.value = null;
+  planMeta.value = null;
   Object.assign(form, {
     productionOrderId: '',
     warehouseId: raw ? String(raw.id) : '',
     rows: [blankIssueRow()],
+  });
+  markPristine();
+  dialogRef.value?.open();
+};
+
+const openEdit = e => {
+  editId.value = e.id;
+  planMeta.value = null;
+  const items = e.stockEntryItems || [];
+  // 下拉要能显示已选中的料名，先把行上的商品并进选项池（同推料那条路）。
+  mergeProductOptions(
+    items
+      .filter(it => it.crmProductId)
+      .map(it => ({
+        value: String(it.crmProductId),
+        label: `${it.materialName || it.productName || ''}${
+          it.materialNo ? `（${it.materialNo}）` : ''
+        }`,
+        unit: it.unit || '',
+      }))
+  );
+  Object.assign(form, {
+    productionOrderId: e.productionOrderId ? String(e.productionOrderId) : '',
+    warehouseId: String(e.fromWarehouseId || ''),
+    rows: items.length
+      ? items.map(it => ({
+          // 带上行 id，后端按 id 更新而不是整组重建（重建会丢掉行内附图）。
+          id: it.id,
+          crmProductId: it.crmProductId ? String(it.crmProductId) : '',
+          materialNo: it.materialNo || '',
+          onHand: 0,
+          issuedQty: 0,
+          pendingQty: 0,
+          perUnitQty: null,
+          qty: String(it.qty ?? ''),
+        }))
+      : [blankIssueRow()],
   });
   markPristine();
   dialogRef.value?.open();
@@ -280,6 +323,8 @@ const submit = async () => {
     productionOrderId: form.productionOrderId || null,
     fromWarehouseId: Number(form.warehouseId),
     stockEntryItemsAttributes: form.rows.map(r => ({
+      // 改单时带上行 id：后端 accepts_nested_attributes_for 按 id 更新，不带就是新增一行。
+      ...(r.id ? { id: r.id } : {}),
       // 领料领的是原料仓的采购件，与「采购收货入库」记的是同一批结存，
       // item_type 必须同为 MATERIAL；记成 PRODUCT 会另起一个结存桶导致过账查不到库存。
       itemType: 'MATERIAL',
@@ -289,13 +334,21 @@ const submit = async () => {
     })),
   };
   try {
+    if (editId.value) {
+      const ok = await store.update({ id: editId.value, ...payload });
+      if (ok) {
+        useAlert(`领料单 ${ok.entryNo} 已保存`);
+        dialogRef.value?.close();
+      }
+      return;
+    }
     const ok = await store.create(payload);
     if (ok) {
       useAlert(`已建领料单 ${ok.entryNo}，待过账`);
       dialogRef.value?.close();
     }
   } catch (error) {
-    useAlert(error.message || '建单失败');
+    useAlert(error.message || (editId.value ? '保存失败' : '建单失败'));
   }
 };
 
@@ -408,8 +461,18 @@ onMounted(async () => {
               />
               <span class="flex-1" />
               <div class="flex items-center gap-1 shrink-0">
+                <!-- 能不能动这张单由后端逐条下发（canOperate）：仓管全线通吃，
+                     本产线本板块的负责人也算。按 mesCan('stock') 藏按钮的话，
+                     平板车间的杨义建得出单却看不到「过账」，单子永远停在草稿。 -->
                 <Button
-                  v-if="e.status === 'DRAFT' && mesCan('stock')"
+                  v-if="e.status === 'DRAFT' && e.canOperate"
+                  label="编辑"
+                  variant="faded"
+                  size="sm"
+                  @click.stop="openEdit(e)"
+                />
+                <Button
+                  v-if="e.status === 'DRAFT' && e.canOperate"
                   label="过账"
                   color="iris"
                   size="sm"
@@ -419,11 +482,11 @@ onMounted(async () => {
                 <MesReturnControls
                   :record="e"
                   :store="store"
-                  :can-manage="mesCan('stock')"
+                  :can-manage="e.canOperate"
                   @click.stop
                 />
                 <Button
-                  v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                  v-if="e.canOperate && e.status !== 'CANCELLED'"
                   :label="e.status === 'POSTED' ? '作废' : '删单'"
                   color="ruby"
                   variant="ghost"
@@ -536,7 +599,7 @@ onMounted(async () => {
       width="5xl"
       overflow-y-auto
       confirm-button-color="iris"
-      title="新建生产领料单"
+      :title="editId ? '编辑生产领料单' : '新建生产领料单'"
       description="选生产订单「按生产任务单推料」自动带出用料，从原料仓领出；过账即扣减库存。"
       :is-loading="saving"
       :disable-confirm-button="invalid"

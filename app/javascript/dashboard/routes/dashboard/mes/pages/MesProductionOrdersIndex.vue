@@ -109,7 +109,13 @@ const PO_STATUS_LABELS = {
   CANCELLED: '已作废',
 };
 const poStatusLabel = s => PO_STATUS_LABELS[s] || s;
-// 齐套进度：未作废采购单中已到料齐（RECEIVED）的张数 / 总张数。全部到齐才推进到原料入库。
+// 采购单到料进度：未作废采购单中已到料（RECEIVED）的张数 / 总张数。
+//
+// ⚠️ 这个口径只回答「已经下出去的单到齐没有」，**不回答「BOM 每一行都备齐没有」**。
+// 两者会打架：MO-20260922-03 挂的 4 张采购单全 RECEIVED，但 BOM 里有 2 行包装料
+// 压根没下过单，徽标却写「已齐套」，下面的到货明细同时写「2 项没齐」（2026-10-26）。
+// 真正的齐套判定在后端 Mes::KitReadiness（按 BOM 分组装/包装），走 kitBadges。
+// 所以这里的文案只说「采购到料」，别再借用「齐套」两个字。
 const poKitSummary = pos => {
   const active = (pos || []).filter(p => p.status !== 'CANCELLED');
   const received = active.filter(p => p.status === 'RECEIVED').length;
@@ -394,10 +400,12 @@ const selected = ref(null);
 // 这里把整机料 + 包装料一次列全，和缺料清单、齐套徽标同一套口径（后端 Mes::MaterialArrival）。
 const showArrivals = ref(false);
 const arrivalShortOnly = ref(true);
+// 「只看没齐的」按**还要买**筛，不按「还差到货」筛：库存里现成够用的行不该再占着
+// 这张清单（动物卡片库存 5762、需求 3000，旧口径照样列在"没齐"里，照着买就是白买）。
 const arrivalRows = computed(() => {
   const rows = selected.value?.materialArrivals || [];
   return arrivalShortOnly.value
-    ? rows.filter(r => Number(r.outstanding || 0) > 0)
+    ? rows.filter(r => Number(r.toBuy || 0) > 0)
     : rows;
 });
 const arrivalGroups = computed(() => {
@@ -412,7 +420,7 @@ const arrivalGroups = computed(() => {
 const arrivalShortCount = computed(
   () =>
     (selected.value?.materialArrivals || []).filter(
-      r => Number(r.outstanding || 0) > 0
+      r => Number(r.toBuy || 0) > 0
     ).length
 );
 
@@ -3160,25 +3168,29 @@ watch(currentPage, fetchRecords);
             <!-- BOM 变更史：工程改动已下发 BOM 的用料留痕（谁/何时/改了什么）-->
             <div
               v-if="(selected.bomRevisions || []).length"
-              class="p-2 mt-2 border rounded-lg border-n-amber-6 bg-n-amber-2"
+              class="p-4 mt-3 border rounded-xl border-n-amber-5 bg-n-amber-2"
             >
-              <div class="mb-1 text-xs font-semibold text-n-amber-11">
+              <div class="mb-3 text-heading-3 text-n-amber-11">
                 生产任务单变更记录（{{ selected.bomRevisions.length }} 次）
               </div>
               <ul class="flex flex-col gap-1.5">
                 <li
                   v-for="rev in selected.bomRevisions"
                   :key="rev.revNo"
-                  class="text-xs"
+                  class="text-label-small leading-relaxed list-none"
                 >
-                  <div class="flex items-center gap-1.5 text-n-slate-11">
+                  <div
+                    class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2 text-n-slate-11"
+                  >
                     <span class="font-semibold text-n-slate-12">
                       v{{ rev.revNo }}
                     </span>
                     <span>{{ rev.changedByName || '—' }}</span>
                     <span>{{ fmtRevTime(rev.createdAt) }}</span>
                   </div>
-                  <div class="text-n-slate-12">{{ revDiffText(rev.diff) }}</div>
+                  <div class="leading-relaxed break-words text-n-slate-12">
+                    {{ revDiffText(rev.diff) }}
+                  </div>
                   <div v-if="rev.reason" class="text-n-slate-10">
                     原因：{{ rev.reason }}
                   </div>
@@ -3223,7 +3235,7 @@ watch(currentPage, fetchRecords);
         <!-- 外购标识 -->
         <div
           v-if="selected.isOutsourced"
-          class="pt-3 mt-3 border-t border-n-weak"
+          class="p-4 mt-4 border rounded-xl border-n-weak"
         >
           <div class="flex items-center gap-2 text-xs">
             <span
@@ -3240,11 +3252,21 @@ watch(currentPage, fetchRecords);
         <!-- 关联采购单（一单多采购单：主料/辅料各一张，不同采购员）——销售端不可见（生态硬约束） -->
         <div
           v-if="isMesStaff && (selected.purchaseOrders || []).length"
-          class="pt-3 mt-3 border-t border-n-weak"
+          class="p-4 mt-4 border rounded-xl border-n-weak"
         >
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-n-slate-11">
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="text-heading-3 text-n-slate-12">
               关联采购单（{{ selected.purchaseOrders.length }}）
+            </span>
+            <!-- 真正的齐套判定（按 BOM 分组装/包装，后端 Mes::KitReadiness）。
+                 旁边那枚只说采购单到料，两者口径不同，必须同时摆出来。 -->
+            <span
+              v-for="b in kitBadges(selected)"
+              :key="b.label"
+              class="inline-flex items-center px-1.5 py-0.5 text-xs rounded-full shrink-0"
+              :class="b.cls"
+            >
+              {{ b.label }}
             </span>
             <!-- 没齐套时徽标可点开，列出还差哪几样料（已齐套就没东西可展开，保持纯标签）。 -->
             <component
@@ -3265,8 +3287,8 @@ watch(currentPage, fetchRecords);
             >
               {{
                 poKitSummary(selected.purchaseOrders).complete
-                  ? '已齐套'
-                  : `待齐套 ${poKitSummary(selected.purchaseOrders).received}/${poKitSummary(selected.purchaseOrders).total}`
+                  ? '采购单全到料'
+                  : `采购到料 ${poKitSummary(selected.purchaseOrders).received}/${poKitSummary(selected.purchaseOrders).total}`
               }}
               <template v-if="shortageCount(selected.purchaseOrders)">
                 · 缺 {{ shortageCount(selected.purchaseOrders) }} 项
@@ -3285,12 +3307,12 @@ watch(currentPage, fetchRecords);
           <!-- 缺料清单：到齐了这张单才能领料生产，所以差什么要一眼看到，不用去翻采购单明细。 -->
           <div
             v-if="showShortage && shortageCount(selected.purchaseOrders)"
-            class="p-2 mb-2 rounded-lg bg-n-amber-2"
+            class="p-3 mb-3 border rounded-lg border-n-amber-5 bg-n-amber-2"
           >
             <div
               v-for="g in poShortages(selected.purchaseOrders)"
               :key="g.poNo"
-              class="mb-1.5 last:mb-0"
+              class="mb-3 last:mb-0"
             >
               <div class="mb-1 text-xs font-medium text-n-amber-12">
                 {{ g.poNo }}
@@ -3301,13 +3323,15 @@ watch(currentPage, fetchRecords);
               <div
                 v-for="r in g.rows"
                 :key="`${g.poNo}-${r.code}-${r.name}`"
-                class="flex items-baseline gap-2 text-xs text-n-slate-11"
+                class="flex flex-wrap items-baseline gap-2 text-label-small text-n-slate-11"
               >
                 <span class="shrink-0 text-n-slate-12">{{
                   r.code || '—'
                 }}</span>
-                <span class="flex-1 min-w-0 truncate">{{ r.name || '—' }}</span>
-                <span class="shrink-0">
+                <span class="flex-1 min-w-0 break-words">{{
+                  r.name || '—'
+                }}</span>
+                <span class="w-full text-right tabular-nums">
                   订 {{ fmtQty(r.qty) }} / 到 {{ fmtQty(r.received) }} ·
                   <b class="text-n-amber-12">
                     差 {{ fmtQty(r.short) }}{{ r.unit || '' }}
@@ -3320,12 +3344,12 @@ watch(currentPage, fetchRecords);
             <li
               v-for="po in selected.purchaseOrders"
               :key="po.id"
-              class="flex items-center justify-between text-xs"
+              class="flex items-start justify-between gap-3 py-3 text-label-small border-b border-n-weak last:border-0"
             >
               <span class="text-n-slate-12">
                 {{ po.poNo }}
-                <span class="text-n-slate-10">
-                  · {{ po.ownerName || '—' }} · {{ po.itemCount }} 项
+                <span class="block mt-1 text-n-slate-10">
+                  {{ po.ownerName || '—' }} · {{ po.itemCount }} 项
                 </span>
               </span>
               <span
@@ -3347,14 +3371,17 @@ watch(currentPage, fetchRecords);
         <!-- 物料到货明细：这张工单所有的料（整机 + 包装）一屏列全，每行走到哪了一目了然，
              不用再按工单翻十几张入库单一张张点（用户 10.16 反馈）。
              独立于「关联采购单」：还没下单的料更要列出来，那才是最该催的。 -->
-        <div v-if="isMesStaff" class="pt-3 mt-3 border-t border-n-weak">
+        <div v-if="isMesStaff" class="p-4 mt-4 border rounded-xl border-n-weak">
           <button
             type="button"
-            class="flex items-center w-full gap-1.5 text-xs reset-base text-n-slate-11 hover:text-n-slate-12"
+            class="flex flex-wrap items-center w-full gap-2 text-label-small reset-base text-n-slate-11 hover:text-n-slate-12"
             @click="showArrivals = !showArrivals"
           >
-            <span class="font-medium">物料到货明细</span>
-            <span v-if="arrivalShortCount" class="text-n-amber-11">
+            <span class="text-heading-3 text-n-slate-12">物料到货明细</span>
+            <span
+              v-if="arrivalShortCount"
+              class="px-2 py-1 rounded-md bg-n-amber-2 text-n-amber-11"
+            >
               · {{ arrivalShortCount }} 项没到齐
             </span>
             <span
@@ -3367,46 +3394,80 @@ watch(currentPage, fetchRecords);
 
           <template v-if="showArrivals">
             <label
-              class="flex items-center gap-1.5 mt-1.5 text-xs text-n-slate-11"
+              class="flex items-center gap-2 px-3 py-2 mt-3 text-label-small rounded-lg bg-n-alpha-1 text-n-slate-11"
             >
-              <input v-model="arrivalShortOnly" type="checkbox" />
+              <input
+                v-model="arrivalShortOnly"
+                type="checkbox"
+                class="!m-0 shrink-0"
+              />
               只看没到齐的
             </label>
-            <div v-for="g in arrivalGroups" :key="g.label" class="mt-1.5">
-              <div class="mb-1 text-xs font-medium text-n-slate-11">
+            <div v-for="g in arrivalGroups" :key="g.label" class="mt-4">
+              <div class="mb-2 text-heading-3 text-n-slate-11">
                 {{ g.label }}（{{ g.rows.length }}）
               </div>
               <div
                 v-for="r in g.rows"
                 :key="`${g.label}-${r.materialNo}-${r.name}`"
-                class="flex flex-col gap-0.5 py-1 border-b last:border-b-0 border-n-weak/50"
+                class="flex flex-col gap-3 p-3 mb-2 border rounded-lg border-n-weak"
               >
-                <div class="flex items-baseline gap-2 text-xs">
+                <div
+                  class="flex flex-wrap items-baseline gap-2 text-label-small"
+                >
                   <span class="shrink-0 text-n-slate-12">
                     {{ r.materialNo || '—' }}
                   </span>
-                  <span class="flex-1 min-w-0 truncate text-n-slate-11">
+                  <span class="flex-1 min-w-0 break-words text-n-slate-11">
                     {{ r.name || '—' }}
                   </span>
                 </div>
-                <div class="flex items-baseline gap-2 text-xs text-n-slate-10">
-                  <span>需求 {{ fmtQty(r.required) }}</span>
-                  <span>下单 {{ fmtQty(r.ordered) }}</span>
-                  <span>到货 {{ fmtQty(r.received) }}</span>
+                <div
+                  class="grid grid-cols-3 gap-x-3 gap-y-2 text-label-small text-n-slate-10"
+                >
+                  <span class="flex flex-col gap-1"
+                    >需求
+                    <b class="font-medium tabular-nums text-n-slate-12">{{
+                      fmtQty(r.required)
+                    }}</b></span
+                  >
+                  <span class="flex flex-col gap-1"
+                    >下单
+                    <b class="font-medium tabular-nums text-n-slate-12">{{
+                      fmtQty(r.ordered)
+                    }}</b></span
+                  >
+                  <span class="flex flex-col gap-1"
+                    >到货
+                    <b class="font-medium tabular-nums text-n-slate-12">{{
+                      fmtQty(r.received)
+                    }}</b></span
+                  >
+                  <span class="flex flex-col gap-1">
+                    可用库存
+                    <b class="font-medium tabular-nums text-n-slate-12">
+                      {{ fmtQty(r.available) }}
+                    </b>
+                  </span>
+                  <!-- 还要买 = 还要领 − 可用库存 − 在途。库存够用就是 0，不该再下单。 -->
                   <span
                     :class="
-                      Number(r.outstanding) > 0
+                      Number(r.toBuy) > 0
                         ? 'text-n-amber-11 font-medium'
                         : 'text-n-teal-11'
                     "
                   >
                     {{
-                      Number(r.outstanding) > 0
-                        ? `还差 ${fmtQty(r.outstanding)}`
-                        : '已到齐'
+                      Number(r.toBuy) > 0 ? `还要买 ${fmtQty(r.toBuy)}` : '够用'
                     }}
                   </span>
-                  <span class="ms-auto shrink-0">
+                  <span
+                    v-if="Number(r.outstanding) > 0"
+                    class="text-n-slate-10"
+                  >
+                    在途待到 {{ fmtQty(r.outstanding) }}
+                  </span>
+                  <span class="col-span-3 text-right break-all">
                     {{
                       r.poNos && r.poNos.length ? r.poNos.join('/') : '未下单'
                     }}
@@ -3416,11 +3477,11 @@ watch(currentPage, fetchRecords);
             </div>
             <div
               v-if="!arrivalGroups.length"
-              class="mt-1.5 text-xs text-n-slate-10"
+              class="px-3 py-5 mt-3 text-label-small text-center rounded-lg bg-n-alpha-1 text-n-slate-10"
             >
               {{
                 arrivalShortOnly
-                  ? '所有料都到齐了。'
+                  ? '没有要再买的料了。'
                   : '这张单还没挂生产任务单。'
               }}
             </div>
@@ -3429,16 +3490,19 @@ watch(currentPage, fetchRecords);
 
         <!-- 物料反馈：采购把供应商那边的情况写在这，业务不用再追着问「那颗料什么时候到」。
              独立于「关联采购单」：还没下单就延误（供应商缺货/等涨价）也要说得出来。 -->
-        <div v-if="isMesStaff" class="pt-3 mt-3 border-t border-n-weak">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="text-xs font-medium text-n-slate-12">物料反馈</span>
-            <span v-if="feedbacks.length" class="text-xs text-n-slate-10">
+        <div v-if="isMesStaff" class="p-4 mt-4 border rounded-xl border-n-weak">
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="text-heading-3 text-n-slate-12">物料反馈</span>
+            <span
+              v-if="feedbacks.length"
+              class="text-label-small leading-relaxed text-n-slate-10"
+            >
               {{ feedbacks.length }} 条
             </span>
             <button
               v-if="canWriteFeedback"
               type="button"
-              class="ml-auto text-xs text-n-iris-11 hover:underline"
+              class="ml-auto text-label-small text-n-iris-11 hover:underline"
               @click="showFeedbackForm = !showFeedbackForm"
             >
               {{ showFeedbackForm ? '收起' : '写一条' }}
@@ -3447,7 +3511,7 @@ watch(currentPage, fetchRecords);
 
           <div
             v-if="showFeedbackForm"
-            class="flex flex-col gap-2 p-2 mb-2 rounded-lg bg-n-alpha-1"
+            class="flex flex-col gap-3 p-3 mb-3 rounded-lg bg-n-alpha-1"
           >
             <div class="flex items-center gap-2">
               <div class="w-28 shrink-0">
@@ -3464,7 +3528,9 @@ watch(currentPage, fetchRecords);
               />
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs shrink-0 text-n-slate-11">预计到货</span>
+              <span class="text-label-small shrink-0 text-n-slate-11"
+                >预计到货</span
+              >
               <Input
                 v-model="feedbackForm.promisedDate"
                 size="sm"
@@ -3487,27 +3553,33 @@ watch(currentPage, fetchRecords);
             />
           </div>
 
-          <div v-if="feedbackLoading" class="text-xs text-n-slate-10">
+          <div
+            v-if="feedbackLoading"
+            class="text-label-small leading-relaxed text-n-slate-10"
+          >
             正在取…
           </div>
-          <div v-else-if="!feedbacks.length" class="text-xs text-n-slate-10">
+          <div
+            v-else-if="!feedbacks.length"
+            class="text-label-small leading-relaxed text-n-slate-10"
+          >
             还没有反馈。
           </div>
           <div
             v-for="f in feedbacks"
             :key="f.id"
-            class="flex flex-col gap-0.5 py-1.5 border-b last:border-b-0 border-n-weak/60"
+            class="flex flex-col gap-2 p-3 mb-2 border rounded-lg border-n-weak"
           >
-            <div class="flex items-center gap-1.5">
+            <div class="flex flex-wrap items-center gap-2">
               <span
-                class="px-1.5 py-0.5 text-xs rounded shrink-0"
+                class="px-2 py-1 text-label-small rounded-md shrink-0"
                 :class="FEEDBACK_TONE[f.kind] || 'bg-n-slate-4 text-n-slate-11'"
               >
                 {{ f.kindLabel }}
               </span>
               <span
                 v-if="f.materialName"
-                class="flex-1 min-w-0 text-xs truncate text-n-slate-12"
+                class="flex-1 min-w-0 text-label-small break-words text-n-slate-12"
               >
                 {{ f.materialName }}
               </span>
@@ -3519,8 +3591,11 @@ watch(currentPage, fetchRecords);
                 @click="removeFeedback(f)"
               />
             </div>
-            <span class="text-xs text-n-slate-11">{{ f.body }}</span>
-            <span class="text-xs text-n-slate-10">
+            <span
+              class="text-label-small leading-relaxed break-words text-n-slate-11"
+              >{{ f.body }}</span
+            >
+            <span class="text-label-small leading-relaxed text-n-slate-10">
               {{ f.userName || '—' }}
               <template v-if="f.promisedDate">
                 · 预计到货 {{ f.promisedDate }}
@@ -3532,10 +3607,10 @@ watch(currentPage, fetchRecords);
         <!-- 定制规格（生产订单单据内容） -->
         <div
           v-if="selected.spec && selected.spec.template"
-          class="pt-3 mt-3 border-t border-n-weak"
+          class="p-4 mt-4 border rounded-xl border-n-weak"
         >
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-n-slate-11">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span class="text-heading-3 text-n-slate-12">
               定制规格 ·
               {{ (SPEC_TEMPLATES[selected.spec.template] || {}).label }}
             </span>
@@ -3582,12 +3657,12 @@ watch(currentPage, fetchRecords);
         </div>
 
         <!-- 产品图片 -->
-        <div class="pt-3 mt-3 border-t border-n-weak">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-n-slate-11">产品图片</span>
+        <div class="p-4 mt-4 border rounded-xl border-n-weak">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span class="text-heading-3 text-n-slate-12">产品图片</span>
             <label
               v-if="canEditSelected"
-              class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+              class="text-label-small cursor-pointer text-n-iris-11 hover:underline"
             >
               上传图片
               <input
@@ -3626,16 +3701,18 @@ watch(currentPage, fetchRecords);
               </button>
             </div>
           </div>
-          <p v-else class="text-xs text-n-slate-10">暂无产品图片</p>
+          <p v-else class="text-label-small leading-relaxed text-n-slate-10">
+            暂无产品图片
+          </p>
         </div>
 
         <!-- 附件 -->
-        <div class="pt-3 mt-3 border-t border-n-weak">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-medium text-n-slate-11">附件</span>
+        <div class="p-4 mt-4 border rounded-xl border-n-weak">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span class="text-heading-3 text-n-slate-12">附件</span>
             <label
               v-if="canEditSelected"
-              class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+              class="text-label-small cursor-pointer text-n-iris-11 hover:underline"
             >
               上传附件
               <input
@@ -3651,13 +3728,13 @@ watch(currentPage, fetchRecords);
             <li
               v-for="file in selected.files"
               :key="file.id"
-              class="flex items-center justify-between text-xs group"
+              class="flex items-center justify-between gap-3 p-3 text-label-small border rounded-lg border-n-weak group"
             >
               <a
                 :href="file.url"
                 target="_blank"
                 rel="noopener"
-                class="truncate text-n-iris-11 hover:underline"
+                class="min-w-0 break-all text-n-iris-11 hover:underline"
               >
                 {{ file.filename }}
               </a>
@@ -3671,7 +3748,9 @@ watch(currentPage, fetchRecords);
               </button>
             </li>
           </ul>
-          <p v-else class="text-xs text-n-slate-10">暂无附件</p>
+          <p v-else class="text-label-small leading-relaxed text-n-slate-10">
+            暂无附件
+          </p>
         </div>
       </div>
     </div>

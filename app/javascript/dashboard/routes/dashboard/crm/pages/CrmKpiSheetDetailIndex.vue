@@ -367,7 +367,7 @@ const inCls =
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-start md:items-center justify-between flex-wrap gap-y-3 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+      class="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_auto] flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:gap-3 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center gap-3 min-w-0">
         <Button
@@ -432,7 +432,7 @@ const inCls =
           </div>
         </div>
       </div>
-      <div v-if="sheet" class="flex items-center flex-wrap gap-2">
+      <div v-if="sheet" class="flex items-center justify-end flex-wrap gap-2 justify-self-end xl:self-start">
         <Button
           label="打印"
           icon="i-lucide-printer"

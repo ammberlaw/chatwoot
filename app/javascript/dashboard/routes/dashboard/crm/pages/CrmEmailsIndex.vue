@@ -6,6 +6,7 @@ import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
+import MailBlocklistAPI from 'dashboard/api/crm/mailBlocklists';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
@@ -1495,6 +1496,53 @@ const spamIcon = computed(() =>
   isSpam.value ? 'i-lucide-shield-check' : 'i-lucide-shield-alert'
 );
 
+// ── 拉黑发件人 ──
+// 「标记垃圾邮件」只挪这一封、不留记忆，同一家下周再发照样进收件箱。
+// 拉黑是在**入库前丢弃**，所以放在看到推销信的当场，比跑去设置页顺手。
+// 业务员拉黑只对自己生效；管理员/副管的落成全公司规则（范围由后端定，前端传什么都不作数）。
+const senderDomain = e => {
+  const raw = String(e?.fromAddress || '');
+  const addr = (raw.match(/<([^>]+)>/)?.[1] || raw).trim().toLowerCase();
+  return addr.split('@')[1] || '';
+};
+
+const blockSender = async e => {
+  const domain = senderDomain(e);
+  if (!domain) {
+    useAlert('这封邮件没有可识别的发件域名');
+    return;
+  }
+  const scopeText = isAdmin.value ? '全公司' : '你自己';
+  // eslint-disable-next-line no-alert
+  const ok = window.confirm(
+    `以后不再收 ${domain} 的邮件（对${scopeText}生效）？\n` +
+      '这个域名下所有地址都会被拦，收件箱里的同源邮件会移入垃圾邮件。\n' +
+      '拉错了可以在「邮箱账户」设置页里取消。'
+  );
+  if (!ok) return;
+  try {
+    const { data } = await MailBlocklistAPI.create(
+      acctId(),
+      domain,
+      null,
+      isAdmin.value ? 'global' : 'mine'
+    );
+    const swept = data.swept || 0;
+    useAlert(
+      swept
+        ? `已拉黑 ${domain}，收件箱里 ${swept} 封同源邮件已移入垃圾邮件`
+        : `已拉黑 ${domain}`
+    );
+    // 和标垃圾邮件走一样的刷新：清空阅读区 + 列表/角标/文件夹计数都要跟着变。
+    selectedEmail.value = null;
+    fetchRecords();
+    fetchCounts();
+    fetchMailboxes();
+  } catch (error) {
+    useAlert(error.message || '拉黑失败');
+  }
+};
+
 // 标记/移出垃圾邮件：改文件夹，刷新列表与角标。
 const toggleSpam = async email => {
   const toSpam = email.folder !== 'SPAM';
@@ -1644,6 +1692,12 @@ const moreMenuItems = computed(() => {
       label: spamLabel.value,
       icon: spamIcon.value,
       run: () => toggleSpam(e),
+    });
+    // 自己发出去的信没有「拉黑」的意义，只对收到的信给这个口子。
+    items.push({
+      label: '拉黑发件人',
+      icon: 'i-lucide-ban',
+      run: () => blockSender(e),
     });
   }
   items.push({

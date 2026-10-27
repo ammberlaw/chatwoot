@@ -21,6 +21,10 @@ export default {
   toggleDone(accountId, id, date) {
     return axios.post(`${base(accountId)}/${id}/toggle_done`, { date });
   },
+  // 「今天要做的」：今日日程 + 各板块待我动手的事（后端 Crm::MyDay 合并读）。
+  myDay(accountId) {
+    return axios.get(`${base(accountId)}/my_day`);
+  },
   // 侧栏角标：今日到期 + 已逾期未完成的日程数。
   pendingCount(accountId) {
     return axios.get(`${base(accountId)}/pending_count`);

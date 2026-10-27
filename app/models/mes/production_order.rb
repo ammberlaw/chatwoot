@@ -391,6 +391,27 @@ class Mes::ProductionOrder < ApplicationRecord
     awaiting_sales_confirm? && owner_or_admin?(account_user)
   end
 
+  # ── 「有权代办」与「分配给我」是两件事 ──
+  #
+  # 上面两个 can_* 答的是**能不能点**：归属业务员本人，管理员/副管兜底代办。
+  # 下面两个答的是**该不该进我的待办**：只认这张单的归属业务员。
+  #
+  # 分不开会出事：副管兜底的是「代办能力」，不是「这件事派给了他」。两者混用，
+  # 他的待办里就会躺满全公司每个业务员的用料确认（2026-10-27 生产实证：
+  # WT-20261026-01 owner_id=21，副管 user_id=3 照样收到）。用户原话是
+  # 「不是自己的订单，不应进入自己的待办」。
+  #
+  # 待办列表、角标、推送首次发送与重试复核都走这一对（Mes::TodoList 是唯一出口，
+  # Mes::TodoPushJob 拿它当准绳复核），所以这里改一处四处跟着对。
+  # 代办能力不受影响：副管照样能进单详情点确认，按钮由 can_* 控制。
+  def bom_confirm_assigned_to?(account_user)
+    awaiting_bom_confirm? && account_user.present? && owner_id == account_user.user_id
+  end
+
+  def sales_return_assigned_to?(account_user)
+    awaiting_sales_confirm? && account_user.present? && owner_id == account_user.user_id
+  end
+
   # 这两步都是「业务把细节定下来」，只有这张单的归属业务员本人说了算；管理员/副管兜底。
   def owner_or_admin?(account_user)
     return false if account_user.blank?

@@ -2,6 +2,9 @@ json.id resource.id
 json.voucher_no resource.voucher_no
 json.period resource.period
 json.voucher_date resource.voucher_date
+# 生成时间：自动凭证的凭证日期取来源单据的日期，和「什么时候生成的」常常不是一天。
+# 列表要能按它排序/筛选，不下发的话前端无从分辨刚生成的是哪张。
+json.created_at resource.created_at
 json.status resource.status
 json.status_label Erp::Voucher::STATUS_LABELS[resource.status]
 json.summary resource.summary

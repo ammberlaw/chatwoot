@@ -347,21 +347,31 @@ onMounted(() => {
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">对象</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[160px]">
+                对象
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
+                归属人
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">
                 检验/合格/不良
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">结果</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">不良原因</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">检验员</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[96px]">
+                不良原因
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
+                检验员
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
             <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
-              <td class="px-3 py-3 text-n-slate-12">{{ kindLabel(r.kind) }}</td>
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-12">
+                {{ kindLabel(r.kind) }}
+              </td>
               <td class="px-3 py-3 text-n-slate-11">
                 <div>
                   {{
@@ -381,10 +391,10 @@ onMounted(() => {
                   商品编码 {{ r.productSku }}
                 </div>
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ r.productionOrderOwnerName || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ r.inspectedQty }} / {{ r.passedQty }} /
                 <span :class="r.failedQty > 0 ? 'text-n-ruby-11' : ''">{{
                   r.failedQty
@@ -393,7 +403,7 @@ onMounted(() => {
               <td class="px-3 py-3">
                 <span
                   v-if="RESULT[r.result]"
-                  class="inline-flex px-2 py-0.5 text-xs rounded-full"
+                  class="inline-flex px-2 py-0.5 text-xs rounded-full whitespace-nowrap"
                   :class="RESULT[r.result].cls"
                 >
                   {{ RESULT[r.result].label }}
@@ -402,10 +412,10 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ r.defectReason || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ r.inspectorName || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ day(r.inspectedAt) }}
               </td>
               <td class="px-3 py-3 text-right">

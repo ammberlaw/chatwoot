@@ -242,12 +242,12 @@ const barWidth = rate => {
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="w-full max-w-5xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
+    <div class="w-full max-w-[1440px] px-4 py-5 mx-auto sm:px-8 sm:py-7">
       <!-- 头部：标题 + 筛选 + 新增 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3">
         <div>
-          <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">每日录入</h1>
-          <p class="mt-0.5 text-sm text-n-slate-11">
+          <h1 class="text-heading-1 font-semibold text-n-slate-12">每日录入</h1>
+          <p class="mt-1 text-label-small text-n-slate-11">
             每天每店录一张卡；取消率、有效率、RMB 金额自动计算。
           </p>
         </div>
@@ -277,36 +277,36 @@ const barWidth = rate => {
       <!-- 本月合计汇总条 -->
       <div
         v-if="!loading && records.length"
-        class="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 mb-5 rounded-2xl border border-n-weak bg-gradient-to-r from-n-alpha-1 to-n-alpha-2 sm:gap-x-8 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
+        class="grid grid-cols-2 gap-x-6 gap-y-5 px-5 py-5 mb-7 rounded-2xl border border-n-weak bg-n-solid-1 sm:grid-cols-3 xl:grid-cols-6 sm:px-6 [&>div]:gap-2"
       >
-        <div class="flex flex-col">
-          <span class="text-[11px] text-n-slate-11">本月合计</span>
-          <span class="text-sm font-semibold text-n-slate-12">
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">本月合计</span>
+          <span class="text-label font-semibold text-n-slate-12">
             {{ filters.month }}
           </span>
         </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] font-medium text-n-iris-11">总订单</span>
-          <span class="text-2xl font-bold tabular-nums text-n-iris-11">
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">总订单</span>
+          <span class="text-heading-1 !text-[24px] font-semibold tabular-nums text-n-slate-12">
             {{ monthTotals.orders }}
           </span>
         </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] text-n-slate-11">总台数</span>
-          <span class="text-lg font-bold tabular-nums text-n-slate-12">
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">总台数</span>
+          <span class="text-heading-1 !text-[24px] !font-semibold tabular-nums text-n-slate-12">
             {{ monthTotals.units }}
           </span>
         </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] text-n-slate-11">总销售额 RMB</span>
-          <span class="text-lg font-bold tabular-nums text-n-slate-12">
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">总销售额 RMB</span>
+          <span class="text-heading-1 !text-[24px] !font-semibold tabular-nums text-n-slate-12">
             {{ cny(monthTotals.amountCny) }}
           </span>
         </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] text-n-slate-11">平均取消率</span>
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">平均取消率</span>
           <span
-            class="text-lg font-bold tabular-nums"
+            class="text-heading-1 !text-[24px] !font-semibold tabular-nums"
             :class="
               monthTotals.cancelRate > 0.3
                 ? 'text-n-ruby-11'
@@ -316,15 +316,15 @@ const barWidth = rate => {
             {{ pct(monthTotals.cancelRate) }}
           </span>
         </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] text-n-slate-11">平均有效率</span>
-          <span class="text-lg font-bold tabular-nums text-n-iris-11">
+        <div class="flex flex-col gap-1">
+          <span class="text-label-small text-n-slate-11">平均有效率</span>
+          <span class="text-heading-1 !text-[24px] !font-semibold tabular-nums text-n-slate-12">
             {{ pct(monthTotals.validRate) }}
           </span>
         </div>
       </div>
 
-      <div v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
+      <div v-if="loading" class="py-10 text-label text-center text-n-slate-10">
         加载中…
       </div>
 
@@ -337,29 +337,29 @@ const barWidth = rate => {
           class="i-lucide-clipboard-list text-2xl text-n-slate-9"
           aria-hidden="true"
         />
-        <p class="text-sm text-n-slate-11">
+        <p class="text-label text-n-slate-11">
           本月暂无记录，点右上角「新增记录」开始录入。
         </p>
       </div>
 
       <!-- 按日期分组：同一天合并一张卡，卡内各店铺一行 -->
-      <div v-else class="flex flex-col gap-3">
+      <div v-else class="flex flex-col gap-5">
         <div
           v-for="g in groupedByDate"
           :key="g.date"
-          class="overflow-hidden border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
+          class="overflow-x-auto rounded-2xl border border-n-weak bg-n-solid-1"
         >
           <!-- 卡头：日期 + 当日合计 -->
           <div
-            class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-n-weak bg-n-alpha-1"
+            class="flex min-w-[960px] items-center justify-between gap-4 px-5 py-3.5 border-b border-n-weak bg-n-alpha-1"
           >
             <div class="flex items-baseline gap-2">
-              <span class="text-sm font-bold tabular-nums text-n-slate-12">
+              <span class="text-heading-3 font-semibold tabular-nums text-n-slate-12">
                 {{ g.date }}
               </span>
-              <span class="text-xs text-n-slate-10">{{ weekday(g.date) }}</span>
+              <span class="text-label-small text-n-slate-10">{{ weekday(g.date) }}</span>
             </div>
-            <div class="flex items-center gap-4 text-xs">
+            <div class="flex items-center gap-4 text-label-small">
               <div class="flex items-center gap-1">
                 <span class="text-n-slate-11">当日订单</span>
                 <b class="tabular-nums text-n-iris-11">{{ g.orders }}</b>
@@ -381,45 +381,45 @@ const barWidth = rate => {
           <div
             v-for="r in g.rows"
             :key="r.id"
-            class="flex flex-wrap items-center gap-4 px-4 py-3 border-b last:border-b-0 border-n-weak transition hover:bg-n-alpha-1"
+            class="grid min-w-[960px] grid-cols-[minmax(140px,1fr)_248px_minmax(180px,1.2fr)_132px_64px] items-center gap-5 px-5 py-4 border-b last:border-b-0 border-n-weak transition-colors hover:bg-n-alpha-1"
           >
             <!-- 店铺 -->
             <span
-              class="w-28 shrink-0 inline-flex px-2 py-0.5 rounded-md text-xs text-n-slate-12 bg-n-alpha-2"
+              class="min-w-0 truncate text-label font-semibold text-n-slate-12"
             >
               {{ r.shopName || shopName(r.shopId) }}
             </span>
 
             <!-- 指标块（订单为核心，紫色高亮） -->
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-              <div class="flex flex-col px-3 py-1.5 rounded-lg bg-n-iris-3">
-                <span class="text-[11px] font-medium text-n-iris-11">订单</span>
+            <div class="grid grid-cols-4 items-center gap-3">
+              <div class="flex flex-col gap-1">
+                <span class="text-label-small text-n-slate-11">订单</span>
                 <span
-                  class="text-2xl font-bold leading-none tabular-nums text-n-iris-11"
+                  class="text-heading-2 font-semibold tabular-nums text-n-slate-12"
                 >
                   {{ r.totalOrders }}
                 </span>
               </div>
-              <div class="flex flex-col">
-                <span class="text-[11px] text-n-slate-11">总台数</span>
+              <div class="flex flex-col gap-1">
+                <span class="text-label-small text-n-slate-11">总台数</span>
                 <span
-                  class="text-sm font-semibold tabular-nums text-n-slate-12"
+                  class="text-heading-2 font-semibold tabular-nums text-n-slate-12"
                 >
                   {{ r.totalUnits }}
                 </span>
               </div>
-              <div class="flex flex-col">
-                <span class="text-[11px] text-n-slate-11">实发</span>
+              <div class="flex flex-col gap-1">
+                <span class="text-label-small text-n-slate-11">实发</span>
                 <span
-                  class="text-sm font-semibold tabular-nums text-n-slate-12"
+                  class="text-heading-2 font-semibold tabular-nums text-n-slate-12"
                 >
                   {{ r.shippedUnits }}
                 </span>
               </div>
-              <div class="flex flex-col">
-                <span class="text-[11px] text-n-slate-11">达人</span>
+              <div class="flex flex-col gap-1">
+                <span class="text-label-small text-n-slate-11">达人</span>
                 <span
-                  class="text-sm font-semibold tabular-nums"
+                  class="text-heading-2 font-semibold tabular-nums"
                   :class="
                     r.influencerUnits ? 'text-n-slate-12' : 'text-n-slate-9'
                   "
@@ -430,9 +430,9 @@ const barWidth = rate => {
             </div>
 
             <!-- 进度条：取消率 / 有效率 -->
-            <div class="flex flex-col gap-2 min-w-[10rem] flex-1">
+            <div class="flex min-w-0 flex-col gap-2.5">
               <div class="flex items-center gap-2">
-                <span class="text-[11px] w-12 shrink-0 text-n-slate-11">
+                <span class="text-label-small w-12 shrink-0 text-n-slate-11">
                   取消率
                 </span>
                 <div class="flex-1 h-1.5 rounded-full bg-n-alpha-3">
@@ -443,7 +443,7 @@ const barWidth = rate => {
                   />
                 </div>
                 <span
-                  class="text-[11px] w-12 text-right tabular-nums shrink-0"
+                  class="text-label-small w-12 text-right tabular-nums shrink-0"
                   :class="
                     r.cancelRate > 0.3
                       ? 'text-n-ruby-11 font-semibold'
@@ -454,7 +454,7 @@ const barWidth = rate => {
                 </span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-[11px] w-12 shrink-0 text-n-slate-11">
+                <span class="text-label-small w-12 shrink-0 text-n-slate-11">
                   有效率
                 </span>
                 <div class="flex-1 h-1.5 rounded-full bg-n-alpha-3">
@@ -464,7 +464,7 @@ const barWidth = rate => {
                   />
                 </div>
                 <span
-                  class="text-[11px] w-12 text-right tabular-nums shrink-0 text-n-iris-11"
+                  class="text-label-small w-12 text-right tabular-nums shrink-0 text-n-iris-11"
                 >
                   {{ pct(r.validRate) }}
                 </span>
@@ -472,11 +472,11 @@ const barWidth = rate => {
             </div>
 
             <!-- 销售额 -->
-            <div class="flex flex-col items-end min-w-[6rem]">
-              <span class="text-base font-bold tabular-nums text-n-slate-12">
+            <div class="flex min-w-0 flex-col items-end gap-1">
+              <span class="text-heading-2 font-semibold tabular-nums text-n-slate-12">
                 {{ cny(r.salesAmountCny) }}
               </span>
-              <span class="text-[11px] tabular-nums text-n-slate-10">
+              <span class="text-label-small tabular-nums text-n-slate-10">
                 {{ Number(r.salesAmount).toLocaleString() }} {{ r.currency }}
               </span>
             </div>
@@ -488,6 +488,7 @@ const barWidth = rate => {
                 color="slate"
                 size="xs"
                 icon="i-lucide-pencil"
+                aria-label="编辑记录"
                 @click="openEdit(r)"
               />
               <Button
@@ -495,6 +496,7 @@ const barWidth = rate => {
                 color="ruby"
                 size="xs"
                 icon="i-lucide-trash-2"
+                aria-label="删除记录"
                 @click="remove(r)"
               />
             </div>

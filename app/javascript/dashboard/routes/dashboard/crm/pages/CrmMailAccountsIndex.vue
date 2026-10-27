@@ -6,6 +6,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmMailAccountsStore } from 'dashboard/stores/crm/mailAccounts';
 import { useCrmEmailSignaturesStore } from 'dashboard/stores/crm/emailSignatures';
 import MailAccountAPI from 'dashboard/api/crm/mailAccounts';
+import MailBlocklistAPI from 'dashboard/api/crm/mailBlocklists';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -16,6 +17,7 @@ import CrmSignatureEditor from 'dashboard/components-next/CRM/CrmSignatureEditor
 import CrmSignatureGenerator from 'dashboard/components-next/CRM/CrmSignatureGenerator.vue';
 import CrmWhatsappWebBinding from 'dashboard/components-next/CRM/CrmWhatsappWebBinding.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 const { t } = useI18n();
 const store = useCrmMailAccountsStore();
@@ -89,6 +91,15 @@ const L = {
   sigCreateTitle: '新建签名',
   sigDeleteConfirm: '确定删除该签名？',
   // 我的 WhatsApp
+  blTitle: '收信黑名单',
+  blHint:
+    '填域名（如 example.com，连子域名一起拦）或完整邮箱（只拦这一个地址）。命中的信不入库，不会再出现在收件箱、搜索和 AI 摘要里。公共邮箱域名和本公司域名不允许拉黑。',
+  blPlaceholder: 'example.com 或 sales@example.com',
+  blAdd: '拉黑',
+  blSuggest: '这几个域名的来信已被全部标成垃圾邮件：',
+  blEmpty: '还没有规则。被反复推销的域名填进来，以后他们的信直接收不进来。',
+  blRemove: '取消拦截',
+  blAddedBy: '添加',
   waTitle: '我的 WhatsApp',
   waHint: '绑定你的个人 WhatsApp 号，客户消息会直接进入 CRM 会话。',
 };
@@ -352,9 +363,74 @@ const handleGeneratorSave = async payload => {
   }
 };
 
+// ---- 收信黑名单 ----
+// 「标记垃圾邮件」只挪那一封、不留记忆，同一家下周再发照样进收件箱。
+// 这里的规则在**入库前**丢弃；拦截数和最近一封都记着，拉错了看得见、删得掉。
+const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
+const canManageBlocklist = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value
+);
+const blockRules = ref([]);
+const blockSuggestions = ref([]);
+const blockInput = ref('');
+const blockBusy = ref(false);
+const blockAccountId = computed(() => currentAccount.value?.id);
+
+const loadBlocklist = async () => {
+  if (!canManageBlocklist.value || !blockAccountId.value) return;
+  try {
+    const { data } = await MailBlocklistAPI.get(blockAccountId.value);
+    blockRules.value = data.payload || [];
+    blockSuggestions.value = data.suggestions || [];
+  } catch {
+    // 设置页其余部分照常用，这里静默失败即可
+  }
+};
+
+const addBlockRule = async value => {
+  const v = (value ?? blockInput.value).trim();
+  if (!v || blockBusy.value) return;
+  blockBusy.value = true;
+  try {
+    const { data } = await MailBlocklistAPI.create(blockAccountId.value, v);
+    blockInput.value = '';
+    const swept = data.swept || 0;
+    useAlert(
+      swept
+        ? `已拉黑 ${v}，收件箱里 ${swept} 封同源邮件已移入垃圾箱`
+        : `已拉黑 ${v}`
+    );
+    await loadBlocklist();
+  } catch (error) {
+    useAlert(error.message || '拉黑失败');
+  } finally {
+    blockBusy.value = false;
+  }
+};
+
+const removeBlockRule = async rule => {
+  const ok = window.confirm(
+    `不再拦截 ${rule.value}？以后这个发件方的信会照常进收件箱。`
+  );
+  if (!ok) return;
+  try {
+    await MailBlocklistAPI.delete(blockAccountId.value, rule.id);
+    await loadBlocklist();
+  } catch (error) {
+    useAlert(error.message || '删除失败');
+  }
+};
+
+const blockHitText = rule => {
+  if (!rule.blocked_count) return '还没拦到过';
+  if (!rule.last_blocked_subject) return `已拦 ${rule.blocked_count} 封`;
+  return `已拦 ${rule.blocked_count} 封，最近一封「${rule.last_blocked_subject}」`;
+};
+
 onMounted(() => {
   store.get();
   sigStore.get();
+  loadBlocklist();
 });
 </script>
 
@@ -575,6 +651,79 @@ onMounted(() => {
           <p class="mt-0.5 text-xs text-n-slate-10">{{ L.waHint }}</p>
         </div>
         <CrmWhatsappWebBinding />
+      </div>
+
+      <!-- 收信黑名单（仅管理员/副管理员；规则全公司生效） -->
+      <div v-if="canManageBlocklist" class="pt-6 mt-6 border-t border-n-weak">
+        <div class="mb-3 min-w-0">
+          <h2 class="text-base font-medium text-n-slate-12">{{ L.blTitle }}</h2>
+          <p class="mt-0.5 text-xs text-n-slate-10">{{ L.blHint }}</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <input
+            v-model="blockInput"
+            type="text"
+            :placeholder="L.blPlaceholder"
+            class="w-72 max-w-full h-8 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12"
+            @keyup.enter="addBlockRule()"
+          />
+          <Button
+            :label="L.blAdd"
+            size="sm"
+            color="iris"
+            :is-loading="blockBusy"
+            @click="addBlockRule()"
+          />
+        </div>
+
+        <div
+          v-if="blockSuggestions.length"
+          class="flex flex-wrap items-center gap-2 mb-4"
+        >
+          <span class="text-xs text-n-slate-10">{{ L.blSuggest }}</span>
+          <button
+            v-for="item in blockSuggestions"
+            :key="item.value"
+            type="button"
+            class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full reset-base bg-n-alpha-2 text-n-slate-11 hover:bg-n-alpha-3"
+            @click="addBlockRule(item.value)"
+          >
+            {{ item.value }}
+            <span class="text-n-slate-10">({{ item.spam_count }})</span>
+          </button>
+        </div>
+
+        <p v-if="!blockRules.length" class="text-xs text-n-slate-10">
+          {{ L.blEmpty }}
+        </p>
+        <div v-else class="flex flex-col gap-2">
+          <div
+            v-for="rule in blockRules"
+            :key="rule.id"
+            class="flex items-center gap-3 px-3 py-2 border rounded-lg border-n-weak"
+          >
+            <span class="text-sm font-medium truncate shrink-0 text-n-slate-12">
+              {{ rule.value }}
+            </span>
+            <span class="text-xs truncate text-n-slate-10">
+              {{ blockHitText(rule) }}
+            </span>
+            <span
+              v-if="rule.created_by_name"
+              class="ml-auto text-xs shrink-0 text-n-slate-10"
+            >
+              {{ rule.created_by_name }} {{ L.blAddedBy }}
+            </span>
+            <Button
+              :label="L.blRemove"
+              variant="ghost"
+              size="sm"
+              :class="rule.created_by_name ? 'shrink-0' : 'ml-auto shrink-0'"
+              @click="removeBlockRule(rule)"
+            />
+          </div>
+        </div>
       </div>
     </div>
 

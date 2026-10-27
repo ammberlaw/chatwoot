@@ -62,16 +62,16 @@ onMounted(() => deptStore.get());
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:bg-[#f7f8fa] [.theme-classic_&]:border-[#e4e7ec] [.theme-classic_&]:shadow-none"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8 [.theme-classic_&]:bg-white [.theme-classic_&]:py-5"
     >
       <div class="min-w-0">
         <h1 class="text-lg font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
-        <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
+        <p class="mt-0.5 text-xs text-n-slate-10 [.theme-classic_&]:text-label-small">{{ L.hint }}</p>
       </div>
-      <div class="flex items-center flex-shrink-0 gap-1">
+      <div class="flex items-center flex-shrink-0 gap-1 [.theme-classic_&]:rounded-xl [.theme-classic_&]:border [.theme-classic_&]:border-[#e3e6eb] [.theme-classic_&]:bg-[#f8f9fb] [.theme-classic_&]:p-1">
         <button
           class="flex items-center justify-center rounded-md size-7 text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-40 disabled:pointer-events-none"
           :title="L.zoomOut"
@@ -94,7 +94,7 @@ onMounted(() => deptStore.get());
       </div>
     </div>
 
-    <div ref="scrollerRef" class="flex-1 overflow-auto">
+    <div ref="scrollerRef" class="flex-1 overflow-auto [.theme-classic_&]:bg-[radial-gradient(#dce1e8_1px,transparent_1px)] [.theme-classic_&]:bg-[length:20px_20px]">
       <div
         v-if="isFetching && !departments.length"
         class="p-10 text-sm text-center text-n-slate-11"
@@ -108,7 +108,7 @@ onMounted(() => deptStore.get());
         <Icon icon="i-lucide-network" class="size-12 opacity-40" />
         <p class="text-sm">{{ L.empty }}</p>
       </div>
-      <div v-else class="min-w-max p-4 sm:p-10">
+      <div v-else class="min-w-max p-4 sm:p-10 [.theme-classic_&]:px-10 [.theme-classic_&]:py-14">
         <div
           class="flex items-start justify-center gap-10 origin-top transition-transform"
           :class="zoom.class"

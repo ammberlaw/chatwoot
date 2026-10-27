@@ -36,17 +36,21 @@ class Crm::EmailSendService
 
     @email.account.crm_schedule_events
           .where(customer_id: customer_id, kind: 'reply_reminder', owner_id: @email.owner_id)
-          .find_each { |event| mark_done_today(event) }
+          .find_each { |event| mark_done(event) }
   rescue StandardError => e
     Rails.logger.warn("[Crm::EmailSend] 销回复提醒失败 email=#{@email.id}: #{e.message}")
   end
 
-  def mark_done_today(event)
-    today = Time.zone.today.to_s
+  # ⚠️ 打勾要打在**提醒发生那天**，不是今天。
+  # 完成与否是按次判定的（completed_dates 里有没有这次的日期），原先写 Time.zone.today，
+  # 对一条 10-26 到期、10-27 才回信的提醒就会写进 10-27——那一格没人看，10-26 那次
+  # 照样算没完成，角标一分不降（生产实证：id 185 发生日 10-26、打勾打在 10-27）。
+  def mark_done(event)
+    occurred_on = event.starts_at&.to_date&.to_s || Time.zone.today.to_s
     dates = event.completed_dates.to_a.map(&:to_s)
-    return if dates.include?(today)
+    return if dates.include?(occurred_on)
 
-    event.update_columns(completed_dates: dates + [today], updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    event.update_columns(completed_dates: dates + [occurred_on], updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
   end
 
   def pick_mail_account

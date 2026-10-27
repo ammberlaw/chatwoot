@@ -69,7 +69,9 @@ const activeFilter = ref(normalizeFilter(route.query.filter));
 const activeStatus = ref('');
 // 审核状态筛选：主管用来一眼捞出「哪些等着我批」，业务员用来找自己被驳回的单。
 // 列表默认不筛（全部），不替人做主。
-const activeApproval = ref('');
+// 从 URL 带进来的审批筛选（侧栏角标点进来时带 approval=PENDING）。
+// 不认这个参数的话，角标说「3 张等你审」，点进去是不带筛选的全量列表。
+const activeApproval = ref(route.query.approval || '');
 const currentPage = ref(1);
 const searchQuery = ref('');
 const activeOwnerId = ref('');

@@ -14,6 +14,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { flowNeedsDept } from 'dashboard/helper/oaApprovalFlow';
 
 const L = {
   header: '审批中心',
@@ -54,6 +55,7 @@ const L = {
   flowPreview: '审批流程',
   deptLeader: '部门主管',
   unresolved: '（未设置负责人）',
+  conditional: '按条件判定',
   place: '请输入',
 };
 
@@ -174,10 +176,11 @@ const previewKind = file => {
 };
 const previewRef = ref(null);
 const previewFile = ref(null);
-// v-for 不能和 v-if 混用，可预览/只下载各给一个列表。
+// 同一张单里的可预览附件，用来在弹窗里左右翻——发票是一组一组看的。
 const previewList = computed(() =>
   (selected.value?.files || []).filter(f => previewKind(f))
 );
+// 不可预览的（压缩包、Office 文档等）仍是下载链接。
 const downloadOnlyFiles = computed(() =>
   (selected.value?.files || []).filter(f => !previewKind(f))
 );
@@ -185,11 +188,10 @@ const previewIndex = computed(() =>
   previewList.value.findIndex(f => f.id === previewFile.value?.id)
 );
 const openPreview = file => {
-  if (!previewKind(file)) return;
+  if (!previewKind(file)) return; // 不认识的类型仍走下载
   previewFile.value = file;
   previewRef.value?.open();
 };
-// 一张报销单常有七八张发票，弹窗里左右翻比关掉再点下一张快得多。
 const stepPreview = delta => {
   const list = previewList.value;
   if (list.length < 2) return;
@@ -205,9 +207,7 @@ const removeFileIds = ref([]);
 const templateFlow = computed(
   () => activeTemplate.value?.flow || activeTemplate.value?.flow || []
 );
-const needsDept = computed(() =>
-  templateFlow.value.some(s => s.type === 'dept_leader')
-);
+const needsDept = computed(() => flowNeedsDept(templateFlow.value));
 const pickedDept = computed(() =>
   myDepartments.value.find(
     d => String(d.department_id) === selectedDeptId.value
@@ -215,8 +215,10 @@ const pickedDept = computed(() =>
 );
 
 // 提交前预览审批链：部门主管→所选部门负责人；指定成员→该成员。
+// 条件分支要等提交时按填写内容才定得下来，这里只标一格「按条件判定」。
 const flowPreview = computed(() =>
   templateFlow.value.map(step => {
+    if (step.type === 'condition') return L.conditional;
     if (step.type === 'user') {
       const a = agents.value.find(x => x.id === step.user_id);
       return a?.name || L.unresolved;
@@ -595,9 +597,7 @@ onMounted(async () => {
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1
-        class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
+      <h1 class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
         {{ L.header }}
       </h1>
       <Button
@@ -755,7 +755,8 @@ onMounted(async () => {
                 {{ L.attachments }}
               </p>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <!-- 图片/PDF 就地弹窗看；其余类型仍是下载链接。 -->
+                <!-- 图片/PDF 就地弹窗看（报销附件几乎都是发票截图，下载下来看太绕）；
+                     其余类型仍是下载链接。 -->
                 <button
                   v-for="file in previewList"
                   :key="file.id"
@@ -1165,6 +1166,7 @@ onMounted(async () => {
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- 一张报销单常有七八张发票，左右翻比关掉再点下一张快得多 -->
           <template v-if="previewList.length > 1">
             <Button
               icon="i-lucide-chevron-left"

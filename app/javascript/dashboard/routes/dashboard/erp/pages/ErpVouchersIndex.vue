@@ -109,12 +109,22 @@ const colFilterParams = () => {
   return out;
 };
 
+// 「刚生成的那张在哪」：自动凭证的凭证日期取来源单据的日期，今天给上个月的入库单
+// 生成凭证，按凭证日期排它就沉到第五六页去了（用户原话：「一共有12页，他生成了，
+// 我不知道他在第几页，找半天找不到」）。所以给两个出口：
+//   showCreatedToday —— 只看今天生成的，一键到位
+//   sortByCreated    —— 整个列表改按生成时间排
+const showCreatedToday = ref(false);
+const sortByCreated = ref(false);
+
 const fetchList = () =>
   store.get({
     page: currentPage.value,
     period: period.value,
     status: statusFilter.value,
     q: keyword.value.trim(),
+    ...(showCreatedToday.value ? { created_today: 1 } : {}),
+    ...(sortByCreated.value ? { sort: 'created' } : {}),
     ...colFilterParams(),
   });
 
@@ -122,6 +132,18 @@ watch(currentPage, fetchList);
 const resetAndFetch = () => {
   currentPage.value = 1;
   fetchList();
+};
+
+const toggleCreatedToday = () => {
+  showCreatedToday.value = !showCreatedToday.value;
+  // 看「今天生成的」时自然要按生成时间排，否则还是按凭证日期乱序摆着。
+  sortByCreated.value = showCreatedToday.value || sortByCreated.value;
+  resetAndFetch();
+};
+
+const toggleSortByCreated = () => {
+  sortByCreated.value = !sortByCreated.value;
+  resetAndFetch();
 };
 const activeColFilterCount = computed(
   () => Object.values(colFilters.value).filter(f => f?.op).length
@@ -809,6 +831,21 @@ onMounted(() => {
           @click="clearColFilters"
         />
         <Button label="查询" color="slate" size="sm" @click="resetAndFetch" />
+        <!-- 刚生成的凭证按「凭证日期」排会沉到后面几页，这两个按钮是找它的出口。 -->
+        <Button
+          :label="showCreatedToday ? '只看今天生成 ✓' : '今天生成'"
+          :color="showCreatedToday ? 'iris' : 'slate'"
+          :variant="showCreatedToday ? 'solid' : 'faded'"
+          size="sm"
+          @click="toggleCreatedToday"
+        />
+        <Button
+          :label="sortByCreated ? '按生成时间排 ✓' : '按生成时间排'"
+          :color="sortByCreated ? 'iris' : 'slate'"
+          :variant="sortByCreated ? 'solid' : 'faded'"
+          size="sm"
+          @click="toggleSortByCreated"
+        />
         <!-- 导出是只读动作，不挂写权限 -->
         <Button
           label="导出 Excel"
@@ -1033,6 +1070,16 @@ onMounted(() => {
                       variant="ghost"
                       size="xs"
                       @click="printOne(v)"
+                    />
+                    <!-- 已作废的也能删：作废只对草稿开放，所以 VOID 那张从没进过账，
+                         删了不影响任何余额。已记账(POSTED)永远只能红冲。 -->
+                    <Button
+                      v-if="canWrite && v.status === 'VOID'"
+                      label="删除"
+                      color="ruby"
+                      variant="ghost"
+                      size="xs"
+                      @click="askDelete(v)"
                     />
                     <template v-if="canWrite && v.status === 'DRAFT'">
                       <Button

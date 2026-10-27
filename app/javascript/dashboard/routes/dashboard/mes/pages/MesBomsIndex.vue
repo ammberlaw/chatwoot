@@ -1855,10 +1855,10 @@ onMounted(async () => {
           <!-- BOM 变更记录：已下发后每次改用料的留痕（谁/何时/改了什么/为什么）-->
           <div
             v-if="(viewing.revisions || []).length"
-            class="pt-2 border-t border-n-weak"
+            class="p-4 border rounded-xl border-n-weak"
           >
             <div
-              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+              class="mb-3 text-heading-3 text-n-slate-12"
             >
               变更记录（{{ viewing.revisions.length }} 次）
             </div>
@@ -1866,26 +1866,26 @@ onMounted(async () => {
               <li
                 v-for="rev in viewing.revisions"
                 :key="rev.id"
-                class="p-2 text-xs border rounded-lg border-n-weak bg-n-alpha-1"
+                class="p-3 text-label-small leading-relaxed list-none border rounded-lg border-n-weak bg-n-alpha-1"
               >
-                <div class="flex items-center gap-2 mb-1 text-n-slate-11">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-n-slate-11">
                   <span class="font-semibold text-n-slate-12">
                     v{{ rev.revNo }}
                   </span>
                   <span>{{ rev.changedByName || '—' }}</span>
                   <span>{{ fmtRevTime(rev.createdAt) }}</span>
                 </div>
-                <div class="flex flex-wrap gap-1">
+                <div class="flex flex-wrap gap-2">
                   <span
                     v-for="(c, ci) in rev.diff"
                     :key="ci"
-                    class="px-1.5 py-0.5 rounded"
+                    class="px-2 py-1 rounded-md break-words"
                     :class="diffChipClass(c.kind)"
                   >
                     {{ diffLabel(c) }}
                   </span>
                 </div>
-                <div v-if="rev.reason" class="mt-1 text-n-slate-11">
+                <div v-if="rev.reason" class="mt-3 leading-relaxed break-words text-n-slate-11">
                   原因：{{ rev.reason }}
                 </div>
               </li>

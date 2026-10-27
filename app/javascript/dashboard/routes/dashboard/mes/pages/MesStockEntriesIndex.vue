@@ -102,7 +102,9 @@ const activeColFilterParams = () => ({
 
 const fetchList = () =>
   store.get({
-    purpose: 'MATERIAL_RECEIPT',
+    // 退货单和它退的那张入库单放在一起看，不另开页面。
+    // 后端 purpose 按逗号拆成数组（见 StockEntriesController#index）。
+    purpose: 'MATERIAL_RECEIPT,PURCHASE_RETURN',
     page: currentPage.value,
     ...(filterOrderId.value
       ? { production_order_id: filterOrderId.value }
@@ -143,6 +145,7 @@ const PURPOSE_LABELS = {
   MATERIAL_RECEIPT: '原料入库',
   MATERIAL_ISSUE: '生产领料',
   MATERIAL_RETURN: '退料',
+  PURCHASE_RETURN: '采购退货',
   MANUFACTURE: '成品入库',
   SCRAP: '清尾报废',
 };
@@ -193,21 +196,55 @@ const ORDER_COLUMN_DEFS = [
     label: '单号',
     tdClass: 'px-3 py-3 font-medium text-n-slate-12',
   },
-  { key: 'purpose', label: '类型', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'poNo', label: '采购单', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'purpose',
+    label: '类型',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'poNo',
+    label: '采购单',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   // 供应商挂在来源采购单的行上，一张单可能好几家，全列出来。
   { key: 'suppliers', label: '供应商', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'qty', label: '入库量', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'owner', label: '归属人', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'checked', label: '核对', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'approval', label: '审核', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
+  // 这张表同时放原料入库和采购退货，列名不能只说「入库」。
+  {
+    key: 'qty',
+    label: '数量',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'owner',
+    label: '归属人',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'checked',
+    label: '核对',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'approval',
+    label: '审核',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  // 窄列的胶囊要 nowrap + 下限，否则被压扁（实测「已过账」只露出「已i」）。
+  {
+    key: 'status',
+    label: '状态',
+    tdClass: 'px-3 py-3 whitespace-nowrap min-w-[72px]',
+  },
   // 打印次数：仓库每月把整叠入库单打出来给财务核对，要分出打过的和没打的。
   { key: 'printCount', label: '打印', tdClass: 'px-3 py-3 text-n-slate-11' },
   // 列名用仓管的说法：过账＝库存真正变动的那一刻，就是货入库的时间。
   // 叫「过账时间」是财务口径，采购在列表里找「入库时间」找不到（问题点 A1：
   // 「这里要加一个入库时间，因为审核和入库不一定是同一天」——其实就是这一列）。
-  { key: 'posted', label: '入库时间', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'posted',
+    label: '入库时间',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'internalRemark',
     label: '对内备注',
@@ -913,6 +950,80 @@ const removeEntry = async e => {
   }
 };
 
+// ── 采购退货 ──
+// 供应商送错货/送来不合格的，从**那张入库单**发起退货：单子本身就记着退的是哪一批、
+// 哪张采购单、入的哪个仓，比另开一张空白单再去挑料可靠得多。
+// 过账后会扣库存、把采购单的到货量冲回、按 FIFO 扣成本层、出红字应付凭证。
+// 退了不打算再要的，去采购单上按「关闭」结掉（回冲在途、退出齐套判定）。
+const returnDialogRef = ref(null);
+const returnSource = ref(null);
+const returnRows = ref([]);
+const returnReason = ref('');
+const returnSaving = ref(false);
+
+const returnableEntry = e =>
+  e.status === 'POSTED' &&
+  e.purpose === 'MATERIAL_RECEIPT' &&
+  !!e.purchaseOrderId &&
+  mesCan('stock');
+
+const openReturn = e => {
+  returnSource.value = e;
+  returnReason.value = '';
+  returnRows.value = (e.stockEntryItems || []).map(it => ({
+    itemType: it.itemType,
+    mesMaterialId: it.mesMaterialId,
+    crmProductId: it.crmProductId,
+    warehouseId: it.warehouseId || e.toWarehouseId,
+    name: it.materialName || it.productName || it.materialNo || '—',
+    materialNo: it.materialNo,
+    max: Number(it.qty || 0),
+    // 默认整行退：送错货多半是整批退，要退一部分再改数。
+    qty: String(it.qty ?? ''),
+  }));
+  returnDialogRef.value?.open();
+};
+
+const returnPicked = computed(() =>
+  returnRows.value.filter(r => Number(r.qty) > 0)
+);
+const returnInvalid = computed(
+  () =>
+    !returnPicked.value.length ||
+    returnRows.value.some(r => Number(r.qty) > r.max + 1e-6)
+);
+
+const submitReturn = async () => {
+  if (returnInvalid.value || returnSaving.value) return;
+  returnSaving.value = true;
+  try {
+    const src = returnSource.value;
+    const created = await store.create({
+      purpose: 'PURCHASE_RETURN',
+      purchaseOrderId: src.purchaseOrderId,
+      fromWarehouseId: src.toWarehouseId,
+      productionOrderId: src.productionOrderId || null,
+      remark: returnReason.value || `退回 ${src.entryNo} 的来料`,
+      stockEntryItemsAttributes: returnPicked.value.map(r => ({
+        itemType: r.itemType,
+        mesMaterialId: r.mesMaterialId,
+        crmProductId: r.crmProductId,
+        warehouseId: r.warehouseId,
+        qty: Number(r.qty),
+      })),
+    });
+    returnDialogRef.value?.close();
+    useAlert(
+      `已生成退货单 ${created.entryNo}，待「过账」后才扣库存并冲回采购到货量`
+    );
+    fetchList();
+  } catch (error) {
+    useAlert(error.message || '生成退货单失败');
+  } finally {
+    returnSaving.value = false;
+  }
+};
+
 onMounted(async () => {
   fetchList();
   warehousesStore.get();
@@ -1132,7 +1243,7 @@ useRouteQueryReentry(query => {
             <div class="flex flex-wrap gap-3 mt-2 text-xs text-n-slate-11">
               <span>类型：{{ purposeLabel(e.purpose) }}</span>
               <span>采购单：{{ e.purchaseOrderNo || '—' }}</span>
-              <span>入库量：{{ entryQtySummary(e) }}</span>
+              <span>数量：{{ entryQtySummary(e) }}</span>
             </div>
             <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
               <span>归属人：{{ e.productionOrderOwnerName || '—' }}</span>
@@ -1320,6 +1431,14 @@ useRouteQueryReentry(query => {
                     @click="postEntry(e)"
                   />
                   <Button
+                    v-if="returnableEntry(e)"
+                    v-tooltip="'供应商送错货/不合格，把这批料退回去'"
+                    label="退货"
+                    variant="faded"
+                    size="sm"
+                    @click="openReturn(e)"
+                  />
+                  <Button
                     v-if="mesCan('stock') && e.status !== 'CANCELLED'"
                     :label="e.status === 'POSTED' ? '作废' : '删单'"
                     color="ruby"
@@ -1442,6 +1561,62 @@ useRouteQueryReentry(query => {
         @update:current-page="currentPage = $event"
       />
     </div>
+
+    <Dialog
+      ref="returnDialogRef"
+      :dismissible="false"
+      width="3xl"
+      overflow-y-auto
+      confirm-button-color="iris"
+      confirm-button-label="生成退货单"
+      title="采购退货"
+      description="退回供应商。生成的是草稿，「过账」后才扣库存、把采购单的到货量冲回去。这批料不打算再要了，记得去采购单上「关闭」。"
+      :is-loading="returnSaving"
+      :disable-confirm-button="returnInvalid"
+      @confirm="submitReturn"
+    >
+      <div v-if="returnSource" class="flex flex-col gap-4">
+        <div class="text-label-small text-n-slate-10">
+          退自入库单
+          <b class="text-n-slate-12">{{ returnSource.entryNo }}</b>
+          · 采购单
+          <b class="text-n-slate-12">
+            {{ returnSource.purchaseOrderNo || '—' }}
+          </b>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div
+            v-for="(r, i) in returnRows"
+            :key="i"
+            class="flex flex-wrap items-center gap-3 px-3 py-2 border rounded-lg border-n-weak"
+          >
+            <span class="flex-1 min-w-0 text-sm break-words text-n-slate-12">
+              {{ r.name }}
+              <span class="text-n-slate-10">{{ r.materialNo }}</span>
+            </span>
+            <span class="text-label-small shrink-0 text-n-slate-10">
+              本次入库 {{ r.max }}
+            </span>
+            <input
+              v-model="r.qty"
+              type="number"
+              min="0"
+              :max="r.max"
+              class="w-28 h-8 px-3 text-sm text-right border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12"
+            />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">退货原因</label>
+          <input
+            v-model="returnReason"
+            type="text"
+            placeholder="如：供应商送错型号 / 来料不合格"
+            class="w-full h-8 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12"
+          />
+        </div>
+      </div>
+    </Dialog>
 
     <Dialog
       ref="dialogRef"

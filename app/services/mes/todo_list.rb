@@ -36,20 +36,21 @@ class Mes::TodoList
     return [] if @au.blank?
 
     @items ||= production_approvals + stage_acks + bom_confirms + sales_return_confirms +
-               shipment_approval_items + purchase_approvals
+               shipment_approval_items + purchase_approvals + entry_posts
   end
 
   # 角标。与 items 同一份数据，不另跑一套查询。
+  # 角标。与 items 同一份数据，不另跑一套查询。
+  COUNT_KEYS = {
+    approval: %w[production_approval], inbox: %w[stage_ack],
+    shipment: %w[shipment_approval], purchase: %w[purchase_approval],
+    confirm: %w[confirm_bom sales_return_confirm], entry: %w[entry_post]
+  }.freeze
+
   def counts
     by = items.group_by { |i| i[:action_type] }
-    {
-      approval: by['production_approval'].to_a.size,
-      inbox: by['stage_ack'].to_a.size,
-      shipment: by['shipment_approval'].to_a.size,
-      purchase: by['purchase_approval'].to_a.size,
-      confirm: by['confirm_bom'].to_a.size + by['sales_return_confirm'].to_a.size,
-      total: items.size
-    }
+    COUNT_KEYS.transform_values { |kinds| kinds.sum { |k| by[k].to_a.size } }
+              .merge(total: items.size)
   end
 
   # ── 控制器复用的原件（搬过来的，控制器反过来调这里）────────────────
@@ -137,9 +138,11 @@ class Mes::TodoList
   end
 
   # BOM 业务确认：工程排好用料，等业务点头才能下发采购。
+  # 用 *_assigned_to? 而不是 can_confirm_bom?：后者含管理员/副管兜底，那是「能不能代办」，
+  # 不是「派给了谁」。混用会让副管的待办里躺满全公司的用料确认（见 ProductionOrder 那两个方法）。
   def bom_confirms
     @account.mes_production_orders.where(stage: 'BOM_READY').where(bom_confirmed_at: nil)
-            .where.not(bom_id: nil).select { |po| po.can_confirm_bom?(@au) }
+            .where.not(bom_id: nil).select { |po| po.bom_confirm_assigned_to?(@au) }
             .map do |po|
       item(po, 'production_order', 'confirm_bom',
            "确认用料：#{po.order_no}", '工程已排好用料，等你确认后才能下发采购',
@@ -151,12 +154,28 @@ class Mes::TodoList
   def sales_return_confirms
     @account.mes_production_orders.where.not(sales_return_at: nil)
             .where(sales_return_resolved_at: nil)
-            .select { |po| po.can_resolve_sales_return?(@au) }
+            .select { |po| po.sales_return_assigned_to?(@au) }
             .map do |po|
       item(po, 'production_order', 'sales_return_confirm',
            "退回待确认：#{po.order_no}",
            "#{po.sales_return_by&.name || '工程/PMC'}退回：#{po.sales_return_reason.to_s.truncate(40)}",
            po.stage, po.sales_return_at)
+    end
+  end
+
+  # 待过账的出入库单（领料/入库/出库的草稿）。
+  #
+  # 补这一类是因为仓库岗在统一待办里原本**一条都没有**：六类来源全是订单流转和审批，
+  # 仓管开了单没过账就只能自己记着。生产实查只有 1 张（挂了 3 天），量很小但正是
+  # 该被看见的那种——单子躺在草稿里，库存账没动，后面所有人都在等它。
+  #
+  # 归制单人：过账这个动作就是他做。成品入库要车间和仓管双确认，但那道卡在
+  # dual_confirm 上、不在「谁该点过账」上（见 Mes::DocDiagnosis#entry_post）。
+  def entry_posts
+    @account.mes_stock_entries.where(status: 'DRAFT', owner_id: @au.user_id).map do |entry|
+      item(entry, 'stock_entry', 'entry_post',
+           "待过账：#{entry.entry_no}", '单据还在草稿，过账后库存账才会动',
+           entry.status, entry.created_at)
     end
   end
 
@@ -184,7 +203,7 @@ class Mes::TodoList
   def item(record, subject_type, action_type, title, subtitle, status, since)
     { key: "mes:#{subject_type}:#{record.id}:#{action_type}",
       subject_type: subject_type, subject_id: record.id,
-      subject_no: record.try(:order_no) || record.try(:shipment_no) || record.try(:po_no),
+      subject_no: record.try(:order_no) || record.try(:shipment_no) || record.try(:po_no) || record.try(:entry_no),
       action_type: action_type, title: title, subtitle: subtitle,
       status: status, actionable: true, since: since }
   end

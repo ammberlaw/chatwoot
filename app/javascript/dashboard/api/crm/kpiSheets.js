@@ -3,6 +3,10 @@ import { buildCrmClient } from './_crmClient';
 
 const client = buildCrmClient('kpi_sheets');
 
+// 侧栏角标：等我动手的考核表数（待我填报/打分/人事确认/总经理确认）。
+// 口径与每周催办同一份（后端 Crm::KpiReminderJob.actionable_for）。
+client.pendingCount = () => axios.get(`${client.url}/pending_count`);
+
 // 上传本方电子签 + 状态流转。signature 可为 File 或空。
 const act = (id, action, signature) => {
   const fd = new FormData();

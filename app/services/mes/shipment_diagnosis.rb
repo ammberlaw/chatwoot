@@ -39,13 +39,45 @@ class Mes::ShipmentDiagnosis
     @account = shipment.account
   end
 
-  def call(action)
-    label = ACTIONS[action.to_s]
-    return { error: '不认识这个动作' } if label.nil?
+  # action 省略＝把这张单上所有动作过一遍。用户说「这单出不了货」时往往说不清
+  # 卡的是提交、审核还是出库本身，一次全报出来比追问一轮快。
+  def call(action = nil)
+    return all_actions if action.blank?
 
-    blockers = send("#{action}_blockers")
-    { action: action.to_s, action_label: label, blocked: blockers.any?,
-      status_label: status_label, blockers: blockers, waiting_on: waiting_on, notice: notice }
+    key = resolve_action(action)
+    return { error: "出库单上没有「#{action}」这个操作，可做的是：#{ACTIONS.values.join('、')}" } if key.nil?
+
+    one(key, ACTIONS[key]).merge(
+      doc_type: '出库单', doc_no: @s.shipment_no,
+      status_label: status_label, waiting_on: waiting_on, notice: notice
+    )
+  end
+
+  def all_actions
+    { doc_type: '出库单', doc_no: @s.shipment_no, status_label: status_label,
+      waiting_on: waiting_on, notice: notice,
+      actions: ACTIONS.map { |key, label| one(key, label) } }
+  end
+
+  # 调用方（AI 工具、前端）传的是人话还是内部 key 都认。只收内部 key 的话，
+  # 用户一说「提交」就诊断不出来，而他永远不会说 submit。
+  ACTION_ALIASES = {
+    'submit' => %w[提交 提交审核 提交审批 送审 报审],
+    'approve' => %w[审核 审批 批准 通过],
+    'ship' => %w[出库 出货 发货 发运]
+  }.freeze
+
+  def resolve_action(action)
+    text = action.to_s.strip
+    return nil if text.blank?
+    return text if ACTIONS.key?(text)
+
+    ACTION_ALIASES.find { |_key, words| words.any? { |w| text.include?(w) } }&.first
+  end
+
+  def one(key, label)
+    blockers = send("#{key}_blockers")
+    { action: key, action_label: label, blocked: blockers.any?, blockers: blockers }
   end
 
   # 这张单现在能做哪些动作——给前端摆「我干不了什么」的清单用。

@@ -1013,12 +1013,18 @@ onMounted(() => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">出库单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">客户</th>
-              <th class="px-3 py-3 font-medium">名称</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[160px]">
+                客户
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[160px]">
+                名称
+              </th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 数量
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[96px]">
+                归属人
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">信保单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">打印</th>
@@ -1035,12 +1041,14 @@ onMounted(() => {
                   @change="toggleSelect(s.id)"
                 />
               </td>
-              <td class="px-3 py-3 font-medium text-n-slate-12">
+              <td
+                class="px-3 py-3 font-medium whitespace-nowrap text-n-slate-12"
+              >
                 {{ s.shipmentNo }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 <span
-                  class="px-2 py-0.5 rounded text-xs"
+                  class="px-2 py-0.5 rounded text-xs whitespace-nowrap"
                   :class="
                     s.kind === 'STOCK'
                       ? 'bg-n-teal-3 text-n-teal-11'
@@ -1050,7 +1058,7 @@ onMounted(() => {
                   {{ KIND_LABELS[s.kind] || s.kind }}
                 </span>
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ s.salesOrderNo || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
@@ -1062,7 +1070,7 @@ onMounted(() => {
               >
                 {{ itemQty(s) || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ s.productionOrderOwnerName || s.ownerName || '—' }}
               </td>
               <td class="px-3 py-3">

@@ -8,8 +8,18 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     scope = filtered_scope
     @vouchers_count = scope.count
     @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of, :reversed_by, :documents_attachments)
-                     .order(voucher_date: :desc, voucher_no: :desc)
+                     .order(*list_order)
                      .page(page_param).per(per_page_param)
+  end
+
+  # 默认按凭证日期排（会计看账的习惯口径）。
+  # sort=created 按**生成时间**排——自动凭证的凭证日期取的是来源单据的日期，
+  # 今天给上个月的入库单生成凭证，它就沉到第五六页去了，人「找半天找不到」
+  # （2026-10-27 用户反馈；实查 179 张里有 8 张的凭证日期早于生成日期，6 张早 7 天以上）。
+  def list_order
+    return [{ created_at: :desc }, { id: :desc }] if params[:sort].to_s == 'created'
+
+    [{ voucher_date: :desc }, { voucher_no: :desc }]
   end
 
   def show; end
@@ -44,7 +54,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   end
 
   def destroy
-    return render json: { error: '已记账的凭证不能删除，错账请用红冲' }, status: :unprocessable_entity unless @voucher.editable?
+    return render json: { error: '已记账的凭证不能删除，错账请用红冲' }, status: :unprocessable_entity unless @voucher.deletable?
 
     ActiveRecord::Base.transaction do
       rollback_depreciation_side_effects
@@ -210,6 +220,8 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     scope = Current.account.erp_vouchers
     scope = scope.where(period: params[:period]) if params[:period].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
+    # 「今天生成」：按生成时间筛，不是凭证日期——这两个经常不是同一天。
+    scope = scope.where(created_at: Time.zone.today.all_day) if params[:created_today].present?
     apply_voucher_column_filters(filtered_by_date_and_keyword(scope))
   end
 

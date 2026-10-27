@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_26_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_27_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1644,6 +1644,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_26_160000) do
     t.boolean "is_default", default: false, null: false
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
+  end
+
+  create_table "crm_mail_blocklists", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "value", null: false
+    t.string "note"
+    t.bigint "created_by_id"
+    t.integer "blocked_count", default: 0, null: false
+    t.datetime "last_blocked_at"
+    t.string "last_blocked_from"
+    t.string "last_blocked_subject"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "owner_id"
+    t.index ["account_id", "owner_id", "value"], name: "idx_crm_mail_blocklists_owner_value", unique: true, where: "(owner_id IS NOT NULL)"
+    t.index ["account_id", "value"], name: "idx_crm_mail_blocklists_global_value", unique: true, where: "(owner_id IS NULL)"
+    t.index ["owner_id"], name: "index_crm_mail_blocklists_on_owner_id"
   end
 
   create_table "crm_member_invites", force: :cascade do |t|

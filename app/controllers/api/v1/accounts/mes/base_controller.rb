@@ -23,6 +23,15 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     render json: { error: "#{label}只有制单人本人能修改，需要改请找管理员" }, status: :forbidden
   end
 
+  # 列表关键字搜索：各控制器报出自己要搜的列（可含已 join 的表列），统一按包含匹配。
+  # 以前各页都没有搜索框，几百张单只能靠浏览器查找当前页——找一张单得先翻到那一页。
+  def apply_keyword(scope, *columns)
+    return scope if params[:q].blank?
+
+    sql = columns.map { |column| "#{column} ILIKE :term" }.join(' OR ')
+    scope.where(sql, term: "%#{params[:q].to_s.strip}%")
+  end
+
   # 当前切换的产品线（DISPLAY/TABLET），前端 axios 拦截自动注入；空=全部。
   def current_product_line
     params[:product_line].presence

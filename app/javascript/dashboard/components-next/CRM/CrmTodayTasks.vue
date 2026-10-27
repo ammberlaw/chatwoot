@@ -14,20 +14,15 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
-import { useMapGetter } from 'dashboard/composables/store';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 
 const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
-const currentUser = useMapGetter('getCurrentUser');
 
-// 日程是 CRM 的东西，没有 CRM 权限的人不显示（仓库/车间那些岗位看了是空的）。
-// 日程页自己那一屏就是完整列表，再浮一个重复的没意义。
-const canUse = computed(
-  () =>
-    currentUser.value?.can_access_crm === true &&
-    route.name !== 'crm_schedule_index'
-);
+// 全员可见：里面不只有日程，还有 MES 接单/审批/过账、订单审核、绩效考核——
+// 仓库和车间岗没有 CRM 权限但一样有事要办（后端 Crm::MyDay 按各自权限算）。
+// 日程页自己那一屏是完整列表，那页上不浮这个。
+const canUse = computed(() => route.name !== 'crm_schedule_index');
 
 // 默认收起：收起只剩一条标题（44px），数字照样看得见，点一下展开。
 // 展开/收起记在本地，常用的人开一次就一直开着。
@@ -115,17 +110,14 @@ const toggleOpen = () => {
   }
 };
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
 // 只取今天这一格。逾期的不往这儿塞——这个窗是「今天做什么」，
 // 混进几十条积压就又变成那个没人看的列表了（侧栏角标分开报逾期）。
 const load = async () => {
   if (!canUse.value) return;
   loading.value = true;
   try {
-    const d = todayStr();
-    const { data } = await ScheduleAPI.get(accountId.value, { from: d, to: d });
-    rows.value = (data?.payload || []).filter(o => !o.done);
+    const { data } = await ScheduleAPI.myDay(accountId.value);
+    rows.value = data?.payload || [];
   } catch {
     rows.value = [];
   } finally {
@@ -133,24 +125,40 @@ const load = async () => {
   }
 };
 
-const keyOf = row => `${row.id}@${row.occurrence_date}`;
+// 日程按「这一次发生」唯一，业务待办的 id 后端已经是唯一 key。
+const keyOf = row =>
+  row.type === 'schedule' ? `${row.id}@${row.occurrence_date}` : row.id;
 
 // 勾掉：先在本地划掉再发请求，手感跟得上；失败就把它放回来。
 // 按「这一次发生」的日期销，不是按今天——重复日程一天可能有多次发生。
+// 只有日程能打勾。业务待办得去那张单上真做那个动作，这里只负责把人带过去——
+// 在这儿「勾掉」一张待审的出库单是假的，单子并没有被审。
+//
+// 勾掉后**留在列表里划掉**，不移走：当场消失会让人怀疑自己是不是点错了，
+// 而且一天下来看不见自己做完了什么。再点一下能取消（后端 toggle_done 本来就是开关）。
 const toggle = async row => {
+  if (row.type !== 'schedule') return;
+
   const key = keyOf(row);
-  if (acting.value) return;
+  if (acting.value === key) return;
+
   acting.value = key;
-  const before = rows.value;
-  rows.value = rows.value.filter(r => keyOf(r) !== key);
+  const before = row.done;
+  row.done = !before;
   try {
     await ScheduleAPI.toggleDone(accountId.value, row.id, row.occurrence_date);
   } catch {
-    rows.value = before;
+    row.done = before;
   } finally {
     acting.value = null;
   }
 };
+
+// 标题上那个数字是「还要做几件」，不含已勾掉的——做完一件就该看见它减一。
+const pendingCount = computed(() => rows.value.filter(r => !r.done).length);
+
+// 勾掉的沉到底（后端已排好），前端只管渲染，不再二次排序——
+// 二次排序会让刚勾掉的那条当场跳走，又变回「消失」的观感。
 
 let timer = null;
 onMounted(() => {
@@ -162,17 +170,11 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer));
 
 // 绑定而不是写死：裸中文属性会被 vue/no-bare-strings 拦下。
-const DRAG_HINT = '今天要做的（可拖动）';
+const DRAG_HINT = 'to do list（可拖动）';
 
-const KIND_LABEL = {
-  reply_reminder: '回信',
-  opp_follow_up: '商机',
-  follow_up: '跟进',
-};
-const labelOf = row =>
-  row.all_day
-    ? KIND_LABEL[row.kind] || '全天'
-    : (row.starts_at || '').slice(11, 16);
+// 标签（时间点 / 回信 / 待接单 / 待过账…）后端算好了，前端不再推一遍。
+const goTo = row =>
+  row.route ? accountScopedRoute(row.route, {}, row.query || {}) : null;
 </script>
 
 <template>
@@ -190,8 +192,8 @@ const labelOf = row =>
         @pointerdown="onPointerDown"
         @click="toggleOpen"
       >
-        <span class="text-heading-3 text-[#262722]">{{ '今天要做的' }}</span>
-        <span class="text-label-small text-n-slate-10">{{ rows.length }}</span>
+        <span class="text-heading-3 text-[#262722]">{{ 'to do list' }}</span>
+        <span class="text-label-small text-n-slate-10">{{ pendingCount }}</span>
         <span
           class="ml-auto shrink-0 size-4 text-n-slate-10"
           :class="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
@@ -203,29 +205,65 @@ const labelOf = row =>
           v-if="!rows.length && !loading"
           class="px-2 py-3 text-label-small text-n-slate-10"
         >
-          {{ '今天没有安排' }}
+          {{ '今天没有待办' }}
         </p>
-        <button
-          v-for="row in rows"
-          :key="keyOf(row)"
-          type="button"
-          class="flex items-start w-full gap-2 px-2 py-1.5 text-left transition-colors rounded-lg reset-base hover:bg-n-alpha-1"
-          :disabled="acting === keyOf(row)"
-          @click="toggle(row)"
-        >
-          <span
-            class="mt-0.5 shrink-0 size-4 rounded border border-n-slate-6 i-lucide-square"
-            :class="acting === keyOf(row) ? 'opacity-40' : ''"
-          />
-          <span class="min-w-0">
-            <span class="block text-sm truncate text-[#262722]">{{
-              row.title
-            }}</span>
-            <span class="block text-label-small text-n-slate-10">{{
-              labelOf(row)
-            }}</span>
-          </span>
-        </button>
+        <template v-for="row in rows" :key="keyOf(row)">
+          <!-- 日程：能直接勾掉 -->
+          <button
+            v-if="row.type === 'schedule'"
+            type="button"
+            class="flex items-start w-full gap-2 px-2 py-1.5 text-left transition-colors rounded-lg reset-base hover:bg-n-alpha-1"
+            :disabled="acting === keyOf(row)"
+            @click="toggle(row)"
+          >
+            <span
+              class="mt-0.5 shrink-0 size-4"
+              :class="[
+                row.done
+                  ? 'i-lucide-square-check-big text-n-slate-11'
+                  : 'i-lucide-square text-n-slate-8',
+                acting === keyOf(row) ? 'opacity-40' : '',
+              ]"
+            />
+            <span class="min-w-0">
+              <span
+                class="block text-sm truncate"
+                :class="
+                  row.done
+                    ? 'line-through decoration-n-slate-8 text-n-slate-10'
+                    : 'text-[#262722]'
+                "
+                >{{ row.title }}</span
+              >
+              <span class="block text-label-small text-n-slate-10">{{
+                row.label
+              }}</span>
+            </span>
+          </button>
+          <!-- 业务待办：勾不掉（单子并没有被审），只能带人去那张单上做 -->
+          <router-link
+            v-else
+            :to="goTo(row)"
+            class="flex items-start w-full gap-2 px-2 py-1.5 transition-colors rounded-lg hover:bg-n-alpha-1"
+          >
+            <span
+              class="mt-1 shrink-0 size-1.5 rounded-full bg-n-amber-9"
+              aria-hidden="true"
+            />
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm truncate text-[#262722]">{{
+                row.title
+              }}</span>
+              <span class="block text-label-small text-n-slate-10">{{
+                row.label
+              }}</span>
+            </span>
+            <span
+              class="mt-1 shrink-0 size-3.5 text-n-slate-9 i-lucide-arrow-up-right"
+              aria-hidden="true"
+            />
+          </router-link>
+        </template>
       </div>
     </div>
 

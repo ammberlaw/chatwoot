@@ -82,6 +82,14 @@ class Erp::Voucher < ApplicationRecord
     status == DRAFT
   end
 
+  # 能不能删。草稿和已作废都能删——**已作废的凭证从来没进过账**：
+  # 作废这个动作本身就只对草稿开放（VouchersController#void 要求 editable?），
+  # 所以 VOID 的那张从头到尾没碰过总账，删掉不影响任何余额。
+  # 已记账(POSTED)的永远不能删，错账只能红冲。
+  def deletable?
+    status == DRAFT || status == VOID
+  end
+
   def balanced?
     total_debit_micros == total_credit_micros && total_debit_micros.positive?
   end

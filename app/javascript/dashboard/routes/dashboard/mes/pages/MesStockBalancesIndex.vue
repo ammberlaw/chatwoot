@@ -287,7 +287,9 @@ onMounted(() => {
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <!-- 窄列一律 nowrap：规格那列一长，表头会被挤成「类 / 型」竖排。 -->
               <th class="px-3 py-3 font-medium whitespace-nowrap">编码</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">名称</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[152px]">
+                名称
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">规格</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">仓库</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>

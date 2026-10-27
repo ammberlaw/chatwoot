@@ -246,7 +246,7 @@ onMounted(() => store.get());
     <!-- 归属范围：企业模版 / 个人模版 -->
     <div
       data-black-tabbar="page"
-      class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6"
     >
       <button
         v-for="opt in [
