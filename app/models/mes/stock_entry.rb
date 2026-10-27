@@ -175,6 +175,31 @@ class Mes::StockEntry < ApplicationRecord
   }.freeze
 
   def document_board_key = RETURN_BOARD_BY_PURPOSE[purpose] || 'mes_stock_entries_index'
+
+  # 这个人能不能开 / 改 / 过账这张单。
+  #
+  # 仓管（stock）全线通吃；成品入库由车间（report）自己开；除此之外，
+  # 「这条产线这个板块的负责人」也能操作本板块的单（Mes::BoardOwner，按产线×板块配，
+  # 在「设置阶段负责人」里改）。平板车间的生产领料配的就是杨义（MES 角色「生产」）。
+  #
+  # 放在模型上是因为**列表也要逐条判**：前端按 mes_can?('stock') 藏按钮的话，
+  # 杨义建得出单却看不到「过账 / 删单 / 退回」，单子永远停在草稿、报工那边一直显示
+  # 「没有可报工的生产订单」（2026-10-16 生产反馈，10-27 实锤）。
+  def operable_by?(account_user)
+    return false if account_user.blank?
+    return true if account_user.mes_can?(:stock)
+    return true if purpose == 'MANUFACTURE' && account_user.mes_can?(:report)
+
+    Mes::BoardOwner.manager?(account_user.account, document_board_key,
+                             effective_product_line, account_user.user_id)
+  end
+
+  # 建单时 product_line 还没 stamp（那是 before_validation 干的），
+  # 按 Mes::LineScoped 同样的优先级现算：显式 > 父级带出。
+  def effective_product_line
+    product_line.presence || product_line_source&.product_line.presence
+  end
+
   def return_document_label = RETURN_LABEL_BY_PURPOSE[purpose] || '库存单'
   def return_document_no = entry_no
   # 只有未过账(DRAFT)的库存单可退回；已过账写了不可改的库存流水，要撤须走冲销。

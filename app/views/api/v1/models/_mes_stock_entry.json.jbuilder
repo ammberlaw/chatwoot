@@ -114,6 +114,10 @@ end
 json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource
 json.receipts resource.receipts.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 # 打印次数：仓库每月整叠打给财务核对，列表上要分出打过的和没打的。
+# 这个人能不能对这张单动手（过账/编辑/删单）。前端据此显示按钮——
+# 不下发的话前端只能按 MES 角色猜，猜出来的和后端放行的对不上：
+# 平板车间的杨义建得出领料单，却看不到「过账」，单子永远停在草稿。
+json.can_operate resource.operable_by?(Current.account_user)
 json.print_count resource.print_count
 json.created_at resource.created_at
 json.updated_at resource.updated_at

@@ -140,31 +140,9 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
-  # 谁能开 / 改 / 过账这张库存单。
-  #
-  # 仓管（stock 能力）全线通吃；成品入库由车间（report）自己开。
-  # 除此之外，**「这条产线这个板块的负责人」也能操作本板块的单**——负责人配置在
-  # 「设置阶段负责人」里（Mes::BoardOwner，按产线 × 板块），平板车间的生产领料
-  # 配的就是杨义（MES 角色「生产」）。只按 MES 角色判的话他开不了自己车间的领料单，
-  # 而那条配置本来表达的就是「这个环节归他」（2026-10-26 用户：平板车间的领料单
-  # 和入库都是车间自己开）。好处是以后调人在界面上改配置即可，不用动代码。
-  def can_operate_entry?(entry)
-    au = Current.account_user
-    return true if au.mes_can?(:stock)
-    return true if entry.purpose == 'MANUFACTURE' && au.mes_can?(:report)
-
-    Mes::BoardOwner.manager?(Current.account, entry.document_board_key,
-                             effective_product_line(entry), au.user_id)
-  end
-
-  # 建单时 product_line 还没 stamp（那是模型的 before_validation 干的），
-  # 按 Mes::LineScoped 同样的优先级现算一遍：显式 > 父级带出 > 当前切换的产线。
-  def effective_product_line(entry)
-    entry.product_line.presence ||
-      entry.production_order&.product_line.presence ||
-      entry.purchase_order&.product_line.presence ||
-      current_product_line
-  end
+  # 判定搬到模型 Mes::StockEntry#operable_by? —— 列表也要逐条判（前端据此显示
+  # 过账/编辑/删单按钮），两处共用一份逻辑，不能一边放行一边藏按钮。
+  def can_operate_entry?(entry) = entry.operable_by?(Current.account_user)
 
   # 403 要说清两件事：这张单归谁、怎么把自己加进去。
   # 只回一句英文「You are not authorized to do this action」的时候，当事人是把整张
