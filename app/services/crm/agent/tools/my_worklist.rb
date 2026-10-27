@@ -2,6 +2,12 @@
 #
 # my_numbers 只告诉你「有 12 个客户该跟进了」，接着人一定会问「哪 12 个」。
 # 这个工具就是回答那一句的：给名字、给上次聊到哪天、给金额，照着往下打电话。
+#
+# ⚠️ 「能直接拿去动手的字段」（客户 ID、邮箱）一律放行首，不许埋在行尾。
+# 2026-10-24 生产上真出过事：这里本来就输出了 contact_email、那 15 个客户也全都有邮箱，
+# 模型却回「清单里没有收件人邮箱」，接着逐个 find_customer 重查了 9 遍，
+# 把一轮 16 次的工具预算吃光——9 封群发邮件只写成 7 封。
+# 行尾那个位置模型会跳过去，前置之后它才会当成「手上已有的东西」。
 class Crm::Agent::Tools::MyWorklist < Crm::Agent::Tools::Base
   description '列出待办清单（不是数字）：该跟进的客户、我的待办任务、在谈商机、未收完的款。按提问人自己的数据权限范围列。'
   param :kind, desc: '要哪一类：followups=该跟进的客户｜tasks=待办任务｜opportunities=在谈商机｜receivables=未收款'
@@ -27,11 +33,20 @@ class Crm::Agent::Tools::MyWorklist < Crm::Agent::Tools::Base
                 .order(:next_follow_up_at).limit(limit)
     return '没有到期该跟进的客户。' if rows.empty?
 
-    list("该跟进的客户（按计划时间从早到晚，共列 #{rows.size} 个）", rows) do |c|
-      "#{c.name}（ID #{c.id}）｜#{c.trade_country.presence || '国家未填'}｜" \
-        "计划跟进 #{day(c.next_follow_up_at)}｜上次跟进 #{day(c.last_follow_up_at)}｜" \
-        "联系人 #{c.primary_contact_name.presence || '—'} #{c.contact_email}"
+    header = "该跟进的客户（按计划时间从早到晚，共列 #{rows.size} 个）" \
+             '｜下面每行开头的「ID / 邮箱」就是动手要用的，不必再查一遍'
+    list(header, rows) do |c|
+      customer_line(c)
     end
+  end
+
+  # ID 和邮箱在最前面：模型要拿它们去建草稿、记跟进，放后面等于没给。
+  # 邮箱为空要**明说**「邮箱未填」，不能留空白——留空白模型会以为是自己没拿到。
+  def customer_line(customer)
+    mail = customer.contact_email.presence || '邮箱未填'
+    "ID #{customer.id}｜#{mail}｜#{customer.name}｜#{customer.trade_country.presence || '国家未填'}｜" \
+      "计划跟进 #{day(customer.next_follow_up_at)}｜上次跟进 #{day(customer.last_follow_up_at)}｜" \
+      "联系人 #{customer.primary_contact_name.presence || '—'}"
   end
 
   def tasks(limit)
