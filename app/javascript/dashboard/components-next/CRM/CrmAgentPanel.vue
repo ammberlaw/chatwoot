@@ -125,32 +125,77 @@ const pageContext = () => {
   return { route: String(name), subject: String(subject).slice(0, 60) };
 };
 
-// 发图：展会上拍的规格表、手写询价、客户发来的实物照。
-// 以前只有邮件附件能读图，手机上拍的照片没有入口。
+// 发附件：展会上拍的规格表、手写询价、客户发来的实物照，以及客户直接丢过来的
+// PI / 报价表 / 规格书。以前只有邮件里的附件能读，手机拍的照片、刚收到的文件没有入口。
+//
+// 一条消息带一个附件：再选一个就换成新的（待发区一直摆着，换了看得见）。
 const fileRef = ref(null);
-const pendingImage = ref(null);
+const pendingFile = ref(null);
 const MAX_IMAGE_MB = 8; // 与后端 VisionReader 的上限一致，先在前端拦住省一次往返
+const MAX_DOC_MB = 15; // 与 AgentController::MAX_UPLOAD_BYTES 一致
+// 后端 Crm::DocumentText 认得出的类型。认不出的（视频、压缩包、CAD）发上去也只会
+// 原样退回一句「不支持」，不如在这儿就说清楚。
+const DOC_EXT = /\.(pdf|xlsx?|csv|docx?|pptx?)$/i;
 
-const pickImage = () => fileRef.value?.click();
+const pickFile = () => fileRef.value?.click();
 
-const onImagePicked = event => {
+const acceptFile = file => {
+  if (!file) return;
+  const isImage = file.type.startsWith('image/');
+  if (!isImage && !DOC_EXT.test(file.name)) {
+    useAlert('只能发图片，或 PDF / Excel / Word / PPT');
+    return;
+  }
+  const maxMb = isImage ? MAX_IMAGE_MB : MAX_DOC_MB;
+  if (file.size > maxMb * 1024 * 1024) {
+    useAlert(`${isImage ? '图' : '文件'}太大了（上限 ${maxMb}MB）`);
+    return;
+  }
+  pendingFile.value = file;
+};
+
+const onFilePicked = event => {
   const file = event.target.files?.[0];
   event.target.value = '';
-  if (!file) return;
-  if (!file.type.startsWith('image/')) {
-    useAlert('只能发图片');
-    return;
-  }
-  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-    useAlert(`图太大了（上限 ${MAX_IMAGE_MB}MB）`);
-    return;
-  }
-  pendingImage.value = file;
+  acceptFile(file);
 };
 
-const dropImage = () => {
-  pendingImage.value = null;
+const dropFile = () => {
+  pendingFile.value = null;
 };
+
+// Ctrl+V 直接贴截图。剪贴板里的位图没有文件名，浏览器一律叫它 image.png——
+// 一轮里贴两张在记录里就分不出谁是谁，所以按时间补个名字。
+const pastedName = type => {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const stamp = `${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `截图-${stamp}.${(type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
+};
+
+const onPaste = event => {
+  const file = Array.from(event.clipboardData?.files || [])[0];
+  if (!file) return; // 粘的是文字，照常走默认行为
+  event.preventDefault();
+  const named =
+    file.type.startsWith('image/') && /^image\.(png|jpe?g)$/i.test(file.name)
+      ? new File([file], pastedName(file.type), { type: file.type })
+      : file;
+  acceptFile(named);
+};
+
+// 待发图的缩略图。截图的文件名是系统补的，光看名字认不出贴的是哪张——
+// 贴错了得等十几秒跑完才发现。
+const previewUrl = ref('');
+watch(pendingFile, file => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = file?.type?.startsWith('image/')
+    ? URL.createObjectURL(file)
+    : '';
+});
+onBeforeUnmount(() => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+});
 
 // 语音输入：直接用浏览器自带的识别，不走后端也不额外花钱。
 // 展会上、路上单手打字麻烦，说一句比打一句快得多。
@@ -194,18 +239,18 @@ const toggleVoice = () => {
 
 const send = async () => {
   const text = input.value.trim();
-  // 只发图不打字是常见用法（拍一张规格表甩给它），所以有图时空文字也放行
-  if ((!text && !pendingImage.value) || busy.value) return;
+  // 只发附件不打字是常见用法（拍一张规格表、把客户的 PI 甩给它），所以有附件时空文字也放行
+  if ((!text && !pendingFile.value) || busy.value) return;
   try {
     const conv = await ensureConversation();
-    const image = pendingImage.value;
+    const file = pendingFile.value;
     input.value = '';
-    pendingImage.value = null;
+    pendingFile.value = null;
     const { data } = await CrmAgentAPI.sendMessage(
       conv.id,
       text,
       pageContext(),
-      image
+      file
     );
     conversation.value = data.payload;
     // 等第一条问话落库之后才报：标题取的是首个问题，空会话报上去只会多一行没字的。
@@ -363,6 +408,31 @@ const useShortcut = async item => {
 // 一律当「无状态」——不能回落成 running，否则翻历史对话会看到一屏转个不停的圈。
 const stepRunning = m => m.meta?.status === 'running';
 const stepDone = m => m.meta?.status === 'done';
+
+// 计划（plan 工具）单独渲染成清单，不混在「查了什么」的流水里。
+// 流水是事后记录，计划是事前承诺——摆成一样的一行，用户分不出哪条是「它打算做的」。
+const PLAN_BULLET = /^\s*[-*•·]?\s*[\d一二三四五六①②③④⑤⑥]*\s*[.、)）:：]?\s*/;
+const isPlan = m => m.meta?.tool === 'plan';
+const planSteps = m =>
+  String(m.meta?.args?.steps || '')
+    .split(/\r?\n/)
+    .map(line => line.replace(PLAN_BULLET, '').trim())
+    .filter(Boolean)
+    .slice(0, 6);
+const planDone = m => Number(m.meta?.args?.done) || 0;
+// 计划**钉在第一次列计划的位置**，但内容用最新那份。
+// 两件事要同时成立：① 改过计划不能摆两张清单，用户不知道该看哪张；
+// ② 卡片不能跟着最后一次改计划跑到答案下面去——那就从「动手前的计划」
+// 变成了「事后的总结」，先列计划这件事的意义正好在于它出现在前面。
+const planAnchorId = computed(() => messages.value.find(isPlan)?.id ?? null);
+const livePlan = computed(() => messages.value.filter(isPlan).at(-1) ?? null);
+const planHeading = computed(() => {
+  const m = livePlan.value;
+  if (!m) return '';
+  const total = planSteps(m).length;
+  const done = planDone(m);
+  return done ? `计划 ${done}/${total}` : `计划 · 共 ${total} 步`;
+});
 // 这一步在查哪一个东西。「查客户」和「查客户 · Alina.Petrova」差着一个量级。
 const stepSubject = m => (m.meta?.subject ? `· ${m.meta.subject}` : '');
 
@@ -487,8 +557,49 @@ const artifactRoute = a => {
         <!-- 一步一行，三态：进行中转圈 / 做完实心勾加删除线 / 老记录无状态。
              不报百分比、也不报「共 N 步」——模型是每一步才决定下一步调什么，
              开跑时不知道要几步，编个分母出来迟早对不上（见 Crm::Agent::StepRecorder）。 -->
+        <!-- 计划清单：动手前它打算做哪几步。改过计划就只显示最新那份。 -->
         <div
-          v-if="m.role === 'tool'"
+          v-if="isPlan(m)"
+          v-show="m.id === planAnchorId && livePlan"
+          class="px-3 py-2 text-xs border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-12"
+        >
+          <div class="flex items-center gap-1.5 mb-1.5 text-n-slate-11">
+            <span
+              aria-hidden="true"
+              class="i-lucide-list-checks size-3.5 shrink-0"
+            />
+            <!-- 没报进度就只说共几步。显示「0/4」会让人以为它一步都没动，
+                 可下面的步骤明明在一条条打勾——进度只认模型自己报的那个数。 -->
+            <span>{{ planHeading }}</span>
+          </div>
+          <div
+            v-for="(step, si) in planSteps(livePlan)"
+            :key="si"
+            class="flex items-start gap-1.5 py-0.5"
+            :class="si < planDone(livePlan) ? 'text-n-slate-10' : ''"
+          >
+            <span
+              aria-hidden="true"
+              class="mt-0.5 size-3 shrink-0"
+              :class="
+                si < planDone(livePlan)
+                  ? 'i-lucide-circle-check'
+                  : 'i-lucide-circle-dashed'
+              "
+            />
+            <span
+              :class="
+                si < planDone(livePlan)
+                  ? 'line-through decoration-n-slate-8'
+                  : ''
+              "
+            >
+              {{ step }}
+            </span>
+          </div>
+        </div>
+        <div
+          v-else-if="m.role === 'tool'"
           class="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-n-alpha-1"
           :class="stepDone(m) ? 'text-n-slate-10' : 'text-n-slate-11'"
         >
@@ -516,6 +627,35 @@ const artifactRoute = a => {
           class="max-w-[85%] px-3 py-2 text-sm whitespace-pre-wrap rounded-xl rounded-br-sm"
           :class="floatingLayout ? 'bg-[#171717] text-white text-label !text-[14px] !font-normal !leading-[1.7] !tracking-normal' : 'bg-[#f6e3a0] text-[#29271f]'"
         >
+          <!-- 发过去的图/文件摆在问话上面：不摆的话翻回去只剩一句「看看这张图」，
+               根本看不出当时甩的是哪张。 -->
+          <a
+            v-if="m.attachment"
+            :href="m.attachment.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block mb-1.5 no-underline"
+          >
+            <img
+              v-if="m.attachment.content_type?.startsWith('image/')"
+              :src="m.attachment.url"
+              :alt="m.attachment.name"
+              class="object-cover rounded-lg max-h-40 max-w-full"
+            />
+            <span
+              v-else
+              class="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-white/15"
+              :class="
+                floatingLayout ? 'text-white' : 'text-[#29271f] bg-black/5'
+              "
+            >
+              <span
+                aria-hidden="true"
+                class="i-lucide-file-text size-3.5 shrink-0"
+              />
+              {{ m.attachment.name }}
+            </span>
+          </a>
           {{ m.content }}
         </div>
         <div v-else class="group" :class="floatingLayout ? 'w-full' : 'max-w-[92%]'">
@@ -576,19 +716,25 @@ const artifactRoute = a => {
       <h2 class="m-0 text-center text-heading-1 !font-sans !text-[18px] !font-medium !tracking-normal text-[#171717]">今天有什么可以帮你？</h2>
     </div>
 
-    <!-- 待发的图。必须让人看见选了什么、能撤回——选错图直接发出去要再等十几秒才知道。 -->
+    <!-- 待发的附件。必须让人看见选了什么、能撤回——发错了要再等十几秒才知道。 -->
     <div
-      v-if="pendingImage"
-      class="flex items-center gap-2 px-3 py-2 mx-1 mb-1 text-xs border rounded-xl border-n-weak bg-n-alpha-1 text-n-slate-11"
+      v-if="pendingFile"
+      class="flex items-center gap-2 px-3 py-2 mx-1 mb-1 text-xs border rounded-xl border-n-weak bg-n-alpha-1 text-n-slate-11 [.theme-classic_.crm-agent-workspace_&]:mx-auto [.theme-classic_.crm-agent-workspace_&]:w-full [.theme-classic_.crm-agent-workspace_&]:max-w-[860px] [.theme-classic_.crm-agent-workspace_&]:mb-2"
     >
-      <span class="i-lucide-image size-4 shrink-0 text-n-iris-11" />
-      <span class="flex-1 min-w-0 truncate">{{ pendingImage.name }}</span>
-      <span class="shrink-0">{{ Math.round(pendingImage.size / 1024) }} KB</span>
+      <img
+        v-if="previewUrl"
+        :src="previewUrl"
+        alt=""
+        class="object-cover border rounded size-8 shrink-0 border-n-weak"
+      />
+      <span v-else class="i-lucide-file-text size-4 shrink-0 text-n-iris-11" />
+      <span class="flex-1 min-w-0 truncate">{{ pendingFile.name }}</span>
+      <span class="shrink-0">{{ Math.round(pendingFile.size / 1024) }} KB</span>
       <button
         type="button"
         class="shrink-0 text-n-slate-10 hover:text-n-slate-12"
         title="不发了"
-        @click="dropImage"
+        @click="dropFile"
       >
         <span class="i-lucide-x size-4" />
       </button>
@@ -607,25 +753,26 @@ const artifactRoute = a => {
         class="!outline-none !ring-0 focus:!outline-none focus:!ring-0 focus:!shadow-none focus-visible:!outline-none focus:!border-[#b6b6b6] flex-1 px-3 py-2 text-sm border rounded-xl outline-none resize-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12 [.theme-classic_.crm-agent-workspace_&]:border-0 [.theme-classic_.crm-agent-workspace_&]:shadow-none [.theme-classic_.crm-agent-workspace_&]:min-h-[76px] [.theme-classic_.crm-agent-workspace_&]:text-label [.theme-classic_.crm-agent-workspace_&]:placeholder:text-[#a2a8b2]"
         :disabled="busy"
         @keydown.enter.exact.prevent="send"
+        @paste="onPaste"
       />
+      <!-- 不加 capture：加了手机上点一下直接开相机，想选刚收到的 PDF 都选不了。 -->
       <input
         ref="fileRef"
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept="image/*,.pdf,.xls,.xlsx,.csv,.doc,.docx,.ppt,.pptx"
         class="hidden"
-        @change="onImagePicked"
+        @change="onFilePicked"
       />
       <button
         type="button"
-        title="发图片（规格表、手写询价、实物照都行）"
-        aria-label="发图片"
+        title="发图片或附件（规格表、实物照、PI、报价表都行，也可以直接 Ctrl+V 贴截图）"
+        aria-label="发图片或附件"
         :class="floatingLayout ? '!absolute bottom-3 left-3 !size-8 !border-0 !bg-transparent !p-0 !text-[#666] hover:!bg-[#f3f3f3] hover:!text-[#171717]' : ''"
         class="flex items-center justify-center rounded-full size-8 shrink-0 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-35"
         :disabled="busy"
-        @click="pickImage"
+        @click="pickFile"
       >
-        <span class="i-lucide-image size-4" />
+        <span class="i-lucide-paperclip size-4" />
       </button>
       <button
         v-if="speechSupported"
@@ -648,7 +795,7 @@ const artifactRoute = a => {
         color="iris"
         size="sm"
         :is-loading="busy"
-        :disabled="!input.trim() && !pendingImage"
+        :disabled="!input.trim() && !pendingFile"
         @click="send"
       />
       <button
@@ -657,7 +804,7 @@ const artifactRoute = a => {
         title="发送"
         aria-label="发送"
         class="!absolute bottom-3 right-3 !flex !size-8 !items-center !justify-center !rounded-full !border-0 !bg-[#171717] !p-0 !text-white hover:!bg-[#333] disabled:opacity-35"
-        :disabled="busy || (!input.trim() && !pendingImage)"
+        :disabled="busy || (!input.trim() && !pendingFile)"
         @click="send"
       >
         <span :class="busy ? 'i-lucide-loader-circle animate-spin' : 'i-lucide-arrow-up'" class="size-4" />

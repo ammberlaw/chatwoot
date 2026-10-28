@@ -21,6 +21,7 @@ import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
@@ -134,6 +135,26 @@ const activeFields = computed(() => {
 const hasCustomerField = computed(() =>
   activeFields.value.some(f => f.type === 'customer')
 );
+// ⚠️ 客户下拉原来固定取 200 条，而全库有 13196 个客户——98.5% 根本选不到。
+// SelectCard 自带的搜索只在已加载的 200 条里过滤，搜不到没加载的那些，
+// 所以换成 ComboBox + 远程搜索（与销售订单/报价单同一做法，2026-10-28）。
+let customerSearchTimer = null;
+const onCustomerSearch = keyword => {
+  clearTimeout(customerSearchTimer);
+  customerSearchTimer = setTimeout(async () => {
+    try {
+      const kw = keyword.trim();
+      const { data } = await CustomerAPI.get({
+        per_page: 200,
+        ...(kw ? { q: kw } : {}),
+      });
+      customers.value = camelcaseKeys(data.payload || [], { deep: true });
+    } catch {
+      // 搜不到就保留原列表，别把已有选项清空
+    }
+  }, 300);
+};
+
 const customerOptions = computed(() => [
   { value: '', label: '不关联客户' },
   ...customers.value.map(c => ({ value: String(c.id), label: c.name })),
@@ -767,10 +788,13 @@ onMounted(async () => {
                不再在底下单列一个「关联客户」——同一件事问两遍。 -->
           <label v-else-if="f.type === 'customer'" class="flex flex-col gap-1">
             <span class="text-sm text-n-slate-11">{{ f.label }}</span>
-            <SelectCard
+            <ComboBox
               v-model="form.customerId"
               :options="customerOptions"
-              block
+              placeholder="不关联客户"
+              search-placeholder="搜索客户"
+              empty-state="无匹配客户"
+              @search="onCustomerSearch"
             />
           </label>
           <label v-else class="flex flex-col gap-1">
@@ -817,10 +841,13 @@ onMounted(async () => {
         <!-- 规格里已有客户字段时不重复显示（自建模板才需要） -->
         <label v-if="!hasCustomerField" class="flex flex-col gap-1">
           <span class="text-sm text-n-slate-11">关联客户</span>
-          <SelectCard
+          <ComboBox
             v-model="form.customerId"
             :options="customerOptions"
-            block
+            placeholder="不关联客户"
+            search-placeholder="搜索客户"
+            empty-state="无匹配客户"
+            @search="onCustomerSearch"
           />
         </label>
 
@@ -923,7 +950,7 @@ onMounted(async () => {
     <Dialog
       ref="transferRef"
       title="转交他人报价"
-      description="报不了价的单子可以推给别人，比如总经理。转交会留痕。"
+      description="转交会留痕"
       confirm-button-label="确认转交"
       confirm-button-color="iris"
       :is-loading="transferring"

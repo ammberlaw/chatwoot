@@ -109,6 +109,10 @@ const CATEGORY_OPTIONS = [
 
 // 用料明细每行照生产任务单直接填。
 const blankRow = () => ({
+  // 行的稳定 key。中间插入行时下标会整体位移，用下标当 :key 会让子组件
+  // （物料下拉、输入框）的内部状态错位——表现就是「填的东西跑到别的行去了」。
+  // 不进提交数据，只给 v-for 用。
+  _rk: `r${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
   productId: '',
   materialNo: '',
   materialName: '',
@@ -321,24 +325,6 @@ const form = reactive({
   ...blankLeadDays(),
   rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
-
-// 「往下全设为此类」：类别默认整机物料，而包装物料总是集中在末尾那几行，
-// 一条条点下拉改很费事（采购原话：「包装物料每次都要一条条手工去勾选，
-// 有没有什么办法能快速一点？」）。从这一行起往下全套同一个类别，一次点完。
-const applyCategoryDown = i => {
-  const value = form.rows[i]?.category;
-  if (!value) return;
-
-  let n = 0;
-  for (let k = i + 1; k < form.rows.length; k += 1) {
-    if (form.rows[k].category !== value) {
-      form.rows[k].category = value;
-      n += 1;
-    }
-  }
-  const label = CATEGORY_OPTIONS.find(o => o.value === value)?.label || value;
-  useAlert(n ? `下面 ${n} 行都设成了${label}` : '下面各行本来就是这个类别');
-};
 
 const totalLeadDays = computed(() =>
   LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
@@ -661,6 +647,65 @@ const applyPaste = () => {
 const activeRow = ref(null);
 
 const addRow = () => form.rows.push(blankRow());
+// 在指定行下方插入一行。漏了一颗料要补在原位时，没有它就只能加到最末尾再手工挪，
+// 而用料明细是按装配顺序排的，顺序本身有意义。
+const insertRowAfter = i => {
+  form.rows.splice(i + 1, 0, blankRow());
+  activeRow.value = i + 1;
+};
+
+// —— 批量设类别 ——
+// 包装物料总是集中在末尾那几行，一条条点下拉太慢（采购原话：「包装物料每次都要
+// 一条条手工去勾选，有没有什么办法能快速一点？」）。
+// 先前的做法是在每行类别列塞一个「往下全设为此类」的 ↓ 按钮，结果把本就不宽的
+// 类别下拉挤成「整…」，整列看着很乱（2026-10-28 用户反馈），所以挪到工具条上，
+// 行里一个按钮都不留。
+const catDialogRef = ref(null);
+const catForm = reactive({ from: 1, to: 1, value: CATEGORY_OPTIONS[0].value });
+
+const openCategoryBulk = () => {
+  // 默认整张表：包装料在末尾，用户只需要把「第几行」往后改一个数。
+  catForm.from = 1;
+  catForm.to = form.rows.length;
+  catForm.value = CATEGORY_OPTIONS[0].value;
+  catDialogRef.value?.open();
+};
+
+// 夹进有效区间，并且允许两头反着填（把大的填进「第」、小的填进「到第」照样认）。
+const catRange = computed(() => {
+  const max = form.rows.length;
+  const clamp = (v, fallback) =>
+    Math.min(Math.max(Number(v) || fallback, 1), Math.max(max, 1));
+  const a = clamp(catForm.from, 1);
+  const b = clamp(catForm.to, max);
+  return [Math.min(a, b), Math.max(a, b)];
+});
+
+const catTargets = computed(() => {
+  const [a, b] = catRange.value;
+  return form.rows.slice(a - 1, b);
+});
+
+// 填行号是闭着眼睛改，所以把要动的几行念出来让人核一眼再点确定。
+const catPreview = computed(() => {
+  const [a] = catRange.value;
+  const names = catTargets.value.map(
+    (r, i) => r.materialName || r.materialNo || `第 ${a + i} 行`
+  );
+  if (!names.length) return '（没有可改的行）';
+  return names.length > 6
+    ? `${names.slice(0, 6).join('、')}… 等 ${names.length} 行`
+    : names.join('、');
+});
+
+const applyCategoryBulk = () => {
+  const label = CATEGORY_OPTIONS.find(o => o.value === catForm.value)?.label;
+  const n = catTargets.value.length;
+  catTargets.value.forEach(row => {
+    row.category = catForm.value;
+  });
+  useAlert(n ? `${n} 行都设成了${label}` : '没有可改的行');
+};
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
   if (removed?.id) removedItemIds.value.push(removed.id);
@@ -1595,7 +1640,7 @@ onBeforeUnmount(() =>
             <textarea
               v-model="form.comboNote"
               rows="2"
-              placeholder="例：蓝皮套500+蓝机500、粉皮套500+金机500、橙皮套200+银机200"
+              placeholder="搭配说明"
               class="px-3 py-2 text-sm border rounded-lg outline-none resize-y reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-10"
             />
           </div>
@@ -1704,6 +1749,12 @@ onBeforeUnmount(() =>
               @click="scaleRowsToOrderQty"
             />
             <Button
+              label="批量设类别"
+              variant="ghost"
+              size="sm"
+              @click="openCategoryBulk"
+            />
+            <Button
               label="+ 加一行"
               variant="ghost"
               size="sm"
@@ -1795,8 +1846,8 @@ onBeforeUnmount(() =>
                只是视觉焦点，不参与任何提交。 -->
           <div
             v-for="(row, i) in form.rows"
-            :key="i"
-            class="pb-2 border-b border-dashed border-n-weak last:border-0"
+            :key="row._rk || i"
+            class="relative group pb-2 border-b border-dashed border-n-weak last:border-0"
             :class="activeRow === i ? 'bg-n-iris-3 rounded-md' : ''"
             @click="activeRow = i"
           >
@@ -1815,26 +1866,13 @@ onBeforeUnmount(() =>
               >
                 {{ i + 1 }}
               </span>
-              <div
-                :style="colPos('category')"
-                class="flex items-center gap-1 min-w-0"
-              >
+              <div :style="colPos('category')" class="min-w-0">
                 <SelectCard
                   v-model="row.category"
                   :options="CATEGORY_OPTIONS"
                   block
-                  class="flex-1 min-w-0"
+                  class="w-full min-w-0"
                 />
-                <!-- 包装物料总在末尾几行：在那一行选好类别，点一下把下面全套上 -->
-                <button
-                  v-if="i < form.rows.length - 1"
-                  type="button"
-                  class="grid rounded shrink-0 size-6 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-iris-11"
-                  title="把下面各行都设成这一行的类别"
-                  @click.stop="applyCategoryDown(i)"
-                >
-                  <span class="i-lucide-arrow-down-to-line size-3.5" />
-                </button>
               </div>
               <div
                 :style="colPos('materialNo')"
@@ -2001,6 +2039,15 @@ onBeforeUnmount(() =>
               >
                 ✕
               </button>
+              <!-- 在这一行下方插入空行。鼠标移到行上才显现，平时不占视觉。 -->
+              <button
+                type="button"
+                class="absolute -bottom-2 left-1/2 z-10 flex items-center justify-center -translate-x-1/2 rounded-full opacity-0 size-4 bg-n-iris-9 text-white group-hover:opacity-100 hover:!bg-n-iris-10"
+                title="在此行下方插入一行"
+                @click.stop="insertRowAfter(i)"
+              >
+                <span class="i-lucide-plus size-3" />
+              </button>
             </div>
           </div>
         </div>
@@ -2009,7 +2056,7 @@ onBeforeUnmount(() =>
           <label class="text-heading-3 text-n-slate-12">整单备注</label>
           <TextArea
             v-model="form.remark"
-            placeholder="整份生产任务单的说明（不同于每行的备注）"
+            placeholder="整单说明"
             :max-length="500"
             auto-height
           />
@@ -2295,6 +2342,45 @@ onBeforeUnmount(() =>
           >将保存当前
           {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
         >
+      </div>
+    </Dialog>
+    <!-- 批量设类别：按行号区间一次改完，省得包装料一行行点下拉 -->
+    <Dialog
+      ref="catDialogRef"
+      width="lg"
+      title="批量设类别"
+      confirm-button-label="设为这个类别"
+      confirm-button-color="iris"
+      @confirm="applyCategoryBulk"
+    >
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-label text-n-slate-12">第</span>
+          <Input
+            v-model="catForm.from"
+            type="number"
+            min="1"
+            :max="form.rows.length"
+            class="w-20"
+          />
+          <span class="text-label text-n-slate-12">行 到 第</span>
+          <Input
+            v-model="catForm.to"
+            type="number"
+            min="1"
+            :max="form.rows.length"
+            class="w-20"
+          />
+          <span class="text-label text-n-slate-12">行，设为</span>
+          <SelectCard
+            v-model="catForm.value"
+            :options="CATEGORY_OPTIONS"
+            class="w-36"
+          />
+        </div>
+        <p class="m-0 text-label-small text-n-slate-11">
+          将改动 {{ catTargets.length }} 行：{{ catPreview }}
+        </p>
       </div>
     </Dialog>
     <!-- 批量粘贴代码：从电子投单单复制一整列编码贴进来，一次匹配进明细 -->

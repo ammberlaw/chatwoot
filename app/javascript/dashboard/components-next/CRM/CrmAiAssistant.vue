@@ -92,17 +92,46 @@ onMounted(() => {
 });
 onBeforeUnmount(() => window.removeEventListener('resize', syncViewport));
 // 面板贴着图标位置弹出，并夹取在视口内确保完整可见。
+const panelSize = ref({ width: PANEL_W, height: PANEL_H });
+const panelOrigin = ref(null);
 const panelStyle = computed(() => {
-  const right = Math.min(
-    Math.max(pos.value.right, 8),
-    Math.max(vw.value - PANEL_W - 8, 8)
-  );
-  const bottom = Math.min(
-    Math.max(pos.value.bottom, 8),
-    Math.max(vh.value - PANEL_H - 8, 8)
-  );
-  return { right: `${right}px`, bottom: `${bottom}px` };
+  const width = Math.min(panelSize.value.width, vw.value - 16);
+  const height = Math.min(panelSize.value.height, vh.value - 16);
+  const left = Math.max(8, Math.min(
+    panelOrigin.value?.left ?? vw.value - pos.value.right - width,
+    vw.value - width - 8
+  ));
+  const top = Math.max(8, Math.min(
+    panelOrigin.value?.top ?? vh.value - pos.value.bottom - height,
+    vh.value - height - 8
+  ));
+  return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` };
 });
+let resizeStart;
+const resizePanel = e => {
+  if (!resizeStart) return;
+  panelSize.value = {
+    width: Math.min(Math.max(360, resizeStart.width + e.clientX - resizeStart.x), vw.value - resizeStart.left - 8),
+    height: Math.min(Math.max(420, resizeStart.height + e.clientY - resizeStart.y), vh.value - resizeStart.top - 8),
+  };
+};
+const stopResize = () => {
+  resizeStart = null;
+  window.removeEventListener('pointermove', resizePanel);
+  window.removeEventListener('pointerup', stopResize);
+  window.removeEventListener('pointercancel', stopResize);
+};
+const startResize = e => {
+  if (e.button !== 0) return;
+  const rect = e.currentTarget.parentElement.getBoundingClientRect();
+  panelOrigin.value = { left: rect.left, top: rect.top };
+  resizeStart = { x: e.clientX, y: e.clientY, width: rect.width, height: rect.height, left: rect.left, top: rect.top };
+  e.currentTarget.setPointerCapture(e.pointerId);
+  window.addEventListener('pointermove', resizePanel);
+  window.addEventListener('pointerup', stopResize);
+  window.addEventListener('pointercancel', stopResize);
+};
+onBeforeUnmount(stopResize);
 
 let startX = 0;
 let startY = 0;
@@ -174,7 +203,7 @@ onBeforeUnmount(() => {
   <div
     v-else-if="canUse"
     :style="panelStyle"
-    class="fixed z-[55] flex flex-col overflow-hidden border shadow-2xl w-[440px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-6rem)] rounded-2xl border-[#e8e8e8] bg-white font-sans antialiased text-label !text-[14px] !font-normal !leading-6 !tracking-normal"
+    class="fixed z-[55] flex flex-col overflow-hidden border shadow-2xl rounded-2xl border-[#e8e8e8] bg-white font-sans antialiased text-label !text-[14px] !font-normal !leading-6 !tracking-normal"
   >
     <div
       class="flex items-center gap-2 px-5 py-4 bg-white"
@@ -202,5 +231,14 @@ onBeforeUnmount(() => {
     <div class="flex-1 min-h-0 px-5 pb-4">
       <CrmAgentPanel ref="panelRef" floating-layout />
     </div>
+    <button
+      type="button"
+      aria-label="拖动调整 AI 助手窗口大小"
+      title="拖动调整大小"
+      class="absolute bottom-1 right-1 flex size-6 touch-none select-none items-center justify-center rounded-br-xl border-0 bg-transparent p-0 text-[#aaa] hover:text-[#333] cursor-nwse-resize"
+      @pointerdown.stop.prevent="startResize"
+    >
+      <span class="i-lucide-grip size-3.5" aria-hidden="true" />
+    </button>
   </div>
 </template>

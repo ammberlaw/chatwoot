@@ -1743,7 +1743,6 @@ v-if="!row.tag && !row.value" class="text-n-slate-10"
     <Dialog
       ref="binDialogRef"
       title="订单回收箱"
-      description="已删除的销售订单，管理员可恢复。"
       :show-cancel-button="false"
       :show-confirm-button="false"
       width="2xl"

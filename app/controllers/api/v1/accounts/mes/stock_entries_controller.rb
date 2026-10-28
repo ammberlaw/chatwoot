@@ -94,7 +94,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     end
     scope = apply_column_filters(scope)
     @stock_entries_count = scope.count
-    @stock_entries = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @stock_entries = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end

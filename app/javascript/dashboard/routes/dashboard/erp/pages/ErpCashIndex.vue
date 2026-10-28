@@ -800,7 +800,7 @@ onMounted(async () => {
           <ComboBox
             v-model="form.ledgerAccountId"
             :options="ledgerOptions"
-            placeholder="选货币资金类科目（银行存款 / 库存现金）"
+            placeholder="选择科目"
           />
           <span class="text-xs text-n-slate-10">
             自动凭证按这个科目记账；不映射的话收付款不会生成待过账凭证

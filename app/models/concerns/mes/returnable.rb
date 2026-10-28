@@ -70,7 +70,7 @@ module Mes::Returnable
   end
 
   def notify_return_upstream(board_key, ret)
-    recipients = account.mes_board_owners.find_by(board_key: board_key)&.manager_ids || []
+    recipients = Mes::BoardOwner.notify_ids(account, board_key, try(:product_line))
     Mes::Notifier.notify(
       account: account, recipients: recipients, kind: 'document_returned',
       title: "#{return_document_label}被退回：#{return_document_no}",

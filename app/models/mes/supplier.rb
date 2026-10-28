@@ -61,6 +61,12 @@ class Mes::Supplier < ApplicationRecord
 
   # 开票主体/税模式：决定按供应商拆单导出套哪个采购单模板（wintouch=未税 / liontek=含税×1.13）。
   BILL_ENTITIES = %w[wintouch liontek].freeze
+  # 开票主体＝以哪家公司的名义下这张单，顺带决定税口径：
+  # 联合触控出的是未税采购订单，联迪出的是含税采购合同（见 Mes::PoSupplierExport::HEADERS）。
+  # 财务在应付台账上要凭这个判断这笔钱含不含税，所以标签收在这里给各处共用。
+  BILL_ENTITY_LABELS = { 'wintouch' => '联合触控', 'liontek' => '联迪' }.freeze
+
+  def bill_entity_label = BILL_ENTITY_LABELS[bill_entity]
 
   validates :name, presence: true
   validates :supplier_no, presence: true, uniqueness: { scope: :account_id }

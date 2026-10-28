@@ -16,6 +16,7 @@ import MesPurchaseRequisitionsIndex from './pages/MesPurchaseRequisitionsIndex.v
 import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
 import MesMaterialIssuesIndex from './pages/MesMaterialIssuesIndex.vue';
+import MesMaterialReturnsIndex from './pages/MesMaterialReturnsIndex.vue';
 import MesProductionRecordsIndex from './pages/MesProductionRecordsIndex.vue';
 import MesInspectionsIndex from './pages/MesInspectionsIndex.vue';
 import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
@@ -96,6 +97,11 @@ export const routes = [
     'material-issues',
     'mes_material_issues_index',
     MesMaterialIssuesIndex
+  ),
+  mesPage(
+    'material-returns',
+    'mes_material_returns_index',
+    MesMaterialReturnsIndex
   ),
   mesPage(
     'production-records',

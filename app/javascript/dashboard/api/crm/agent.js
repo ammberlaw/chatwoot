@@ -16,10 +16,11 @@ class CrmAgentApi extends ApiClient {
 
   // pageContext：用户提问那一刻开着哪一页（{ route, subject }）。
   // 后端据此理解「这张单」「这个客户」指的是谁，省掉一轮反问。
-  // image：展会上拍的规格表、手写询价、客户发来的实物照。带图时走 multipart——
-  // 后端收到会先用视觉模型把图读成文字再喂给 agent（它的工具都是查库的，没一个能看图）。
-  sendMessage(id, content, pageContext, image) {
-    if (!image) {
+  // file：展会上拍的规格表、客户发来的实物照，或者客户直接丢过来的 PI / 报价表 /
+  // 规格书。带附件时走 multipart——后端收到会先把图读成文字、把文档抽成正文
+  // 再喂给 agent（它的工具都是查库的，没一个能看图或读文件）。
+  sendMessage(id, content, pageContext, file) {
+    if (!file) {
       return axios.post(`${this.url}/${id}/create_message`, {
         content,
         page_context: pageContext || undefined,
@@ -27,7 +28,7 @@ class CrmAgentApi extends ApiClient {
     }
     const form = new FormData();
     form.append('content', content || '');
-    form.append('image', image);
+    form.append('attachment', file);
     if (pageContext?.route) form.append('page_context[route]', pageContext.route);
     if (pageContext?.subject) form.append('page_context[subject]', pageContext.subject);
     return axios.post(`${this.url}/${id}/create_message`, form, {

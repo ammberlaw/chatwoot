@@ -1,4 +1,7 @@
-# 退料返修单：退给供应商修，修好登记回来。只记台账，不动库存（见 Mes::SupplierReturn）。
+# 采购退料单：把料退回给供应商（换新的 / 不要了），换回来的登记返回。
+#
+# 2026-10-29 起**真的动库存**：退出去从不良品仓扣，换回来的入回原料仓
+# （各自生成一张库存单，见 Mes::SupplierReturn#send_out! / #receive_back!）。
 class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_return, only: [:show, :update, :destroy, :send_out, :receive_back]
@@ -11,8 +14,10 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     scope = apply_search(scope, params[:q])
     @returns_count = scope.count
-    @returns = scope.includes(:mes_supplier, :production_order, :owner, items: :crm_product)
-                    .order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @returns = scope.includes(:mes_supplier, :production_order, :owner, :warehouse,
+                              :mes_purchase_order, :source_stock_entry, :out_stock_entry,
+                              items: :crm_product)
+                    .order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -38,12 +43,20 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
     head :ok
   end
 
-  # 退出去：记日期，进「已退出」。
-  def send_out = render_after { @supplier_return.send_out!(on: params[:sent_on]) }
+  # 退出去：从仓库扣货（生成 PURCHASE_RETURN 出库单）、记日期，进「已退出」。
+  def send_out
+    render_after { @supplier_return.send_out!(on: params[:sent_on], actor: current_user) }
+  end
 
-  # 登记返回：rows = [{ id:, returned_qty: }]，累加到各行的已返回数。
+  # 登记返回：rows = [{ id:, returned_qty: }]，累加到各行的已返回数并入回库存。
+  # warehouse_id 不传就回原仓——换回来的是好货，界面上默认给原料仓。
   def receive_back
-    render_after { @supplier_return.receive_back!(params[:rows], on: params[:returned_on]) }
+    render_after do
+      @supplier_return.receive_back!(
+        params[:rows],
+        on: params[:returned_on], warehouse_id: params[:warehouse_id], actor: current_user
+      )
+    end
   end
 
   private
@@ -74,7 +87,9 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
   def supplier_return_params
     params.require(:supplier_return).permit(
       :return_no, :mes_supplier_id, :production_order_id, :product_line, :reason, :remark, :sent_on,
-      items_attributes: [:id, :crm_product_id, :qty, :unit, :remark, :_destroy]
+      # 退法（换新的/不要了）、从哪个仓退、关联的采购单与入库单——用户 2026-10-29 点名要的几项。
+      :return_kind, :warehouse_id, :mes_purchase_order_id, :source_stock_entry_id,
+      items_attributes: [:id, :crm_product_id, :qty, :unit, :unit_price_micros, :remark, :_destroy]
     )
   end
 end

@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -287,7 +287,27 @@ const customerDisplayLabel = computed(() => {
   return `${editingCustomer.value.name}（非私海）`;
 });
 
+// 下拉里输入关键词 → 去后端查。防抖 300ms，别每敲一个字打一次接口。
+let customerSearchTimer = null;
+const onCustomerSearch = keyword => {
+  clearTimeout(customerSearchTimer);
+  customerSearchTimer = setTimeout(() => {
+    loadPrivateCustomers(keyword.trim());
+  }, 300);
+};
+
 // 关联商机：选了客户则只显示该客户的商机，否则显示全部
+// 选了客户就按客户重取商机。原来一次性取 100 条再前端按客户过滤——
+// 库里已有 180 个商机，第 100 名之后的选不到（和客户下拉同一个坑）。
+// 按客户取则与总量无关，以后商机涨到几千也不会漏。
+watch(
+  () => form.crmCustomerId,
+  id => {
+    if (!id) return;
+    opportunitiesStore.get({ page: 1, per_page: 200, customer_id: id });
+  }
+);
+
 const opportunityOptions = computed(() => {
   const records = opportunitiesStore.getRecords || [];
   const filtered = form.crmCustomerId
@@ -373,13 +393,26 @@ const resetForm = () => {
   products.value = [];
 };
 
-// 拉取当前业务员名下私海客户（一次拿全）。
-const loadPrivateCustomers = async () => {
+// 拉取当前业务员名下私海客户。
+//
+// ⚠️ 原来固定取 200 条、注释还写着「一次拿全」——实际是**最近更新的 200 个**
+// （后端默认 updated_at desc）。生产上肖天海名下 302 个客户、陈云钢 1427 个，
+// 老客户一旦掉出前 200 就彻底选不到，而且会被 customerDisplayLabel 标成「非私海」，
+// 让人以为客户归属错了（2026-10-28 用户报的就是这个）。
+//
+// 改成带关键词去后端查：输入什么查什么，不再受那一页的限制。
+const loadPrivateCustomers = async (keyword = '') => {
   loadingCustomers.value = true;
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/customers`,
-      { params: { filter: 'mine_shared', per_page: 200 } }
+      {
+        params: {
+          filter: 'mine_shared',
+          per_page: 200,
+          ...(keyword ? { q: keyword } : {}),
+        },
+      }
     );
     privateCustomers.value = (data.payload || []).map(c => ({
       id: c.id,
@@ -713,6 +746,7 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
             v-model="form.crmCustomerId"
             :options="customerOptions"
             :display-label="customerDisplayLabel"
+            @search="onCustomerSearch"
             :placeholder="
               loadingCustomers
                 ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING')
@@ -893,7 +927,7 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
                 v-model="li.crmProductId"
                 class="col-span-3"
                 :options="productOptions"
-                placeholder="搜索产品名称 / 编码（选填）"
+                placeholder="搜索产品名称 / 编码"
                 use-api-results
                 clearable
                 empty-state="没搜到这个产品，直接在右边手写品名就行"

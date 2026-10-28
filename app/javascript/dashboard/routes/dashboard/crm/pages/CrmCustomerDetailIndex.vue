@@ -1195,7 +1195,7 @@ onMounted(() => {
     <Dialog
       ref="shareDialogRef"
       title="共享客户"
-      description="被共享的成员可在该客户上建 PI / 报价 / 销售订单 / 生产订单，记录都归到本客户详情下。"
+      description="被共享成员可在该客户下建单，记录归本客户"
       confirm-button-label="保存"
       @confirm="saveShare"
     >

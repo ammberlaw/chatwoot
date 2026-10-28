@@ -1785,9 +1785,11 @@ useRouteQueryReentry(async query => {
       </div>
     </Dialog>
 
+    <!-- 采购明细 16 列（编码/名称/规格/辅助属性/档案备注/供应商/采购量/已到料/单位/
+         未税单价/含税单价/税率/未税合计…），6xl 挤成一团，用 full 按视口铺开。 -->
     <MesViewDialog
       ref="viewDialogRef"
-      width="6xl"
+      width="full"
       :title="viewing ? `采购单 ${viewing.poNo}` : '采购单明细'"
       :fields="viewFields"
       items-title="采购明细"
@@ -1800,7 +1802,7 @@ useRouteQueryReentry(async query => {
           <Input
             v-model="rejectReason"
             size="sm"
-            placeholder="驳回原因（必填）"
+            placeholder="驳回原因"
             class="w-72"
             @keyup.enter="confirmRejectFromView"
           />

@@ -175,8 +175,12 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="w-full px-4 py-4 mx-auto max-w-5xl sm:px-8 sm:py-6">
-      <div class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+      >
+        <h1
+          class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           定制报价模板
         </h1>
         <Button
@@ -188,7 +192,7 @@ onMounted(load);
         />
       </div>
       <p class="mt-1 mb-5 text-sm text-n-slate-11">
-        每条产品线配一套参数字段。业务员发起定制报价时选产品线，这里配的字段就会出现在表单里。
+        每条产品线一套参数字段，发起定制报价时按产品线带出
       </p>
 
       <p v-if="loading" class="py-8 text-sm text-center text-n-slate-10">
@@ -263,7 +267,7 @@ onMounted(load);
       overflow-y-auto
       width="3xl"
       :title="editing ? '编辑模板' : '新建模板'"
-      description="字段名用英文（存数据用），显示名是业务员看到的文字。"
+      description="字段名存数据用英文，显示名是业务员看到的文字"
       confirm-button-label="保存"
       :confirm-button-color="goColor"
       :is-loading="saving"

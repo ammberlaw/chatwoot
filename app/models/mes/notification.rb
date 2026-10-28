@@ -35,8 +35,9 @@ class Mes::Notification < ApplicationRecord
     bom_reconfirm bom_confirmed bom_revised purchase_release_pending stage_assigned stage_returned
     po_approval_pending po_approval_approved po_approval_rejected
     order_revised
-    production_reported fg_count_pending
+    production_reported fg_count_pending material_return_pending
     shipment_approval_pending shipment_approved shipment_rejected shipment_notified
+    shipment_submitted
     document_returned
     forwarded
     sales_return_pending sales_return_resolved
@@ -65,8 +66,16 @@ class Mes::Notification < ApplicationRecord
   GROUP_BY_KIND = {
     'approval_pending' => 'todo', 'bom_reconfirm' => 'todo', 'purchase_release_pending' => 'todo',
     'po_approval_pending' => 'todo', 'stage_assigned' => 'todo', 'production_reported' => 'todo',
+    # 车间退料回仓：仓管得去收料+过账，不动这张单就一直是草稿、料堆在车间。
+    # 归 todo（会推手机）——他能立刻动手，这正是待办的用途。
+    'material_return_pending' => 'todo',
     'fg_count_pending' => 'todo', 'shipment_approval_pending' => 'todo', 'shipment_approved' => 'todo',
     'erp_installment_due' => 'todo', 'erp_payable_due' => 'todo',
+    # 「有一张大单提交了，等财务批」——给仓管的**周知**，不是待办：
+    # 他这会儿还动不了手（没批就不能出库），进 todo 会把真正能办的事挤下去，
+    # 也会被推到手机上（见 Mes::TodoPushJob::ACTIONABLE_GROUPS）。
+    # 放 progress 他照样看得见、可以提前备货，但不吵他。
+    'shipment_submitted' => 'progress',
     'approval_rejected' => 'rejected', 'po_approval_rejected' => 'rejected', 'stage_returned' => 'rejected',
     'shipment_rejected' => 'rejected', 'document_returned' => 'rejected',
     # 退回给业务：业务那边是「有东西等你处理」进待办；退单人收到的确认回执是进度。

@@ -22,9 +22,14 @@
 #  index_crm_agent_messages_on_conversation_id            (conversation_id)
 #
 class Crm::AgentMessage < ApplicationRecord
-  # 用户可以直接给助手发图（展会上拍的规格表、手写询价、客户发来的实物照）。
-  # 以前读图只能走邮件附件（read_attachment 要 email_id），手机上拍的照片没有入口。
-  has_one_attached :image
+  # 用户可以直接给助手发图或发文件：展会上拍的规格表、手写询价、客户发来的实物照，
+  # 以及客户直接丢过来的 PI / 报价表 / 规格书（PDF、Excel、Word、PPT）。
+  # 以前只能走邮件附件（read_attachment 要 email_id），手机拍的照片和刚收到的文件没有入口。
+  #
+  # 一条消息一个附件：图走视觉模型读成文字（Crm::Agent::VisionReader），
+  # 文档走 Crm::DocumentText 抽正文——agent 手里的工具全是查库的，
+  # 没有一个能看图或读文件，不先读成文字这个附件对它就是不存在的。
+  has_one_attached :attachment
 
   self.table_name = 'crm_agent_messages'
 

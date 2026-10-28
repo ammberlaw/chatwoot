@@ -151,6 +151,10 @@ const editingId = ref(null);
 const removedItemIds = ref([]);
 // 明细行：物料/成品统一从产品档案选（crmProductId）；供应商、含税/未税、实际到料时间都在行上。
 const blankRow = () => ({
+  // 行的稳定 key。中间插入行时下标会整体位移，用下标当 :key 会让子组件
+  // （物料下拉、输入框）的内部状态错位——表现就是「填的东西跑到别的行去了」。
+  // 不进提交数据，只给 v-for 用。
+  _rk: `r${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
   itemType: 'MATERIAL',
   crmProductId: '',
   // 老单的行可能挂的是**物料档案**（mes_material_id）而不是产品档案：BOM 算料铺出来的料
@@ -280,13 +284,21 @@ const purchaseNote = p => {
   const short = ov.short_lines ? ` · 还差 ${ov.short_lines} 项料` : '';
   return `已下 ${ov.po_count} 张采购单${short}`;
 };
+// 采购是「为某张生产任务单上的料」下的，所以这里按生产任务单的说法摆：
+// 标签带上该订单的 BOM 号（bom_no），采购员一眼看到这单对应哪张任务单。
+// ⚠️ 底层关联仍是 production_order_id，没改——采购单建单会把生产订单从 BOM_READY
+// 推进到 PURCHASING（PurchaseOrder#advance_production_order），而且成本归集/领料/
+// 入库/质检/出货十来处都顺着这条关联找上去。改挂 BOM 会把这些全断掉，
+// 还有 25 张没做 BOM 的生产订单直接无单可挂（长周期料常常先下单后出 BOM）。
 const productionOrderOptions = computed(() => [
-  { value: '', label: '不关联销售订单' },
+  { value: '', label: '不关联生产任务单' },
   ...selectableOrders.value.map(p => ({
     value: String(p.id),
-    label: `${p.order_no} · ${p.product_name}`,
+    label: p.bom_no
+      ? `${p.bom_no} · ${p.order_no} · ${p.product_name}`
+      : `${p.order_no} · ${p.product_name}（未出任务单）`,
     note: purchaseNote(p),
-    searchText: orderSearchText(p),
+    searchText: [orderSearchText(p), p.bom_no].filter(Boolean).join(' '),
   })),
 ]);
 
@@ -361,7 +373,7 @@ const fillInternalRemark = () => {
     Boolean
   );
   if (!ids.length) {
-    useAlert('先关联销售订单');
+    useAlert('先关联生产任务单');
     return;
   }
   const lines = ids.map(orderLabel).join('\n');
@@ -545,6 +557,12 @@ const copySupplierFromAbove = i => {
 };
 
 const addRow = () => form.rows.push(blankRow());
+// 在指定行下方插入一行（与生产任务单用料明细同一做法）。
+// 漏了一行要补在原位时，没有它就只能加到末尾再手工挪。
+const insertRowAfter = i => {
+  form.rows.splice(i + 1, 0, blankRow());
+  activeRow.value = i + 1;
+};
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
   if (r?.id) removedItemIds.value.push(r.id);
@@ -557,7 +575,7 @@ const blockedRows = ref([]);
 
 const explode = async (category = '') => {
   if (!form.productionOrderId) {
-    useAlert('请先选销售订单');
+    useAlert('请先选生产任务单');
     return;
   }
   try {
@@ -1033,13 +1051,13 @@ onBeforeRouteLeave((to, from, next) => {
             />
           </div>
           <div class="flex flex-col gap-1 sm:col-span-4">
-            <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
+            <label class="text-heading-3 text-n-slate-12">关联生产任务单</label>
             <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              placeholder="不关联销售订单"
-              search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
-              empty-state="没有匹配的生产订单"
+              placeholder="不关联生产任务单"
+              search-placeholder="搜任务单号 / MO 号 / 产品 / 销售订单 / 客户"
+              empty-state="没有匹配的生产任务单"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>
@@ -1248,8 +1266,8 @@ onBeforeRouteLeave((to, from, next) => {
         <div class="flex flex-col gap-2.5">
           <div
             v-for="(row, i) in form.rows"
-            :key="i"
-            class="flex flex-col gap-2.5 p-3 border rounded-lg"
+            :key="row._rk || i"
+            class="relative group flex flex-col gap-2.5 p-3 border rounded-lg"
             :class="
               activeRow === i
                 ? 'border-n-iris-8 bg-n-iris-3'
@@ -1283,7 +1301,7 @@ onBeforeRouteLeave((to, from, next) => {
                   :display-text="
                     productLabel(row.crmProductId) || row.materialLabel
                   "
-                  placeholder="选择物料（产品档案·编码/名称/规格）"
+                  placeholder="选择物料"
                   @update:model-value="
                     v => {
                       row.crmProductId = v;
@@ -1366,6 +1384,15 @@ onBeforeRouteLeave((to, from, next) => {
                 @click="removeRow(i)"
               >
                 ✕
+              </button>
+              <!-- 在这一行下方插入空行。鼠标移到行上才显现。 -->
+              <button
+                type="button"
+                class="absolute -bottom-2 left-1/2 z-10 flex items-center justify-center -translate-x-1/2 rounded-full opacity-0 size-4 bg-n-iris-9 text-white group-hover:opacity-100 hover:!bg-n-iris-10"
+                title="在此行下方插入一行"
+                @click.stop="insertRowAfter(i)"
+              >
+                <span class="i-lucide-plus size-3" />
               </button>
             </div>
             <!-- 次要控件行：含税 / 实际到料 / 备注 / 行内附图。

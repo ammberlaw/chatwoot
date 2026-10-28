@@ -40,6 +40,7 @@ class Crm::Agent::Tools::DraftQuote < Crm::Agent::Tools::Base
       明细（金额都已算好，回答时照抄，别自己再乘一遍）：
       #{lines.join("\n")}
       合计 #{money(quote.total_amount_micros, quote.quote_currency)}
+      #{self_check(Crm::DocHealthCheck.for_quote(quote))}
       最后提醒用户到「报价单」里核对价格和条款，确认后再发给客户。
     TEXT
   end

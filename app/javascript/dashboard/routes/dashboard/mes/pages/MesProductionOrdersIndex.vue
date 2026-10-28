@@ -974,8 +974,29 @@ const salesOrderOptions = computed(() =>
   }))
 );
 const productOptions = computed(() =>
-  products.value.map(p => ({ value: String(p.id), label: p.name }))
+  products.value.map(p => ({
+    value: String(p.id),
+    label: p.sku ? `${p.sku} · ${p.name}` : p.name,
+    searchText: `${p.name} ${p.specification || ''}`,
+  }))
 );
+const selectedConvertProductLabel = ref('');
+const loadConvertProducts = async (q = '') => {
+  try {
+    const res = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/products`,
+      { params: { q: q || undefined, per_page: 30 } }
+    );
+    products.value = res.data?.payload || res.data || [];
+  } catch {
+    products.value = [];
+  }
+};
+let convertProductTimer = null;
+const onConvertProductSearch = q => {
+  clearTimeout(convertProductTimer);
+  convertProductTimer = setTimeout(() => loadConvertProducts(q), 250);
+};
 const convertInvalid = computed(
   () => !convertForm.value.crmSalesOrderId || !Number(convertForm.value.qty)
 );
@@ -986,7 +1007,12 @@ const fetchPickerData = async () => {
       axios.get(`/api/v1/accounts/${accountId.value}/crm/sales_orders`, {
         params: { per_page: 100 },
       }),
-      axios.get(`/api/v1/accounts/${accountId.value}/mes/products`),
+      // 产品档案 5000+ 条，不整表拉：默认给一屏，输入即带 q 查后端（同下面编辑订单那个选择器）。
+      // 原来这里不传 per_page，后端默认只回 15 条，转单的「成品」下拉就只有 15 个可选、
+      // 而且 ComboBox 的搜索是本地的，搜也搜不出来（2026-10-29 扫出来的）。
+      axios.get(`/api/v1/accounts/${accountId.value}/mes/products`, {
+        params: { per_page: 30 },
+      }),
     ]);
     salesOrders.value = soRes.data?.payload || [];
     products.value = prodRes.data?.payload || prodRes.data || [];
@@ -1014,6 +1040,10 @@ watch(
   () => convertForm.value.crmProductId,
   id => {
     const p = products.value.find(x => String(x.id) === String(id));
+    if (p)
+      selectedConvertProductLabel.value = p.sku
+        ? `${p.sku} · ${p.name}`
+        : p.name;
     if (p && !convertForm.value.productName)
       convertForm.value.productName = p.name;
   }
@@ -2795,7 +2825,7 @@ watch(currentPage, fetchRecords);
             <textarea
               v-model="approvalComment"
               rows="2"
-              placeholder="审批意见（选填）"
+              placeholder="审批意见"
               class="px-2 py-1.5 text-xs rounded-lg border outline-none resize-y border-n-weak bg-n-alpha-black1 text-n-slate-12"
             />
             <div class="flex gap-2">
@@ -3524,7 +3554,7 @@ watch(currentPage, fetchRecords);
               <Input
                 v-model="feedbackForm.materialName"
                 size="sm"
-                placeholder="哪颗料（选填）"
+                placeholder="物料"
               />
             </div>
             <div class="flex items-center gap-2">
@@ -3540,7 +3570,7 @@ watch(currentPage, fetchRecords);
             <Input
               v-model="feedbackForm.body"
               size="sm"
-              placeholder="例：科普鑫来料紧张，承诺 10 天后到，已催"
+              placeholder="情况说明"
             />
             <Button
               label="更新给业务"
@@ -3813,7 +3843,7 @@ watch(currentPage, fetchRecords);
               clearable
               :disabled="viewOnlyOrder"
               :display-label="selectedOrderProductLabel"
-              placeholder="选择商品编码（选填，可留空）"
+              placeholder="选择商品编码"
               search-placeholder="搜编码 / 名称"
               empty-state="无匹配商品"
               @open="onOrderProductOpen"
@@ -3977,7 +4007,7 @@ watch(currentPage, fetchRecords);
       width="lg"
       confirm-button-color="iris"
       title="从销售订单转生产订单"
-      description="选择销售订单与成品，生成生产订单；来源订单将自动进入「生产中」。"
+      description="来源销售订单将进入「生产中」"
       :is-loading="converting"
       :disable-confirm-button="convertInvalid"
       :dirty="isConvertDirty"
@@ -4004,7 +4034,12 @@ watch(currentPage, fetchRecords);
           <ComboBox
             v-model="convertForm.crmProductId"
             :options="productOptions"
-            placeholder="选择成品（可选）"
+            use-api-results
+            :display-label="selectedConvertProductLabel"
+            placeholder="选择成品"
+            search-placeholder="搜编码 / 名称"
+            empty-state="无匹配商品"
+            @search="onConvertProductSearch"
           />
         </div>
         <div class="flex flex-col gap-1">
@@ -4140,7 +4175,7 @@ watch(currentPage, fetchRecords);
       width="3xl"
       confirm-button-color="iris"
       title="标记外购成品"
-      description="外购成品不走生产：选定产品与供应商后，订单直接进入采购阶段，由采购按单下采购单。跳过生产任务单/领料/报工/质检。"
+      description="跳过生产任务单/领料/报工/质检，直接进入采购阶段"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="outsourceInvalid"
       @confirm="submitMarkOutsourced"
@@ -4154,7 +4189,7 @@ watch(currentPage, fetchRecords);
             :account-id="accountId"
             :model-value="outsourceForm.crmProductId"
             :display-text="outsourceForm.productName"
-            placeholder="搜索并选择外购成品（编码/名称/规格）"
+            placeholder="选择外购成品"
             @update:model-value="v => (outsourceForm.crmProductId = v)"
             @select="p => (outsourceForm.productName = p.name)"
           />
@@ -4181,7 +4216,7 @@ watch(currentPage, fetchRecords);
       width="3xl"
       confirm-button-color="iris"
       title="关联已有生产任务单"
-      description="把一张已存在的生产任务单直接关联到本订单，挂好后由工程/PMC 下发采购，无需重新建生产任务单。"
+      description="挂好后由工程/PMC 下发采购"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!linkBomId"
       @confirm="submitLinkBom"
@@ -4236,7 +4271,7 @@ watch(currentPage, fetchRecords);
       ref="handoffDialogRef"
       :dismissible="false"
       title="转给本阶段另一位负责人"
-      description="转出后你不再是接单人，对方会收到「待你接单」提醒。阶段不变，超时计时也不重置。"
+      description="转出后你不再是接单人；阶段与超时计时不变"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!handoffToId"
       @confirm="confirmHandoff"
@@ -4269,7 +4304,7 @@ watch(currentPage, fetchRecords);
       :dismissible="false"
       confirm-button-color="ruby"
       title="拒收打回上一阶段"
-      description="退回后责任明确回上游，上一阶段重新计时、需重新接单。"
+      description="上一阶段重新计时，需重新接单"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!rejectReason.trim()"
       @confirm="confirmReject"
@@ -4288,7 +4323,7 @@ watch(currentPage, fetchRecords);
       :dismissible="false"
       confirm-button-color="ruby"
       title="驳回生产订单"
-      description="驳回后退回创建人，可修改后重新提交，重走审批流程。"
+      description="退回创建人，修改后重走审批"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!denyReason.trim()"
       @confirm="confirmDeny"
@@ -4631,7 +4666,7 @@ watch(currentPage, fetchRecords);
           v-model="returnReason"
           rows="4"
           class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
-          placeholder="例：外壳颜色和丝印内容客户还没确认，料下不了"
+          placeholder="卡点说明"
         />
         <span class="text-label-small text-n-slate-11">
           单子停在原地不动，业务确认完点「已确认」你就能接着做。

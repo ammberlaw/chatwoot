@@ -589,12 +589,6 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 每页条数：默认沿用 RESULTS_PER_PAGE(15)，供列表分页；调用方(如报工订单下拉)需一次性
   # 拿到全部在产订单时可传 per_page，封顶 500 防止拉全表。
-  MAX_PER_PAGE = 500
-  def per_page_param
-    n = params[:per_page].to_i
-    n = RESULTS_PER_PAGE if n <= 0
-    [n, MAX_PER_PAGE].min
-  end
 
   # 列表分档：mine=我的客户订单（归属我）｜ stock=库存备货（全业务共享）｜ all=可见全部。
   def apply_list_scope(scope)

@@ -29,8 +29,14 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   def return_document? = @account_user.mes_can?(:stock)
   def reactivate? = @account_user.mes_can?(:stock)
 
-  # 删单/作废：仓管（stock 能力，管理员含）。草稿走 destroy 硬删，已过账走 cancel 冲销退库存。
-  def destroy? = @account_user.mes_can?(:stock)
+  # 删单：和 create?/update? 同一条线（stock || report）。生产岗自己开的领料单填错了
+  # 得能自己删掉——以前 destroy? 只给 stock，于是「能开能改、唯独不能删」，
+  # 开错一张得去求仓管（2026-10-28 生产反馈）。
+  # 真正的收口在控制器：ensure_can_delete! 把非仓管的人卡到制单人本人，
+  # destroy 本身又挡住已过账的单，所以生产岗最多只能硬删自己开的草稿。
+  def destroy? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
+
+  # 作废：冲销已过账的库存流水，是仓储动作，只给仓管。
   def cancel? = @account_user.mes_can?(:stock)
 end
 

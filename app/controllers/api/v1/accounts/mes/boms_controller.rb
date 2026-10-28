@@ -44,7 +44,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     # 预加载序列化要用的：用料行、成品、以及挂在本 BOM 上的生产订单
     # （成本那段要拿它的「本单采购价」，不预加载就是每行一次查询）。
     @boms = scope.includes(:bom_items, :crm_product, :production_orders)
-                 .order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                 .order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end

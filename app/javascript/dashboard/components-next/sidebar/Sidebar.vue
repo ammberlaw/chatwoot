@@ -1518,6 +1518,7 @@ const menuItems = computed(() => {
           'mes_warehouses_index',
           'mes_serial_numbers_index',
           'mes_material_issues_index',
+          'mes_material_returns_index',
           'mes_production_records_index',
           'mes_inspections_index',
           'mes_fg_inbound_index',
@@ -1643,7 +1644,9 @@ const menuItems = computed(() => {
               to: accountScopedRoute('mes_stock_conversions_index'),
               activeOn: ['mes_stock_conversions_index'],
             },
-            // 退料返修：退给供应商修的料，紧挨着入库/库存放（都是料的进出）。
+            // 采购退料：退回给供应商的料（返修或换货），紧挨着入库/库存放（都是料的进出）。
+            // ⚠️ 和原料入库页上那个「采购退货」(PURPOSE=PURCHASE_RETURN) 不是一回事：
+            // 那个会冲回采购单的到货量、走应付红字；这个只记台账，不动库存不动账。
             {
               name: 'MES Supplier Returns',
               label: t('SIDEBAR.MES_SUPPLIER_RETURNS'),
@@ -1667,6 +1670,14 @@ const menuItems = computed(() => {
               label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
               to: accountScopedRoute('mes_material_issues_index'),
               activeOn: ['mes_material_issues_index'],
+            },
+            // 生产退料：领多了/改单了，车间把料退回仓库。紧跟着领料放——
+            // 同一拨人、同一个阶段负责人板块（mes_material_issues_index）。
+            {
+              name: 'MES Material Returns',
+              label: t('SIDEBAR.MES_MATERIAL_RETURNS'),
+              to: accountScopedRoute('mes_material_returns_index'),
+              activeOn: ['mes_material_returns_index'],
             },
             {
               name: 'MES Production Records',
@@ -2400,6 +2411,7 @@ const ROUTE_MODULE = {
   mes_stock_entries_index: 'mes',
   mes_supplier_returns_index: 'mes',
   mes_material_issues_index: 'mes',
+  mes_material_returns_index: 'mes',
   mes_production_records_index: 'mes',
   mes_inspections_index: 'mes',
   mes_fg_inbound_index: 'mes',

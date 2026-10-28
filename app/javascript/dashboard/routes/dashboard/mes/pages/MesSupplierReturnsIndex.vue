@@ -1,11 +1,15 @@
 <script setup>
-// 退料返修：把料退给供应商修，修好登记回来。
+/* global axios */
+// 采购退料：把料退回给供应商（换新的 / 不要了），换回来的登记返回。
 //
-// 用户原话：「我这边退料出去，多久能回来？是不是要设置一个退出去的时间跟物料返修回来时间呢；
-// 是不是需要再做个退料返修回来的模块呢？」
-// 所以这页的主角是**两个日期和中间那段天数**，不是数量。
-// 本期只记台账、不动库存（返修回来要不要重新入库/质检用户还没定）。
-import { ref, reactive, computed, onMounted } from 'vue';
+// 两条线共用这一张单（2026-10-29 用户定）：
+//   · 退回去换新的（REPLACE）→ 只从不良品仓扣货，采购单到货量和应付都不动，钱照付；
+//   · 退掉不要了（REFUND）→ 连采购到货量和应付红字一起冲，必须挂采购单。
+// 实现上不是两套流程，差别只在过账生成的那张 PURCHASE_RETURN 出库单带不带采购单号。
+//
+// 返修跟踪留着（这页本来的主角）：退出去多久、回来多少、还有几件在外面；
+// **2026-10-29 起登记返回会真的把货入回库**，不再是只改数字的台账。
+import { ref, reactive, computed, nextTick, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -17,10 +21,14 @@ import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import MesSupplierReturnPrintSheet from 'dashboard/components-next/mes/MesSupplierReturnPrintSheet.vue';
+import { printElement } from 'dashboard/helper/printHelper';
 
 const store = useMesSupplierReturnsStore();
 const { accountId } = useAccount();
@@ -73,10 +81,23 @@ const onFilter = value => {
 // 供应商、生产订单下拉
 const supplierOptions = ref([]);
 const orderOptions = ref([]);
+const warehouseOptions = ref([]);
+const purchaseOrderOptions = ref([]);
+const inboundEntryOptions = ref([]);
+// 退给供应商的货基本都先进了不良品仓，建单时默认指到那儿（名字匹配不上就不预设，
+// 不替用户瞎猜一个仓）。
+const defectWarehouseId = computed(() => {
+  const hit = warehouseOptions.value.find(w => w.label.includes('不良品'));
+  return hit ? String(hit.value) : '';
+});
+
 const loadOptions = async () => {
   const [suppliers, orders] = await Promise.all([
-    MesSupplierAPI.get({ per_page: 300 }).catch(() => null),
-    MesProductionOrderAPI.get({ per_page: 100 }).catch(() => null),
+    // 供应商实际 332 家，原来取 300 会漏掉 32 家（按 updated_at 排，老供应商先掉）。
+    // 500 是后端 per_page 的硬上限（SuppliersController#per_page_param），传更大也会被压到 500；
+    // 供应商总量稳定（不像客户上万），够用。真涨到 500 以上要改成远程搜索。
+    MesSupplierAPI.get({ per_page: 500 }).catch(() => null),
+    MesProductionOrderAPI.get({ per_page: 500 }).catch(() => null),
   ]);
   supplierOptions.value = (suppliers?.data?.payload || []).map(s => ({
     value: s.id,
@@ -88,12 +109,68 @@ const loadOptions = async () => {
   }));
 };
 
+// 仓库 / 采购单 / 原料入库单——后两样是用户点名要的「关联单号」。
+// ⚠️ 裸 axios 拿到的是 snake_case，别和走 store 的驼峰混用。
+const loadRefs = async () => {
+  const api = path =>
+    axios
+      .get(`/api/v1/accounts/${accountId.value}/mes/${path}`)
+      .catch(() => null);
+  // 来源单据两种都要：原料入库单（货当初是哪张单收的）+ 车间的生产退料单
+  // （不良品是哪张退料单退进不良品仓的）。两者回答的是同一个问题「这批货哪来的」，
+  // 所以共用 source_stock_entry_id 这一个外键，不另开字段。
+  const [wh, po, se, mr] = await Promise.all([
+    api('warehouses?per_page=100'),
+    api('purchase_orders?per_page=300'),
+    api('stock_entries?purpose=MATERIAL_RECEIPT&per_page=300'),
+    api('stock_entries?purpose=MATERIAL_RETURN&per_page=300'),
+  ]);
+  // value 统一用字符串：默认值（defectWarehouseId / backWarehouseId）也是字符串，
+  // 一边数字一边字符串 ComboBox 对不上，表现就是「默认仓没预选上」。
+  warehouseOptions.value = (wh?.data?.payload || []).map(w => ({
+    value: String(w.id),
+    label: w.name,
+  }));
+  purchaseOrderOptions.value = (po?.data?.payload || []).map(p => ({
+    value: String(p.id),
+    // 接口给的是 supplier_names（复数，一张采购单常含好几家）
+    label: `${p.po_no}${p.supplier_names ? ` · ${p.supplier_names}` : ''}`,
+  }));
+  inboundEntryOptions.value = [
+    ...(mr?.data?.payload || []).map(e => ({
+      value: String(e.id),
+      label: `${e.entry_no} · 车间退料${e.production_order_no ? `（${e.production_order_no}）` : ''}`,
+      note: e.product_name || '',
+    })),
+    ...(se?.data?.payload || []).map(e => ({
+      value: String(e.id),
+      label: `${e.entry_no} · 原料入库${e.purchase_order_no ? `（${e.purchase_order_no}）` : ''}`,
+      note: e.product_name || '',
+    })),
+  ];
+};
+
 // ── 新建 ──
 const formDialogRef = ref(null);
-const blankRow = () => ({ crmProductId: '', qty: '', unit: '', remark: '' });
+const blankRow = () => ({
+  crmProductId: '',
+  qty: '',
+  unit: '',
+  price: '',
+  remark: '',
+});
+// 退法：只扣库存 / 连采购应付一起冲（口径见后端 Mes::SupplierReturn::RETURN_KINDS）。
+const RETURN_KINDS = [
+  { value: 'REPLACE', label: '退换' },
+  { value: 'REFUND', label: '退货' },
+];
 const form = reactive({
   mesSupplierId: '',
   productionOrderId: '',
+  returnKind: 'REPLACE',
+  warehouseId: '',
+  purchaseOrderId: '',
+  sourceStockEntryId: '',
   reason: '',
   remark: '',
   rows: [blankRow()],
@@ -102,6 +179,9 @@ const productLabels = reactive({});
 const invalid = computed(
   () =>
     !form.mesSupplierId ||
+    !form.warehouseId ||
+    // 退掉不要了必须挂采购单，否则到货量和应付都冲不了（后端也校验，这里先拦住省一次往返）
+    (form.returnKind === 'REFUND' && !form.purchaseOrderId) ||
     !form.rows.some(r => r.crmProductId && Number(r.qty) > 0)
 );
 
@@ -109,6 +189,11 @@ const openCreate = () => {
   Object.assign(form, {
     mesSupplierId: '',
     productionOrderId: '',
+    returnKind: 'REPLACE',
+    // 退给供应商的货基本都先进了不良品仓，默认就指到那儿，省得每次翻 15 个仓。
+    warehouseId: defectWarehouseId.value,
+    purchaseOrderId: '',
+    sourceStockEntryId: '',
     reason: '',
     remark: '',
     rows: [blankRow()],
@@ -132,12 +217,18 @@ const submit = async () => {
       production_order_id: form.productionOrderId || null,
       reason: form.reason.trim() || null,
       remark: form.remark.trim() || null,
+      return_kind: form.returnKind,
+      warehouse_id: Number(form.warehouseId),
+      mes_purchase_order_id: form.purchaseOrderId || null,
+      source_stock_entry_id: form.sourceStockEntryId || null,
       items_attributes: form.rows
         .filter(r => r.crmProductId && Number(r.qty) > 0)
         .map(r => ({
           crm_product_id: r.crmProductId,
           qty: Number(r.qty),
           unit: r.unit || null,
+          // 价格界面按元填，库里存 micros（全站金额统一口径）
+          unit_price_micros: Math.round((Number(r.price) || 0) * 1e6),
           remark: r.remark || null,
         })),
     });
@@ -164,9 +255,13 @@ const backDialogRef = ref(null);
 const backing = ref(null);
 const backRows = ref([]);
 const backDate = ref('');
+const backWarehouseId = ref('');
 const openReceive = record => {
   backing.value = record;
   backDate.value = new Date().toISOString().slice(0, 10);
+  // 换回来的是好货，默认进原料仓；匹配不上就回退料那个仓，不替用户瞎猜。
+  const raw = warehouseOptions.value.find(w => w.label.includes('原料'));
+  backWarehouseId.value = String(raw?.value || record.warehouseId || '');
   backRows.value = (record.items || []).map(it => ({
     id: it.id,
     label: `${it.productSku || ''} ${it.productName || ''}`.trim() || '—',
@@ -181,8 +276,13 @@ const submitReceive = async () => {
     .map(r => ({ id: r.id, returned_qty: Number(r.qty) }));
   if (!rows.length) return;
   try {
-    await store.receiveBack(backing.value.id, rows, backDate.value);
-    useAlert(`${backing.value.returnNo} 已登记返回`);
+    await store.receiveBack(
+      backing.value.id,
+      rows,
+      backDate.value,
+      Number(backWarehouseId.value) || null
+    );
+    useAlert(`${backing.value.returnNo} 已登记返回，货已入库`);
     backDialogRef.value?.close();
   } catch (error) {
     useAlert(error?.message || '登记失败');
@@ -201,9 +301,37 @@ const removeRecord = async record => {
   }
 };
 
+// ── 打印 ──
+// 供应商那边要一张纸跟着货走（退了什么、多少钱、对应哪张采购单），仓管和财务各留一份。
+const printing = ref(null);
+const printSheetRef = ref(null);
+const printRows = computed(() =>
+  (printing.value?.items || []).map(it => ({
+    materialNo: it.productSku,
+    name: it.productName,
+    spec: it.specification,
+    qty: it.qty,
+    unit: it.unit,
+    price: (it.unitPriceMicros || 0) / 1e6,
+    amount: (it.amountMicros || 0) / 1e6,
+    remark: it.remark,
+  }))
+);
+const printReturn = async record => {
+  printing.value = record;
+  // 等票面渲染出来再克隆去打印，否则印出来是空的。
+  await nextTick();
+  printElement(
+    printSheetRef.value?.$el || printSheetRef.value,
+    `采购退料单 ${record.returnNo || ''}`,
+    { page: '@page{size:A4;margin:12mm}', brandHeader: false }
+  );
+};
+
 onMounted(() => {
   fetchList();
   loadOptions();
+  loadRefs();
 });
 </script>
 
@@ -212,7 +340,7 @@ onMounted(() => {
     <div
       class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12">退料返修</h1>
+      <h1 class="text-xl font-semibold text-n-slate-12">采购退料</h1>
       <Button
         v-if="canWrite"
         label="新建退料单"
@@ -243,27 +371,39 @@ onMounted(() => {
         <Input
           v-model="searchQuery"
           size="sm"
-          placeholder="搜单号 / 退料原因"
+          placeholder="搜索单号、原因"
           @keyup.enter="onPage(1)"
         />
       </div>
     </div>
 
+    <HScrollButtons />
     <div
       class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
     >
-      <table class="w-full text-sm">
+      <!-- 宽表写法同采购单/原料入库/销售出库：表格按内容撑开、容器横滚，
+           单元格一律 nowrap，自由文本 truncate，表头 sticky、操作列右侧冻结。
+           写成 w-full 的话 11 列会被压进容器宽度，中文没空格只能逐字折行——
+           供应商名会变成竖着排的一列字，一行撑到 300px 高。 -->
+      <!-- w-max：按内容撑开，中文才不会被逐字折行（写 w-full 的话供应商名会竖着排一列字）。
+           min-w-full：至少铺满容器，别在数据少时缩成窄窄一条。
+           没有冻结列：砍掉两列空列后 9 列装得下，而冻结在「只溢出几十像素」时
+           反而会被 sticky 往左拉、盖掉相邻列（实测盖了状态列 54px）。 -->
+      <table class="w-max min-w-full text-sm">
         <thead class="text-xs text-n-slate-11">
-          <tr class="border-b border-n-weak">
+          <tr
+            class="border-b border-n-weak [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:whitespace-nowrap"
+          >
             <th class="px-3 py-2 font-medium text-left">单号</th>
             <th class="px-3 py-2 font-medium text-left">供应商</th>
-            <th class="px-3 py-2 font-medium text-left">生产订单</th>
+            <th class="px-3 py-2 font-medium text-left">退料方式</th>
+            <th class="px-3 py-2 font-medium text-left">关联单号</th>
             <th class="px-3 py-2 font-medium text-left">退料原因</th>
             <th class="px-3 py-2 font-medium text-left">退出</th>
             <th class="px-3 py-2 font-medium text-left">返回</th>
             <th class="px-3 py-2 font-medium text-right">在外天数</th>
             <th class="px-3 py-2 font-medium text-left">状态</th>
-            <th class="px-3 py-2" />
+            <th class="px-3 py-2 font-medium text-right">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -275,13 +415,42 @@ onMounted(() => {
             <td class="px-3 py-2 whitespace-nowrap text-n-slate-12">
               {{ r.returnNo }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11">
+            <td
+              class="px-3 py-2 max-w-[13rem] truncate text-n-slate-11"
+              :title="r.supplierName"
+            >
               {{ r.supplierName || '—' }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
-              {{ r.productionOrderNo || '—' }}
+            <!-- 换新的 / 不要了。财务看这一列就知道这笔钱该不该收回来。 -->
+            <td class="px-3 py-2 whitespace-nowrap">
+              <span
+                :class="
+                  r.returnKind === 'REFUND'
+                    ? 'text-n-ruby-11'
+                    : 'text-n-slate-11'
+                "
+              >
+                {{ r.returnKind === 'REFUND' ? '退货' : '退换' }}
+              </span>
             </td>
-            <td class="px-3 py-2 max-w-[16rem] truncate text-n-slate-11">
+            <!-- 关联单号：采购单 / 收这批货的入库单 / 退出去生成的出库单 -->
+            <td
+              class="px-3 py-2 text-xs leading-5 whitespace-nowrap text-n-slate-11"
+            >
+              <div v-if="r.purchaseOrderNo">采购 {{ r.purchaseOrderNo }}</div>
+              <div v-if="r.sourceEntryNo">
+                {{
+                  r.sourceEntryKind === 'MATERIAL_RETURN' ? '车间退料' : '入库'
+                }}
+                {{ r.sourceEntryNo }}
+              </div>
+              <div v-if="r.outEntryNo">出库 {{ r.outEntryNo }}</div>
+              <span v-if="!r.purchaseOrderNo && !r.outEntryNo">—</span>
+            </td>
+            <td
+              class="px-3 py-2 max-w-[14rem] truncate whitespace-nowrap text-n-slate-11"
+              :title="r.reason"
+            >
               {{ r.reason || '—' }}
             </td>
             <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
@@ -297,7 +466,7 @@ onMounted(() => {
             >
               {{ r.daysOut == null ? '—' : `${r.daysOut} 天` }}
             </td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2 whitespace-nowrap">
               <span
                 class="inline-block px-2 py-0.5 text-xs rounded whitespace-nowrap"
                 :class="STATUS_CLASS[r.status]"
@@ -306,7 +475,9 @@ onMounted(() => {
               </span>
             </td>
             <td class="px-3 py-2">
-              <div class="flex items-center justify-end gap-1">
+              <div
+                class="flex items-center justify-end gap-1 whitespace-nowrap"
+              >
                 <Button
                   v-if="canWrite && !r.sentOn"
                   label="退出"
@@ -315,13 +486,26 @@ onMounted(() => {
                   :is-loading="saving"
                   @click="sendOut(r)"
                 />
+                <!-- 「退掉不要了」的货不会回来，这个按钮对它没意义（后端也拦） -->
                 <Button
-                  v-if="canWrite && r.sentOn && r.status !== 'RETURNED'"
+                  v-if="
+                    canWrite &&
+                    r.sentOn &&
+                    r.status !== 'RETURNED' &&
+                    r.returnKind !== 'REFUND'
+                  "
                   label="登记返回"
                   variant="faded"
                   color="slate"
                   size="xs"
                   @click="openReceive(r)"
+                />
+                <Button
+                  label="打印"
+                  variant="ghost"
+                  color="slate"
+                  size="xs"
+                  @click="printReturn(r)"
                 />
                 <button
                   v-if="canWrite && !r.sentOn"
@@ -335,7 +519,7 @@ onMounted(() => {
           </tr>
           <tr v-if="!records.length && !isFetching">
             <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-              还没有退料单。
+              暂无退料单
             </td>
           </tr>
         </tbody>
@@ -364,30 +548,67 @@ onMounted(() => {
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1">
             <label class="text-label text-n-slate-12">
-              退给哪家供应商 <span class="text-n-ruby-11">*</span>
+              供应商 <span class="text-n-ruby-11">*</span>
             </label>
             <ComboBox
               v-model="form.mesSupplierId"
               :options="supplierOptions"
-              placeholder="选供应商"
+              placeholder="选择"
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-label text-n-slate-12">关联生产订单</label>
+            <label class="text-label text-n-slate-12">生产订单</label>
             <ComboBox
               v-model="form.productionOrderId"
               :options="orderOptions"
-              placeholder="选填"
+              placeholder="选择"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">
+              退料方式 <span class="text-n-ruby-11">*</span>
+            </label>
+            <SelectCard
+              v-model="form.returnKind"
+              :options="RETURN_KINDS"
+              block
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">
+              退料仓库 <span class="text-n-ruby-11">*</span>
+            </label>
+            <ComboBox
+              v-model="form.warehouseId"
+              :options="warehouseOptions"
+              placeholder="选择"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">
+              采购单
+              <span v-if="form.returnKind === 'REFUND'" class="text-n-ruby-11">
+                *
+              </span>
+            </label>
+            <ComboBox
+              v-model="form.purchaseOrderId"
+              :options="purchaseOrderOptions"
+              placeholder="选择"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">来源单据</label>
+            <ComboBox
+              v-model="form.sourceStockEntryId"
+              :options="inboundEntryOptions"
+              placeholder="选择"
             />
           </div>
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-label text-n-slate-12">退料原因</label>
-          <Input
-            v-model="form.reason"
-            size="sm"
-            placeholder="例：屏幕显示不良，退回返修"
-          />
+          <Input v-model="form.reason" size="sm" />
         </div>
 
         <div class="flex items-center justify-between">
@@ -415,7 +636,7 @@ onMounted(() => {
               :account-id="accountId"
               :model-value="row.crmProductId"
               :display-text="productLabels[row.crmProductId] || ''"
-              placeholder="选物料（编码/名称/规格）"
+              placeholder="选择"
               @update:model-value="v => (row.crmProductId = v)"
               @select="pd => onProductPicked(row, pd)"
             />
@@ -431,6 +652,14 @@ onMounted(() => {
           <div class="w-20 shrink-0">
             <Input v-model="row.unit" size="sm" placeholder="单位" />
           </div>
+          <div class="w-24 shrink-0">
+            <Input
+              v-model="row.price"
+              size="sm"
+              type="number"
+              placeholder="单价"
+            />
+          </div>
           <button
             type="button"
             class="shrink-0 i-lucide-x size-4 text-n-slate-10 hover:text-n-ruby-11"
@@ -441,7 +670,7 @@ onMounted(() => {
 
         <div class="flex flex-col gap-1">
           <label class="text-label text-n-slate-12">备注</label>
-          <Input v-model="form.remark" size="sm" placeholder="选填" />
+          <Input v-model="form.remark" size="sm" />
         </div>
       </div>
     </Dialog>
@@ -450,15 +679,23 @@ onMounted(() => {
     <Dialog
       ref="backDialogRef"
       width="xl"
-      title="登记返修回来"
+      title="登记返回"
       confirm-button-label="确认"
       @confirm="submitReceive"
     >
       <div class="flex flex-col gap-3">
-        <div class="flex items-center gap-2">
-          <span class="text-label text-n-slate-12">回来的日期</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-label text-n-slate-12">返回日期</span>
           <div class="w-44">
             <DatePicker v-model="backDate" />
+          </div>
+          <span class="ml-2 text-label text-n-slate-12">入库仓库</span>
+          <div class="w-48">
+            <ComboBox
+              v-model="backWarehouseId"
+              :options="warehouseOptions"
+              placeholder="选择"
+            />
           </div>
         </div>
         <div
@@ -486,5 +723,18 @@ onMounted(() => {
         </p>
       </div>
     </Dialog>
+
+    <!-- 退料单票面：只在打印时用，平时不占版面（printElement 克隆它去打印）。 -->
+    <div
+      v-if="printing"
+      aria-hidden="true"
+      class="fixed -left-[9999px] top-0 w-[760px]"
+    >
+      <MesSupplierReturnPrintSheet
+        ref="printSheetRef"
+        :record="printing"
+        :items="printRows"
+      />
+    </div>
   </div>
 </template>

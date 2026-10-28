@@ -1,5 +1,4 @@
 <script setup>
-/* global axios */
 import {
   ref,
   computed,
@@ -36,7 +35,15 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
-const { accountId, accountScopedRoute } = useAccount();
+const { accountScopedRoute } = useAccount();
+
+// 产成品代码填了、却没挂上产品档案（crm_product_id 为空）。
+//
+// 这不是显示问题，是**这张 BOM 在成本归集和齐套判定里认不出来**——那两处都按
+// crm_product_id 找料。生产上 68 张 BOM 有 5 张这样，其中 3 张编码在档案里明明有
+// （只是没挂上），1 张是把点号打成了逗号（C,BB.320.010），1 张档案里确实没有。
+// 所以标红让人一眼看见，不硬拦——真没建档的 BOM 也得能先存着。
+const unlinkedCode = b => Boolean(b.productCode) && !b.crmProductId;
 const router = useRouter();
 const route = useRoute();
 const rootStore = useStore();
@@ -426,8 +433,6 @@ const LEAD_STAGES = [
   { key: 'fgInboundDays', label: '成品入库' },
 ];
 
-const products = ref([]);
-
 // —— 用料明细：物料从产品档案「金蝶式表格下拉」选择（MesProductPicker），
 // 选中回填该行的编码/名称/规格/单位。 ——
 
@@ -714,14 +719,6 @@ watch(currentPage, load);
 onMounted(async () => {
   load();
   if (!agents.value?.length) rootStore.dispatch('agents/get');
-  try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/products`
-    );
-    products.value = data?.payload || data || [];
-  } catch {
-    products.value = [];
-  }
   // 从生产订单页「去建 BOM」跳来：自动打开新建 BOM 并预关联该订单。
   // 从生产订单页「去建 BOM」跳来：直接转到建档页，参数原样带过去。
   if (route.query.new_for_order) {
@@ -1019,8 +1016,21 @@ onMounted(async () => {
                     </div>
                     <div
                       v-if="b.productCode || b.customerName"
-                      class="text-xs text-n-slate-10"
+                      class="text-xs"
+                      :class="
+                        unlinkedCode(b) ? 'text-n-ruby-11' : 'text-n-slate-10'
+                      "
+                      :title="
+                        unlinkedCode(b)
+                          ? '这个产成品代码没挂上产品档案，成本归集和齐套判定会认不出这张 BOM'
+                          : ''
+                      "
                     >
+                      <span
+                        v-if="unlinkedCode(b)"
+                        aria-hidden="true"
+                        class="i-lucide-triangle-alert size-3 shrink-0 align-[-1px] mr-0.5"
+                      />
                       {{
                         [b.productCode, b.customerName]
                           .filter(Boolean)

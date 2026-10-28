@@ -37,8 +37,24 @@ class Crm::Agent::Runner
   def run(question)
     @started_at = Time.current
     @chat = build_chat(scope)
-    answer = ask_streaming(@chat, question)
+    answer = ask_streaming(@chat, with_plan_nudge(question))
     record_assistant(answer.presence || '（没有返回内容，请换个说法再问一次）')
+  end
+
+  # 「一句话要办好几件事」的两个硬信号：有数量词（3 个 / 两封 / 几家），
+  # 并且有分配词（各 / 分别 / 每 / 逐个 / 挨个 / 批量）。两个都有才算，
+  # 单看「都」会把「这个功能都在哪」也算进去。
+  COUNT_RE = /[0-9０-９两三四五六七八九十几]+\s*(个|家|封|张|位|条|份|单|票)/
+  SPREAD_RE = /各|分别|每(个|家|封|位|一)|逐个|挨个|批量|一一/
+  # 光写进系统提示词不够用：实测同一句话有时列计划有时不列（模型自由裁量）。
+  # 命中就把这句话直接贴在用户那句后面，变成这一轮的明确指令——
+  # 「先列计划」这件事的价值全在它每次都发生，十次里有五次等于没有。
+  PLAN_NUDGE = "\n\n（系统提示：这句话要办的不止一件事。**第一个动作先调 plan 把步骤列出来**，再开始做。）".freeze
+
+  def with_plan_nudge(question)
+    return question unless question.match?(COUNT_RE) && question.match?(SPREAD_RE)
+
+    "#{question}#{PLAN_NUDGE}"
   end
 
   # 用量：整轮合计（含中间几次工具调用的来回），挂在 assistant 那条上。
@@ -125,6 +141,8 @@ class Crm::Agent::Runner
   end
 
   TOOL_CLASSES = [
+    # 先列计划再动手：多步任务摆给用户看，也给模型自己一张清单（见 Tools::Plan）。
+    Crm::Agent::Tools::Plan,
     Crm::Agent::Tools::FindCustomer, Crm::Agent::Tools::CustomerProfile,
     Crm::Agent::Tools::CustomerEmails, Crm::Agent::Tools::SearchProducts,
     Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
@@ -208,7 +226,10 @@ class Crm::Agent::Runner
     'product_docs' => '翻产品资料', 'log_follow_up' => '记跟进记录',
     'create_customer' => '建客户档案', 'draft_quote' => '建报价单草稿',
     'create_opportunity' => '建商机', 'read_attachment' => '读邮件附件',
-    'diagnose_document' => '诊断这张单卡在哪', 'report_issue' => '把问题提交给管理员'
+    'diagnose_document' => '诊断这张单卡在哪', 'report_issue' => '把问题提交给管理员',
+    'plan' => '列执行计划', 'remember' => '记住这条口径', 'forget' => '忘掉这条口径',
+    'whatsapp_thread' => '翻 WhatsApp 往来', 'draft_whatsapp_reply' => '写 WhatsApp 回复草稿',
+    'draft_reply' => '写回复草稿'
   }.freeze
 
   def tool_label(call)

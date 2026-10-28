@@ -16,6 +16,12 @@ json.status_label Erp::Payable::STATUS_LABELS[resource.status]
 json.due_date resource.due_date
 json.settle_type resource.settle_type
 json.settle_type_label Erp::Payable::SETTLE_TYPE_LABELS[resource.settle_type]
+# 公司主体：这张单是以联合触控还是联迪的名义下的。财务凭它判断含不含税
+# （联合＝未税采购订单，联迪＝含税采购合同），光看结算方式说不全。
+# 取供应商档案上的 bill_entity——应付台账一条就是「一张采购单 × 一家供应商」，
+# 采购单那边的抬头本来也是按每家供应商各自的档案选的，没有第二个来源。
+json.bill_entity resource.mes_supplier&.bill_entity
+json.bill_entity_label resource.mes_supplier&.bill_entity_label
 # 发生日期＝货到那天。没入库过的单回落到建账日——与台账筛选、按月未付用的是同一个口径
 # （控制器 INCURRED_ON_SQL），不然按日期筛出来的行，这一列却是空的。
 json.incurred_on(resource.incurred_on || resource.created_at.to_date)

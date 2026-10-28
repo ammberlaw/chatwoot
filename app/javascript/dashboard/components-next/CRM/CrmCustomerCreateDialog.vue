@@ -455,7 +455,7 @@ defineExpose({ dialogRef, onSuccess, open });
           <input
             v-model="ct.phone"
             class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-2"
-            placeholder="电话（选填）"
+            placeholder="电话"
           />
           <button
             type="button"

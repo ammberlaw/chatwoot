@@ -8,6 +8,7 @@
 #  remark             :text
 #  returned_qty       :decimal(14, 3)   default(0.0), not null
 #  unit               :string
+#  unit_price_micros  :bigint           default(0), not null
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
 #  account_id         :bigint           not null

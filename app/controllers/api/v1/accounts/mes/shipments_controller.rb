@@ -21,7 +21,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     # 不预加载就是每行七八条查询。
     @shipments = scope.includes(:crm_customer, :warehouse, :owner, :manager, { production_order: :owner },
                                 { crm_sales_order: [:owner, :crm_customer] }, { shipment_items: :crm_product })
-                      .order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                      .order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
     # with_receivable=1：财务的「出库审核」清单要在列表上直接看到「款收齐没有」，
     # 否则得逐张点开。只在这个场景开，普通列表不算——逐行跑回款进度是 N+1。
     @with_receivable = params[:with_receivable].present?

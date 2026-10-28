@@ -156,12 +156,21 @@ const resetForm = () => {
   removedIds.value = [];
 };
 
-const loadCustomers = async () => {
+// ⚠️ 固定取 200 条等于「最近更新的 200 个」（后端默认 updated_at desc）。
+// 生产上单人名下最多 1427 个客户，老客户掉出前 200 就彻底选不到——
+// 和销售订单那个「非私海」是同一个坑（2026-10-28）。带关键词去后端查。
+const loadCustomers = async (keyword = '') => {
   loadingCustomers.value = true;
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/customers`,
-      { params: { filter: 'mine_shared', per_page: 200 } }
+      {
+        params: {
+          filter: 'mine_shared',
+          per_page: 200,
+          ...(keyword ? { q: keyword } : {}),
+        },
+      }
     );
     customers.value = (data.payload || []).map(c => ({
       id: c.id,
@@ -172,6 +181,12 @@ const loadCustomers = async () => {
   } finally {
     loadingCustomers.value = false;
   }
+};
+
+let customerSearchTimer = null;
+const onCustomerSearch = keyword => {
+  clearTimeout(customerSearchTimer);
+  customerSearchTimer = setTimeout(() => loadCustomers(keyword.trim()), 300);
 };
 
 // 选中客户后带出币种，并在名称为空时预填「报价单-客户名」。
@@ -312,7 +327,6 @@ defineExpose({ dialogRef, open });
     overflow-y-auto
     confirm-button-color="iris"
     :title="isEditing ? '编辑报价' : '新建报价'"
-    description="填写报价基本信息与明细，合计将自动计算。"
     :is-loading="isLoading || saving"
     :disable-confirm-button="isFormInvalid"
     @confirm="handleConfirm"
@@ -358,6 +372,7 @@ defineExpose({ dialogRef, open });
             :placeholder="loadingCustomers ? '加载中…' : '选择客户'"
             search-placeholder="搜索客户"
             empty-state="无匹配客户"
+            @search="onCustomerSearch"
             @update:model-value="onCustomerChange"
           />
         </div>

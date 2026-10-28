@@ -191,7 +191,7 @@ class Mes::ShipmentDiagnosis
   end
 
   def warehouse_ids
-    @account.mes_board_owners.find_by(board_key: Mes::Shipment::SHIPMENTS_BOARD_KEY)&.manager_ids || []
+    Mes::BoardOwner.notify_ids(@account, Mes::Shipment::SHIPMENTS_BOARD_KEY, @s.product_line)
   end
 
   # 该收到通知的人到底收到没有。查不到且**那会儿这类通知已经能发了**才算系统的问题；

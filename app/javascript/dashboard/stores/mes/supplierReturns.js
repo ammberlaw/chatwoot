@@ -27,10 +27,10 @@ export const useMesSupplierReturnsStore = buildCrmStore({
         this.setUIFlag({ updatingItem: false });
       }
     },
-    async receiveBack(id, rows, returnedOn) {
+    async receiveBack(id, rows, returnedOn, warehouseId) {
       this.setUIFlag({ updatingItem: true });
       try {
-        const { data } = await API.receiveBack(id, rows, returnedOn);
+        const { data } = await API.receiveBack(id, rows, returnedOn, warehouseId);
         const record = camelcaseKeys(data || {}, { deep: true });
         replaceIn(this.records, record);
         return record;

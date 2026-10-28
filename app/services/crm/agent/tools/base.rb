@@ -52,6 +52,30 @@ class Crm::Agent::Tools::Base < RubyLLM::Tool
 
   def day(value) = value&.to_date&.to_s || '—'
 
+  # 建完单自己验一遍（「发出前体检」那套，Crm::DocHealthCheck）。
+  #
+  # 原来建完只说一句「去核对一下」，等于把检查推回给人——而体检这件事
+  # 系统本来就会做，还比人做得全（行金额、合计、币种、价格偏离、必填条款）。
+  # 现在把结果接在建单回执后面，模型照着念出来，用户点进去之前就知道哪儿不对。
+  #
+  # 体检不通过**不回滚**：草稿本来就是让人改的，建出来再告诉他缺什么，
+  # 比因为少填一个港口就整单失败、让他重说一遍要求强得多。
+  def self_check(findings)
+    return "自检通过：行金额、合计、币种、价格区间都对得上。\n" if findings.blank?
+
+    warns = findings.select { |f| f.level == 'warn' }
+    infos = findings - warns
+    out = "自检发现 #{warns.size} 处要改"
+    out << "、#{infos.size} 处可以先不管" if infos.any?
+    out << "（**必须原样念给用户**，不要自己判断「问题不大」就略过）：\n"
+    findings.each { |f| out << "· #{f.level == 'warn' ? '要改' : '提示'}｜#{f.title}#{detail_of(f)}\n" }
+    out
+  end
+
+  def detail_of(finding)
+    finding.detail.present? ? "：#{finding.detail}" : ''
+  end
+
   # 数量去掉没意义的小数尾巴：「500.000 个」读起来像个报错。
   def fnum(value)
     d = value.to_d

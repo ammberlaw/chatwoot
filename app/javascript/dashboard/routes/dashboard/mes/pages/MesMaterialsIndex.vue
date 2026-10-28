@@ -239,7 +239,7 @@ onMounted(() => {
           <ComboBox
             v-model="form.defaultSupplierId"
             :options="supplierOptions"
-            placeholder="选择供应商（可选）"
+            placeholder="选择供应商"
           />
         </div>
         <div class="flex flex-col gap-1">

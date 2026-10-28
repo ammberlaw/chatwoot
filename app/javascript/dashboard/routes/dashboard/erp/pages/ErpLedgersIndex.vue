@@ -380,7 +380,7 @@ onMounted(async () => {
           <ComboBox
             v-model="entryAccountId"
             :options="accountOptions"
-            placeholder="选科目（分类科目含下级）"
+            placeholder="选择科目"
             @update:model-value="loadEntries"
           />
         </div>
@@ -398,7 +398,7 @@ onMounted(async () => {
           <ComboBox
             v-model="dimensionAccountId"
             :options="leafAccountOptions"
-            placeholder="限定科目（可不选）"
+            placeholder="限定科目"
             @update:model-value="loadDimensions"
           />
         </div>

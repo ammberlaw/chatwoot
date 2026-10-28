@@ -392,7 +392,7 @@ const submitReject = async () => {
           </label>
           <Input
             v-model="approveNote"
-            placeholder="例：老客户赊账，已报老板同意；或 尾款已汇在途"
+            placeholder="放行理由"
           />
         </div>
         <p v-else class="text-sm text-n-teal-11">款已收齐，可以放行。</p>

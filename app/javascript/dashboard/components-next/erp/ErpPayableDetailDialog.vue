@@ -125,6 +125,12 @@ defineExpose({ open, close });
           <span class="text-xs text-n-slate-11">结算</span>
           <span>{{ detail.payable.settle_type_label }}</span>
         </div>
+        <!-- 公司主体紧挨着结算摆：财务看含税/未税时，要连带看出这是谁名下的单
+             （联合触控＝未税采购订单，联迪＝含税采购合同）。 -->
+        <div class="flex flex-col">
+          <span class="text-xs text-n-slate-11">公司主体</span>
+          <span>{{ detail.payable.bill_entity_label || '—' }}</span>
+        </div>
         <div class="flex flex-col">
           <span class="text-xs text-n-slate-11">发生日期</span>
           <span>{{ day(detail.payable.incurred_on) }}</span>

@@ -11,4 +11,13 @@ json.messages conversation.messages do |message|
   json.content message.content
   json.meta message.meta
   json.created_at message.created_at
+  # 发出去的图/文件也要在记录里看得见：不回显的话发完就只剩一句话，
+  # 翻回去根本看不出当时甩的是哪张图、哪份 PI。
+  if message.attachment.attached?
+    json.attachment do
+      json.name message.attachment.filename.to_s
+      json.content_type message.attachment.content_type
+      json.url url_for(message.attachment)
+    end
+  end
 end

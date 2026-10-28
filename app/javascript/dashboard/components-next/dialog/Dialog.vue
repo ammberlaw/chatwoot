@@ -59,6 +59,7 @@ const props = defineProps({
     default: 'lg',
     validator: value =>
       [
+        'full',
         '7xl',
         '6xl',
         '5xl',
@@ -110,6 +111,9 @@ const isOpen = ref(false);
 
 const maxWidthClass = computed(() => {
   const classesMap = {
+    // full 给列特别多的单据详情：采购单明细 16 列，7xl(80rem) 还是挤成一团。
+    // 按视口走并留 4rem 边距，大屏上真正铺开，小屏也不会顶到边。
+    full: 'max-w-[calc(100vw-4rem)]',
     // 7xl 给列多的单据详情（入库单带规格/供应商/单价/金额，5xl 挤不下）
     '7xl': 'max-w-7xl',
     '6xl': 'max-w-6xl',

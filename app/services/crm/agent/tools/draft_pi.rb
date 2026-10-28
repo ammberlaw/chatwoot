@@ -36,6 +36,7 @@ class Crm::Agent::Tools::DraftPi < Crm::Agent::Tools::Base
       明细（金额都已算好，回答时照抄，别自己再乘一遍）：
       #{lines.join("\n")}
       合计 #{money(invoice.total_amount_micros, invoice.currency)}
+      #{self_check(Crm::DocHealthCheck.for_pi(invoice))}
       最后提醒用户到「PI 形式发票」里核对价格和条款，确认后再导出发送。
     TEXT
   end

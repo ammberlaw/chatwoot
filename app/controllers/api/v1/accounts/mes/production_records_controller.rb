@@ -8,7 +8,7 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     scope = apply_search(scope, params[:q])
     @production_records_count = scope.count
-    @production_records = scope.order(recorded_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @production_records = scope.order(recorded_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def create

@@ -75,7 +75,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def approval_inbox
     scope = Current.account.mes_purchase_orders.awaiting_gm_for(current_user.id)
     @purchase_orders_count = scope.count
-    @purchase_orders = scope.order(submitted_at: :asc, id: :asc).page(page_param).per(RESULTS_PER_PAGE)
+    @purchase_orders = scope.order(submitted_at: :asc, id: :asc).page(page_param).per(per_page_param)
     render 'api/v1/accounts/mes/purchase_orders/index'
   end
 
@@ -190,12 +190,6 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   # 每页条数：默认沿用 RESULTS_PER_PAGE(15) 供列表分页；调用方（如入库单的采购单下拉）
   # 需要一次性拿到全部采购单时可传 per_page，封顶 500 防止拉全表。
-  MAX_PER_PAGE = 500
-  def per_page_param
-    n = params[:per_page].to_i
-    n = RESULTS_PER_PAGE if n <= 0
-    [n, MAX_PER_PAGE].min
-  end
 
   # 采购单搜索：单号 / 归属人(采购制单人 + 生产订单归属业务员) / 生产订单(单号+品名) /
   # 供应商 / 物料编码(产品SKU/物料料号)。明细维度用 EXISTS 子查询（避免 join 造成行重复、count 失真）。

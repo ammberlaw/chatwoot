@@ -153,6 +153,7 @@ class Mes::StockEntry < ApplicationRecord
   before_create :stamp_pending_approval
   before_update :reopen_approval_on_edit
   after_create :notify_warehouse_count_pending
+  after_create :notify_material_return_pending
 
   scope :posted, -> { where(status: 'POSTED') }
 
@@ -171,10 +172,18 @@ class Mes::StockEntry < ApplicationRecord
     'MATERIAL_RECEIPT' => '原料入库单',
     'MATERIAL_ISSUE' => '生产领料单',
     'MANUFACTURE' => '成品入库单',
-    'PURCHASE_RETURN' => '采购退货单'
+    'PURCHASE_RETURN' => '采购退货单',
+    'MATERIAL_RETURN' => '生产退料单'
   }.freeze
 
-  def document_board_key = RETURN_BOARD_BY_PURPOSE[purpose] || 'mes_stock_entries_index'
+  # 单据归谁管（判谁能开/改/过账）。与上面的退回链路分开写：
+  # 生产退料跟生产领料是同一拨人（车间开单、仓管收料），但它不参与「退回上游」那套流程——
+  # 料都退回仓库了，再把单据退回上游没有意义。
+  BOARD_BY_PURPOSE = RETURN_BOARD_BY_PURPOSE.merge(
+    'MATERIAL_RETURN' => 'mes_material_issues_index'
+  ).freeze
+
+  def document_board_key = BOARD_BY_PURPOSE[purpose] || 'mes_stock_entries_index'
 
   # 这个人能不能开 / 改 / 过账这张单。
   #
@@ -311,8 +320,7 @@ class Mes::StockEntry < ApplicationRecord
       complete_production_order_if_shipped(ts)
       sync_erp_stock_cost
     end
-    # 采购入库/退货出应付凭证（借 存货科目 / 贷 应付账款，退货红字）。放事务外同出库单。
-    generate_erp_receipt_voucher
+    settle_after_post
     # 应付台账不在这里起账了（2026-10-21）：财务定的流程是**先跟供应商对账、对好了再建账**，
     # 收货即建账会把还没核对的数字先摆进欠款里。这一笔现在进应付管理的「待对账」清单
     # （Erp::LedgerBuilderService#pending_reconciliation 按已过账收货实时算），
@@ -485,11 +493,41 @@ class Mes::StockEntry < ApplicationRecord
   def notify_warehouse_count_pending
     return unless dual_confirm_required?
 
-    recipients = account.mes_board_owners.find_by(board_key: 'mes_fg_inbound_index')&.manager_ids || []
+    recipients = Mes::BoardOwner.notify_ids(account, 'mes_fg_inbound_index', product_line)
     Mes::Notifier.notify(
       account: account, recipients: recipients, kind: 'fg_count_pending',
       title: "成品入库待仓库清点：#{entry_no}",
       body: "#{owner&.name || '车间'}已开成品入库单#{production_order ? "（#{production_order.order_no}）" : ''}，请仓库清点数量确认入库。",
+      order: production_order
+    )
+  end
+
+  # 过账之后、事务之外要办的两件事：办结待办 + 出凭证。
+  # 都不属于库存原子性，塞进 with_lock 只会把 post! 撑长。
+  def settle_after_post
+    # 收完料就把那条「待收料」办结，不然过完账还挂在仓管待办里。
+    Mes::Notifier.resolve(account: account, kinds: 'material_return_pending', title_like: entry_no)
+    # 采购入库/退货出应付凭证（借 存货科目 / 贷 应付账款，退货红字）。
+    generate_erp_receipt_voucher
+  end
+
+  # 车间开生产退料单后通知**原料仓管**去收料、过账。
+  #
+  # 不发的话这条流程是断的：车间开完是草稿，而过账按钮只给仓管（mesCan('stock')），
+  # 仓管又没有任何提示——料堆在车间，单子一直躺着没人动。
+  #
+  # 收件人取**原料入库板块**（mes_stock_entries_index）的负责人，不是领料板块：
+  # 退的是原料、回的是原料仓，收货的就是那拨人；而领料板块在平板线上配的是
+  # 杨义（生产岗），通知那块等于通知开单的人自己。
+  def notify_material_return_pending
+    return unless purpose == 'MATERIAL_RETURN'
+
+    recipients = Mes::BoardOwner.notify_ids(account, 'mes_stock_entries_index', product_line) - [owner_id]
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'material_return_pending',
+      title: "待收料：生产退料 #{entry_no}",
+      body: "#{owner&.name || '车间'}退回 #{stock_entry_items.size} 项物料" \
+            "#{production_order ? "（#{production_order.order_no}）" : ''}，请清点后过账。",
       order: production_order
     )
   end

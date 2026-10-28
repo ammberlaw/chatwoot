@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_28_130100) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_29_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3623,6 +3623,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_28_130100) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "unit_price_micros", default: 0, null: false
     t.index ["crm_product_id"], name: "index_mes_supplier_return_items_on_crm_product_id"
     t.index ["supplier_return_id"], name: "index_mes_supplier_return_items_on_supplier_return_id"
   end
@@ -3641,8 +3642,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_28_130100) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "return_kind", default: "REPLACE", null: false
+    t.bigint "warehouse_id"
+    t.bigint "mes_purchase_order_id"
+    t.bigint "source_stock_entry_id"
+    t.bigint "out_stock_entry_id"
+    t.datetime "posted_at"
+    t.index ["account_id", "return_kind"], name: "index_mes_supplier_returns_on_account_id_and_return_kind"
     t.index ["account_id", "return_no"], name: "index_mes_supplier_returns_on_account_id_and_return_no", unique: true
     t.index ["account_id", "status"], name: "index_mes_supplier_returns_on_account_id_and_status"
+    t.index ["mes_purchase_order_id"], name: "index_mes_supplier_returns_on_mes_purchase_order_id"
     t.index ["production_order_id"], name: "index_mes_supplier_returns_on_production_order_id"
   end
 

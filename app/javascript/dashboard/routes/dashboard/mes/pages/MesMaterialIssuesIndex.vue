@@ -20,6 +20,7 @@ import MesMaterialIssuePrintSheet from 'dashboard/components-next/mes/MesMateria
 import { printElement } from 'dashboard/helper/printHelper';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
@@ -28,11 +29,21 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
+const { isMyDoc } = useMesDocOwner();
 // 建领料单生产岗也能做：生产提领料、仓管过账发料——后端
 // Mes::StockEntryPolicy#create? 就是 `stock || report`，前端这里原来只判 stock，
 // 于是生产岗（能力只有 report/quality）在这页看不到任何按钮，后端却是放行的。
-// ⚠️ 这页其余按钮（过账/退单/作废删单）是仓储动作，后端只给 stock，别跟着一起放开。
+// ⚠️ 这页其余按钮（过账/退单）是仓储动作，后端只给 stock，别跟着一起放开。
 const canCreateIssue = computed(() => mesCan('stock') || mesCan('report'));
+
+// 删单/作废两档：
+// · 仓管：草稿硬删，已过账走「作废」冲销退库存。
+// · 生产岗：只能删**自己开的草稿**。开错一张要去求仓管删，车间等不起（2026-10-28 反馈）。
+//   口径和后端一致：ensure_can_delete! 卡制单人（owner_id 就是制单人），
+//   destroy 再挡住已过账的单——前端放宽一点就会出现「按钮点了吃 403」。
+const canRemoveIssue = e =>
+  e.status !== 'CANCELLED' &&
+  (mesCan('stock') || (e.status === 'DRAFT' && isMyDoc(e)));
 const warehousesStore = useMesWarehousesStore();
 
 const records = computed(() => store.getRecords);
@@ -486,7 +497,7 @@ onMounted(async () => {
                   @click.stop
                 />
                 <Button
-                  v-if="e.canOperate && e.status !== 'CANCELLED'"
+                  v-if="canRemoveIssue(e)"
                   :label="e.status === 'POSTED' ? '作废' : '删单'"
                   color="ruby"
                   variant="ghost"
@@ -563,7 +574,7 @@ onMounted(async () => {
                     :can-manage="mesCan('stock')"
                   />
                   <Button
-                    v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                    v-if="canRemoveIssue(e)"
                     :label="e.status === 'POSTED' ? '作废' : '删单'"
                     color="ruby"
                     variant="ghost"
@@ -600,7 +611,7 @@ onMounted(async () => {
       overflow-y-auto
       confirm-button-color="iris"
       :title="editId ? '编辑生产领料单' : '新建生产领料单'"
-      description="选生产订单「按生产任务单推料」自动带出用料，从原料仓领出；过账即扣减库存。"
+      description="过账后扣减原料仓库存"
       :is-loading="saving"
       :disable-confirm-button="invalid"
       :dirty="isDirty"
@@ -692,7 +703,7 @@ onMounted(async () => {
                   :account-id="accountId"
                   :model-value="row.crmProductId"
                   :display-text="productLabel(row.crmProductId)"
-                  placeholder="从产品档案搜索选料（编码/名称/规格）"
+                  placeholder="选择物料"
                   @update:model-value="v => (row.crmProductId = v)"
                   @select="onProductPicked"
                 />

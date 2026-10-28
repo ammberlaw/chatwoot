@@ -11,7 +11,7 @@ class Api::V1::Accounts::Mes::NotificationsController < Api::V1::Accounts::Mes::
     scope = scope.in_group(params[:group]) if params[:group].present?
     @unread_count = my_notifications.unread.count
     @group_unread = unread_count_by_group
-    @notifications = scope.recent_first.page(page_param).per(RESULTS_PER_PAGE)
+    @notifications = scope.recent_first.page(page_param).per(per_page_param)
   end
 
   # 未读数（用于侧栏角标轮询/兜底）。口径必须和 index 一致，

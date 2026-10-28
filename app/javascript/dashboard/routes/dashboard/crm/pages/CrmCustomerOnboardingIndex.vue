@@ -679,7 +679,7 @@ const submit = async () => {
           <input
             v-model="form.website"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="https://example.com（选填，有助查重）"
+            placeholder="https://example.com"
           />
         </label>
 
@@ -833,7 +833,7 @@ const submit = async () => {
             v-model="form.customerRemark"
             rows="3"
             class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="客户补充信息、跟进注意事项等（选填）"
+            placeholder="备注"
           />
         </label>
       </div>
@@ -992,7 +992,7 @@ const submit = async () => {
           <input
             v-model="form.address"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="客户地址（选填）"
+            placeholder="客户地址"
           />
         </label>
       </div>
@@ -1030,7 +1030,7 @@ const submit = async () => {
           <input
             v-model="ct.phone"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-2"
-            placeholder="电话（选填）"
+            placeholder="电话"
           />
           <button
             type="button"

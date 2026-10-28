@@ -3364,7 +3364,7 @@ v-if="d.note" class="text-n-slate-9"
         <textarea
           v-model="distributeNote"
           rows="2"
-          placeholder="附言（可空）"
+          placeholder="附言"
           class="w-full px-3 py-2 mb-4 text-sm border rounded-lg outline-none resize-none bg-n-alpha-1 border-n-weak text-n-slate-12 focus:border-n-iris-7"
         />
 

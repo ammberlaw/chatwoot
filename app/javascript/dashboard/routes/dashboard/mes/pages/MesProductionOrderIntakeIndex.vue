@@ -718,7 +718,7 @@ const backToList = () =>
             use-api-results
             clearable
             :display-label="selectedProductLabel"
-            placeholder="选择商品编码（关联产品档案）"
+            placeholder="选择商品编码"
             search-placeholder="搜编码 / 名称"
             empty-state="无匹配商品"
             @open="onProductOpen"

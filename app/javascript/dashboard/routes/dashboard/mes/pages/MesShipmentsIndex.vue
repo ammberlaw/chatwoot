@@ -1208,7 +1208,7 @@ onMounted(() => {
       width="lg"
       confirm-button-color="iris"
       :title="editingId ? '编辑生产出库单' : '新建生产出库单'"
-      description="选生产订单带出客户与成品，生成出库清单；出库后自动扣成品库存并回写销售订单「已出货」。"
+      description="出库后扣减成品库存，销售订单回写「已出货」"
       :is-loading="saving"
       :disable-confirm-button="invalid"
       :dirty="isDirty"
@@ -1279,7 +1279,7 @@ onMounted(() => {
       overflow-y-auto
       confirm-button-color="teal"
       title="新建现货出库单"
-      description="从成品库存直接出货：选客户与成品（显示现货结存），提交后经部门主管审核，通过即推仓库出库。"
+      description="提交后经部门主管审核，通过即推仓库出库"
       :is-loading="saving"
       :disable-confirm-button="stockInvalid"
       :dirty="isStockDirty"
@@ -1410,7 +1410,7 @@ onMounted(() => {
       ref="diagDialogRef"
       width="2xl"
       :title="`${diagRow?.shipmentNo || ''} 为什么卡着`"
-      description="下面是系统现在查到的实情。它只是查，不会动这张单。"
+      description="只读诊断，不改动单据"
       :show-confirm-button="false"
       cancel-button-label="知道了"
     >
@@ -1549,7 +1549,7 @@ onMounted(() => {
           </label>
           <Input
             v-model="approveNote"
-            placeholder="例：老客户赊账，已报老板同意；或 尾款已汇在途"
+            placeholder="放行理由"
           />
         </div>
       </div>
@@ -1594,7 +1594,7 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             作废原因 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input v-model="voidReason" placeholder="例：开错客户，重新开一张" />
+          <Input v-model="voidReason" placeholder="作废原因" />
         </div>
         <p class="text-xs text-n-slate-11">
           作废后这张单留在列表里可查，销售订单可以重新转单。

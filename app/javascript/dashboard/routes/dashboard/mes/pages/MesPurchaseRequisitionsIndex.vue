@@ -873,7 +873,7 @@ const exportList = async () => {
                 :account-id="accountId"
                 :model-value="line.crmProductId"
                 :display-text="line.materialName"
-                placeholder="选择外购成品（编码/名称/规格）"
+                placeholder="选择外购成品"
                 @update:model-value="v => (line.crmProductId = v)"
                 @select="p => onProductPicked(line, p)"
               />
@@ -923,7 +923,7 @@ const exportList = async () => {
             <div class="sm:col-span-12">
               <Input
                 v-model="line.remark"
-                placeholder="备注（选填）"
+                placeholder="备注"
                 class="reset-base"
               />
             </div>
@@ -970,7 +970,7 @@ const exportList = async () => {
       width="4xl"
       overflow-y-auto
       title="转采购单"
-      description="选行、各填本批采购量（默认剩余量，可改，常大于需求量备库存）。一张申请可多次转、分批采购。"
+      description="一张申请可分批多次转采购"
       :show-confirm-button="false"
       :show-cancel-button="false"
       :dirty="isConvertDirty"

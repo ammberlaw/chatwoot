@@ -87,6 +87,13 @@ const KIND_META = {
     group: 'todo',
   },
   shipment_approved: { label: '待出库', dot: 'bg-n-teal-9', group: 'todo' },
+  // 大单提交后给仓管的周知：他这会儿还动不了手（财务没批不能出库），
+  // 所以是 progress 不是 todo——分组必须和后端 GROUP_BY_KIND 一致。
+  shipment_submitted: {
+    label: '新单待审核',
+    dot: 'bg-n-slate-9',
+    group: 'progress',
+  },
   shipment_rejected: {
     label: '出库被驳回',
     dot: 'bg-n-ruby-9',

@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_inspections))
     scope = apply_search(apply_filters(scope), params[:q])
     @inspections_count = scope.count
-    @inspections = scope.order(inspected_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @inspections = scope.order(inspected_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def create

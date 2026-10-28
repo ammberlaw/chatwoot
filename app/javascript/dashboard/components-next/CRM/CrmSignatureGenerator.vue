@@ -601,7 +601,7 @@ const onBackdropUp = e => {
             <Input
               v-model="form.logoUrl"
               label="Logo / 头像图片链接（选填）"
-              placeholder="https://…（留空则用姓名首字母）"
+              placeholder="https://…"
             />
 
             <div class="pt-1 mt-1 border-t border-n-weak">

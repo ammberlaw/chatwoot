@@ -11,6 +11,21 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     params[:page] || 1
   end
 
+  # 每页几条。**各 index 必须用它，不要直接 .per(per_page_param)**——
+  # 写死的话前端传 per_page 会被静默丢掉：下拉只拿到最新 15 条，
+  # 用户看到的是「选项只有几个、还翻不动」，而且一点报错都没有
+  # （2026-10-29 生产退料页的生产任务单下拉就是这么只剩几个的；
+  # 同一个毛病当时 11 个 MES 控制器全有）。
+  # 上限 500：再大一次性序列化的单据明细能把响应撑到几十 MB。
+  MAX_PER_PAGE = 500
+
+  def per_page_param
+    n = params[:per_page].to_i
+    return RESULTS_PER_PAGE if n <= 0
+
+    [n, MAX_PER_PAGE].min
+  end
+
   # 单据「谁制单谁改」：非制单人不得修改，系统管理员可代改。
   # 同岗位之间原来是互相能改的（有 :order/:bom/:purchase 能力即可），结果业务做的单
   # 生产能随手改、反过来也一样，出了问题查不到人。制单人为空的老单不拦（没法判定）。

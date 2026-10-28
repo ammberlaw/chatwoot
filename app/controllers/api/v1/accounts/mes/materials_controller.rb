@@ -8,7 +8,7 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
   def index
     scope = filtered_materials
     @materials_count = scope.count
-    @materials = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @materials = scope.order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end

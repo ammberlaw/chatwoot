@@ -127,6 +127,22 @@ class Mes::Shipment < ApplicationRecord
 
   def self.roles_administrator = AccountUser.roles[:administrator]
 
+  # 「待审核」通知发给谁——**比 approver_ids 窄，这是有意的**。
+  #
+  # approver_ids 管的是「谁有资格审」，兜底带上管理员是为了没配财务时单子不卡死；
+  # 但这道审的内容是「这张单的款收齐没有」，是财务的活，老板不需要每张单都收一条
+  # 待办（生产上 7 条待审核里管理员收了 7 条，他一张也没审）。
+  # 2026-10-29 用户定：出库审核人名单不配，就财务审。
+  #
+  # 只窄「通知」不窄「权限」，所以不会出现那种真正要命的错配——
+  # 通知发给了没资格审的人、他点进去吃 403。反过来（有资格的人没收到通知）
+  # 在这里是刻意的：管理员想看照样进得去、点得了。
+  # 一个财务都没有时回落 approver_ids，否则等于谁都不通知。
+  def self.approval_recipient_ids(account)
+    finance = account.account_users.active_members.where(crm_finance: true).pluck(:user_id).uniq
+    finance.presence || approver_ids(account)
+  end
+
   def self.approver?(account, account_user)
     return false if account_user.blank?
 
@@ -365,15 +381,15 @@ class Mes::Shipment < ApplicationRecord
   # 为了把 33 张里的 26 张从财务台上拿走的，照样通知等于白设。
   def approval_notify_ids
     ids = if warehouse_self_approvable?
-            account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
+            Mes::BoardOwner.notify_ids(account, SHIPMENTS_BOARD_KEY, product_line)
           else
-            self.class.approver_ids(account)
+            self.class.approval_recipient_ids(account)
           end
     ids = (ids.map(&:to_i) - [owner_id]).uniq # 自己提交的单不用通知自己
     # 兜底：算下来一个人都没有（板块负责人没配、或唯一的负责人正好就是提交人自己——
     # 生产上出库板块负责人就是提交这张单的人）时回落到审核人组。这张单照样等着人审，
     # 宁可多吵一个人，也绝不能又变成「通知零人」。
-    ids.presence || (self.class.approver_ids(account) - [owner_id]).uniq
+    ids.presence || (self.class.approval_recipient_ids(account) - [owner_id]).uniq
   end
 
   private
@@ -424,7 +440,19 @@ class Mes::Shipment < ApplicationRecord
     Rails.logger.error("[Erp::AutoVoucher] 出库单 #{shipment_no} 生成凭证失败: #{e.message}")
   end
 
-  def product_line_source = production_order
+  # 产线从哪来：生产出库跟生产订单走；现货出库从销售订单来、压根没有生产订单，
+  # 只能看这单出的是什么货——明细上的产品档案自己带着产线。
+  #
+  # 不这么带的话现货出库单的 product_line 永远是空，仓管按产线分工就全乱了
+  # （2026-10-28：生产上 3 张现货出库单产线全空，其中一张是平板的货，
+  # 通知却只发给商显仓管）。整单的货不在同一条产线时宁可留空——
+  # 留空时 Mes::BoardOwner.notify_ids 会通知各产线的负责人，比猜一条错的强。
+  def product_line_source
+    return production_order if production_order
+
+    lines = shipment_items.filter_map { |i| i.crm_product&.product_line.presence }.uniq
+    lines.one? ? Struct.new(:product_line).new(lines.first) : nil
+  end
 
   def writeback_sales_order(timestamp)
     return if crm_sales_order.nil?
@@ -549,11 +577,32 @@ class Mes::Shipment < ApplicationRecord
       body: "#{owner&.name || '业务员'} 提交了出库单，待你（#{who}）审核。",
       order: production_order
     )
+    notify_warehouse_incoming
+  end
+
+  # 走财务审的单（超过金额闸）顺带知会一声仓管。
+  #
+  # 小单是仓库自己批，提交那一刻仓管本来就收到「待审核」；大单的通知全给了财务，
+  # 仓管要等财务批完才第一次听说这张单——批完往往就是催着要发货的时候，
+  # 备货的时间没有了（2026-10-29 业务反馈：销售订单转现货出库单，仓管收不到消息）。
+  #
+  # 刻意发成 progress 周知而不是 todo：这会儿他还动不了手（没批不能出库），
+  # 进待办会把真能办的事挤下去，也会被推到手机上。看得见、能提前备货，但不吵他。
+  def notify_warehouse_incoming
+    return if warehouse_self_approvable?
+
+    recipients = Mes::BoardOwner.notify_ids(account, SHIPMENTS_BOARD_KEY, product_line) - [owner_id]
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'shipment_submitted',
+      title: "新#{stock? ? '现货' : '生产'}出库单待财务审核：#{shipment_no}",
+      body: "#{customer_label}出库单已提交，财务审核通过后才能出库，可以先备货。",
+      order: production_order
+    )
   end
 
   # 推仓库：通知出库板块负责人（仓管）备货执行。
   def notify_warehouse_ready
-    recipients = account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
+    recipients = Mes::BoardOwner.notify_ids(account, SHIPMENTS_BOARD_KEY, product_line)
     Mes::Notifier.notify(
       account: account, recipients: recipients, kind: 'shipment_approved',
       title: "待出库：现货出库 #{shipment_no}",

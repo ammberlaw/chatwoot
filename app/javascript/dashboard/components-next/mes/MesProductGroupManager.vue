@@ -99,7 +99,6 @@ defineExpose({ open });
     width="2xl"
     overflow-y-auto
     title="产品分组管理"
-    description="不限层级：可加一级分组，任意节点下加子分组；支持重命名、隐藏、删除、同级拖拽排序。改动即时保存。"
     :show-cancel-button="false"
     confirm-button-label="完成"
     confirm-button-color="iris"

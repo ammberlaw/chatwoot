@@ -24,8 +24,8 @@ module Crm::Agent::SystemMap
                   '历史 PI 补录 · 未关联客户的订单',
     '生产管理' => '生产看板 · 流水看板 · 站内通知 · 销售订单 · 生产任务单 · 产品档案 · ' \
                   '采购申请单 · 采购单 · 供应商 · 物料单价表 · 仓库档案 · ' \
-                  '原料入库 · 库存 · 原料成品转换 · 退料返修 · ' \
-                  '生产领料 · 生产报工 · 质量检验 · 成品入库 · 销售出库 · SN 追溯',
+                  '原料入库 · 库存 · 原料成品转换 · 采购退料 · ' \
+                  '生产领料 · 生产退料 · 生产报工 · 质量检验 · 成品入库 · 销售出库 · SN 追溯',
     '财务管理' => '财务看板 · 会计科目表 · 记账凭证 · 账簿 · 财务报表 · 应收台账 · 出库审核 · ' \
                   '应付台账 · 资金账户 · 成本毛利 · BOM 成本表 · 费用报销 · 固定资产 · ' \
                   '期末结账 · 财务通知 · 财务设置',
@@ -136,6 +136,7 @@ module Crm::Agent::SystemMap
     'mes_fg_inbound_index' => '成品入库',
     'mes_inspections_index' => '质量检验',
     'mes_material_issues_index' => '生产领料',
+    'mes_material_returns_index' => '生产退料',
     'mes_material_prices_index' => '物料单价表',
     'mes_notifications_index' => '站内通知',
     'mes_pipeline_index' => '流水看板',
@@ -149,7 +150,7 @@ module Crm::Agent::SystemMap
     'mes_stock_balances_index' => '库存',
     'mes_stock_conversions_index' => '原料成品转换',
     'mes_stock_entries_index' => '原料入库',
-    'mes_supplier_returns_index' => '退料返修',
+    'mes_supplier_returns_index' => '采购退料',
     'mes_suppliers_index' => '供应商',
     'mes_warehouses_index' => '仓库档案',
     'tiktok_assets_index' => '固定资产',

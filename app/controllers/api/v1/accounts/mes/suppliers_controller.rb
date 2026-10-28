@@ -31,12 +31,6 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   private
 
   # 默认 15/页；采购单/物料表单的供应商下拉需要全量，可传 per_page，封顶 500。
-  def per_page_param
-    n = params[:per_page].to_i
-    return RESULTS_PER_PAGE if n <= 0
-
-    [n, 500].min
-  end
 
   def filtered_scope
     scope = Current.account.mes_suppliers.includes(:supplier_items)

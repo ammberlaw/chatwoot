@@ -1152,7 +1152,6 @@ onMounted(load);
       ref="imageDialogRef"
       width="xl"
       title="选择产品图"
-      description="默认从「设计资料」里挑，也能换板块或直接传本地图片"
       :show-confirm-button="false"
     >
       <div class="flex flex-col gap-3">
