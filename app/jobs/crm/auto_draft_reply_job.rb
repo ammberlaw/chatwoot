@@ -95,13 +95,9 @@ class Crm::AutoDraftReplyJob < ApplicationJob
     mark_drafts(email)
   end
 
-  # 把这一轮建出来的草稿认领给这封信：回指原信 + 标记是 AI 写的。
-  # agent 的 draft_reply 不知道自己是被自动流程调的，所以这步在外面补。
+  # 把这一轮建出来的草稿认领给这封信（见 Crm::AgentDraftLink——新询盘初筛也用同一套）。
   def mark_drafts(email)
-    email.account.crm_emails
-         .where(owner_id: email.owner_id, folder: 'DRAFT', reply_to_email_id: nil)
-         .where(created_at: 10.minutes.ago..)
-         .update_all(reply_to_email_id: email.id, ai_drafted_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    Crm::AgentDraftLink.claim(email)
   end
 
   def instruction(email)
