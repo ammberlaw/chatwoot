@@ -87,17 +87,52 @@ class Crm::Agent::Tools::ProductDocs < Crm::Agent::Tools::Base
     "— #{product&.sku || '—'} #{product&.name}：#{attrs.map { |a| "#{a.name}(#{a.code})" }.join('、')}"
   end
 
+  # 搜索范围含 extracted_text——认证报告、规格书的正文是抽出来存在那里的
+  # （见 Crm::KnowledgeExtractJob）。不搜它，客户问「K705 过了哪些认证」就只能
+  # 答出「有这么一份文件」，答不出里面写了什么。
   def doc_block(keyword, limit)
     rows = scope.knowledge_docs
-                .where('name ILIKE :t OR summary ILIKE :t OR body ILIKE :t OR category ILIKE :t', t: "%#{keyword}%")
+                .where('name ILIKE :t OR summary ILIKE :t OR body ILIKE :t OR category ILIKE :t ' \
+                       'OR extracted_text ILIKE :t', t: "%#{keyword}%")
                 .order(updated_at: :desc).limit(limit).to_a
     return nil if rows.empty?
 
-    "【知识库】共 #{rows.size} 篇：\n#{rows.map { |d| doc_line(d) }.join("\n\n")}"
+    budget = EXTRACT_BUDGET / rows.size
+    "【知识库】共 #{rows.size} 篇：\n#{rows.map { |d| doc_line(d, keyword, budget) }.join("\n\n")}"
   end
 
-  def doc_line(doc)
+  def doc_line(doc, keyword, budget)
     "— #{doc.name}#{doc.category.present? ? "（#{doc.category}）" : ''}｜#{doc.scope == 'COMPANY' ? '公司库' : '我的个人库'}" \
-      "\n  #{clip(doc.summary.presence || doc.body, DOC_CLIP)}"
+      "\n  #{body_for(doc, keyword, budget)}"
+  end
+
+  # 一次回答里所有知识库正文加起来的字数上限，按命中篇数均分。
+  #
+  # 为什么不能像摘要那样一律截 800 字：一张规格书 4000~5500 字，工作温度、认证、
+  # 防护等级这些恰恰排在后半段。实测截 800 字时 AI 答「规格书被截断在环境参数之前，
+  # 这三个问题没法给你确切答案」——文字抽出来了，却还是答不了，等于白抽。
+  # 命中一篇就给足，命中多篇才各自收窄。
+  EXTRACT_BUDGET = 9000
+  MIN_PER_DOC = 700
+
+  def body_for(doc, keyword, budget)
+    text = doc.extracted_text
+    return clip(doc.summary.presence || doc.body, DOC_CLIP) if text.blank?
+
+    room = [budget, MIN_PER_DOC].max
+    # 原文里大量换行和连续空格（PDF 抽出来就是这样），压掉才装得下真内容。
+    squished = text.gsub(/\s+/, ' ').strip
+    return squished if squished.length <= room
+
+    snippet_around(squished, keyword, room)
+  end
+
+  SNIPPET_BEFORE = 200
+
+  # 装不下就截关键词附近那段；关键词在开头（文件名型号常出现在抬头）时就从头给。
+  def snippet_around(text, keyword, room)
+    at = text.index(/#{Regexp.escape(keyword)}/i) || 0
+    from = [at - SNIPPET_BEFORE, 0].max
+    "#{from.positive? ? '…' : ''}#{text[from, room]}…"
   end
 end

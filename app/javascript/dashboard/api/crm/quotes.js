@@ -42,4 +42,8 @@ export default {
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
   },
+  // 发出前体检（与 PI 同一套，见 Crm::DocHealthCheck）
+  healthCheck(accountId, id) {
+    return axios.get(`${base(accountId)}/${id}/health_check`);
+  },
 };

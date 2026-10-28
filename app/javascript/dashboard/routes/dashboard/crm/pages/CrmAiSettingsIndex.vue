@@ -43,6 +43,7 @@ const form = reactive({
   agentUserIds: [],
   // 陌生来信自动背调+建档+起草回复（会自动花模型调用，默认关）
   inquiryTriageEnabled: false,
+  autoDraftReplyEnabled: false,
 });
 const { accountId } = useAccount();
 // 可选成员：AI 助手的使用名单从这里挑
@@ -106,6 +107,7 @@ onMounted(async () => {
     form.apiBase = data.api_base || 'https://api.deepseek.com/v1';
     form.agentUserIds = (data.agent_user_ids || []).map(String);
     form.inquiryTriageEnabled = !!data.inquiry_triage_enabled;
+    form.autoDraftReplyEnabled = !!data.auto_draft_reply_enabled;
     usage.value = data.usage || null;
     await loadMembers();
   } catch {
@@ -133,6 +135,7 @@ const save = async () => {
         apollo_api_key: form.apolloKey.trim(),
         agent_user_ids: form.agentUserIds.map(Number),
         inquiry_triage_enabled: form.inquiryTriageEnabled,
+        auto_draft_reply_enabled: form.autoDraftReplyEnabled,
       },
     });
     configured.value = data.configured;
@@ -368,6 +371,18 @@ const fieldCls =
         <span class="text-xs text-n-slate-10">
           收到陌生人来信时自动背调这家公司、查系统里有没有人已经在跟；判断是真实公司才建客户档案并起草一封回复草稿，
           结果发到「团队沟通」。草稿不会自动发出。开着会自动消耗模型调用，默认关。
+        </span>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
+        <div class="flex items-center gap-3">
+          <ToggleSwitch v-model="form.autoDraftReplyEnabled" />
+          <span class="text-label text-n-slate-12">老客户来信自动预写回复草稿</span>
+        </div>
+        <span class="text-xs text-n-slate-10">
+          已建档客户来信时，先替业务员写好一版回复草稿放进草稿箱，来信那条会标「已预写回复」，点一下就能打开核对。
+          写之前会按需要查历史报价、订单进度、库存和产品资料，查不到的事不编、不替公司承诺交期和价格。
+          草稿不会自动发出。每人每天最多预写 20 封。开着会自动消耗模型调用，默认关。
         </span>
       </div>
 

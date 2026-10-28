@@ -37,6 +37,10 @@ export default {
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
   },
+  // 发出前体检：算术 / 缺的条款 / 币种 / 和历史价差多少（见 Crm::DocHealthCheck）
+  healthCheck(accountId, id) {
+    return axios.get(`${base(accountId)}/${id}/health_check`);
+  },
   companyHeaders(accountId) {
     return axios.get(`${base(accountId)}/company_headers`);
   },

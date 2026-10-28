@@ -22,6 +22,10 @@
 #  index_crm_agent_messages_on_conversation_id            (conversation_id)
 #
 class Crm::AgentMessage < ApplicationRecord
+  # 用户可以直接给助手发图（展会上拍的规格表、手写询价、客户发来的实物照）。
+  # 以前读图只能走邮件附件（read_attachment 要 email_id），手机上拍的照片没有入口。
+  has_one_attached :image
+
   self.table_name = 'crm_agent_messages'
 
   ROLES = %w[user assistant tool].freeze

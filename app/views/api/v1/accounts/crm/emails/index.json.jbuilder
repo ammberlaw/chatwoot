@@ -9,6 +9,7 @@ json.payload do
                                              counterparty_type: @counterparty_types[email.id],
                                              counterparty_name: @counterparty_names[email.id],
                                              last_open: @last_opens[email.id],
-                                             distributions: @distributions[email.id] || []
+                                             distributions: @distributions[email.id] || [],
+                                             ai_draft_id: (@ai_drafts || {})[email.id]
   end
 end

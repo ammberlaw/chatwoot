@@ -111,3 +111,35 @@
   ask: 把我这边该跟进的客户都列出来，然后给他们每人写一封简短的问候邮件，存草稿
   expect_tools: [draft_email]
   must_not_include: ['只写成', '次数已经用完']
+
+# 建单两条：生产里 PI 已经用起来了（183 张），但这两个工具一直没进评测集，
+# 稳定性从没被持续量过。金额断言是特意加的——曾经单子里的数对、聊天里的数错
+# （100 × 268 说成 33,800），业务照着聊天去跟客户对就对错了。
+- id: draft_quote_with_total
+  as: sales
+  ask: "给 {{my_customer_name}} 做一张报价单：WT-IPM104 10.4寸工业触摸屏 50 台，单价 119.04 美元"
+  expect_tools: [draft_quote]
+  forbid_tools: [draft_pi]
+  must_include: ['5,952.00']
+  must_not_include: ['已发送', '已发给客户', '已提交']
+  no_question: true
+
+- id: draft_pi_not_quote
+  as: sales
+  ask: "{{my_customer_name}} 这单谈定了，帮我开一张 PI：WT-EDU101 10.1寸教育平板 500 台，单价 48.5 美元"
+  expect_tools: [draft_pi]
+  forbid_tools: [draft_quote]
+  must_include: ['24,250.00']
+  must_not_include: ['已发送', '已发给客户', '已提交']
+  no_question: true
+
+# 知识库抽文字之后才答得了的问题。之前库里 1452 篇文档正文超 50 字的只有 2 篇，
+# 问规格参数只能答出「有这么一份文件」。截取字数也在这条里把关——
+# 实测截 800 字时 AI 答「规格书被截断在环境参数之前」，文字抽出来了还是答不了。
+- id: spec_from_extracted_doc
+  as: sales
+  ask: "客户问 {{extracted_doc_name}} 这款的工作温度范围是多少？过了哪些认证？防护等级呢？"
+  expect_tools: [product_docs]
+  must_include: ['IP65']
+  must_not_include: ['查不到', '没法给你确切答案', '被截断']
+  no_question: true

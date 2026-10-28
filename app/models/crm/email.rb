@@ -6,7 +6,9 @@
 # Table name: crm_emails
 #
 #  id                        :bigint           not null, primary key
+#  ai_drafted_at             :datetime
 #  ai_triaged_at             :datetime
+#  auto_draft_done_at        :datetime
 #  bcc_address               :text
 #  body                      :text
 #  body_html                 :text
@@ -41,6 +43,7 @@
 #  crm_email_folder_id       :bigint
 #  message_id                :string
 #  owner_id                  :bigint
+#  reply_to_email_id         :bigint
 #
 # Indexes
 #
@@ -50,6 +53,7 @@
 #  index_crm_emails_on_account_id_and_folder         (account_id,folder)
 #  index_crm_emails_on_account_id_and_is_read        (account_id,is_read)
 #  index_crm_emails_on_account_owner_message_id      (account_id,owner_id,message_id) UNIQUE WHERE (message_id IS NOT NULL)
+#  index_crm_emails_on_account_reply_to              (account_id,reply_to_email_id)
 #  index_crm_emails_on_chatwoot_message_id           (chatwoot_message_id) UNIQUE WHERE (chatwoot_message_id IS NOT NULL)
 #  index_crm_emails_on_contact_id                    (contact_id)
 #  index_crm_emails_on_crm_customer_id               (crm_customer_id)

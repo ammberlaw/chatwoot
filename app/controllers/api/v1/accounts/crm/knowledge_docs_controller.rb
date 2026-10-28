@@ -26,6 +26,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     @doc = Current.account.crm_knowledge_docs.create!(
       with_folder_name(sync_sales_section(attrs)).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
     )
+    extract_text_later(@doc)
   end
 
   def update
@@ -68,12 +69,15 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   # 附件上传（追加，不覆盖已有）
   def attach
     @doc.files.attach(params[:files])
+    extract_text_later(@doc)
     render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
   # 删除单个附件
   def detach
     @doc.files.find(params[:attachment_id]).purge
+    # 删了附件也要重抽：否则被删那份的正文还留在搜索里，AI 会答一份已经不存在的资料。
+    extract_text_later(@doc)
     render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
@@ -231,6 +235,16 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   def doc_params
     params.require(:doc).permit(:name, :category, :category_id, :summary, :scope, :library, :section_id, :body, files: [])
+  end
+
+  # 附件抽文字（异步、失败不影响存档）：抽出来的正文是 AI 回答产品问题的唯一来源，
+  # 但抽不抽得出来不该挡住用户上传。没有附件就不排队。
+  def extract_text_later(doc)
+    return if doc.blank? || !doc.files.attached?
+
+    Crm::KnowledgeExtractJob.perform_later(doc.id)
+  rescue StandardError => e
+    Rails.logger.warn("[kb extract] 入队失败 doc=#{doc&.id}: #{e.message}")
   end
 
   # 文档按 category_id 归属；同步冗余 category 名（供展示/搜索），传了文件夹则以其名为准，根目录清空。

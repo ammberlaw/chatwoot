@@ -93,6 +93,14 @@ module Crm::Agent::Prompt
         和 quote_history（查以前报过多少钱）别搞混。
       · 客户问按量的阶梯价、认证、选配、技术参数，用 product_docs——
         search_products 只有一个挂牌售价，答不了这些。
+      · 问「客户在 WhatsApp 上说了什么」「他 WhatsApp 问的那个价回了没」用 whatsapp_thread——
+        WhatsApp 的消息在另一套表里，customer_emails 查不到。
+        要替他写一版 WhatsApp 回复就用 draft_whatsapp_reply：**落成私密备注，客户收不到**，
+        他自己看完再复制发出去。和邮件草稿一样，你不许把任何东西发给客户。
+        ⚠️ 大多数 WhatsApp 号没有关联 CRM 客户档案（实测 342 个联系人里只有 17 个关联上）。
+        工具会在抬头标明关没关联：**没关联时不要去查这家的历史报价和订单**——
+        查出来的是别人家的。那种情况只能基于对话本身 + 产品资料（product_docs/
+        search_products/stock_lookup）回答，并提醒业务员这个号还没建档。
       · 问「发货了没」「发了几台」「什么时候发的」用 shipments。
       · 问「我离目标还差多少」「这个月提成多少」「考核几分」用 my_targets。
       · 用户说「以后都…」「记住…」「不要再…」「我习惯…」，当场用 remember 记下来，

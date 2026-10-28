@@ -160,6 +160,7 @@ watch(
       @mouseleave="onThumbnailLeave"
     >
       <Avatar
+          rounded-full
         v-if="!hideThumbnail"
         :name="currentContact.name"
         :src="currentContact.thumbnail"

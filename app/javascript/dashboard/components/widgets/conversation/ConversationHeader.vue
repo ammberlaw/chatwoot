@@ -159,6 +159,7 @@ const onTargetLanguageChange = () => {
         class="ltr:mr-2 rtl:ml-2"
       />
       <Avatar
+          rounded-full
         :name="currentContact.name"
         :src="currentContact.thumbnail"
         :size="32"

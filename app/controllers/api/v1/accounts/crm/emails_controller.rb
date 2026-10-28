@@ -631,6 +631,19 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @counterparty_names = build_counterparty_names(emails)
     @last_opens = last_opens_for(emails)
     @distributions = distributions_for(emails)
+    @ai_drafts = ai_drafts_for(emails)
+  end
+
+  # 哪些来信已经被预写好回复草稿了（见 Crm::AutoDraftReplyJob）。
+  # 列表上必须标出来——草稿躺在草稿箱里没人知道，等于白写。
+  def ai_drafts_for(emails)
+    ids = emails.map(&:id)
+    return {} if ids.empty?
+
+    Current.account.crm_emails
+           .where(reply_to_email_id: ids, folder: 'DRAFT')
+           .where.not(ai_drafted_at: nil)
+           .pluck(:reply_to_email_id, :id).to_h
   end
 
   # 内部分发去向：列表上直接标出这封分给了谁（像会话卡片标业务），不用点进去看分发历史。

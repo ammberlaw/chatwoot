@@ -120,6 +120,8 @@ module Crm::EmailIngestion
 
     Crm::ArchiveEmailAttachmentsJob.perform_later(email.id) if email.files.attached?
     Crm::EmailProgressJob.perform_later(email.id)
+    # 老客户来信预写回复草稿（开关默认关，门槛判断全在 job 自己里，见 AutoDraftReplyJob）。
+    Crm::AutoDraftReplyJob.perform_later(email.id)
   rescue StandardError => e
     Rails.logger.warn("[Crm::MailFetch] enqueue ai followups failed email=#{email.id}: #{e.message}")
   end

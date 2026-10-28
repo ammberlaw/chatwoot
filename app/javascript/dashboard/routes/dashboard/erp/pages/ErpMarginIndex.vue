@@ -66,6 +66,11 @@ const fromDate = ref('');
 const toDate = ref('');
 const costs = ref([]);
 // 成本行是自动归集出来的（一张自产单产三行），量会越滚越多，必须分页。
+// 毛利报表接口一次给全量（按订单/客户汇总，服务端不分页），所以在前端切片。
+// 汇总表（marginSummary）不分页——那是几行口径小计，不是明细。
+const MARGIN_PER_PAGE = 50;
+const marginPage = ref(1);
+
 const COSTS_PER_PAGE = 50;
 const costsPage = ref(1);
 const costsCount = ref(0);
@@ -79,6 +84,7 @@ const loadMargin = async () => {
       to: toDate.value || undefined,
     });
     marginRows.value = data.payload;
+    marginPage.value = 1;
     marginSummary.value = data.summary;
     marginMeta.value = data.meta;
     unpriced.value = data.unpriced || { count: 0, rows: [] };
@@ -86,6 +92,13 @@ const loadMargin = async () => {
     loading.value = false;
   }
 };
+const pagedMarginRows = computed(() =>
+  marginRows.value.slice(
+    (marginPage.value - 1) * MARGIN_PER_PAGE,
+    marginPage.value * MARGIN_PER_PAGE
+  )
+);
+
 // 清单可能很长，提示条里只点名前 5 个，其余折成「等 N 种」。
 const unpricedTop = computed(() => {
   const rows = unpriced.value.rows || [];
@@ -422,7 +435,7 @@ onMounted(loadMargin);
           </thead>
           <tbody>
             <tr
-              v-for="row in marginRows"
+              v-for="row in pagedMarginRows"
               :key="row.order_id"
               class="border-b border-n-weak"
             >
@@ -521,15 +534,27 @@ onMounted(loadMargin);
           </tr>
         </tbody>
       </table>
-      <PaginationFooter
-        v-if="costsCount > COSTS_PER_PAGE"
-        :current-page="costsPage"
-        :total-items="costsCount"
-        :items-per-page="COSTS_PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="costsPage = $event"
-      />
     </div>
+
+    <!-- 与应收/应付台账同一口径：翻页器放滚动区外面常驻，条数 >0 就画。
+         原来这条没按页签收口——成本归集超过一页时，毛利报表那边也会跟着画出一个
+         翻的是成本数据的翻页器。 -->
+    <PaginationFooter
+      v-if="!loading && activeTab === 'margin' && marginRows.length > 0"
+      :current-page="marginPage"
+      :total-items="marginRows.length"
+      :items-per-page="MARGIN_PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="marginPage = $event"
+    />
+    <PaginationFooter
+      v-if="!loading && activeTab === 'costs' && costsCount > 0"
+      :current-page="costsPage"
+      :total-items="costsCount"
+      :items-per-page="COSTS_PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="costsPage = $event"
+    />
 
     <Dialog
       ref="dialogRef"

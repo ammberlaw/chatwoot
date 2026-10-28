@@ -23,12 +23,16 @@ class Api::V1::Accounts::Crm::AgentController < Api::V1::Accounts::Crm::BaseCont
   # 提问：先把问话落库（前端立刻能显示出去），再丢后台跑。
   def create_message
     question = params[:content].to_s.strip
+    image = params[:image]
+    # 只发图不打字是常见用法（展会上拍一张规格表甩给它），所以有图时允许正文为空。
+    question = '看看这张图，把里面的内容读出来。' if question.blank? && image.present?
     return render json: { error: '请先输入问题' }, status: :unprocessable_entity if question.blank?
     return render json: { error: '上一轮还在跑，等它答完再问' }, status: :unprocessable_entity if @conversation.running?
 
-    @conversation.messages.create!(role: 'user', content: question)
+    msg = @conversation.messages.create!(role: 'user', content: question)
+    msg.image.attach(image) if image.present?
     @conversation.update!(status: 'RUNNING', last_error: nil)
-    Crm::AgentRunJob.perform_later(@conversation.id, question, page_context_param)
+    Crm::AgentRunJob.perform_later(@conversation.id, question, page_context_param, msg.id)
     render 'api/v1/accounts/crm/agent/show'
   end
 

@@ -59,6 +59,26 @@ const lineAmount = item => {
 // 合计由后端按导出同一算法算好（各项金额 + 运费），前端不另算，保证和导出的 Excel 一致。
 const grandTotal = computed(() => doc.value?.grandTotalMicros ?? 0);
 
+// 发出前体检：算术对不对、条款缺不缺、币种和这家客户以往一不一致、单价和历史价差多少。
+// 放在预览弹窗里是因为这儿就是「发出去之前最后看一眼」的地方——
+// 真正能挡住错误的时刻只有这一刻，放列表页或编辑页都隔了一层。
+const checking = ref(false);
+const findings = ref(null);
+
+const runHealthCheck = async () => {
+  if (!doc.value) return;
+  checking.value = true;
+  try {
+    const { data } = await PisAPI.healthCheck(accountId.value, doc.value.id);
+    findings.value = data.payload || [];
+  } catch (error) {
+    findings.value = null;
+    useAlert('体检失败，请稍后再试');
+  } finally {
+    checking.value = false;
+  }
+};
+
 const download = async () => {
   if (!doc.value) return;
   downloading.value = true;
@@ -189,6 +209,15 @@ const val = (obj, key) => (obj?.[key] ? String(obj[key]) : '—');
           sm
           variant="faded"
           color="slate"
+          :label="checking ? '体检中…' : '发出前体检'"
+          icon="i-lucide-stethoscope"
+          :disabled="checking || !doc"
+          @click="runHealthCheck"
+        />
+        <Button
+          sm
+          variant="faded"
+          color="slate"
           :label="pdfing ? '生成中…' : '导出 PDF'"
           icon="i-lucide-file-text"
           :disabled="pdfing || !doc"
@@ -207,6 +236,41 @@ const val = (obj, key) => (obj?.[key] ? String(obj[key]) : '—');
 
     <div v-if="loading" class="py-16 text-sm text-center text-n-slate-11">
       加载中…
+    </div>
+
+    <!-- 体检结果。没问题也要明说「没查出问题」——只在有问题时才出现的话，
+         用户分不清是查过了没事，还是压根没查。 -->
+    <div
+      v-if="findings"
+      class="p-3 mb-3 text-sm border rounded-lg"
+      :class="
+        findings.length
+          ? 'border-n-amber-8 bg-n-amber-3 text-n-amber-11'
+          : 'border-n-teal-8 bg-n-teal-3 text-n-teal-11'
+      "
+    >
+      <div v-if="!findings.length" class="flex items-center gap-2">
+        <span class="i-lucide-check size-4 shrink-0" />
+        没查出问题：金额自洽、该填的条款都在、币种和价格都和这家客户以往一致。
+      </div>
+      <template v-else>
+        <div class="flex items-center gap-2 mb-2 font-medium">
+          <span class="i-lucide-triangle-alert size-4 shrink-0" />
+          发出前请先核对这 {{ findings.length }} 处
+        </div>
+        <ul class="flex flex-col gap-1.5 pl-1">
+          <li v-for="(f, i) in findings" :key="`hc-${i}`" class="flex gap-2">
+            <span
+              class="shrink-0 mt-0.5 size-1.5 rounded-full"
+              :class="f.level === 'warn' ? 'bg-n-amber-9' : 'bg-n-slate-9'"
+            />
+            <span>
+              <b class="font-medium">{{ f.title }}</b>
+              <span class="text-n-slate-11"> — {{ f.detail }}</span>
+            </span>
+          </li>
+        </ul>
+      </template>
     </div>
 
     <!-- 文档本体：严格照 lib/pi/pi_template.xlsx 的版式与配色复刻（段标题灰底白字 #A6A6A6、

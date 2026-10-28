@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_quote, only: [:show, :update, :destroy, :xlsx, :preview, :convert_to_sales_order]
+  before_action :fetch_quote, only: [:show, :update, :destroy, :xlsx, :preview, :convert_to_sales_order, :health_check]
 
   RESULTS_PER_PAGE = 15
   SUMMARY_STATUSES = Crm::Quote::STATUSES
@@ -39,7 +39,14 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
 
   # 在线预览：单据本体 + 模板里固定的那部分（抬头 / 右栏默认条款 / 条款正文 / 页脚），
   # 都从 Crm::QuoteTemplateFiller 取，预览与导出的 Excel 不会各说各话。
-  def preview
+    # 发出前体检：算术对不对、条款缺不缺、币种和这家客户以往一不一致、
+  # 单价和历史价差多少。纯计算不调模型（见 Crm::DocHealthCheck）。
+  def health_check
+    findings = Crm::DocHealthCheck.for_quote(@quote)
+    render json: { payload: findings.map { |f| { level: f.level, title: f.title, detail: f.detail } } }
+  end
+
+def preview
     @static = Crm::QuoteTemplateFiller.static_text
     @seller_lines = Crm::QuoteTemplateFiller.seller_lines_for(@quote)
     @issuer_name = Crm::QuoteTemplateFiller.issuer_name_for(@quote)

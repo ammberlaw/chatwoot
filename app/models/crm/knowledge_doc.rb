@@ -8,6 +8,10 @@
 #  body            :text
 #  category        :string
 #  discarded_at    :datetime
+#  extract_error   :string
+#  extract_state   :string
+#  extracted_at    :datetime
+#  extracted_text  :text
 #  library         :string           default("SALES"), not null
 #  name            :string           not null
 #  scope           :string           default("PERSONAL"), not null
@@ -22,14 +26,15 @@
 #
 # Indexes
 #
-#  index_crm_knowledge_docs_on_account_id                   (account_id)
-#  index_crm_knowledge_docs_on_account_id_and_category      (account_id,category)
-#  index_crm_knowledge_docs_on_account_id_and_discarded_at  (account_id,discarded_at)
-#  index_crm_knowledge_docs_on_account_id_and_library       (account_id,library)
-#  index_crm_knowledge_docs_on_account_id_and_scope         (account_id,scope)
-#  index_crm_knowledge_docs_on_account_id_and_section_id    (account_id,section_id)
-#  index_crm_knowledge_docs_on_category_id                  (category_id)
-#  index_crm_knowledge_docs_on_owner_id                     (owner_id)
+#  index_crm_knowledge_docs_on_account_id                    (account_id)
+#  index_crm_knowledge_docs_on_account_id_and_category       (account_id,category)
+#  index_crm_knowledge_docs_on_account_id_and_discarded_at   (account_id,discarded_at)
+#  index_crm_knowledge_docs_on_account_id_and_extract_state  (account_id,extract_state)
+#  index_crm_knowledge_docs_on_account_id_and_library        (account_id,library)
+#  index_crm_knowledge_docs_on_account_id_and_scope          (account_id,scope)
+#  index_crm_knowledge_docs_on_account_id_and_section_id     (account_id,section_id)
+#  index_crm_knowledge_docs_on_category_id                   (category_id)
+#  index_crm_knowledge_docs_on_owner_id                      (owner_id)
 #
 # Foreign Keys
 #

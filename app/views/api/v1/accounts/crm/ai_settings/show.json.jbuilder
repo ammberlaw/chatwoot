@@ -15,6 +15,8 @@ json.agent_user_ids @setting.agent_user_ids.to_a
 
 # 新询盘自动初筛开关（Crm::InquiryTriageJob）。默认关：它会自动调模型花钱。
 json.inquiry_triage_enabled @setting.inquiry_triage_enabled
+json.auto_draft_reply_enabled @setting.auto_draft_reply_enabled
+json.auto_draft_user_ids @setting.auto_draft_user_ids
 
 # 本月用量：开了自动初筛之后它会自己跑、自己花钱，管理员得看得到花了多少。
 json.usage @usage || {}

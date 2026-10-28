@@ -64,4 +64,10 @@ json.files(visible_files) do |f|
   # 前端预览另走 fetch→blob，不受此影响。
   json.url rails_blob_url(f, disposition: 'attachment')
 end
+# AI 预写的回复草稿 id（这封来信有没有被预写过）。列表靠它显示「已预写回复」角标，
+# 点一下直接跳到那份草稿——不标出来，草稿就只能等人自己翻草稿箱发现。
+json.ai_draft_id local_assigns[:ai_draft_id]
+# 这封本身是不是 AI 预写的草稿：草稿箱里 AI 写的和自己写了一半的必须分得出来。
+json.ai_drafted resource.ai_drafted_at.present?
+json.reply_to_email_id resource.reply_to_email_id
 json.created_at resource.created_at

@@ -2,9 +2,9 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   # 同销售订单：财务对账要看 PI，跳过 CRM 总门禁，只读 + 看全员。
   skip_before_action :ensure_crm_access
   before_action :ensure_crm_or_finance!
-  before_action :block_crm_finance_writes!, except: [:index, :show, :summary, :xlsx, :preview]
+  before_action :block_crm_finance_writes!, except: [:index, :show, :summary, :xlsx, :preview, :health_check]
   before_action :check_authorization
-  before_action :fetch_pi, only: [:show, :update, :destroy, :xlsx, :preview]
+  before_action :fetch_pi, only: [:show, :update, :destroy, :xlsx, :preview, :health_check]
 
   RESULTS_PER_PAGE = 15
   SUMMARY_STATUSES = %w[DRAFT UNPAID PAID VOID].freeze
@@ -44,7 +44,14 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   # 在线预览：把导出 Excel 用到的全部信息（所选公司抬头的银行块、卖方抬头、买方、明细、合计）
   # 一次给全，前端照着排版即可。抬头常量只此一处（Crm::PiTemplateFiller），预览与导出不会各说各话。
-  def preview
+    # 发出前体检：算术对不对、条款缺不缺、币种和这家客户以往一不一致、
+  # 单价和历史价差多少。纯计算不调模型（见 Crm::DocHealthCheck）。
+  def health_check
+    findings = Crm::DocHealthCheck.for_pi(@pi)
+    render json: { payload: findings.map { |f| { level: f.level, title: f.title, detail: f.detail } } }
+  end
+
+def preview
     @header = Crm::PiTemplateFiller.header_for(@pi.company_header)
     @account_line = Crm::PiTemplateFiller.account_line_for(@pi.company_header)
     @seller_web = Crm::PiTemplateFiller.seller_web

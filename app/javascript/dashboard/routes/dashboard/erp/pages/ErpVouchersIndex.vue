@@ -1133,16 +1133,19 @@ onMounted(() => {
           </table>
         </div>
 
-        <PaginationFooter
-          v-if="totalCount > ITEMS_PER_PAGE"
-          :current-page="currentPage"
-          :total-items="totalCount"
-          :items-per-page="ITEMS_PER_PAGE"
-          class="!bg-transparent before:!hidden"
-          @update:current-page="currentPage = $event"
-        />
       </template>
     </div>
+
+    <!-- 与应收/应付台账同一口径：翻页器放滚动区外面常驻，条数 >0 就画。
+         放里面它会跟着表格一起滚走＝用户眼里「没有页码」。 -->
+    <PaginationFooter
+      v-if="!isFetching && totalCount > 0"
+      :current-page="currentPage"
+      :total-items="totalCount"
+      :items-per-page="ITEMS_PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="currentPage = $event"
+    />
 
     <!-- 录入 / 编辑 -->
     <Dialog

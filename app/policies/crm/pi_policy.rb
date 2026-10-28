@@ -39,6 +39,11 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
+  # 发出前体检：纯只读的对比（算术/缺字段/历史价），和 preview 同口径。
+  def health_check?
+    true
+  end
+
   def destroy?
     true
   end

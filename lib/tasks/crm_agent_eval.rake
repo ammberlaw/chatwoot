@@ -65,10 +65,29 @@ namespace :crm do
         @open_order_no ||= @account.mes_production_orders.where.not(order_no: nil).order(id: :desc).first&.order_no
       end
 
-      def fill(text)
+      # 建单类用例必须用「这个人自己看得见」的客户。写死第一个客户的话，业务员身份下
+      # find_customer 根本查不到，用例会以「没调到 draft_quote」的形式假红——
+      # 看着像提示词坏了，其实是尺子自己拿错了数据。
+      def my_customer_name(actor)
+        return customer_name if actor.nil?
+
+        Crm::Agent::Scope.new(account: @account, account_user: actor)
+                         .customers.where.not(name: [nil, '']).first&.name || customer_name
+      end
+
+      # 知识库里抽出过正文的那篇文档的名字。建单类用例一样的道理——写死型号
+      # 换一次种子数据就失效，这里现查一篇真有正文的。
+      def extracted_doc_name
+        @extracted_doc_name ||= @account.crm_knowledge_docs.kept
+                                        .where(extract_state: 'done').order(:id).first&.name
+      end
+
+      def fill(text, actor = nil)
         text.to_s
             .gsub('{{inbox_email_id}}', inbox_email&.id.to_s)
             .gsub('{{customer_name}}', customer_name.to_s)
+            .gsub('{{my_customer_name}}', my_customer_name(actor).to_s)
+            .gsub('{{extracted_doc_name}}', extracted_doc_name.to_s)
             .gsub('{{open_order_no}}', open_order_no.to_s)
       end
     end
@@ -88,12 +107,16 @@ namespace :crm do
 
     def self.run_case(account, ctx, kase)
       actor = actor_for(account, kase['as'], ctx)
-      ask = ctx.fill(kase['ask'])
+      ask = ctx.fill(kase['ask'], actor)
       # 评测会真的建草稿、开问题单、写记忆——跑完必须擦干净，
       # 否则跑几轮下来开发库里全是 eval 留下的垃圾（今天就这么污染过）。
       mark = { emails: account.crm_emails.maximum(:id).to_i,
                issues: (Crm::IssueReport.maximum(:id).to_i if defined?(Crm::IssueReport)).to_i,
-               memories: Crm::AgentMemory.maximum(:id).to_i }
+               memories: Crm::AgentMemory.maximum(:id).to_i,
+               # 建单类用例会真的落一张报价单/PI（带明细行）。原来水位里没有这两样，
+               # 跑一轮就在库里留一张草稿，跑十轮留十张——单据列表会被评测垃圾灌满。
+               quotes: account.crm_quotes.maximum(:id).to_i,
+               pis: account.crm_pis.maximum(:id).to_i }
       # 用例可以预置一条记忆（测跨对话记忆有没有生效）
       seed = kase['memory'].presence &&
              Crm::AgentMemory.remember!(account: account, user_id: actor.user_id, content: kase['memory'])
@@ -117,6 +140,10 @@ namespace :crm do
     # 擦掉这条用例跑出来的副产物（只删 id 大于开跑时水位的，不碰既有数据）。
     def self.cleanup(account, mark)
       account.crm_emails.where('id > ?', mark[:emails]).destroy_all
+      # destroy_all 不是 delete_all：明细行靠 dependent: :destroy 跟着走，
+      # delete_all 会把 crm_quote_line_items / crm_pi_items 留成孤儿。
+      account.crm_quotes.where('id > ?', mark[:quotes]).destroy_all
+      account.crm_pis.where('id > ?', mark[:pis]).destroy_all
       Crm::AgentMemory.where('id > ?', mark[:memories]).delete_all
       Crm::IssueReport.where('id > ?', mark[:issues]).delete_all if defined?(Crm::IssueReport)
     rescue StandardError => e

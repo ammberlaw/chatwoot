@@ -139,6 +139,9 @@ class Crm::Agent::Runner
     # 「这单为什么卡着」+「这是 bug，帮我报上去」。诊断只读、事实全来自
     # Mes::DocDiagnosis，模型只负责把结果说成人话。
     Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::ReportIssue,
+    # WhatsApp：客户在那边说的话不在邮件里，不接这两个工具就等于看不见半个沟通面。
+    # 回复只落私密备注（客户收不到），守住「什么都不许往外发」。
+    Crm::Agent::Tools::WhatsappThread, Crm::Agent::Tools::DraftWhatsappReply,
     # 跨对话记忆：被纠正过的口径、用惯的写法，下次还算数。
     Crm::Agent::Tools::Remember, Crm::Agent::Tools::Forget
   ].freeze

@@ -133,6 +133,8 @@ Rails.application.routes.draw do
               member do
                 get :xlsx
                 get :preview
+                # 发出前体检：算术、缺的条款、币种、和历史价差多少（见 Crm::DocHealthCheck）
+                get :health_check
               end
             end
             resource :pi_seller_profile, only: [:show, :update], controller: 'pi_seller_profiles'
@@ -270,6 +272,8 @@ Rails.application.routes.draw do
                 get :xlsx
                 get :preview
                 post :convert_to_sales_order
+                # 发出前体检（与 PI 同一套，见 Crm::DocHealthCheck）
+                get :health_check
               end
             end
             resources :quote_line_items, only: [:update, :destroy]

@@ -40,82 +40,12 @@ class Crm::PiParseService
 
   private
 
+  # 抽文本委托给 Crm::DocumentText（知识库补录也用同一套，见那个文件的说明）。
+  # UnsupportedType 继续沿用本类的常量名对外抛，调用方的 rescue 不用改。
   def extract_text
-    case file_kind
-    when :pdf then extract_pdf(@file.tempfile.path)
-    when :excel then extract_excel
-    when :legacy_excel then extract_legacy_excel
-    else
-      raise UnsupportedType, '只支持 PDF 或 Excel（.xls/.xlsx/.csv）'
-    end
-  end
-
-  # 优先按扩展名判类型，缺扩展名时兜底看 content_type。
-  def file_kind
-    name = @file.original_filename.to_s.downcase
-    return :pdf if name.end_with?('.pdf')
-    return :excel if name.end_with?('.xlsx', '.csv')
-    return :legacy_excel if name.end_with?('.xls')
-
-    ct = @file.content_type.to_s
-    return :pdf if ct.include?('pdf')
-    return :legacy_excel if ct.include?('ms-excel')
-    return :excel if ct.include?('sheet') || ct.include?('csv')
-
-    :unknown
-  end
-
-  def extract_pdf(path)
-    reader = PDF::Reader.new(path)
-    reader.pages.map(&:text).join("\n").strip
-  end
-
-  # Excel/CSV：逐 sheet 逐行把非空单元格用 ' | ' 拼成一行，喂给模型理解表格。
-  #
-  # roo 读 xlsx 是**整张表一次性解析**的，一个坏单元格就能让整个文件读不出来——
-  # 实际遇到的是 WPS/老模板导出的「声明成数字型但值是空的」格子（<c t="n"><v></v></c>），
-  # roo 拿空串去 Integer() 直接抛 ArgumentError。这类格子对 PI 内容毫无影响，
-  # 不能因此让人家整张 PI 识别不了。
-  #
-  # 所以 roo 一旦翻车就退回 Gotenberg：转成 PDF 再抽文字，和老 .xls 走同一条路。
-  # 拿到的文字版式不如直接读单元格规整，但字段都在，模型照样认得出来。
-  def extract_excel
-    ext = @file.original_filename.to_s.downcase.end_with?('.csv') ? :csv : :xlsx
-    ss = Roo::Spreadsheet.open(@file.tempfile.path, extension: ext)
-    ss.sheets.flat_map { |name| sheet_rows(ss.sheet(name)) }.reject(&:blank?).join("\n")
-  rescue StandardError => e
-    raise if ext == :csv
-
-    Rails.logger.warn("[PI parse] roo 读 xlsx 失败（#{e.class}: #{e.message}），改用 Gotenberg 转 PDF")
-    extract_legacy_excel
-  end
-
-  # 老版 .xls（BIFF）：roo 读不了，纯 Ruby 的解析器都要额外 gem。这里借已在跑的
-  # Gotenberg（LibreOffice sidecar）转成 PDF 再抽文字——早年的 PI 大多是这个格式，
-  # 排版转换后文字顺序仍是「按行左到右」，模型照样能把字段认出来。
-  def extract_legacy_excel
-    @file.tempfile.rewind
-    pdf = Mes::GotenbergClient.office_to_pdf(@file.tempfile.read, filename: @file.original_filename.to_s)
-    tmp = Tempfile.new(['pi-legacy', '.pdf'], binmode: true)
-    tmp.write(pdf)
-    tmp.close
-    extract_pdf(tmp.path)
-  rescue Mes::GotenbergClient::ConversionError => e
-    # 文案按真实扩展名走：xlsx 读废后也会落到这条路上，不能一律报「老版 .xls」。
-    raise UnsupportedType, "#{File.extname(@file.original_filename.to_s).presence || 'Excel'} 转换失败：#{e.message}"
-  ensure
-    tmp&.unlink
-  end
-
-  def sheet_rows(sheet)
-    return [] if sheet.first_row.nil?
-
-    (sheet.first_row..sheet.last_row).map do |r|
-      (sheet.first_column..sheet.last_column)
-        .map { |c| sheet.cell(r, c).to_s.strip }
-        .reject(&:blank?)
-        .join(' | ')
-    end
+    Crm::DocumentText.new(@file).call
+  rescue Crm::DocumentText::UnsupportedType => e
+    raise UnsupportedType, e.message
   end
 
   def build_result(data)

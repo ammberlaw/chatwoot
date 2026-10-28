@@ -144,6 +144,18 @@ class Crm::Agent::Scope
   # · 文档中心（GENERAL）的公司文档卡板块可见性（没挂板块的旧文档全员可见，
   #   管理员/副管理员和板块负责人不受限）；
   # · 个人文档只有本人。
+  # WhatsApp 会话：只给这个人自己是成员的收件箱。
+  #
+  # 个人号是一人一个收件箱（生产里「张欢 的 WhatsApp」「罗家明 的 WhatsApp 1」各 1 个成员），
+  # 所以按 inbox_members 收口就等于「只看自己的号」，和他在会话界面看到的完全一致。
+  # 管理员走 all_access? 放行全部——和邮件那边「只有老板看全员」同一个口径。
+  def whatsapp_conversations
+    scope = @account.conversations.joins(:inbox).where(inboxes: { channel_type: %w[Channel::Whatsapp Channel::WhatsappWeb] })
+    return scope if @access.all_access?
+
+    scope.where(inbox_id: Inbox.joins(:inbox_members).where(inbox_members: { user_id: user_id }).select(:id))
+  end
+
   def knowledge_docs
     @account.crm_knowledge_docs.kept.where(
       KNOWLEDGE_SQL, company: 'COMPANY', personal: 'PERSONAL', sales: 'SALES',

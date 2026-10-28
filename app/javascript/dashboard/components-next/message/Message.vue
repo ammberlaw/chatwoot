@@ -639,7 +639,7 @@ provideMessageContext({
         v-tooltip.left-end="avatarTooltip"
         class="[grid-area:avatar] flex items-end"
       >
-        <Avatar v-bind="avatarInfo" :size="24" />
+        <Avatar v-bind="avatarInfo" :size="24" rounded-full />
       </div>
       <div
         class="[grid-area:bubble] flex min-w-0"

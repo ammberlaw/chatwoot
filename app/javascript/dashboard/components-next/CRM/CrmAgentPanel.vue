@@ -125,16 +125,87 @@ const pageContext = () => {
   return { route: String(name), subject: String(subject).slice(0, 60) };
 };
 
+// 发图：展会上拍的规格表、手写询价、客户发来的实物照。
+// 以前只有邮件附件能读图，手机上拍的照片没有入口。
+const fileRef = ref(null);
+const pendingImage = ref(null);
+const MAX_IMAGE_MB = 8; // 与后端 VisionReader 的上限一致，先在前端拦住省一次往返
+
+const pickImage = () => fileRef.value?.click();
+
+const onImagePicked = event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    useAlert('只能发图片');
+    return;
+  }
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+    useAlert(`图太大了（上限 ${MAX_IMAGE_MB}MB）`);
+    return;
+  }
+  pendingImage.value = file;
+};
+
+const dropImage = () => {
+  pendingImage.value = null;
+};
+
+// 语音输入：直接用浏览器自带的识别，不走后端也不额外花钱。
+// 展会上、路上单手打字麻烦，说一句比打一句快得多。
+const recognition = ref(null);
+const listening = ref(false);
+const speechSupported =
+  typeof window !== 'undefined' &&
+  !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+const toggleVoice = () => {
+  if (!speechSupported) {
+    useAlert('这个浏览器不支持语音输入，换 Chrome 试试');
+    return;
+  }
+  if (listening.value) {
+    recognition.value?.stop();
+    return;
+  }
+  const Engine = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new Engine();
+  rec.lang = 'zh-CN';
+  rec.interimResults = false;
+  rec.continuous = false;
+  rec.onresult = event => {
+    const said = Array.from(event.results)
+      .map(r => r[0]?.transcript || '')
+      .join('');
+    // 接在已有文字后面，别把人家打了一半的字覆盖掉
+    input.value = input.value ? `${input.value}${said}` : said;
+  };
+  rec.onerror = () => {
+    listening.value = false;
+  };
+  rec.onend = () => {
+    listening.value = false;
+  };
+  recognition.value = rec;
+  listening.value = true;
+  rec.start();
+};
+
 const send = async () => {
   const text = input.value.trim();
-  if (!text || busy.value) return;
+  // 只发图不打字是常见用法（拍一张规格表甩给它），所以有图时空文字也放行
+  if ((!text && !pendingImage.value) || busy.value) return;
   try {
     const conv = await ensureConversation();
+    const image = pendingImage.value;
     input.value = '';
+    pendingImage.value = null;
     const { data } = await CrmAgentAPI.sendMessage(
       conv.id,
       text,
-      pageContext()
+      pageContext(),
+      image
     );
     conversation.value = data.payload;
     // 等第一条问话落库之后才报：标题取的是首个问题，空会话报上去只会多一行没字的。
@@ -505,6 +576,24 @@ const artifactRoute = a => {
       <h2 class="m-0 text-center text-heading-1 !font-sans !text-[18px] !font-medium !tracking-normal text-[#171717]">今天有什么可以帮你？</h2>
     </div>
 
+    <!-- 待发的图。必须让人看见选了什么、能撤回——选错图直接发出去要再等十几秒才知道。 -->
+    <div
+      v-if="pendingImage"
+      class="flex items-center gap-2 px-3 py-2 mx-1 mb-1 text-xs border rounded-xl border-n-weak bg-n-alpha-1 text-n-slate-11"
+    >
+      <span class="i-lucide-image size-4 shrink-0 text-n-iris-11" />
+      <span class="flex-1 min-w-0 truncate">{{ pendingImage.name }}</span>
+      <span class="shrink-0">{{ Math.round(pendingImage.size / 1024) }} KB</span>
+      <button
+        type="button"
+        class="shrink-0 text-n-slate-10 hover:text-n-slate-12"
+        title="不发了"
+        @click="dropImage"
+      >
+        <span class="i-lucide-x size-4" />
+      </button>
+    </div>
+
     <div
       :class="floatingLayout && '!relative !block !rounded-3xl !border !border-[#dedede] !bg-white !p-3 !shadow-sm focus-within:!border-[#aaa]'"
       class="[.theme-classic_.crm-agent-workspace_&]:focus-within:!border-[#b6b6b6] flex items-end gap-2 px-1 pt-2 border-t border-n-weak [.theme-classic_.crm-agent-workspace_&]:mx-auto [.theme-classic_.crm-agent-workspace_&]:w-full [.theme-classic_.crm-agent-workspace_&]:max-w-[860px] [.theme-classic_.crm-agent-workspace_&]:gap-3 [.theme-classic_.crm-agent-workspace_&]:rounded-2xl [.theme-classic_.crm-agent-workspace_&]:border [.theme-classic_.crm-agent-workspace_&]:border-[#dfe3e9] [.theme-classic_.crm-agent-workspace_&]:bg-white [.theme-classic_.crm-agent-workspace_&]:p-3 [.theme-classic_.crm-agent-workspace_&]:shadow-[0_8px_26px_-12px_rgba(40,50,70,0.16)]"
@@ -519,13 +608,47 @@ const artifactRoute = a => {
         :disabled="busy"
         @keydown.enter.exact.prevent="send"
       />
+      <input
+        ref="fileRef"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="hidden"
+        @change="onImagePicked"
+      />
+      <button
+        type="button"
+        title="发图片（规格表、手写询价、实物照都行）"
+        aria-label="发图片"
+        :class="floatingLayout ? '!absolute bottom-3 left-3' : ''"
+        class="flex items-center justify-center rounded-full size-8 shrink-0 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-35"
+        :disabled="busy"
+        @click="pickImage"
+      >
+        <span class="i-lucide-image size-4" />
+      </button>
+      <button
+        v-if="speechSupported"
+        type="button"
+        :title="listening ? '停止' : '语音输入'"
+        :aria-label="listening ? '停止语音输入' : '语音输入'"
+        :class="[
+          floatingLayout ? '!absolute bottom-3 left-12' : '',
+          listening ? 'text-n-ruby-11 bg-n-ruby-3' : 'text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12',
+        ]"
+        class="flex items-center justify-center rounded-full size-8 shrink-0 disabled:opacity-35"
+        :disabled="busy"
+        @click="toggleVoice"
+      >
+        <span :class="listening ? 'i-lucide-mic animate-pulse' : 'i-lucide-mic'" class="size-4" />
+      </button>
       <Button
         v-if="!floatingLayout"
         label="发送"
         color="iris"
         size="sm"
         :is-loading="busy"
-        :disabled="!input.trim()"
+        :disabled="!input.trim() && !pendingImage"
         @click="send"
       />
       <button
@@ -534,7 +657,7 @@ const artifactRoute = a => {
         title="发送"
         aria-label="发送"
         class="!absolute bottom-3 right-3 !flex !size-8 !items-center !justify-center !rounded-full !border-0 !bg-[#171717] !p-0 !text-white hover:!bg-[#333] disabled:opacity-35"
-        :disabled="busy || !input.trim()"
+        :disabled="busy || (!input.trim() && !pendingImage)"
         @click="send"
       >
         <span :class="busy ? 'i-lucide-loader-circle animate-spin' : 'i-lucide-arrow-up'" class="size-4" />

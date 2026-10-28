@@ -4,16 +4,18 @@
 #
 # Table name: crm_ai_settings
 #
-#  id                     :bigint           not null, primary key
-#  agent_user_ids         :bigint           default([]), not null, is an Array
-#  api_base               :string
-#  api_key                :text
-#  apollo_api_key         :text
-#  inquiry_triage_enabled :boolean          default(FALSE), not null
-#  model                  :string           default("deepseek-chat"), not null
-#  created_at             :datetime         not null
-#  updated_at             :datetime         not null
-#  account_id             :bigint           not null
+#  id                       :bigint           not null, primary key
+#  agent_user_ids           :bigint           default([]), not null, is an Array
+#  api_base                 :string
+#  api_key                  :text
+#  apollo_api_key           :text
+#  auto_draft_reply_enabled :boolean          default(FALSE), not null
+#  auto_draft_user_ids      :bigint           default([]), not null, is an Array
+#  inquiry_triage_enabled   :boolean          default(FALSE), not null
+#  model                    :string           default("deepseek-chat"), not null
+#  created_at               :datetime         not null
+#  updated_at               :datetime         not null
+#  account_id               :bigint           not null
 #
 # Indexes
 #

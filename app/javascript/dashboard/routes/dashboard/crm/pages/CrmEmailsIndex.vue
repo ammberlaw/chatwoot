@@ -1188,6 +1188,26 @@ const loadBody = async email => {
   }
 };
 
+// 点「已预写回复」角标：切到草稿箱并选中那封 AI 草稿。
+// 不直接在当前列表里打开——草稿和来信不在同一个文件夹，留在收件箱里打开它，
+// 用户一刷新就找不回来了，下次还得自己翻草稿箱。
+const openAiDraft = async record => {
+  const draftId = record.aiDraftId;
+  if (!draftId) return;
+  setFolder('DRAFT');
+  await nextTick();
+  // 列表是异步取的，等它回来再找那封；找不到就停在草稿箱让用户自己看见。
+  for (let i = 0; i < 20; i += 1) {
+    const hit = records.value.find(r => r.id === draftId);
+    if (hit) {
+      selectEmail(hit);
+      return;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise(r => setTimeout(r, 150));
+  }
+};
+
 const selectEmail = async email => {
   selectedEmail.value = email;
   emailOpens.value = [];
@@ -2395,6 +2415,25 @@ watch(
                       :class="SEND_STATUSES[record.sendStatus]?.class"
                     >
                       {{ SEND_STATUSES[record.sendStatus]?.label }}
+                    </span>
+                    <!-- AI 已经替这封来信写好回复草稿了。必须在列表上标出来：
+                         草稿躺在草稿箱里没人知道，等于白写。点角标直接跳到那份草稿。 -->
+                    <button
+                      v-if="record.aiDraftId"
+                      type="button"
+                      class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap bg-n-iris-3 text-n-iris-11 hover:bg-n-iris-4"
+                      title="AI 已预写回复草稿，点开核对后发送"
+                      @click.stop="openAiDraft(record)"
+                    >
+                      已预写回复
+                    </button>
+                    <!-- 草稿箱里要分得出哪些是 AI 写的、哪些是自己写了一半的 -->
+                    <span
+                      v-else-if="record.aiDrafted"
+                      class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap bg-n-iris-3 text-n-iris-11"
+                      title="这份草稿是 AI 预写的，发送前请核对"
+                    >
+                      AI 预写
                     </span>
                     <span
                       v-if="mailScope === 'team' && record.ownerName"

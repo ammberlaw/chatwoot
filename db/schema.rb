@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_27_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_28_130100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -920,6 +920,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_27_170000) do
     t.text "apollo_api_key"
     t.bigint "agent_user_ids", default: [], null: false, array: true
     t.boolean "inquiry_triage_enabled", default: false, null: false
+    t.boolean "auto_draft_reply_enabled", default: false, null: false
+    t.bigint "auto_draft_user_ids", default: [], null: false, array: true
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
 
@@ -1311,12 +1313,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_27_170000) do
     t.datetime "last_clicked_at"
     t.integer "sender_utc_offset_minutes"
     t.datetime "ai_triaged_at"
+    t.bigint "reply_to_email_id"
+    t.datetime "ai_drafted_at"
+    t.datetime "auto_draft_done_at"
     t.index ["account_id", "ai_triaged_at"], name: "index_crm_emails_on_account_id_and_ai_triaged_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
     t.index ["account_id", "is_starred"], name: "index_crm_emails_starred", where: "is_starred"
     t.index ["account_id", "owner_id", "message_id"], name: "index_crm_emails_on_account_owner_message_id", unique: true, where: "(message_id IS NOT NULL)"
+    t.index ["account_id", "reply_to_email_id"], name: "index_crm_emails_on_account_reply_to"
     t.index ["account_id"], name: "index_crm_emails_on_account_id"
     t.index ["chatwoot_message_id"], name: "index_crm_emails_on_chatwoot_message_id", unique: true, where: "(chatwoot_message_id IS NOT NULL)"
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
@@ -1540,8 +1546,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_27_170000) do
     t.datetime "discarded_at"
     t.bigint "discarded_by_id"
     t.bigint "category_id"
+    t.text "extracted_text"
+    t.datetime "extracted_at"
+    t.string "extract_state"
+    t.string "extract_error"
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
     t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_docs_on_account_id_and_discarded_at"
+    t.index ["account_id", "extract_state"], name: "index_crm_knowledge_docs_on_account_id_and_extract_state"
     t.index ["account_id", "library"], name: "index_crm_knowledge_docs_on_account_id_and_library"
     t.index ["account_id", "scope"], name: "index_crm_knowledge_docs_on_account_id_and_scope"
     t.index ["account_id", "section_id"], name: "index_crm_knowledge_docs_on_account_id_and_section_id"
