@@ -620,7 +620,7 @@ const artifactRoute = a => {
         type="button"
         title="发图片（规格表、手写询价、实物照都行）"
         aria-label="发图片"
-        :class="floatingLayout ? '!absolute bottom-3 left-3' : ''"
+        :class="floatingLayout ? '!absolute bottom-3 left-3 !size-8 !border-0 !bg-transparent !p-0 !text-[#666] hover:!bg-[#f3f3f3] hover:!text-[#171717]' : ''"
         class="flex items-center justify-center rounded-full size-8 shrink-0 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-35"
         :disabled="busy"
         @click="pickImage"
@@ -633,14 +633,14 @@ const artifactRoute = a => {
         :title="listening ? '停止' : '语音输入'"
         :aria-label="listening ? '停止语音输入' : '语音输入'"
         :class="[
-          floatingLayout ? '!absolute bottom-3 left-12' : '',
-          listening ? 'text-n-ruby-11 bg-n-ruby-3' : 'text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12',
+          floatingLayout ? '!absolute bottom-3 left-[52px] !size-8 !border-0 !p-0' : '',
+          listening ? '!bg-[#171717] !text-white' : '!bg-transparent !text-[#666] hover:!bg-[#f3f3f3] hover:!text-[#171717]',
         ]"
         class="flex items-center justify-center rounded-full size-8 shrink-0 disabled:opacity-35"
         :disabled="busy"
         @click="toggleVoice"
       >
-        <span :class="listening ? 'i-lucide-mic animate-pulse' : 'i-lucide-mic'" class="size-4" />
+        <span :class="listening ? 'i-lucide-square size-3' : 'i-lucide-mic size-4'" />
       </button>
       <Button
         v-if="!floatingLayout"

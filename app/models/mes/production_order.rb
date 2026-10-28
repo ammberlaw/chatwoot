@@ -371,7 +371,17 @@ class Mes::ProductionOrder < ApplicationRecord
   # 这道闸 2026-09-10 曾被取消（当时嫌多一步），字段一直留着，这次直接复用。
   # 与那一版的差别：**只卡有客户的单**（order_kind=CUSTOMER，新款定制与老款返单都算）；
   # 库存备货单没有客户、没人可确认，直接放行。
-  def bom_confirm_required? = !stock?
+  # 商显工控线取消这道闸（2026-10-28 用户要求，只取消商显、平板照旧）：
+  # 商显的料相对标准、业务那边没什么可确认的，多一步只是卡着采购下不去。
+  # 只改这一个谓词就够——awaiting_bom_confirm? / can_confirm_bom? / 待办 / 推送
+  # 全都从它派生（Mes::TodoList、StageAck 那几处都是），不用各改一遍。
+  NO_BOM_CONFIRM_LINES = %w[COMMERCIAL_DISPLAY].freeze
+
+  def bom_confirm_required?
+    return false if stock?
+
+    NO_BOM_CONFIRM_LINES.exclude?(product_line.to_s)
+  end
   def bom_confirmed? = bom_confirmed_at.present?
 
   # 正卡在「等业务确认用料」这一步：挂了 BOM、还没下发采购、业务还没点头。
@@ -421,7 +431,12 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 业务点「确认用料无误」。确认完工程/PMC 才能把单下发给采购。
   def confirm_bom!(actor:)
-    raise StandardError, '库存备货单没有客户，不需要业务确认用料' unless bom_confirm_required?
+    # 不需要确认的两种：库存备货单（没有客户、没人可确认）、商显工控线（这道闸已取消）。
+    # 文案要分开说——两种原因混成一句，商显的单会报「库存备货单没有客户」，查起来摸不着头脑。
+    unless bom_confirm_required?
+      raise StandardError, stock? ? '库存备货单没有客户，不需要业务确认用料' \
+                                 : '商显工控线已取消用料确认这一步，不需要确认'
+    end
     raise StandardError, '这张单还没挂生产任务单' if bom_id.nil?
     return self if bom_confirmed?
 
