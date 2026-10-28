@@ -7,7 +7,7 @@ json.meta do
   json.before_fiscal_count @before_fiscal_count
   json.owners @pending_owners do |user|
     json.id user.id
-    json.name user.crm_name.presence || user.name
+    json.name user.name.presence || user.crm_name
   end
 end
 
@@ -39,7 +39,7 @@ json.payload do
     json.product_summary order.product_summary
     json.product_names order.product_names
     json.owner_id order.owner_id
-    json.owner_name order.owner&.crm_name.presence || order.owner&.name
+    json.owner_name order.owner&.name.presence || order.owner&.crm_name
     # 以下与应收台账同一套列（用户原话：待建账的表头内容要和应收台账一样）。
     # 建账前就该看清「这是什么货、什么价、谁的部门、哪张出库单」，不用逐条点开订单。
     json.insurance_order_no order.insurance_order_no

@@ -168,6 +168,12 @@ const ruleAccountOptions = computed(() => [
   ...accountOptions.value,
 ]);
 
+// 新建凭证默认几行。原来 2 行，财务要 8 行——一张单据十几笔分录是常态，
+// 每次点七八下「加一行」很烦。空行在保存时会被剔掉（见 payload 的 filter），
+// 不会因为摆了 8 行就逼着人填满。
+const DEFAULT_LINE_COUNT = 8;
+const blankLines = () => Array.from({ length: DEFAULT_LINE_COUNT }, () => blankLine());
+
 const blankLine = () => ({
   id: null,
   ledgerAccountId: '',
@@ -226,7 +232,7 @@ const form = reactive({
   summary: '',
   attachmentCount: 0,
   remark: '',
-  lines: [blankLine(), blankLine()],
+  lines: blankLines(),
 });
 const { isDirty, markPristine } = useDirtyGuard(() => form);
 
@@ -337,7 +343,7 @@ const openCreate = () => {
     summary: '',
     attachmentCount: 0,
     remark: '',
-    lines: [blankLine(), blankLine()],
+    lines: blankLines(),
   });
   markPristine();
   dialogRef.value?.open();
@@ -1111,16 +1117,28 @@ onMounted(() => {
                         @click="askDelete(v)"
                       />
                     </template>
-                    <Button
-                      v-else-if="
-                        canWrite && v.status === 'POSTED' && !v.reversedByNo
-                      "
-                      label="红冲"
-                      color="ruby"
-                      variant="ghost"
-                      size="xs"
-                      @click="reverseVoucher(v)"
-                    />
+                    <!-- 已记账：红冲和删除并列，两个都给。
+                         红冲是常用的更正方式（留痕、凭证号不断），不能被删除挤掉；
+                         删除是财务要求补的，后端还会按「期间已结账 / 已被红冲 /
+                         自己是红冲单」三种情况拦住并给出具体理由（见 Voucher#delete_blocker）。 -->
+                    <template v-if="canWrite && v.status === 'POSTED'">
+                      <Button
+                        v-if="!v.reversedByNo"
+                        label="红冲"
+                        color="ruby"
+                        variant="ghost"
+                        size="xs"
+                        @click="reverseVoucher(v)"
+                      />
+                      <Button
+                        v-if="!v.reversedByNo && !v.reversalOfNo"
+                        label="删除"
+                        color="ruby"
+                        variant="ghost"
+                        size="xs"
+                        @click="askDelete(v)"
+                      />
+                    </template>
                   </div>
                 </td>
               </tr>
@@ -1844,7 +1862,11 @@ onMounted(() => {
       width="sm"
       confirm-button-color="ruby"
       title="删除凭证"
-      :description="`确定删除待过账凭证「${deleting?.voucherNo || ''}」？已记账的凭证不能删除，只能红冲。`"
+      :description="
+        deleting?.status === 'POSTED'
+          ? `确定删除**已记账**凭证「${deleting?.voucherNo || ''}」？删掉之后这笔分录从账簿和报表里直接消失，凭证号也会断号。更常用的更正方式是红冲（留痕、号不断）。`
+          : `确定删除凭证「${deleting?.voucherNo || ''}」？`
+      "
       confirm-label="删除"
       @confirm="doDelete"
     />

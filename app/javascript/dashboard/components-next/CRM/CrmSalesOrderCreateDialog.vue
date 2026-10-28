@@ -879,14 +879,10 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           </button>
         </div>
 
-        <span v-if="!form.lineItems.length" class="text-xs text-n-ruby-11">
-          {{
-            isEditing
-              ? '这单还没写明细——审核的人看不出卖的是什么货，建议顺手补上。'
-              : '订单明细必填：至少加一行，写清品名、数量、单价。审核的人要靠它知道这单卖的是什么货。'
-          }}
-        </span>
-        <div v-else class="flex flex-col gap-2">
+        <!-- 明细仍是必填（提交按钮会灰掉），只是不再摆那句长提示——
+             表头的红星已经说明必填，再写一段话是重复。
+             ⚠️ 这里必须是 v-if 不是 v-else：原来配对的那个 v-if 提示块已经删掉了。 -->
+        <div v-if="form.lineItems.length" class="flex flex-col gap-2">
           <div
             v-for="(li, index) in form.lineItems"
             :key="index"

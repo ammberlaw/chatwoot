@@ -3,7 +3,7 @@ json.payload do
     suggestion = @suggestions[request.id] || {}
     json.id request.id
     json.title request.title
-    json.applicant_name request.applicant&.crm_name.presence || request.applicant&.name
+    json.applicant_name request.applicant&.name.presence || request.applicant&.crm_name
     json.applicant_id request.applicant_id
     json.department_name request.department&.name
     json.template_name request.template&.name

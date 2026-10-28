@@ -10,6 +10,8 @@ class Erp::AutoVoucherService
 
   FEE_ACCOUNT_CODE = '660302'.freeze # 财务费用-手续费
   REVENUE_CODE = '6001'.freeze       # 主营业务收入
+  # 运费单独挂其他业务收入（财务要求）：运费是代收代付性质，混进主营会让主营收入虚高。
+  FREIGHT_INCOME_CODE = '6021'.freeze # 其他业务收入
   COGS_CODE = '6401'.freeze          # 主营业务成本
   OUTPUT_TAX_CODE = '22210105'.freeze # 应交税费-应交增值税-销项税额
 
@@ -109,19 +111,31 @@ class Erp::AutoVoucherService
     tax_rate = order.effective_tax_rate
     # 拆税口径放在订单模型上（Crm::SalesOrder#tax_split）——应收台账建账金额要用同一个，
     # 两边各算一套必然在不含税单上差出一个税额。
-    net, tax = order.tax_split
+    # 货款与运费分开贷记：运费挂「其他业务收入」，不进主营（见 Crm::SalesOrder#revenue_split）。
+    net_goods, net_freight, tax = order.revenue_split
     # 应收恒等于「收入 + 销项税」——客户实付的就是这个数（货款 + 运费 + 税）。
     # 含税单它等于订单金额+运费；不含税单那个数只是收入，税要另加，不能照搬金额当应收。
-    gross = net + tax
+    gross = net_goods + net_freight + tax
     tax_account = tax.positive? ? account_by_code(OUTPUT_TAX_CODE) : nil
+    freight_account = net_freight.positive? ? account_by_code(FREIGHT_INCOME_CODE) : nil
 
     # 核算维度除了客户，还挂上业务员（她点名要的）：应收挂客户是往来对账的必填项不能动，
     # 业务员是并列的第二个维度，总账里就能按人看「这个业务员名下还有多少应收」。
     lines = [doc_line(account: receivable, direction: 'DEBIT', amount_micros: gross, order: order,
                       summary: '应收货款',
                       dimension: { crm_customer_id: order.crm_customer_id, member_id: order.owner_id }),
-             doc_line(account: revenue, direction: 'CREDIT', amount_micros: net, order: order,
+             doc_line(account: revenue, direction: 'CREDIT', amount_micros: net_goods, order: order,
                       summary: '确认销售收入', dimension: { member_id: order.owner_id })]
+    # 账套里没配 6021 时不要把运费吞掉——退回原来的做法合进主营，
+    # 否则借贷不平、这张凭证根本出不来，等于整单不入账。
+    if net_freight.positive?
+      if freight_account.present?
+        lines << doc_line(account: freight_account, direction: 'CREDIT', amount_micros: net_freight,
+                          order: order, summary: '运费收入', dimension: { member_id: order.owner_id })
+      else
+        lines[1][:amount_micros] += net_freight
+      end
+    end
     if tax_account.present?
       lines << doc_line(account: tax_account, direction: 'CREDIT', amount_micros: tax, order: order,
                         summary: "销项税额 #{tax_rate}%")

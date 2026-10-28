@@ -16,6 +16,6 @@ json.payload do
     json.counterparty transaction.counterparty
     json.source_type transaction.source_type
     json.source_id transaction.source_id
-    json.created_by_name transaction.created_by&.crm_name.presence || transaction.created_by&.name
+    json.created_by_name transaction.created_by&.name.presence || transaction.created_by&.crm_name
   end
 end

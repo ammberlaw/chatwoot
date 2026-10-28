@@ -168,7 +168,7 @@ class Erp::LedgerQueryService
     DIMENSION_COLUMNS.fetch(dimension.to_s)
   end
 
-  # 维度 → [关联名, 显示字段]；业务员单独走（CRM 英文名优先）。
+  # 维度 → [关联名, 显示字段]；业务员单独走（中文名优先，见 member_labels）。
   LABEL_SOURCES = {
     'customer' => [:crm_customers, :name], 'supplier' => [:mes_suppliers, :name],
     'order' => [:crm_sales_orders, :order_no], 'department' => [:org_departments, :name]
@@ -183,6 +183,7 @@ class Erp::LedgerQueryService
   end
 
   def member_labels(ids)
-    User.where(id: ids).pluck(:id, :crm_name, :name).to_h { |id, crm_name, name| [id, crm_name.presence || name] }
+    # 中文名优先（财务板块只给自己人看，crm_name 是对客场景用的英文名）。
+    User.where(id: ids).pluck(:id, :crm_name, :name).to_h { |id, crm_name, name| [id, name.presence || crm_name] }
   end
 end

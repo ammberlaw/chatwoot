@@ -1,4 +1,4 @@
-# BOM 成本表 Excel 导入：商品编码 / 产品名称 / 规格型号 / 加工费 / 制造费用。
+# BOM 成本表 Excel 导入：商品编码 / 产品名称 / 规格型号 / 人工费（旧表头「加工费」也认）/ 制造费用。
 #
 # 口径与期初库存导入一致：
 #   1. **只认商品编码**——产品名称与规格只是给人对照用的，落库不取。
@@ -12,7 +12,9 @@ class Erp::BomCostImportService
 
   HEADER_SCAN_ROWS = 5
   SKU_HEADER = '商品编码'.freeze
-  PROCESS_HEADERS = ['加工费'].freeze
+  # 新旧表头都认：字段 2026-10-28 从「加工费」改叫「人工费」，
+  # 但财务手上存着一堆写「加工费」的旧 Excel，只认新名字等于把那些表全废了。
+  PROCESS_HEADERS = ['人工费', '加工费'].freeze
   OVERHEAD_HEADERS = ['制造费用'].freeze
 
   def initialize(account:, user:, path:)

@@ -15,10 +15,10 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
-// BOM 成本表：按商品编码维护「加工费（生产人工）」和「制造费用」两个标准单价。
+// BOM 成本表：按商品编码维护「人工费（生产人工）」和「制造费用」两个标准单价。
 //
 // 这张表直接喂给成本归集：成品入库过账后，Erp::CostRollupService 按
-//   完工入库数量 × 加工费   → 生产人工
+//   完工入库数量 × 人工费   → 生产人工
 //   完工入库数量 × 制造费用 → 制造费用
 // 归到销售订单上，和按领料算的材料成本一起构成毛利的成本侧。
 // 所以改这里的数 = 改毛利，写权限收在 cost 能力域（出纳看得到、改不了）。
@@ -33,7 +33,35 @@ const keyword = ref('');
 const loading = ref(false);
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
-// 页面按「元」输入，落库按 micros：整数分以下也要留得住（加工费可能是 1.5 元）
+
+// 点开一行看这个成品编码下的物料与料价。按需拉取——161 个编码各带几十行物料，
+// 塞进列表接口一次响应就几兆。同一时间只展开一行，省得整页都是明细表。
+const expanded = ref(null);
+const materials = ref({ items: [] });
+const materialsLoading = ref(false);
+const materialTotal = computed(() =>
+  materials.value.items.reduce((sum, m) => sum + Number(m.amount_micros || 0), 0)
+);
+
+const toggleMaterials = async row => {
+  if (expanded.value === row.id) {
+    expanded.value = null;
+    return;
+  }
+  expanded.value = row.id;
+  materials.value = { items: [] };
+  materialsLoading.value = true;
+  try {
+    const { data } = await ErpBomCostAPI.materials(row.id);
+    // 拉回来时用户可能已经点开别行了，丢弃过期响应
+    if (expanded.value === row.id) materials.value = data.payload || { items: [] };
+  } catch {
+    if (expanded.value === row.id) materials.value = { items: [] };
+  } finally {
+    materialsLoading.value = false;
+  }
+};
+// 页面按「元」输入，落库按 micros：整数分以下也要留得住（人工费可能是 1.5 元）
 const toMicros = yuan => Math.round(Number(yuan || 0) * 1_000_000);
 const toYuan = micros => (micros ? String(micros / 1_000_000) : '');
 
@@ -87,7 +115,7 @@ const exportList = async () => {
           { label: '商品编码', key: 'sku' },
           { label: '产品名称', key: 'product_name' },
           { label: '规格型号', key: 'specification' },
-          { label: '加工费', key: 'process_fee_micros', money: true },
+          { label: '人工费', key: 'process_fee_micros', money: true },
           { label: '制造费用', key: 'overhead_fee_micros', money: true },
           { label: '合计单价', key: 'unit_cost_micros', money: true },
           { label: '备注', key: 'remark' },
@@ -287,7 +315,7 @@ onMounted(load);
 
     <div class="px-4 pb-3 sm:px-6">
       <p class="text-label-small text-n-slate-11">
-        按商品编码维护加工费（生产人工）与制造费用的标准单价。成品入库过账后，系统按
+        按商品编码维护人工费（生产人工）与制造费用的标准单价。成品入库过账后，系统按
         <b>完工入库数量 × 单价</b>
         自动归集到对应销售订单的成本里，和领料算出的材料成本一起算毛利。
       </p>
@@ -329,7 +357,7 @@ onMounted(load);
             <th class="px-3 py-2 font-medium whitespace-nowrap">产品名称</th>
             <th class="px-3 py-2 font-medium whitespace-nowrap">规格型号</th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
-              加工费
+              人工费
             </th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
               制造费用
@@ -343,12 +371,16 @@ onMounted(load);
           </tr>
         </thead>
         <tbody>
+          <template v-for="row in rows" :key="row.id">
           <tr
-            v-for="row in rows"
-            :key="row.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+            @click="toggleMaterials(row)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12">{{ row.sku }}</td>
+            <td class="px-3 py-2 font-medium text-n-slate-12">
+              <span
+                class="inline-block mr-1 size-3 align-middle text-n-slate-10"
+                :class="expanded === row.id ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+              />{{ row.sku }}</td>
             <td class="px-3 py-2 text-n-slate-12">{{ row.product_name }}</td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ row.specification || '—' }}
@@ -386,6 +418,53 @@ onMounted(load);
               </template>
             </td>
           </tr>
+          <!-- 展开：这个成品编码下的物料与料价。
+               生产上 161 个编码里只有 18 个真做过 BOM，所以没有的要明说
+               「还没做 BOM」，摆一片空白会让人以为是没加载出来。 -->
+          <tr v-if="expanded === row.id">
+            <td colspan="9" class="px-3 py-2 bg-n-alpha-1">
+              <div v-if="materialsLoading" class="text-xs text-n-slate-11">
+                加载中…
+              </div>
+              <div v-else-if="!materials.items.length" class="text-xs text-n-slate-11">
+                这个商品编码还没做过 BOM，所以没有物料清单。做了生产任务单之后这里就有了。
+              </div>
+              <template v-else>
+                <div class="mb-1 text-xs text-n-slate-10">
+                  来自 {{ materials.bom_no || 'BOM' }}
+                  <span v-if="materials.base_qty">（基准用量 {{ materials.base_qty }}）</span>
+                  <span v-if="!materials.is_default">· 非默认 BOM，仅供参考</span>
+                </div>
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="text-left border-b text-n-slate-11 border-n-weak">
+                      <th class="px-2 py-1 font-medium">物料编码</th>
+                      <th class="px-2 py-1 font-medium">物料名称</th>
+                      <th class="px-2 py-1 font-medium">规格</th>
+                      <th class="px-2 py-1 font-medium text-right">用量</th>
+                      <th class="px-2 py-1 font-medium text-right">单价</th>
+                      <th class="px-2 py-1 font-medium text-right">金额</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(m, i) in materials.items" :key="`m-${i}`" class="border-b border-n-weak">
+                      <td class="px-2 py-1 font-mono text-n-slate-12">{{ m.material_no || '—' }}</td>
+                      <td class="px-2 py-1 text-n-slate-12">{{ m.material_name || '—' }}</td>
+                      <td class="px-2 py-1 text-n-slate-11">{{ m.specification || '—' }}</td>
+                      <td class="px-2 py-1 text-right tabular-nums">{{ m.qty }}{{ m.unit || '' }}</td>
+                      <td class="px-2 py-1 text-right tabular-nums">{{ money(m.rate_micros) }}</td>
+                      <td class="px-2 py-1 text-right tabular-nums text-n-slate-12">{{ money(m.amount_micros) }}</td>
+                    </tr>
+                    <tr class="font-medium">
+                      <td class="px-2 py-1" colspan="5">材料合计</td>
+                      <td class="px-2 py-1 text-right tabular-nums">{{ money(materialTotal) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+            </td>
+          </tr>
+          </template>
           <tr v-if="!rows.length && !loading">
             <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有维护加工成本标准。点右上角「导入
@@ -438,7 +517,7 @@ onMounted(load);
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-1">
-            <label class="text-label text-n-slate-12">加工费（元/个）</label>
+            <label class="text-label text-n-slate-12">人工费（元/个）</label>
             <Input v-model="form.processFee" type="number" placeholder="0" />
             <span class="text-label-small text-n-slate-10">
               即生产人工，按完工入库数量计入成本

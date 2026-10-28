@@ -1,11 +1,13 @@
 <script setup>
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
 import RequestsAPI from 'dashboard/api/oa/approvalRequests';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MembershipsAPI from 'dashboard/api/org/memberships';
 import AgentAPI from 'dashboard/api/agents';
 
@@ -276,9 +278,34 @@ const setDtTime = (key, v) => {
 const firstDeptId = () =>
   myDepartments.value[0] ? String(myDepartments.value[0].department_id) : '';
 
+// 按月筛 + 翻页。后端一页 20 条，而库里已经 100 张单——原来前端固定传 page:1
+// 又没有翻页器，「抄送我的 54」实际只看得见最新 20 条，九月那 49 张一张都翻不到。
+const monthFilter = ref('');
+const page = ref(1);
+const total = ref(0);
+const PER_PAGE = 20;
+
 const fetchRequests = async () => {
-  const { data } = await RequestsAPI.list({ filter: activeTab.value, page: 1 });
+  const { data } = await RequestsAPI.list({
+    filter: activeTab.value,
+    page: page.value,
+    ...(monthFilter.value ? { month: monthFilter.value } : {}),
+  });
   requests.value = data.payload || [];
+  total.value = data.meta?.count || 0;
+};
+
+// 换月份/换页签都要回到第 1 页：留在第 3 页筛十月，很可能直接落到空列表上。
+const onMonthChange = () => {
+  page.value = 1;
+  selected.value = null;
+  fetchRequests();
+};
+
+const goPage = n => {
+  page.value = n;
+  selected.value = null;
+  fetchRequests();
 };
 
 const fetchCounts = async () => {
@@ -301,6 +328,7 @@ const fetchCounts = async () => {
 const setTab = key => {
   activeTab.value = key;
   selected.value = null;
+  page.value = 1;
   fetchRequests();
 };
 
@@ -557,6 +585,18 @@ const detailFields = computed(
 );
 
 const route = useRoute();
+// 通知卡片直接打开单据，不依赖当前待审列表（已撤回单也可查看）。
+const openFocusedRequest = async () => {
+  const id = route.query.focus;
+  if (!id) return;
+  try {
+    await openRequest({ id });
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '无法打开审批单，请确认是否有查看权限');
+  }
+};
+watch(() => route.query.focus, openFocusedRequest);
+
 // 从考勤页深链：?compose=reclock|leave 自动打开对应考勤联动模板的发起表单。
 const openComposeFromQuery = async () => {
   const kind = route.query.compose;
@@ -576,7 +616,8 @@ const openComposeFromQuery = async () => {
 
 onMounted(async () => {
   await fetchCounts();
-  fetchRequests();
+  await fetchRequests();
+  await openFocusedRequest();
   try {
     const [{ data: mine }, { data: ags }] = await Promise.all([
       MembershipsAPI.get({ mine: 'true' }),
@@ -636,12 +677,26 @@ onMounted(async () => {
             </button>
           </div>
         </div>
+        <!-- 按月筛。库里 100 张单、一页 20 条，不给这个入口就只能看见最新那 20 条。 -->
+        <div
+          class="flex items-center gap-2 px-4 py-2 border-b border-n-weak shrink-0"
+        >
+          <MonthPicker
+            v-model="monthFilter"
+            trigger-class="w-36 h-8"
+            placeholder="全部月份"
+            @change="onMonthChange"
+          />
+          <span v-if="total" class="text-label-small text-n-slate-11">
+            共 {{ total }} 条
+          </span>
+        </div>
         <div class="flex-1 overflow-y-auto">
           <div
             v-if="!requests.length"
             class="p-8 text-sm text-center text-n-slate-10"
           >
-            {{ L.empty }}
+            {{ monthFilter ? `${monthFilter} 没有审批单` : L.empty }}
           </div>
           <button
             v-for="row in requests"
@@ -683,6 +738,16 @@ onMounted(async () => {
             </div>
           </button>
         </div>
+        <!-- 翻页器放在滚动区外面常驻（与应收/应付台账同口径）：
+             放里面会跟着列表一起滚走，用户眼里就是「没有页码」。 -->
+        <PaginationFooter
+          v-if="total > 0"
+          :current-page="page"
+          :total-items="total"
+          :items-per-page="PER_PAGE"
+          class="shrink-0 !bg-transparent before:!hidden"
+          @update:current-page="goPage"
+        />
       </section>
 
       <!-- 右：详情（手机：仅选中时全宽显示） -->

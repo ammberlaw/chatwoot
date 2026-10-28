@@ -81,7 +81,7 @@ class Erp::PeriodCloseService
   def closing_info(fiscal)
     {
       closed_at: fiscal&.closed_at,
-      closed_by_name: fiscal&.closed_by&.crm_name.presence || fiscal&.closed_by&.name,
+      closed_by_name: fiscal&.closed_by&.name.presence || fiscal&.closed_by&.crm_name,
       closing_voucher_no: fiscal&.closing_voucher&.voucher_no
     }
   end

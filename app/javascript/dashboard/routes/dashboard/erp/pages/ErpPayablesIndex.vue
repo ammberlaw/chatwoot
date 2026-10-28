@@ -1474,7 +1474,7 @@ onMounted(() => {
             <td class="px-3 py-2 text-right">
               <Button
                 v-if="canLedger"
-                label="对好了，建账"
+                label="建账"
                 color="amber"
                 size="sm"
                 :is-loading="confirmingRecon === reconKey(row)"

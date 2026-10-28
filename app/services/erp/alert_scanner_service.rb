@@ -55,7 +55,7 @@ class Erp::AlertScannerService
       customer_name: receivable.crm_customer&.name,
       order_no: receivable.crm_sales_order&.order_no,
       owner_id: receivable.owner_id,
-      owner_name: receivable.owner&.crm_name.presence || receivable.owner&.name,
+      owner_name: receivable.owner&.name.presence || receivable.owner&.crm_name,
       currency: receivable.currency,
       open_micros: open_micros,
       base_open_micros: (open_micros * (receivable.exchange_rate.presence || 1).to_d).round,

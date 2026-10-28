@@ -44,7 +44,7 @@ class Erp::AuditExportService
   end
 
   def person(user)
-    user&.crm_name.presence || user&.name
+    user&.name.presence || user&.crm_name
   end
 
   private

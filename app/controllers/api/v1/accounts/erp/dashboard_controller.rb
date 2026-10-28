@@ -94,7 +94,7 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
       {
         id: installment.id, receivable_no: receivable.receivable_no,
         customer_name: receivable.crm_customer&.name,
-        owner_name: receivable.owner&.crm_name.presence || receivable.owner&.name,
+        owner_name: receivable.owner&.name.presence || receivable.owner&.crm_name,
         kind_label: Erp::ReceivableInstallment::KIND_LABELS[installment.kind],
         amount_micros: outstanding, due_date: installment.due_date,
         overdue_days: (Time.zone.today - installment.due_date).to_i

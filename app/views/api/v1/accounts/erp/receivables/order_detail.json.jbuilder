@@ -16,7 +16,7 @@ json.payload do
     json.remark @order.remark
     json.customer_id @order.crm_customer_id
     json.customer_name @order.crm_customer&.name
-    json.owner_name @order.owner&.crm_name.presence || @order.owner&.name
+    json.owner_name @order.owner&.name.presence || @order.owner&.crm_name
     json.opportunity_name @order.crm_opportunity&.name
   end
 
@@ -38,5 +38,41 @@ json.payload do
     end
   else
     json.receivable nil
+  end
+end
+
+# 采购：这单买了什么、跟谁买、花了多少 + 每颗料最近一次采购价。
+# ⚠️ 只在 ERP 的订单详情里下发（财务/管理层看）。CRM 侧的 production_trace 走另一个
+# 服务，那边一个采购字段都没有——销售端不可见成本是生态硬约束。
+json.purchase do
+  json.purchase_orders(@purchase[:purchase_orders]) do |po|
+    json.id po[:id]
+    json.po_no po[:po_no]
+    json.status po[:status]
+    json.approval_status po[:approval_status]
+    json.total_amount_micros po[:total_amount_micros]
+    json.suppliers po[:suppliers]
+    json.ordered_at po[:ordered_at]
+    json.shared_with_others po[:shared_with_others]
+    json.items(po[:items]) do |item|
+      json.name item[:name]
+      json.code item[:code]
+      json.qty item[:qty]
+      json.unit item[:unit]
+      json.rate_micros item[:rate_micros]
+      json.amount_micros item[:amount_micros]
+      json.price_tax_included item[:price_tax_included]
+      json.supplier_name item[:supplier_name]
+    end
+  end
+  json.last_prices(@purchase[:last_prices]) do |lp|
+    json.name lp[:name]
+    json.code lp[:code]
+    json.this_rate_micros lp[:this_rate_micros]
+    json.rate_micros lp[:rate_micros]
+    json.price_tax_included lp[:price_tax_included]
+    json.supplier_name lp[:supplier_name]
+    json.po_no lp[:po_no]
+    json.ordered_at lp[:ordered_at]
   end
 end

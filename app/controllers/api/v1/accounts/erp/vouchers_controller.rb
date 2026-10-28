@@ -54,7 +54,12 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   end
 
   def destroy
-    return render json: { error: '已记账的凭证不能删除，错账请用红冲' }, status: :unprocessable_entity unless @voucher.deletable?
+    # 已记账的也能删了（财务要求），但结账期间/已红冲/红冲单这三种仍然挡住——
+    # 具体理由由 Voucher#delete_blocker 给，笼统报一句「不能删」等于让人去猜。
+    unless @voucher.deletable?
+      reason = @voucher.delete_blocker || '这张凭证当前状态不能删除'
+      return render json: { error: reason }, status: :unprocessable_entity
+    end
 
     ActiveRecord::Base.transaction do
       rollback_depreciation_side_effects

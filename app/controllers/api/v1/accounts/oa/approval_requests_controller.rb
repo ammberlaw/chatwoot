@@ -187,12 +187,25 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   end
 
   def filtered_requests
-    case params[:filter]
-    when 'todo' then todo_scope
-    when 'done' then done_scope
-    when 'cc' then cc_scope
-    else Current.account.oa_approval_requests.applied_by(current_user.id)
-    end
+    scope = case params[:filter]
+            when 'todo' then todo_scope
+            when 'done' then done_scope
+            when 'cc' then cc_scope
+            else Current.account.oa_approval_requests.applied_by(current_user.id)
+            end
+    by_month(scope)
+  end
+
+  # 按月筛（YYYY-MM）。一页 20 条、库里已经 100 张单，不按月筛就只能看见最新那 20 条——
+  # 九月的 49 张一张都翻不到。口径用提交时间（created_at），和列表上显示的那个时间一致。
+  def by_month(scope)
+    month = params[:month].to_s.strip
+    return scope unless month.match?(/\A\d{4}-\d{2}\z/)
+
+    from = Date.strptime(month, '%Y-%m').beginning_of_month
+    scope.where(created_at: from.beginning_of_day..from.end_of_month.end_of_day)
+  rescue Date::Error
+    scope
   end
 
   # 抄送给我的：抄送名单包含我（提交时按模板快照）。

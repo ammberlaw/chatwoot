@@ -149,6 +149,9 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     @trace = Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @order).call
     @order_receivable = Current.account.erp_receivables.find_by(crm_sales_order_id: @order.id)
     @line_items_with_sku = line_items_with_sku(@order)
+    # 采购单与最近采购价。走 ERP 专用服务，不进 SalesOrderTraceService——
+    # 那个 CRM 销售端也在用，塞进去就等于把采购价和供应商漏给业务员。
+    @purchase = Erp::OrderPurchaseTrace.new(account: Current.account, sales_order: @order).call
     render 'api/v1/accounts/erp/receivables/order_detail'
   end
 

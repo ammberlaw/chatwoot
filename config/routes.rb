@@ -481,6 +481,8 @@ Rails.application.routes.draw do
             # BOM 成本表：按商品编码维护加工费/制造费用标准，供成本归集取数
             resources :bom_costs, only: [:index, :create, :update, :destroy] do
               collection { post :import }
+              # 展开看这个成品编码下的物料明细与料价（点开那一行才拉）
+              member { get :materials }
             end
             resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
               collection do

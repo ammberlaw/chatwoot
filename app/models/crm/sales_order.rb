@@ -220,6 +220,31 @@ class Crm::SalesOrder < ApplicationRecord
     end
   end
 
+  # 收入拆成 [货款不含税, 运费不含税, 销项税]（原币微元），三者之和恒等于 receivable_amount_micros。
+  #
+  # 为什么要拆：运费原来和货款一起整笔贷记「主营业务收入」，财务要求运费单独挂
+  # 「6021 其他业务收入」——主营是卖货的钱，代收代付的运费混在里面，主营收入虚高。
+  # 生产上 542 张订单里 209 张带运费，合计约 14.9 万。
+  #
+  # 含税单的运费本身也含税，所以要按同一税率还原成不含税再入收入；
+  # 货款部分用「总收入 − 运费收入」倒挤，保证两行相加严格等于 tax_split 的 net，
+  # 不会因为分别四舍五入差出一分钱（借贷不平凭证就过不了账）。
+  def revenue_split
+    net, tax = tax_split
+    freight = shipping_micros.to_i
+    return [net, 0, tax] if freight <= 0
+
+    rate = effective_tax_rate.to_i
+    net_freight = if effective_amount_includes_tax && rate.positive?
+                    Erp::VoucherLine.round_to_cent(freight * 100.0 / (100 + rate))
+                  else
+                    freight
+                  end
+    # 兜底：运费不该超过总收入（脏数据里运费大于订单金额的情况真实存在）。
+    net_freight = net if net_freight > net
+    [net - net_freight, net_freight, tax]
+  end
+
   # 客户实际要付的钱（= 货款 + 运费 + 销项税，原币微元）。
   #
   # 应收台账的建账金额和出库收入凭证的借方必须都取这个数，否则不含税单两边

@@ -47,7 +47,7 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     @summary_by = params[:group_by].presence
     report = Erp::MarginService.new(Current.account)
                                .report(from: params[:from], to: params[:to], group_by: @summary_by,
-                                       limit: detail_limit)
+                                       limit: detail_limit, q: params[:q], owner_id: params[:owner_id])
     @rows = report[:rows]
     @summary = report[:summary]
     @totals = report[:totals]
@@ -55,6 +55,8 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     @total_count = report[:total_count]
     # 按 0 计价的料：成本少算了但不报错，毛利只是悄悄偏高。摆出来才查得到。
     @unpriced = Erp::UnpricedIssueFinder.new(Current.account).perform(from: params[:from], to: params[:to])
+    # 业务员下拉：只列真有订单的人。全员名单里绝大多数选了是空结果（同待建账那边的口径）。
+    @owners = User.where(id: Current.account.crm_sales_orders.distinct.select(:owner_id)).order(:name)
     render 'api/v1/accounts/erp/order_costs/margin'
   end
 

@@ -324,9 +324,7 @@ class Mes::Shipment < ApplicationRecord
       ts = Time.current
       entry = account.mes_stock_entries.create!(
         purpose: 'SHIPMENT', production_order: production_order, from_warehouse_id: warehouse_id, owner_id: owner_id,
-        stock_entry_items_attributes: shipment_items.map do |item|
-          { item_type: 'PRODUCT', crm_product_id: item.crm_product_id, qty: item.qty, warehouse_id: warehouse_id }
-        end
+        stock_entry_items_attributes: shipment_items.flat_map { |item| outbound_lines(item) }
       )
       entry.post!
       update_columns(status: 'SHIPPED', shipped_at: ts, updated_at: ts)
@@ -348,10 +346,7 @@ class Mes::Shipment < ApplicationRecord
   # 返回 [{item:, product_name:, on_hand:, need:}, ...]，空数组=够。
   def stock_shortages
     shipment_items.filter_map do |item|
-      balance = account.mes_stock_balances.find_by(
-        item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
-      )
-      on_hand = balance&.qty.to_d
+      on_hand = book_qty(item).values.sum
       next if on_hand >= item.qty.to_d
 
       { item: item, product_name: item.crm_product&.name || "成品##{item.crm_product_id}",
@@ -447,12 +442,13 @@ class Mes::Shipment < ApplicationRecord
     Rails.logger.error("[Erp::OrderCompletion] 出库单 #{shipment_no} 回写订单完结失败: #{e.message}")
   end
 
-  # 锁定本单涉及的成品结存行（SELECT ... FOR UPDATE），使预占/出库的「查—扣」在同一临界区串行。
+  # 锁定本单涉及的结存行（SELECT ... FOR UPDATE），使预占/出库的「查—扣」在同一临界区串行。
+  # 两本账都要锁：出库会先扣成品账、不够再扣原料账（见 BOOKS 的说明），只锁一本等于留了半个缺口。
   def lock_stock_balances!
-    ids = shipment_items.filter_map do |item|
+    ids = shipment_items.flat_map do |item|
       account.mes_stock_balances
-             .where(item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id)
-             .pick(:id)
+             .where(item_type: BOOKS, crm_product_id: item.crm_product_id, warehouse_id: warehouse_id)
+             .pluck(:id)
     end
     account.mes_stock_balances.where(id: ids).lock(true).load if ids.any?
   end
@@ -475,11 +471,50 @@ class Mes::Shipment < ApplicationRecord
     raise StandardError, "可用现货不足（已被其他待出库单预占），无法提交：#{shortages.join('；')}" if shortages.any?
   end
 
+  # ── 两本账出库（2026-10-28）────────────────────────────────────────────────
+  #
+  # 同一个编码在 MES 分两本数量账：采购入库永远落原料账（MATERIAL），
+  # 销售出库原来永远从成品账扣（PRODUCT）。辅料配件（电源线、支架这类）买进来在原料账，
+  # 直接卖给客户时成品账是 0，于是报「可用 0，需 100」——而原料仓里实实在在有 749 条。
+  #
+  # 以前的解法是让仓管先走一趟「原料成品转换」。但辅料配件本来就是常态直接出，
+  # 每次多一道手工没有意义（用户原话：我们也会出库辅料配件）。
+  #
+  # 所以出库改成认两本账：**可用量按两本合计，扣减先扣成品、不够再扣原料**。
+  # 先扣成品是为了让原来就有成品账的货行为完全不变——这次改动只多一条退路，不动老路径。
+  BOOKS = %w[PRODUCT MATERIAL].freeze
+
+  # 这个商品在本仓两本账上各有多少。返回 { 'PRODUCT' => 数量, 'MATERIAL' => 数量 }。
+  def book_qty(item)
+    rows = account.mes_stock_balances
+                  .where(item_type: BOOKS, crm_product_id: item.crm_product_id, warehouse_id: warehouse_id)
+                  .pluck(:item_type, :qty).to_h
+    BOOKS.index_with { |book| rows[book].to_d }
+  end
+
+  # 把一行出库量拆成「从哪本账扣多少」。成品账优先扣干净，剩下的记到原料账。
+  # 返回的就是 stock_entry_items_attributes：StockEntry 过账时按每行自己的 item_type
+  # 扣对应那本账（见 Mes::StockEntry#move_stock!），所以一张单带两种账是支持的。
+  def outbound_lines(item)
+    remaining = item.qty.to_d
+    qty = book_qty(item)
+    lines = BOOKS.filter_map do |book|
+      take = [qty[book], remaining].min
+      next if take <= 0
+
+      remaining -= take
+      { item_type: book, crm_product_id: item.crm_product_id, qty: take, warehouse_id: warehouse_id }
+    end
+    # 两本账都不够时仍落一行成品账，让 StockEntry 的负结存兜底照常抛错回滚整单——
+    # 这里悄悄少扣的话，单据出去了库存却没动，比报错严重得多。
+    return lines if remaining <= 0
+
+    lines + [{ item_type: 'PRODUCT', crm_product_id: item.crm_product_id,
+               qty: remaining, warehouse_id: warehouse_id }]
+  end
+
   def reservation_shortage(item, reserved)
-    balance = account.mes_stock_balances.find_by(
-      item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
-    )
-    available = balance&.qty.to_d - reserved[[item.crm_product_id, warehouse_id]].to_d
+    available = book_qty(item).values.sum - reserved[[item.crm_product_id, warehouse_id]].to_d
     return if available >= item.qty.to_d
 
     { item: item, product_name: item.crm_product&.name || "成品##{item.crm_product_id}",

@@ -10,4 +10,7 @@ API.import = formData =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// 展开看这个成品编码下的物料明细与料价（点开那一行才拉，不在列表里一次性带）。
+API.materials = id => axios.get(`${API.url}/${id}/materials`);
+
 export default API;

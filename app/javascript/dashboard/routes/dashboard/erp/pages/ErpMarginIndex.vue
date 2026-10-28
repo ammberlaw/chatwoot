@@ -75,6 +75,14 @@ const COSTS_PER_PAGE = 50;
 const costsPage = ref(1);
 const costsCount = ref(0);
 
+// 搜索（订单号/订单名/客户名）与业务员筛选。库里 200+ 张单，没有这两个只能一页页翻。
+const keyword = ref('');
+const ownerFilter = ref('');
+const ownerOptions = computed(() => [
+  { value: '', label: '全部业务员' },
+  ...(marginMeta.value?.owners || []).map(o => ({ value: String(o.id), label: o.name })),
+]);
+
 const loadMargin = async () => {
   loading.value = true;
   try {
@@ -82,6 +90,8 @@ const loadMargin = async () => {
       group_by: groupBy.value,
       from: fromDate.value || undefined,
       to: toDate.value || undefined,
+      q: keyword.value.trim() || undefined,
+      owner_id: ownerFilter.value || undefined,
     });
     marginRows.value = data.payload;
     marginPage.value = 1;
@@ -327,6 +337,21 @@ onMounted(loadMargin);
           v-model="groupBy"
           :options="GROUPS"
           @update:model-value="loadMargin"
+        />
+        <SelectCard
+          v-model="ownerFilter"
+          :options="ownerOptions"
+          trigger-class="w-36 h-9"
+          @update:model-value="loadMargin"
+        />
+        <!-- 原生 input 放工具栏要 reset-base + 显式 h-9，否则被全局 SCSS 顶成 h-10 歪一截 -->
+        <input
+          v-model="keyword"
+          type="search"
+          placeholder="搜订单号 / 客户"
+          class="w-48 px-3 text-sm border rounded-lg reset-base h-9 border-n-weak bg-n-solid-1 text-n-slate-12"
+          @keyup.enter="loadMargin"
+          @search="loadMargin"
         />
         <DatePicker
           v-model="fromDate"

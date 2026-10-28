@@ -82,12 +82,37 @@ class Erp::Voucher < ApplicationRecord
     status == DRAFT
   end
 
-  # 能不能删。草稿和已作废都能删——**已作废的凭证从来没进过账**：
-  # 作废这个动作本身就只对草稿开放（VouchersController#void 要求 editable?），
-  # 所以 VOID 的那张从头到尾没碰过总账，删掉不影响任何余额。
-  # 已记账(POSTED)的永远不能删，错账只能红冲。
+  # 能不能删。
+  #
+  # 草稿和已作废：随便删。作废只对草稿开放（VouchersController#void 要求 editable?），
+  # 所以 VOID 那张从头到尾没碰过总账。
+  #
+  # 已记账(POSTED)：2026-10-28 起也允许删（财务要求）。能放开是因为账簿和报表
+  # 全部**实时按 POSTED 凭证算、不落中间表**（见 Erp::LedgerQueryService），
+  # 删掉余额自己就跟着变，不会留下对不上的中间结果。
+  # 但下面三种必须挡住，否则账会悄悄不平：
+  #   ① 期间已结账——报表已经出过、可能已报给老板或税局，删了历史数字就变了
+  #   ② 已被红冲——红冲单还挂着指向它，删了红冲单就成了无源之水，等于凭空多一笔
+  #   ③ 它自己是红冲单——删了原凭证就回到"未冲"状态，但 reversed_by 已经指过去，
+  #      界面上显示已红冲、账上却是原样
   def deletable?
-    status == DRAFT || status == VOID
+    return true if status == DRAFT || status == VOID
+    return false unless status == POSTED
+
+    delete_blocker.blank?
+  end
+
+  # 不能删的理由（给用户看的人话）。nil＝可以删。
+  def delete_blocker
+    return nil unless status == POSTED
+
+    if Erp::FiscalPeriod.closed?(account, period)
+      "#{period} 已结账，期间冻结后不能删凭证。要改先反结账。"
+    elsif reversed_by.present?
+      "这张已被 #{reversed_by.voucher_no} 红冲过，删了红冲单会变成无源之水。要删请先删红冲单。"
+    elsif reversal_of_id.present?
+      '这张是红冲单，删了会让被冲的那张回到「未冲」状态但界面仍显示已红冲。请改用其它方式更正。'
+    end
   end
 
   def balanced?

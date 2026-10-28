@@ -9,7 +9,7 @@
 // 现在换成真 agent：它自己决定调哪些工具、一轮里能连着查好几次
 // （查客户 → 翻往来邮件 → 看订单 → 起草），而且取数跟着人的权限走。
 // 壳（悬浮球、拖拽、位置记忆）原样保留，用户看到的入口没变。
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import CrmAiMascot from './CrmAiMascot.vue';
@@ -53,21 +53,53 @@ try {
   // 忽略损坏的本地存储
 }
 
-const launcherStyle = computed(() => ({
-  right: `${pos.value.right}px`,
-  bottom: `${pos.value.bottom}px`,
+// 视口尺寸要响应式：换窗口大小/旋转屏幕时得重新夹取，否则原来在视口内的位置
+// 换到小屏上就落到外面去了，而且刷新也救不回来——值一直存在 localStorage 里。
+const vw = ref(window.innerWidth);
+const vh = ref(window.innerHeight);
+
+// 球本身也必须夹取。原来只有展开的面板做了夹取，球直接用存的偏移渲染——
+// 拖到屏幕外、或换了更小的窗口，球就跑到看不见的地方，用户只会觉得「AI 球不见了」。
+// （和待办浮层 2026-10-28 那次出界是同一类问题。）
+const clampedPos = computed(() => ({
+  right: Math.min(Math.max(pos.value.right, 8), Math.max(vw.value - LAUNCHER - 8, 8)),
+  bottom: Math.min(Math.max(pos.value.bottom, 8), Math.max(vh.value - LAUNCHER - 8, 8)),
 }));
+
+const launcherStyle = computed(() => ({
+  right: `${clampedPos.value.right}px`,
+  bottom: `${clampedPos.value.bottom}px`,
+}));
+
+// 夹取结果写回去：不写回的话，下次打开又从那个越界的旧值开始算。
+const syncViewport = () => {
+  vw.value = window.innerWidth;
+  vh.value = window.innerHeight;
+  const fixed = clampedPos.value;
+  if (fixed.right !== pos.value.right || fixed.bottom !== pos.value.bottom) {
+    pos.value = fixed;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fixed));
+    } catch {
+      // 忽略：存不进去不影响这次显示
+    }
+  }
+};
+
+onMounted(() => {
+  syncViewport();
+  window.addEventListener('resize', syncViewport);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', syncViewport));
 // 面板贴着图标位置弹出，并夹取在视口内确保完整可见。
 const panelStyle = computed(() => {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
   const right = Math.min(
     Math.max(pos.value.right, 8),
-    Math.max(vw - PANEL_W - 8, 8)
+    Math.max(vw.value - PANEL_W - 8, 8)
   );
   const bottom = Math.min(
     Math.max(pos.value.bottom, 8),
-    Math.max(vh - PANEL_H - 8, 8)
+    Math.max(vh.value - PANEL_H - 8, 8)
   );
   return { right: `${right}px`, bottom: `${bottom}px` };
 });

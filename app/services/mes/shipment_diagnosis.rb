@@ -158,17 +158,21 @@ class Mes::ShipmentDiagnosis
     out
   end
 
-  # 成品账不够时顺带看一眼原料账——同一个编码两本账，采购入库落原料账、
-  # 销售出库从成品账扣，这是业务上最常撞的一道坎（见 MES_SYSTEM §4.8bis）。
+  # 2026-10-28 起出库同时认成品账和原料账（辅料配件本来就常态直接出，见 Mes::Shipment::BOOKS），
+  # 所以 stock_shortages 给的 on_hand 已经是**两本合计**——这里不能再说「成品账只有 X」，
+  # 那会让人以为去转一下账就能出，实际是这个仓真的不够。
+  # 不够时改成顺带报别的仓有没有货：同一个编码多半是放错仓，调拨过来就能出。
   def shortage_block(shortage)
-    base = "#{shortage[:product_name]}：这个仓的成品账只有 #{fnum(shortage[:on_hand])}，这张单要 #{fnum(shortage[:need])}。"
-    mat = @account.mes_stock_balances
-                  .where(item_type: 'MATERIAL', crm_product_id: shortage[:item].crm_product_id)
-                  .where('qty > 0')
-    return block(base) if mat.empty?
+    base = "#{shortage[:product_name]}：这个仓（成品账+原料账）合计只有 #{fnum(shortage[:on_hand])}，" \
+           "这张单要 #{fnum(shortage[:need])}。"
+    others = @account.mes_stock_balances
+                     .where(crm_product_id: shortage[:item].crm_product_id)
+                     .where.not(warehouse_id: @s.warehouse_id)
+                     .where('qty > 0')
+    return block(base) if others.empty?
 
-    where = mat.map { |b| "#{b.warehouse&.name || '原料仓'} #{fnum(b.qty)}" }.join('、')
-    block(base, fix: "同一个编码的原料账上有货（#{where}）。这类货要先让仓管在「原料成品转换」里转成成品，才出得了。")
+    where = others.map { |b| "#{b.warehouse&.name || '仓库'} #{fnum(b.qty)}" }.join('、')
+    block(base, fix: "别的仓有货（#{where}），让仓管调拨过来，或者把这张单的出库仓改成那个仓。")
   end
 
   # ── 下一步等谁 ──────────────────────────────────────────────

@@ -31,6 +31,14 @@ const PO_STATUS_LABELS = {
 };
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+
+// 本次比上次贵标红、便宜标绿。首次采购没有可比的，不着色。
+const priceClass = lp => {
+  if (!lp.rate_micros || !lp.this_rate_micros) return 'text-n-slate-11';
+  if (lp.this_rate_micros > lp.rate_micros) return 'text-n-ruby-11';
+  if (lp.this_rate_micros < lp.rate_micros) return 'text-n-teal-11';
+  return 'text-n-slate-11';
+};
 // 运费这类行没有数量和单价、只有金额，照原样显示别补 0。
 const num = v => (v === null || v === undefined || v === '' ? '—' : v);
 // 订单明细里的金额是**原币面值**（不是 micros），直接按两位小数排版。
@@ -278,6 +286,94 @@ const drillTitle = computed(() => {
         >
           这张销售订单没有挂生产订单（外购/现货单，或还没转生产）。
         </p>
+      </div>
+
+      <!-- 采购：这单买了什么、跟谁买、花了多少。
+           只在 ERP 的详情里出现——CRM 侧走另一个接口，一个采购字段都没有
+           （销售端不可见成本，见 Erp::OrderPurchaseTrace 的说明）。 -->
+      <div
+        v-if="(orderDetail.purchase?.purchase_orders || []).length"
+        class="flex flex-col gap-2"
+      >
+        <span class="text-heading-3 text-n-slate-12">
+          采购单（{{ orderDetail.purchase.purchase_orders.length }}）
+        </span>
+        <div
+          v-for="po in orderDetail.purchase.purchase_orders"
+          :key="po.po_no"
+          class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-weak"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-mono text-sm text-n-slate-12">{{ po.po_no }}</span>
+            <span class="text-xs text-n-slate-10">{{ po.suppliers.join('、') || '—' }}</span>
+            <span class="font-mono text-sm text-n-slate-12">
+              {{ money(po.total_amount_micros) }}
+            </span>
+            <!-- 合并采购：这张单还给别的生产订单买了料，金额不全属于本单。
+                 不标出来，财务会把别单的钱算进这单成本。 -->
+            <span
+              v-if="po.shared_with_others"
+              class="px-1.5 py-0.5 rounded text-[11px] bg-n-amber-3 text-n-amber-11"
+              title="这张采购单还给别的生产订单买了料，金额不全属于本单"
+            >
+              合并采购
+            </span>
+          </div>
+          <div
+            v-for="(it, i) in po.items"
+            :key="`${po.po_no}-${i}`"
+            class="text-xs text-n-slate-11"
+          >
+            {{ it.code || '—' }} {{ it.name }} ×{{ it.qty }}{{ it.unit || '' }}
+            · 单价 {{ money(it.rate_micros) }}
+            · {{ money(it.amount_micros) }}
+            <span v-if="it.supplier_name" class="text-n-slate-10">
+              · {{ it.supplier_name }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 最近一次采购单价：不一定来自本单，用来判断这次买贵了还是便宜了。 -->
+        <template v-if="(orderDetail.purchase?.last_prices || []).length">
+          <span class="mt-1 text-label-small text-n-slate-11">
+            最近一次采购单价（对比）
+          </span>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left border-b text-n-slate-11 border-n-weak">
+                  <th class="px-2 py-1 font-medium">物料</th>
+                  <th class="px-2 py-1 font-medium text-right">本次</th>
+                  <th class="px-2 py-1 font-medium text-right">上次</th>
+                  <th class="px-2 py-1 font-medium">上次供应商 / 单号</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(lp, i) in orderDetail.purchase.last_prices"
+                  :key="`lp-${i}`"
+                  class="border-b border-n-weak"
+                >
+                  <td class="px-2 py-1 text-n-slate-12">
+                    {{ lp.code || '—' }} {{ lp.name }}
+                  </td>
+                  <td class="px-2 py-1 font-mono text-right text-n-slate-12">
+                    {{ money(lp.this_rate_micros) }}
+                  </td>
+                  <td
+                    class="px-2 py-1 font-mono text-right"
+                    :class="priceClass(lp)"
+                  >
+                    {{ lp.rate_micros ? money(lp.rate_micros) : '首次采购' }}
+                  </td>
+                  <td class="px-2 py-1 text-n-slate-10">
+                    {{ lp.rate_micros ? `${lp.supplier_name || '—'} / ${lp.po_no || '—'}` : '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </div>
 
       <!-- 关联 MES：出货单 —— 实际出了什么货 -->
