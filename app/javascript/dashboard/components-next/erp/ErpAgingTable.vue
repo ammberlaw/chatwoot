@@ -8,6 +8,7 @@ import { printElement } from 'dashboard/helper/printHelper';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 // 账龄分析表（应收按客户、应付按供应商共用一张）。
 // 两种口径：逾期账龄（从到期日算，催款用）/ 账龄（从建账日算，坏账计提用）。
 // 点客户行展开该客户的单据明细；金额一律本位币，明细里带原币便于核对。
@@ -31,6 +32,14 @@ const rows = ref([]);
 const meta = ref(null);
 const expanded = ref(new Set());
 
+// 翻页：接口一次给全量（账龄是聚合报表，服务端不分页），所以在前端切片。
+// 合计行仍按全量算——报表的「合计」是全部未结，不是本页之和。
+const PER_PAGE = 50;
+const page = ref(1);
+const pagedRows = computed(() =>
+  rows.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE)
+);
+
 const buckets = computed(() => meta.value?.buckets || []);
 const totals = computed(() => meta.value?.totals || { cells: {} });
 
@@ -44,6 +53,7 @@ const load = async () => {
     rows.value = data.payload;
     meta.value = data.meta;
     expanded.value = new Set();
+    page.value = 1;
   } finally {
     loading.value = false;
   }
@@ -168,7 +178,7 @@ defineExpose({ load });
             </tr>
           </thead>
           <tbody>
-            <template v-for="row in rows" :key="row.party_id">
+            <template v-for="row in pagedRows" :key="row.party_id">
               <tr
                 class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
                 @click="toggle(row.party_id)"
@@ -291,6 +301,16 @@ defineExpose({ load });
           </tbody>
         </table>
       </div>
+      <!-- sticky：这张表是嵌在台账页的滚动区**里面**的，页脚钉不到页面底部，
+           只能贴在滚动容器底边。贴上去就不能再 bg-transparent，否则表格行会从底下透出来。 -->
+      <PaginationFooter
+        v-if="rows.length"
+        :current-page="page"
+        :total-items="rows.length"
+        :items-per-page="PER_PAGE"
+        class="sticky bottom-0 z-10 shrink-0 before:!hidden"
+        @update:current-page="page = $event"
+      />
     </div>
   </div>
 </template>

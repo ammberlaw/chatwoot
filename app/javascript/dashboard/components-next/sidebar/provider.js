@@ -1,4 +1,4 @@
-import { inject, provide, ref, computed } from 'vue';
+import { inject, provide, ref, computed, onMounted } from 'vue';
 import { usePolicy } from 'dashboard/composables/usePolicy';
 import { useRouter } from 'vue-router';
 import { useUISettings } from 'dashboard/composables/useUISettings';
@@ -17,7 +17,14 @@ let globalCloseTimeout = null;
 export function useSidebarResize() {
   const { uiSettings, updateUISettings } = useUISettings();
 
-  const sidebarWidth = ref(uiSettings.value.sidebar_width || DEFAULT_WIDTH);
+  const savedWidth = uiSettings.value.sidebar_width || DEFAULT_WIDTH;
+  // 不让保存过的图标模式在所有模块反复恢复；进入页面默认显示文字导航。
+  const sidebarWidth = ref(savedWidth < COLLAPSED_THRESHOLD ? DEFAULT_WIDTH : savedWidth);
+  onMounted(() => {
+    if (savedWidth < COLLAPSED_THRESHOLD) {
+      updateUISettings({ sidebar_width: DEFAULT_WIDTH });
+    }
+  });
   const isCollapsed = computed(() => sidebarWidth.value < COLLAPSED_THRESHOLD);
 
   const setSidebarWidth = width => {

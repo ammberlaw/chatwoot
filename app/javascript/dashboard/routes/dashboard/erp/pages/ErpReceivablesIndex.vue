@@ -1971,31 +1971,35 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-      <PaginationFooter
-        v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > PER_PAGE"
-        :current-page="ledgerPage"
-        :total-items="ledgerMeta.count"
-        :items-per-page="PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="ledgerPage = $event"
-      />
-      <PaginationFooter
-        v-if="activeTab === 'pending' && pendingFilteredCount > PER_PAGE"
-        :current-page="pendingPage"
-        :total-items="pendingFilteredCount"
-        :items-per-page="PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="pendingPage = $event"
-      />
-      <PaginationFooter
-        v-if="activeTab === 'receipts' && (receiptMeta.count || 0) > PER_PAGE"
-        :current-page="receiptPage"
-        :total-items="receiptMeta.count"
-        :items-per-page="PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="receiptPage = $event"
-      />
     </div>
+
+    <!-- 翻页器必须在滚动区**外面**：放里面它跟着 50 行表格一起滚走，要往下滚两千多像素
+         才看得见，用户眼里就是「没有页码」。条数 >0 就画，不再按 > PER_PAGE 收起——
+         财务要的是随时看见「共几条、第几页」，而不是只在超过一页时才出现。 -->
+    <PaginationFooter
+      v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > 0"
+      :current-page="ledgerPage"
+      :total-items="ledgerMeta.count"
+      :items-per-page="PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="ledgerPage = $event"
+    />
+    <PaginationFooter
+      v-if="activeTab === 'pending' && pendingFilteredCount > 0"
+      :current-page="pendingPage"
+      :total-items="pendingFilteredCount"
+      :items-per-page="PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="pendingPage = $event"
+    />
+    <PaginationFooter
+      v-if="activeTab === 'receipts' && (receiptMeta.count || 0) > 0"
+      :current-page="receiptPage"
+      :total-items="receiptMeta.count"
+      :items-per-page="PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="receiptPage = $event"
+    />
 
     <!-- 建账弹窗 -->
     <Dialog

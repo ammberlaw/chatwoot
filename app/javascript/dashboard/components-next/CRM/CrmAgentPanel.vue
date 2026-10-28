@@ -427,7 +427,7 @@ const artifactRoute = a => {
           />
           <span
             v-else-if="stepDone(m)"
-            class="i-lucide-circle-check size-3 shrink-0 text-n-teal-11"
+            class="i-lucide-circle-check size-3 shrink-0 !text-[#171717]"
           />
           <span v-else class="i-lucide-search size-3 shrink-0" />
           <span :class="stepDone(m) ? 'line-through decoration-n-slate-8' : ''">

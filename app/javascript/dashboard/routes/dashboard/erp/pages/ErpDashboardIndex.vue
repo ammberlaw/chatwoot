@@ -144,7 +144,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full gap-4 p-6 overflow-auto">
+  <!-- 滚动必须写 !overflow-auto：经典灰的白卡规则
+       (body.theme-classic .erp-canvas > *，_next-colors.scss) 给页面根节点压了
+       overflow:hidden，特异性高于 Tailwind 的 .overflow-auto，内容会被直接切掉且不给滚动条。 -->
+  <div class="flex flex-col w-full h-full gap-4 p-6 !overflow-auto">
     <div class="flex items-center gap-2">
       <div class="i-lucide-landmark size-5 text-n-iris-9" />
       <h1 class="text-lg font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">财务看板</h1>

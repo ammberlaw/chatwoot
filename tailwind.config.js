@@ -246,6 +246,19 @@ const tailwindConfig = {
         '99.9999%': { opacity: '0' },
         '100%': { opacity: '0' },
       },
+      'todo-calm-float': {
+        '0%, 100%': { transform: 'translateY(0) rotate(-1deg)' },
+        '50%': { transform: 'translateY(-3px) rotate(1deg)' },
+      },
+      'todo-calm-blink': {
+        '0%, 43%, 47%, 100%': { transform: 'scaleY(1)' },
+        '45%': { transform: 'scaleY(0.08)' },
+      },
+      'todo-calm-wave': {
+        '0%, 65%, 100%': { transform: 'rotate(0deg)' },
+        '73%, 87%': { transform: 'rotate(-7deg)' },
+        '80%, 94%': { transform: 'rotate(3deg)' },
+      },
       'ai-cloud-idle': {
         '0%, 100%': { transform: 'translateY(0) rotate(-3deg) scale(1)' },
         '30%': { transform: 'translateY(-6px) rotate(3deg) scale(1.03, 0.98)' },
@@ -315,6 +328,9 @@ const tailwindConfig = {
       'ai-face-surprise': 'ai-face-surprise 10s steps(1, end) infinite',
       'ai-face-goofy': 'ai-face-goofy 10s steps(1, end) infinite',
       'ai-cloud-idle': 'ai-cloud-idle 4.8s ease-in-out infinite',
+      'todo-calm-float': 'todo-calm-float 4s ease-in-out infinite',
+      'todo-calm-blink': 'todo-calm-blink 5.6s ease-in-out infinite',
+      'todo-calm-wave': 'todo-calm-wave 7s ease-in-out infinite',
       ...defaultTheme.animation,
       "wsh-travel": "wsh-travel 8s cubic-bezier(0.45, 0, 0.25, 1) -1s infinite",
       "wsh-route": "wsh-route 8s cubic-bezier(0.45, 0, 0.25, 1) -1s infinite",

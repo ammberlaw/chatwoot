@@ -22,7 +22,7 @@ DEV_CONTAINER="${DEV_CONTAINER:-wintouch-crm-rails-1}"
 SSH="ssh -o ConnectTimeout=15"
 RC=0
 
-echo "══════ 1/2  守门 spec（能拦住 Pundit 500 这类上线即崩的错）══════"
+echo "══════ 1/3  守门 spec（能拦住 Pundit 500 这类上线即崩的错）══════"
 SPECS="spec/policies/crm_mes_custom_action_coverage_spec.rb"
 for s in spec/services/crm/agent/system_map_spec.rb \
          spec/services/mes/todo_assignment_spec.rb \
@@ -37,7 +37,7 @@ else
 fi
 
 echo
-echo "══════ 2/2  本地代码树 vs 生产运行容器 ══════"
+echo "══════ 2/3  本地代码树 vs 生产运行容器 ══════"
 FIND='find app config lib db -type f \( -name "*.rb" -o -name "*.jbuilder" -o -name "*.vue" -o -name "*.js" -o -name "*.json" -o -name "*.yml" \) -not -path "*/node_modules/*" -not -name "._*"'
 loc="$(mktemp)"; rem="$(mktemp)"
 trap 'rm -f "$loc" "$rem"' EXIT
@@ -64,6 +64,25 @@ if [ "$onlyprod" != "0" ]; then
 else
   echo "  无"
 fi
+
+echo
+echo "══════ 3/3  根目录构建配置 ══════"
+# 为什么单列一节：上面那个 find 只扫 app/config/lib/db，根目录的 tailwind.config.js
+# 一直在盲区里。漏推它的后果最阴——新 utility/animate 类名不会被生成，
+# 构建不报错、页面也不报错，就是动画/样式静默失效（2026-10-28 Codex 改了动画关键帧时发现）。
+ROOTCFG="tailwind.config.js postcss.config.js vite.config.ts vite.shared.ts package.json Gemfile Gemfile.lock"
+rootdiff=0
+for f in $ROOTCFG; do
+  [ -f "$f" ] || continue
+  l="$(md5 -q "$f" 2>/dev/null)"
+  r="$($SSH "$HOST" "sudo docker exec $CONTAINER md5sum /app/$f 2>/dev/null | awk '{print \$1}'")"
+  if [ -z "$r" ]; then
+    echo "  ? $f（生产读不到）"
+  elif [ "$l" != "$r" ]; then
+    echo "  → $f"; rootdiff=$((rootdiff+1))
+  fi
+done
+[ "$rootdiff" = "0" ] && echo "  无差异"
 
 echo
 [ "$RC" = "0" ] && echo "✅ 可以部署" || echo "❌ 先处理上面的问题"

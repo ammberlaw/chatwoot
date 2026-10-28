@@ -75,7 +75,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="w-full min-w-0 self-stretch rounded-[22px] border border-white/70 bg-white/95 p-4 shadow-sm">
+  <section class="w-full min-w-0 cursor-pointer self-stretch rounded-[22px] border border-white/70 bg-white/95 p-4 shadow-sm" role="link" tabindex="0" :aria-label="showOverview ? '打开生产看板' : '打开我的订单'" @click="!$event.target.closest('a, button') && (showOverview ? emit('overview') : emit('open'))" @keydown.enter.self="showOverview ? emit('overview') : emit('open')">
     <div class="flex items-center justify-between gap-3">
       <h2 class="m-0 flex items-center gap-2 text-heading-3 text-[#20241f]"><Icon icon="i-lucide-factory" class="size-5 shrink-0" />{{ showOverview ? 'MES 生产制造' : '我的订单' }}</h2>
       <div v-if="orders.length" class="flex shrink-0 items-center gap-2">

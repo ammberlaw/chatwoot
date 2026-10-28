@@ -1540,23 +1540,26 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-      <PaginationFooter
-        v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > PER_PAGE"
-        :current-page="ledgerPage"
-        :total-items="ledgerMeta.count"
-        :items-per-page="PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="ledgerPage = $event"
-      />
-      <PaginationFooter
-        v-if="activeTab === 'payments' && (paymentMeta.count || 0) > PER_PAGE"
-        :current-page="paymentPage"
-        :total-items="paymentMeta.count"
-        :items-per-page="PER_PAGE"
-        class="!bg-transparent before:!hidden"
-        @update:current-page="paymentPage = $event"
-      />
     </div>
+
+    <!-- 与应收台账同一口径：翻页器放滚动区外面常驻，条数 >0 就画。
+         放里面会跟着表格滚走＝用户眼里「没有页码」。 -->
+    <PaginationFooter
+      v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > 0"
+      :current-page="ledgerPage"
+      :total-items="ledgerMeta.count"
+      :items-per-page="PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="ledgerPage = $event"
+    />
+    <PaginationFooter
+      v-if="activeTab === 'payments' && (paymentMeta.count || 0) > 0"
+      :current-page="paymentPage"
+      :total-items="paymentMeta.count"
+      :items-per-page="PER_PAGE"
+      class="shrink-0 !bg-transparent before:!hidden"
+      @update:current-page="paymentPage = $event"
+    />
 
     <!-- 建账弹窗 -->
     <ErpPayableDetailDialog ref="detailDialogRef" />

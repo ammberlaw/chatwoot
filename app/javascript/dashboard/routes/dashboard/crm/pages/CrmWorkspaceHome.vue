@@ -438,7 +438,12 @@ onMounted(async () => {
           <div class="wsh-main md:min-h-0 md:!grid-rows-[minmax(0,1fr)_minmax(0,1fr)_auto] md:[&_.text-4xl]:!leading-none md:[&_.mt-4]:!mt-1 md:[&_.wsh-art]:!my-0 md:[&_.wsh-art_.min-h-32]:!min-h-24 md:[&_.wsh-art_.h-48]:!h-32 md:[&_.p-5]:!p-[18px] md:[&_.p-4]:!px-[18px] md:[&_.p-4]:!py-3 md:[&_.mt-4]:!mt-2 md:[&_.mt-3]:!mt-2 md:[&_.size-20]:!size-12 md:[&_.py-3\.5]:!py-1 md:[&_.text-4xl]:!text-3xl md:[&_.text-3xl]:!text-2xl md:[&_.wsh-card]:!px-[18px] md:[&_.wsh-card]:!py-3 md:[&_.chips>span]:!py-1 md:[&_.wsh-art_.h-48>div]:!py-2 md:[&_.big]:!text-4xl md:[&_.cta]:!mt-2 md:[&_.unit]:!mt-1 md:[&_.wsh-art]:!my-1 !grid-cols-6 !gap-3.5 [&_.text-heading-2]:!text-[14px] [&_.text-heading-3]:!text-[14px] [&_strong]:!font-medium [&_b]:!font-medium [&_.text-label-small]:!font-normal [&_.size-5]:!size-4 [&_.text-2xl]:!text-[22px] !items-stretch [&_.statrow]:!mt-2 [&_.cta2]:!mt-3 [&_.week]:!mt-2 [&_.chips]:!mt-2 [&_.sub2]:!mt-2 [&_.wsh-card]:!rounded-[22px] [&_.wsh-card]:!p-[18px] [&_.wsh-card]:!shadow-sm [&_.wsh-card]:!border-white/70 [&_.lbl]:!text-heading-3 [&_.lbl]:!text-[#20241f] [&_.unit]:!text-[#687064] [&_.cta]:!text-[#20241f] [&_.cta]:!bg-black/5 [&_.blob]:!hidden">
 <div
                 class="wsh-card wsh-solid c-crm col-span-2 col-start-1 row-start-1 row-span-2 !flex !flex-col !items-start !justify-start !gap-2 !bg-none !bg-[#dffb94] !text-[#20241f]"
-                :class="{ locked: !canOpenCrmCard }"
+                 :class="{ locked: !canOpenCrmCard, 'cursor-pointer': canOpenCrmCard }"
+                role="link"
+                :tabindex="canOpenCrmCard ? 0 : -1"
+                :aria-disabled="!canOpenCrmCard"
+                @click="canOpenCrmCard && !$event.target.closest('a, button') && go(crmCardTarget)"
+                @keydown.enter.self="canOpenCrmCard && go(crmCardTarget)"
               >
                 <button type="button" :disabled="!canOpenCrmCard" class="col-span-2 flex w-full items-center justify-between gap-2 text-left text-heading-2 font-semibold" @click="go(crmCardTarget)">
                   <span class="flex items-center gap-2"><Icon icon="i-lucide-user-round" class="size-5 shrink-0" />CRM 客户管理</span>
