@@ -277,10 +277,22 @@ const reset = () => {
   input.value = '';
 };
 
+// 打开一轮历史对话。原来历史列表点了没反应——列表只渲染标题，
+// 没有任何装载逻辑，开过的对话等于看得见摸不着。
+// 还在跑的那轮要接着轮询，否则切回去只看到半截、永远不更新。
+const open = async id => {
+  stopPolling();
+  input.value = '';
+  const { data } = await CrmAgentAPI.show(id);
+  conversation.value = data.payload;
+  if (running.value) startPolling();
+  scrollToEnd();
+};
+
 onMounted(scrollToEnd);
 onBeforeUnmount(stopPolling);
 
-defineExpose({ reset });
+defineExpose({ reset, open });
 
 // 快捷问法：新用户不知道能问什么，给几条踩得准的。
 //

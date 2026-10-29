@@ -22,7 +22,7 @@ class Crm::SalesOrderApprover
   # can? 答的是「能不能点通过」：管理员/副管对任何一张都能点，那是代办能力。
   # 待办答的是「这张派给了谁」，口径必须与 notify_ids（真正发通知给谁）一致：
   # 先找业务员所在团队的负责人，没负责人、或负责人就是他本人（自己的单自己审不了）
-  # 才落到管理员/副管。
+  # 才落到总经理（见 fallback_ids）。
   #
   # 两者混用的后果：副管的待办和角标里躺着全公司每一张待审单。2026-10-27 生产实查
   # 5 张待审，其中 3 张该团队负责人审，只有 2 张真该落到管理员/副管——多出来的 3 张
@@ -35,7 +35,7 @@ class Crm::SalesOrderApprover
     return scope.none unless account_user
 
     owner_ids = led_owner_ids(account, account_user.user_id)
-    owner_ids |= admin_fallback_owner_ids(account) if account_user.administrator? || account_user.crm_deputy_admin?
+    owner_ids |= admin_fallback_owner_ids(account) if fallback_approver?(account, account_user)
     return scope.none if owner_ids.empty?
 
     scope.where(owner_id: owner_ids)
@@ -50,8 +50,8 @@ class Crm::SalesOrderApprover
   end
   private_class_method :led_owner_ids
 
-  # 审批真正落到管理员/副管头上的那些业务员：没带团队、团队没设负责人、
-  # 或负责人就是他自己。这是 notify_ids 第 38 行那条兜底的反查，两边必须同口径。
+  # 审批走兜底（总经理）的那些业务员：没带团队、团队没设负责人、或负责人就是他自己。
+  # 这是 notify_ids 那条兜底的反查，两边必须同口径。
   def self.admin_fallback_owner_ids(account)
     leads = account.crm_teams.pluck(:id, :team_lead_id).to_h
     account.account_users.pluck(:user_id, :crm_team_id).filter_map do |uid, team_id|
@@ -62,14 +62,41 @@ class Crm::SalesOrderApprover
   private_class_method :admin_fallback_owner_ids
 
   # 这张单该提醒谁去审。优先该业务员所在团队的负责人；团队没设负责人、或负责人
-  # 就是业务员本人（审不了自己的单）时落到管理员/副管——不然单子挂在那儿没人知道，
+  # 就是业务员本人（审不了自己的单）时落到总经理——不然单子挂在那儿没人知道，
   # 只能等业务员开口问。
   def self.notify_ids(account, order)
     lead_id = team_lead_id_for(account, order.owner_id)
     return [lead_id] if lead_id.present? && lead_id != order.owner_id
 
-    admin_like_ids(account)
+    fallback_ids(account)
   end
+
+  # 团队没设负责人 / 业务员没分团队时这单归谁审。
+  #
+  # 原来是「全体管理员 + 副管」，而生产上 role=administrator 的有 41 个（历史遗留，
+  # 连业务员本人都是），于是一张没配团队的单同时躺进 41 个人的待办，业务员还能看见
+  # 自己那张。用户 2026-10-29 定：**没设的一律推总经理**。
+  #
+  # 总经理取绩效审批设置里指定的那位（系统里本来就有这个配置，不另起一套）；
+  # 没指定才退回管理员/副管，否则单子会挂在那儿没人知道。
+  def self.gm_id(account)
+    account.crm_performance_setting&.gm_owner_id
+  end
+
+  def self.fallback_ids(account)
+    id = gm_id(account)
+    id.present? ? [id] : admin_like_ids(account)
+  end
+  private_class_method :fallback_ids
+
+  # 谁的待办里该出现这些兜底单：指定了总经理就只有他；没指定才回落管理员/副管。
+  def self.fallback_approver?(account, account_user)
+    id = gm_id(account)
+    return account_user.user_id == id if id.present?
+
+    account_user.administrator? || account_user.crm_deputy_admin?
+  end
+  private_class_method :fallback_approver?
 
   def self.team_owner_ids(account_user)
     ids = Crm::AccessScope.new(account_user.account, account_user).team_visible_owner_ids

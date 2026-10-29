@@ -14,9 +14,48 @@ import { useRoute } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import CrmAiMascot from './CrmAiMascot.vue';
 import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
+import CrmAgentAPI from 'dashboard/api/crm/agent';
 
 const open = ref(false);
 const panelRef = ref(null);
+
+// 历史对话：球上原来只有「新对话」，开过的那些从球里回不去，
+// 只能跑去 AI 助手独立页找。
+const historyOpen = ref(false);
+const conversations = ref([]);
+const historyLoading = ref(false);
+
+const loadHistory = async () => {
+  historyLoading.value = true;
+  try {
+    const { data } = await CrmAgentAPI.get();
+    conversations.value = data.payload || [];
+  } catch {
+    conversations.value = [];
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
+const toggleHistory = () => {
+  historyOpen.value = !historyOpen.value;
+  if (historyOpen.value) loadHistory();
+};
+
+const openConversation = async id => {
+  historyOpen.value = false;
+  try {
+    await panelRef.value?.open(id);
+  } catch {
+    // 对话可能已被删，重拉一次列表让它从列表里消失
+    loadHistory();
+  }
+};
+
+const newChat = () => {
+  historyOpen.value = false;
+  panelRef.value?.reset();
+};
 
 // 名单之外的人不显示悬浮球（后端 Crm::AgentController 会再判一次）。
 //
@@ -36,6 +75,7 @@ const canUse = computed(
 
 const toggle = () => {
   open.value = !open.value;
+  if (!open.value) historyOpen.value = false;
 };
 
 // —— 悬浮图标可拖动 + 记忆位置（按距右下角的偏移存 localStorage）——
@@ -75,6 +115,13 @@ const launcherStyle = computed(() => ({
 const syncViewport = () => {
   vw.value = window.innerWidth;
   vh.value = window.innerHeight;
+  if (panelOrigin.value) {
+    const { width, height } = panelBox();
+    panelOrigin.value = {
+      left: Math.max(8, Math.min(panelOrigin.value.left, vw.value - width - 8)),
+      top: Math.max(8, Math.min(panelOrigin.value.top, vh.value - height - 8)),
+    };
+  }
   const fixed = clampedPos.value;
   if (fixed.right !== pos.value.right || fixed.bottom !== pos.value.bottom) {
     pos.value = fixed;
@@ -107,6 +154,42 @@ const panelStyle = computed(() => {
   ));
   return { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` };
 });
+// 面板拖动：按住头部空白处挪窗口。原来只有球能拖，面板一打开就钉在球旁边，
+// 挡住正文时只能先关掉再把球拖走、重新打开。
+// 位置和尺寸一样只在本次会话里记，刷新回到贴着球弹出的默认位置。
+let dragStart;
+const panelBox = () => ({
+  width: Math.min(panelSize.value.width, vw.value - 16),
+  height: Math.min(panelSize.value.height, vh.value - 16),
+});
+
+const dragPanel = e => {
+  if (!dragStart) return;
+  const { width, height } = panelBox();
+  panelOrigin.value = {
+    left: Math.max(8, Math.min(dragStart.left + e.clientX - dragStart.x, vw.value - width - 8)),
+    top: Math.max(8, Math.min(dragStart.top + e.clientY - dragStart.y, vh.value - height - 8)),
+  };
+};
+
+const stopPanelDrag = () => {
+  dragStart = null;
+  window.removeEventListener('pointermove', dragPanel);
+  window.removeEventListener('pointerup', stopPanelDrag);
+  window.removeEventListener('pointercancel', stopPanelDrag);
+};
+
+const startPanelDrag = e => {
+  // 头部上的按钮（历史/新对话/关闭）照常点，别被拖拽吞掉
+  if (e.button !== 0 || e.target.closest('button')) return;
+  const rect = e.currentTarget.parentElement.getBoundingClientRect();
+  dragStart = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top };
+  historyOpen.value = false;
+  window.addEventListener('pointermove', dragPanel);
+  window.addEventListener('pointerup', stopPanelDrag);
+  window.addEventListener('pointercancel', stopPanelDrag);
+};
+
 let resizeStart;
 const resizePanel = e => {
   if (!resizeStart) return;
@@ -132,6 +215,7 @@ const startResize = e => {
   window.addEventListener('pointercancel', stopResize);
 };
 onBeforeUnmount(stopResize);
+onBeforeUnmount(stopPanelDrag);
 
 let startX = 0;
 let startY = 0;
@@ -206,21 +290,72 @@ onBeforeUnmount(() => {
     class="fixed z-[55] flex flex-col overflow-hidden border shadow-2xl rounded-2xl border-[#e8e8e8] bg-white font-sans antialiased text-label !text-[14px] !font-normal !leading-6 !tracking-normal"
   >
     <div
-      class="flex items-center gap-2 px-5 py-4 bg-white"
+      class="flex items-center gap-0.5 px-4 py-2.5 bg-white cursor-move select-none"
+      title="按住拖动"
+      @pointerdown="startPanelDrag"
     >
       <span class="text-heading-3 !font-sans !text-[14px] !font-medium !tracking-normal text-[#202124]">AI 助手</span>
       <button
         type="button"
-        class="ml-auto mr-1 inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-label !font-sans !text-[14px] !font-normal !tracking-normal text-[#6b7078] hover:bg-black/5 hover:text-[#202124]"
+        class="ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1 text-label !font-sans !text-[13px] !font-normal !tracking-normal text-[#6b7078] hover:bg-black/5 hover:text-[#202124]"
         title="新对话"
-        @click="panelRef?.reset()"
+        @click="newChat"
       >
-        <span class="i-lucide-plus size-4" aria-hidden="true" />
+        <span class="i-lucide-plus size-4 shrink-0" aria-hidden="true" />
         <span>新对话</span>
       </button>
+      <div class="relative">
+        <button
+          type="button"
+          class="inline-flex items-center rounded-lg p-1 text-[#6b7078] hover:bg-black/5 hover:text-[#202124]"
+          title="历史记录"
+          aria-label="历史记录"
+          @click="toggleHistory"
+        >
+          <span class="i-lucide-history size-4 shrink-0" aria-hidden="true" />
+        </button>
+
+        <div
+          v-if="historyOpen"
+          class="absolute right-0 z-10 mt-1 flex max-h-80 w-72 flex-col overflow-auto rounded-xl border border-[#e8e8e8] bg-white py-1 shadow-xl"
+        >
+          <span
+            v-if="historyLoading && !conversations.length"
+            class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
+          >
+            加载中…
+          </span>
+          <span
+            v-else-if="!conversations.length"
+            class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
+          >
+            还没有对话
+          </span>
+          <button
+            v-for="c in conversations"
+            :key="c.id"
+            type="button"
+            class="flex items-center gap-2 px-3 py-2 text-left hover:bg-black/5"
+            @click="openConversation(c.id)"
+          >
+            <span
+              class="min-w-0 flex-1 truncate text-label !text-[13px] text-[#202124]"
+            >
+              {{ c.title }}
+            </span>
+            <span
+              v-if="c.crm_customer_name"
+              class="shrink-0 text-label !text-[12px] text-[#858a92]"
+            >
+              {{ c.crm_customer_name }}
+            </span>
+          </button>
+        </div>
+      </div>
+
       <button
         type="button"
-        class="text-[#858a92] hover:text-[#202124]"
+        class="ml-0.5 inline-flex items-center rounded-lg p-1 text-[#858a92] hover:bg-black/5 hover:text-[#202124]"
         title="关闭"
         @click="toggle"
       >

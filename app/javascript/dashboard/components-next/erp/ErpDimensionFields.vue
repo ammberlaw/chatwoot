@@ -9,9 +9,12 @@ import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import MesSupplierAPI from 'dashboard/api/mes/suppliers';
 import OrgDepartmentAPI from 'dashboard/api/org/departments';
 
-// 分录行的核算维度录入：按科目声明的 dimensions 渲染对应下拉。
+// 分录行的核算维度录入：按传入的 dimensions 渲染对应下拉。
 // 客户/供应商/订单走接口搜索（数据量大），部门/业务员一次拉全本地过滤。
-// 往来科目（应收挂客户、应付挂供应商）后端强制必填，这里给红星提示。
+//
+// ⚠️ 搜索必须显式传 per_page：不传就被后端截断在 15 条，下拉里只剩几行、
+// 还没法往下翻，搜不到的就当不存在（和车间退料单那次是同一个坑）。
+const SEARCH_PER_PAGE = 50;
 const props = defineProps({
   dimensions: { type: Array, default: () => [] },
   requiredDimension: { type: String, default: '' },
@@ -36,22 +39,37 @@ const departmentOptions = ref([]);
 const memberOptions = ref([]);
 
 const searchCustomers = async q => {
-  const { data } = await CrmCustomerAPI.get({ q, page: 1 });
-  customerOptions.value = (data?.payload || [])
-    .slice(0, 20)
-    .map(c => ({ value: c.id, label: c.name }));
+  const { data } = await CrmCustomerAPI.get({
+    q,
+    page: 1,
+    per_page: SEARCH_PER_PAGE,
+  });
+  customerOptions.value = (data?.payload || []).map(c => ({
+    value: c.id,
+    label: c.name,
+  }));
 };
 const searchSuppliers = async q => {
-  const { data } = await MesSupplierAPI.get({ q, active: 'true' });
-  supplierOptions.value = (data?.payload || [])
-    .slice(0, 20)
-    .map(s => ({ value: s.id, label: s.name }));
+  const { data } = await MesSupplierAPI.get({
+    q,
+    active: 'true',
+    per_page: SEARCH_PER_PAGE,
+  });
+  supplierOptions.value = (data?.payload || []).map(s => ({
+    value: s.id,
+    label: s.name,
+  }));
 };
 const searchOrders = async q => {
-  const { data } = await CrmSalesOrderAPI.get({ q, page: 1 });
-  orderOptions.value = (data?.payload || [])
-    .slice(0, 20)
-    .map(o => ({ value: o.id, label: `${o.order_no} ${o.name || ''}`.trim() }));
+  const { data } = await CrmSalesOrderAPI.get({
+    q,
+    page: 1,
+    per_page: SEARCH_PER_PAGE,
+  });
+  orderOptions.value = (data?.payload || []).map(o => ({
+    value: o.id,
+    label: `${o.order_no} ${o.name || ''}`.trim(),
+  }));
 };
 const loadDepartments = async () => {
   if (departmentOptions.value.length) return;

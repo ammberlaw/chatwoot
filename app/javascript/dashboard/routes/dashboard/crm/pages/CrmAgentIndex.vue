@@ -28,6 +28,16 @@ const newChat = () => {
   loadList();
 };
 
+// 点标题打开那一轮。原来这个列表只渲染不可点，开过的对话回不去。
+const openChat = async id => {
+  try {
+    await panelRef.value?.open(id);
+  } catch {
+    useAlert('这个对话打不开，可能已被删除');
+    loadList();
+  }
+};
+
 const removeChat = async id => {
   try {
     await CrmAgentAPI.delete(id);
@@ -81,9 +91,13 @@ onMounted(loadList);
             :key="c.id"
             class="flex items-center gap-1 px-3 py-2 text-xs border-b border-n-weak/60 group [.theme-classic_&]:mb-1 [.theme-classic_&]:rounded-xl [.theme-classic_&]:border-0 [.theme-classic_&]:px-3 [.theme-classic_&]:py-3 [.theme-classic_&]:hover:bg-[#f3f4f6]"
           >
-            <span class="flex-1 min-w-0 truncate text-n-slate-12">
+            <button
+              type="button"
+              class="flex-1 min-w-0 truncate text-left text-n-slate-12"
+              @click="openChat(c.id)"
+            >
               {{ c.title }}
-            </span>
+            </button>
             <span v-if="c.crm_customer_name" class="shrink-0 text-n-slate-10">
               {{ c.crm_customer_name }}
             </span>

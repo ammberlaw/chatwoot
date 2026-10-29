@@ -266,10 +266,12 @@ const onCreditInput = line => {
   if (line.credit) line.debit = '';
 };
 // 这行有没有东西要在表格下面展开：外币、辅助核算维度、现金流量项目。
-const lineNeedsExtra = line =>
-  line.currency !== 'CNY' ||
-  isCashLine(line) ||
-  (accountById(line.ledgerAccountId)?.dimensions || []).length > 0;
+// 辅助核算 / 币种这一条每行都给。
+//
+// 原来是「科目声明了维度才出现」，而生产上 109 个科目只有 30 个配了维度，
+// 另外 79 个点进去一片空白——512 条凭证行里挂了订单的是 0 条，等于这个功能没法用。
+// 用户 2026-10-29 定：不看科目配置，每行都能挂客户/订单/业务员。
+const ALL_DIMENSIONS = ['customer', 'supplier', 'order', 'department', 'member'];
 
 // 选到外币科目时自动跟随科目币种（后端会校验币种须一致）。
 const onAccountChange = line => {
@@ -1423,7 +1425,7 @@ onMounted(() => {
                   </tr>
 
                   <!-- 该行的辅助核算 / 外币 / 现金流量：只在需要时出现，不占主表的列 -->
-                  <tr v-if="lineNeedsExtra(line)">
+                  <tr>
                     <td class="border border-n-weak bg-n-alpha-1/40" />
                     <td
                       colspan="5"
@@ -1431,7 +1433,6 @@ onMounted(() => {
                     >
                       <div class="flex flex-col gap-2">
                         <div
-                          v-if="line.currency !== 'CNY'"
                           class="flex items-center gap-2 text-xs text-n-slate-11"
                         >
                           <span>币种</span>
@@ -1450,7 +1451,7 @@ onMounted(() => {
                               type="number"
                             />
                           </div>
-                          <span>
+                          <span v-if="line.currency !== 'CNY'">
                             折本位币
                             {{
                               money(
@@ -1468,9 +1469,7 @@ onMounted(() => {
                              想挂照样挂，只是不强制。 -->
                         <ErpDimensionFields
                           v-model="form.lines[index]"
-                          :dimensions="
-                            accountById(line.ledgerAccountId)?.dimensions || []
-                          "
+                          :dimensions="ALL_DIMENSIONS"
                         />
 
                         <div
