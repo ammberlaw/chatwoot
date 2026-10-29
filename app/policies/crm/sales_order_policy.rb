@@ -41,6 +41,12 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 比价提示（只读）：与看订单同权。给的是**销售价**的历史对比，不是成本——
+  # 业务员本来就看得到自己卖多少钱，不碰「销售端不可见成本」那条红线。
+  def price_benchmark?
+    true
+  end
+
   # 生产追溯：与看订单同权限（数据本身已按订单可见范围收口）。
   def production_trace?
     true

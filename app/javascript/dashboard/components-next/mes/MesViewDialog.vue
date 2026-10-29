@@ -281,7 +281,23 @@ const printDoc = () => printNode(contentRef.value, props.title);
                           —
                         </span>
                       </span>
-                      <template v-else>{{ disp(it[c.key]) }}</template>
+                      <template v-else>
+                        {{ disp(it[c.key]) }}
+                        <!-- 副行：列声明 noteKey 时，值下面再挂一行（比价提示这类）。
+                             形状 { text, level }，level=alert 标红、warn 琥珀。 -->
+                        <span
+                          v-if="c.noteKey && it[c.noteKey]"
+                          class="block text-xs"
+                          :class="
+                            it[c.noteKey].level === 'alert'
+                              ? 'text-n-ruby-11 font-medium'
+                              : 'text-n-amber-11'
+                          "
+                          :title="it[c.noteKey].title"
+                        >
+                          {{ it[c.noteKey].text }}
+                        </span>
+                      </template>
                     </td>
                   </tr>
                   <tr v-if="!items.length">

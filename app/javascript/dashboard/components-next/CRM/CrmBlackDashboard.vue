@@ -435,6 +435,7 @@ const sourceShare = index =>
           <template v-else>
             <button
               class="relative shrink-0 w-full h-[116px] overflow-hidden rounded-2xl bg-[#191b1b] px-4 py-3 text-left group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a77800]"
+              :disabled="customers[0].masked"
               @click="$emit('customer', customers[0].id)"
             >
               <span
@@ -473,8 +474,9 @@ const sourceShare = index =>
             <div class="flex-1 flex flex-col justify-evenly mt-2 min-h-0">
               <button
                 v-for="(customer, i) in customers.slice(1)"
-                :key="customer.id"
+                :key="customer.id || `masked-${i}`"
                 class="group flex items-center gap-3 w-full min-w-0 py-2 text-left focus-visible:outline-2 focus-visible:outline-[#a77800]"
+                :disabled="customer.masked"
                 @click="$emit('customer', customer.id)"
               >
                 <span

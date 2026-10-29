@@ -165,6 +165,8 @@ Rails.application.routes.draw do
                 get :audits
                 get :convert_preview
                 get :receivable_progress
+                # 单价 vs 上次成交价（审核人放行前的异常提示）
+                get :price_benchmark
                 get :production_trace
                 get :erp_export
                 post :attach

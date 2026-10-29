@@ -141,16 +141,6 @@ const canUseCrmAgent = computed(() => currentUser.value?.crm_agent === true);
 const canViewMaterialCost = computed(
   () => currentUser.value?.can_view_material_cost === true
 );
-// 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
-const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
-// 普通业务（非管理员/副管理员/部门负责人/财务）：隐藏公司级看板等团队之外的数据入口。
-const isCrmSales = computed(
-  () =>
-    !isAdmin.value &&
-    !isCrmManager.value &&
-    !isCrmFinance.value &&
-    currentUser.value?.crm_role !== 'deputy_admin'
-);
 // 备用金台账：财务/管理员管全部，部门负责人管本部门那本。
 // 口径必须与后端一致——用组织架构的部门负责人（org_dept_leader），不能用 CRM 条线的
 // crm_manager，否则会出现「侧栏看得到入口、点进去 403」。
@@ -787,16 +777,15 @@ const menuItems = computed(() => {
           'crm_my_target_index',
         ],
         children: [
-          ...(isCrmSales.value
-            ? []
-            : [
-                {
-                  name: 'CRM Company Dashboard',
-                  label: t('SIDEBAR.CRM_DASH_COMPANY'),
-                  to: accountScopedRoute('crm_dashboard_index'),
-                  activeOn: ['crm_dashboard_index'],
-                },
-              ]),
+          // 外贸销售部数据看板对所有 CRM 成员开放（用户 2026-10-29 定）。
+          // 原先对业务员隐藏，后端 StatsController#company_scope_allowed? 也一并放开了——
+          // 只改侧栏不改后端的话，菜单出来了、数据还是个人口径。
+          {
+            name: 'CRM Company Dashboard',
+            label: t('SIDEBAR.CRM_DASH_COMPANY'),
+            to: accountScopedRoute('crm_dashboard_index'),
+            activeOn: ['crm_dashboard_index'],
+          },
           {
             name: 'CRM Team Dashboard',
             label: t('SIDEBAR.CRM_DASH_TEAM'),

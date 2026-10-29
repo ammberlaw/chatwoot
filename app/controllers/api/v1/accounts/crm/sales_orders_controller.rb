@@ -5,11 +5,11 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   before_action :ensure_crm_or_finance!
   before_action :block_crm_finance_writes!,
                 except: [:index, :show, :audits, :convert_preview, :receivable_progress, :production_trace,
-                         :erp_export]
+                         :price_benchmark, :erp_export]
   before_action :check_authorization
   before_action :fetch_sales_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress,
-                       :production_trace, :erp_export, :approve, :reject]
+                       :price_benchmark, :production_trace, :erp_export, :approve, :reject]
 
   RESULTS_PER_PAGE = 15
 
@@ -55,9 +55,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   end
 
   def update
-    unless can_delete_order?(@sales_order)
-      return render json: { error: '无权编辑该订单（仅负责人本人或管理员可编辑）' }, status: :forbidden
-    end
+    return render json: { error: '无权编辑该订单（仅负责人本人或管理员可编辑）' }, status: :forbidden unless can_delete_order?(@sales_order)
 
     was_rejected = @sales_order.approval_status == 'REJECTED'
     @sales_order.update!(order_attributes)
@@ -114,9 +112,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   # 软删除：进回收箱，不真删。负责人本人可删自己的单；管理员/副管可删任意。
   def destroy
-    unless can_delete_order?(@sales_order)
-      return render json: { error: '无权删除该订单（仅负责人本人或管理员可删）' }, status: :forbidden
-    end
+    return render json: { error: '无权删除该订单（仅负责人本人或管理员可删）' }, status: :forbidden unless can_delete_order?(@sales_order)
 
     @sales_order.soft_delete!(current_user)
     head :ok
@@ -177,6 +173,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 口径：去空格后全等优先，其次 ILIKE 包含；命中多条时不猜，留空让业务员选。
   def convert_preview
     render json: { payload: Crm::ConvertPreview.new(@sales_order).rows }
+  end
+
+  # 这单每个品名的价，跟上一次成交比是高了还是低了。审核人放行前看一眼。
+  # 按需拉（同回款进度）：列表里逐行算要扫 300 条历史 × 每页 25 行，不值得。
+  def price_benchmark
+    rows = Crm::PriceBenchmark.new(Current.account).for_order(@sales_order)
+    render json: { payload: rows.transform_values(&:to_h) }
   end
 
   # 回款进度（ERP_SPEC §2.5）：业务员在订单页只读看「应收 / 已收 / 未收 + 下一期到期日」，

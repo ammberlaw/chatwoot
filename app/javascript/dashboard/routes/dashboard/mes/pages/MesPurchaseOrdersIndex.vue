@@ -929,7 +929,7 @@ const VIEW_ITEM_COLS = [
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
-  { label: '未税单价', key: 'untaxedRate', align: 'right' },
+  { label: '未税单价', key: 'untaxedRate', align: 'right', noteKey: 'priceNote' },
   { label: '含税单价', key: 'taxedRate', align: 'right' },
   { label: '税率', key: 'taxRate', align: 'right' },
   { label: '未税合计', key: 'untaxedAmount', align: 'right' },
@@ -943,6 +943,24 @@ const VIEW_ITEM_COLS = [
 ];
 // 查看明细按供应商归堆：一张单挂十几家供应商时，混排根本看不出哪几行是同一家的
 // （预览页就是按供应商分页的，这里对齐同一口径）。
+// 这行的价跟这颗料上次买多少比。录单页本来就有同样的提示，但那个数不参与提交，
+// 到审批页就没了——老板看到的只是一个光秃秃的单价（Mes::PurchasePriceBenchmark 补上）。
+// 正常不出字，没异常别占地方。
+const priceNote = it => {
+  const b = it.priceBenchmark;
+  if (!b) return null;
+  if (b.skipReason) return { level: 'warn', text: b.skipReason };
+  if (b.level === 'normal') return null;
+
+  const last = (Number(b.lastRateMicros) / 1e6).toFixed(2);
+  const pct = Math.abs(Math.round(b.diffRatio * 100));
+  return {
+    level: b.level,
+    text: `比${b.scopeLabel}${b.diffRatio > 0 ? '贵' : '便宜'} ${pct}%`,
+    title: `${b.scopeLabel} ¥${last} · ${b.poNo}${b.supplierName ? ` · ${b.supplierName}` : ''}`,
+  };
+};
+
 const viewItems = computed(() =>
   [...(viewing.value?.purchaseItems || [])]
     .sort((a, b) =>
@@ -961,6 +979,7 @@ const viewItems = computed(() =>
       unit: it.unit,
       taxRate: it.supplierTaxRate ? `${it.supplierTaxRate}%` : '—',
       untaxedRate: yuan(it.untaxedRateMicros),
+      priceNote: priceNote(it),
       taxedRate: yuan(it.taxedRateMicros),
       untaxedAmount: yuan(it.untaxedAmountMicros),
       taxedAmount: yuan(it.taxedAmountMicros),

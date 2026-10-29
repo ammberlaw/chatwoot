@@ -63,9 +63,14 @@ json.related_production_order_nos(
     [resource.production_order&.order_no].compact
   end
 )
+# 每行的价跟这颗料上次买多少比。审批人看单时要的就是这个——录单页那个提示
+# 不参与提交，到审批这步就没了（Mes::PurchasePriceBenchmark）。
+# 看不到金额的人也不给比价：差价本身就是金额信息。
+price_marks = can_view_amount ? Mes::PurchasePriceBenchmark.new(resource.account).for_order(resource) : {}
 json.purchase_items do
   json.array! resource.purchase_items.order(:id) do |item|
-    json.partial! 'api/v1/models/mes_purchase_item', formats: [:json], resource: item, can_view_amount: can_view_amount
+    json.partial! 'api/v1/models/mes_purchase_item', formats: [:json], resource: item,
+                  can_view_amount: can_view_amount, price_benchmark: price_marks[item.id]&.to_h
   end
 end
 json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource

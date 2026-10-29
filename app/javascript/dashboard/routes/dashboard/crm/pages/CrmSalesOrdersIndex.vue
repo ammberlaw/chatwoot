@@ -435,6 +435,35 @@ const detailSections = computed(() => {
 // 业务员在订单页只读看「应收 / 已收 / 未收 + 下一期到期日」，催款用。
 // ERP 没上线（总开关关）或财务还没给这张订单建账时后端返回 null，整块不渲染。
 const receivableProgress = ref(null);
+// 单价 vs 上次成交：审核人放行前一眼看出这价是不是异常。
+// ⚠️ 按**品名**比，不是编码——生产上 841 条订单明细里填了编码的是 0 条。
+// 口径：同客户优先，没跟这家做过才比全公司最近一次；±10% 提醒、±30% 标红。
+const priceBenchmark = ref({});
+const fetchPriceBenchmark = async orderId => {
+  priceBenchmark.value = {};
+  try {
+    const { data } = await axios.get(
+      `${crmBase()}/sales_orders/${orderId}/price_benchmark`
+    );
+    priceBenchmark.value = data.payload || {};
+  } catch {
+    // 比不出来就不提示，别挡住审核本身
+    priceBenchmark.value = {};
+  }
+};
+
+// 「比该客户上次低 33%」这种一句话。normal 不出文案——没异常就别占地方。
+const priceHint = li => {
+  const b = priceBenchmark.value[li.name];
+  if (!b || b.level === 'normal') return null;
+  const pct = Math.abs(Math.round(b.diff_ratio * 100));
+  return {
+    level: b.level,
+    text: `比${b.scope_label} ${b.last_price} ${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
+    title: `${b.scope_label}：${b.order_no}（${(b.order_date || '').slice(0, 10)}）单价 ${b.last_price}`,
+  };
+};
+
 const fetchReceivableProgress = async orderId => {
   receivableProgress.value = null;
   try {
@@ -580,6 +609,7 @@ const selectOrder = record => {
   panelTrace.value = null;
   panelCosts.value = [];
   fetchReceivableProgress(record.id);
+  fetchPriceBenchmark(record.id);
 };
 const closePanel = () => {
   selectedOrder.value = null;
@@ -1486,6 +1516,18 @@ v-if="!row.tag && !row.value" class="text-n-slate-10"
                 </div>
                 <div class="text-xs text-n-slate-10">
                   {{ itemMeta(li) }}
+                </div>
+                <div
+                  v-if="priceHint(li)"
+                  class="text-xs"
+                  :class="
+                    priceHint(li).level === 'alert'
+                      ? 'text-n-ruby-11 font-medium'
+                      : 'text-n-amber-11'
+                  "
+                  :title="priceHint(li).title"
+                >
+                  {{ priceHint(li).text }}
                 </div>
               </div>
             </div>

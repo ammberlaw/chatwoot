@@ -28,9 +28,14 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     params[:scope] == 'mine' || !company_scope_allowed?
   end
 
-  # 公司级看板仅管理员/主管可看；普通业务无论传什么参数都强制个人口径。
+  # 公司级看板对所有 CRM 成员开放（用户 2026-10-29 定：「外贸销售部数据看板也开放给所有
+  # crm 成员」）。原先只给管理员/副管/主管，业务员直接访问 URL 也会被强制成个人口径。
+  #
+  # ⚠️ 开放的是**业绩口径**：成交额、商机、客户来源、团队与业务员对比（含按人名列出的
+  # 月度成交额、赢单客户数、录入完整度、回复时长、发信量）。
+  # 成本 / 供应商 / 毛利不在这个接口里，生态硬约束不受影响。
   def company_scope_allowed?
-    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? || Current.account_user.crm_manager?
+    true
   end
 
   def year_range
@@ -179,7 +184,33 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   # 客户成交排行（Top Customers）：当年按「客户 × 月」预聚合金额与单数，前端按所选期间
   # 即时汇总，和业务员排行同一套做法，不另外请求。查询在模型里（和金额 SQL 放一起）。
   def top_customers
-    Crm::SalesOrder.monthly_customer_ranking(year_orders)
+    rows = Crm::SalesOrder.monthly_customer_ranking(year_orders)
+    mask_customers? ? rows.map { |row| mask_customer(row) } : rows
+  end
+
+  # 业务员看全公司看板时，别人客户的**公司名**要打码。
+  #
+  # 看板 2026-10-29 对全员开放，但成交排行上摆着同事客户的公司全名，等于把客户名单
+  # 摊开给所有人——撞单、挖客的口子。金额和排名照给（业绩透明是开放看板的目的），
+  # 名字换成「客户 01」这种序号，id 也不下发，前端点不进去。
+  #
+  # 自己的客户不打码：看自己的单不需要遮。
+  # 在后端打码而不是前端：前端遮只是不画出来，接口里还在，F12 一看就有。
+  def mask_customers?
+    return false if params[:scope] == 'mine'
+
+    au = Current.account_user
+    !(au.administrator? || au.crm_deputy_admin? || au.crm_manager? || au.crm_finance?)
+  end
+
+  def mask_customer(row)
+    return row if my_customer_ids.include?(row[:id])
+
+    row.merge(id: nil, name: nil, country: nil, masked: true)
+  end
+
+  def my_customer_ids
+    @my_customer_ids ||= Current.account.crm_customers.owned_by(current_user.id).pluck(:id).to_set
   end
 
   # 业务员发信排行：和成交排行同一套做法，按「业务员 × 月份」预聚合，

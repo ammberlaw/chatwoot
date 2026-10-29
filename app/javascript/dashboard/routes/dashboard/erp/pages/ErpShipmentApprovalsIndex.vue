@@ -45,6 +45,20 @@ const fetchList = async () => {
 onMounted(fetchList);
 
 const unpaidOf = s => s.fully_paid === false;
+
+// 单价 vs 上次成交：财务放行前一眼看出这价异不异常。
+// 数据由后端在出库单详情里算好（Crm::PriceBenchmark，按品名比、同客户优先）。
+// normal 不出文案——没异常就别占地方。
+const priceHint = item => {
+  const b = item.price_benchmark;
+  if (!b || b.level === 'normal') return null;
+  const pct = Math.abs(Math.round(b.diff_ratio * 100));
+  return {
+    level: b.level,
+    text: `比${b.scope_label}${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
+    title: `${b.scope_label}：${b.order_no}（${(b.order_date || '').slice(0, 10)}）单价 ${b.last_price}`,
+  };
+};
 // 本次出库的货值：按行的 amount 合计（amount 已按本次出库量算，不是订单量）。
 // 有行取不到单价时合计标成「含未计价行」，不要给一个少算了的数让人以为就这么多。
 const itemsTotal = s => {
@@ -401,8 +415,21 @@ const submitReject = async () => {
                   <td class="py-1 pr-3 text-right tabular-nums">
                     {{ Number(it.qty || 0) }} {{ it.unit || '' }}
                   </td>
-                  <td class="py-1 pr-3 text-right tabular-nums">
+                  <td class="py-1 pr-3 text-right tabular-nums whitespace-nowrap">
                     {{ it.unit_price == null ? '—' : Number(it.unit_price) }}
+                    <!-- 跟上次成交比高了还是低了。正常就不出字，没异常别占地方。 -->
+                    <span
+                      v-if="priceHint(it)"
+                      class="block text-xs"
+                      :class="
+                        priceHint(it).level === 'alert'
+                          ? 'text-n-ruby-11 font-medium'
+                          : 'text-n-amber-11'
+                      "
+                      :title="priceHint(it).title"
+                    >
+                      {{ priceHint(it).text }}
+                    </span>
                   </td>
                   <td class="py-1 text-right tabular-nums text-n-slate-12">
                     {{ it.amount == null ? '—' : Number(it.amount).toFixed(2) }}

@@ -77,6 +77,13 @@ json.delivery_method_label sales_order&.delivery_method_label
 # 销售单价按订单明细里同一个产品那行取（出库单自己不存价）。
 # 这是卖给客户的价，不是成本，销售端本来就看得到。
 order_lines = sales_order&.line_item_rows.to_a
+# 单价 vs 上次成交（财务放行前的异常提示）。只在详情算——出库审核页就是详情口径，
+# 列表逐张算要扫 300 条历史。服务按币种缓存，一屏几张待审单只查一次。
+price_marks = if local_assigns[:detail] && sales_order
+                Crm::PriceBenchmark.new(resource.account).for_order(sales_order)
+              else
+                {}
+              end
 json.shipment_items do
   json.array! resource.shipment_items.order(:id) do |item|
     # 先按产品 id 对行（明细行基本都只存 id），对不上再退回 sku。
@@ -90,6 +97,9 @@ json.shipment_items do
     json.qty item.qty
     json.unit item.unit
     json.unit_price line&.dig(:unit_price)
+    # 这行的价跟上次比高了还是低了。对不上订单行、或这个品名没历史就不给。
+    mark = line && price_marks[line[:name]]
+    json.price_benchmark mark&.to_h
     # 金额按**本次出库量**算，不是订单量——出库单上的钱是这一车货的钱。
     json.amount(line&.dig(:unit_price) ? (item.qty.to_d * line[:unit_price].to_d) : nil)
   end

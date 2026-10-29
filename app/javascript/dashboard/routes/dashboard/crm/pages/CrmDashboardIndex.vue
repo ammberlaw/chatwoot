@@ -4,7 +4,6 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
-import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
@@ -63,10 +62,11 @@ const monthModel = computed({
 const quarterOptions = [1, 2, 3, 4].map(q => ({ value: q, label: `Q${q}` }));
 const yearSelectOptions = yearOptions.map(y => ({ value: y, label: `${y}年` }));
 
-const { isCrmSales } = useCrmRole();
-// 普通业务无公司看板权限：无论 URL 参数如何都走个人口径（后端同样强制）。
+// 公司看板对所有 CRM 成员开放（2026-10-29）：口径只看 URL 参数，不再按角色强制。
+// 侧栏「我的数据看板」带 scope=mine，「外贸销售部数据看板」不带。
+// 别人客户的公司名由后端打码（StatsController#mask_customer），不靠前端遮。
 const scope = computed(() =>
-  route.query.scope === 'mine' || isCrmSales.value ? 'mine' : 'company'
+  route.query.scope === 'mine' ? 'mine' : 'company'
 );
 
 const STAGE_LABELS = {
@@ -512,12 +512,16 @@ const topCustomers = computed(() => {
     .map(c => ({
       id: c.id,
       name: c.name,
+      masked: !!c.masked,
       amount: sum(c.amount, months),
       orders: sum(c.orders, months),
     }))
     .filter(c => c.amount > 0)
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
+    .slice(0, 5)
+    // 别人的客户后端已经把名字和 id 抹掉了（见 StatsController#mask_customer），
+    // 这里只负责给个占位名，并且不给点。
+    .map((c, i) => (c.masked ? { ...c, name: `客户 ${String(i + 1).padStart(2, '0')}` } : c));
 });
 const countryRank = computed(() => {
   const groups = new Map();
@@ -535,11 +539,15 @@ const countryRank = computed(() => {
   });
   return [...groups.values()].sort((a, b) => b.amount - a.amount);
 });
-const goCustomer = id =>
+const goCustomer = id => {
+  // 打码行没有 id，点不进去。
+  if (!id) return;
+
   router.push({
     name: 'crm_customer_detail_index',
     params: { accountId: accountId.value, id },
   });
+};
 
 // ── 业务员发信排行（跟成交排行同一套：按所选期间汇总「业务员 × 月」的发信数）──
 // 发信量是过程指标，和成交额并排看才知道「发得多但没成交」还是「没发也没成交」。
@@ -1192,10 +1200,13 @@ const PERIODS = [
             </div>
             <ul v-else class="flex flex-col">
               <li
-                v-for="c in topCustomers"
-                :key="c.id"
-                class="flex items-center gap-3 px-2 py-2.5 -mx-2 rounded-lg cursor-pointer hover:bg-n-alpha-1"
-                :title="`${c.name}｜点击查看客户详情`"
+                v-for="(c, ci) in topCustomers"
+                :key="c.id || `masked-${ci}`"
+                class="flex items-center gap-3 px-2 py-2.5 -mx-2 rounded-lg"
+                :class="
+                  c.masked ? '' : 'cursor-pointer hover:bg-n-alpha-1'
+                "
+                :title="c.masked ? '' : `${c.name}｜点击查看客户详情`"
                 @click="goCustomer(c.id)"
               >
                 <span

@@ -40,3 +40,5 @@ json.remark resource.remark
 json.images resource.images.map { |f|
   { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true), signed_id: f.blob.signed_id }
 }
+# 跟这颗料上次买多少比（只给看得到金额的人，见父单据）。
+json.price_benchmark local_assigns[:price_benchmark]
