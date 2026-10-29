@@ -25,12 +25,15 @@ RC=0
 echo "══════ 1/3  守门 spec（能拦住 Pundit 500 这类上线即崩的错）══════"
 SPECS="spec/policies/crm_mes_custom_action_coverage_spec.rb"
 for s in spec/services/crm/agent/system_map_spec.rb \
+         spec/services/crm/agent/inline_feature_coverage_spec.rb \
          spec/services/mes/todo_assignment_spec.rb \
          spec/services/crm/sales_order_assignment_spec.rb; do
   [ -f "$s" ] && SPECS="$SPECS $s"
 done
 # shellcheck disable=SC2086
-if docker exec -e RAILS_ENV=test "$DEV_CONTAINER" bundle exec rspec $SPECS 2>&1 | tee /tmp/predeploy_spec.log | tail -3; then
+# ⚠️ 只在**显示**上挑出摘要行；失败判定仍然读整份日志（下面那个 grep），
+# 别改成管道过滤——截断日志正是当初漏推 10 个文件那次的根因。
+if docker exec -e RAILS_ENV=test "$DEV_CONTAINER" bundle exec rspec $SPECS 2>&1 | tee /tmp/predeploy_spec.log | grep -E "examples?, .* failures?"; then
   grep -qE "[1-9][0-9]* failures?" /tmp/predeploy_spec.log && { echo "❌ spec 有失败，别部署"; RC=1; }
 else
   echo "❌ spec 跑不起来"; RC=1
