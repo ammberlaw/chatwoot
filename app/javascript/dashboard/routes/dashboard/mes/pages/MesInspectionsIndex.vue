@@ -8,6 +8,8 @@ import { useMesInspectionsStore } from 'dashboard/stores/mes/inspections';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesInspectionAPI from 'dashboard/api/mes/inspections';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useMapGetter } from 'dashboard/composables/store';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
@@ -121,6 +123,17 @@ const materialOptions = computed(() =>
 );
 
 const dialogRef = ref(null);
+// 改 / 删只给本人（管理员兜底），和生产报工「谁报工谁删」同一套口径。
+// 后端 ensure_owner_or_admin!(:inspector_id) 再判一次，这里只是别让人点了吃 403。
+//
+// 为什么是删不是作废：质检记录不动库存、不推阶段、不出凭证，作废要冲销的东西一样没有。
+// 但看板合格率是按记录加总算的，删一条不良会让它悄悄变好看——所以卡本人。
+const { isAdmin } = useAdmin();
+const currentUserId = useMapGetter('getCurrentUserID');
+const canEditRecord = r =>
+  mesCan('quality') && (isAdmin.value || r.inspectorId === currentUserId.value);
+
+const editId = ref(null);
 const form = reactive({
   kind: 'FQC',
   productionOrderId: '',
@@ -172,6 +185,7 @@ const resetAttachments = () => {
 };
 
 const openCreate = () => {
+  editId.value = null;
   Object.assign(form, {
     kind: 'FQC',
     productionOrderId: '',
@@ -188,12 +202,45 @@ const openCreate = () => {
   dialogRef.value?.open();
 };
 
+const openEdit = r => {
+  editId.value = r.id;
+  Object.assign(form, {
+    kind: r.kind,
+    productionOrderId: r.productionOrderId ? String(r.productionOrderId) : '',
+    mesMaterialId: r.mesMaterialId ? String(r.mesMaterialId) : '',
+    inspectedQty: r.inspectedQty ?? '',
+    passedQty: r.passedQty ?? '',
+    failedQty: r.failedQty ?? '',
+    defectReason: r.defectReason || '',
+    needRework: !!r.needRework,
+    remark: r.remark || '',
+  });
+  // 已挂的附件不动，这里只放这次新加的
+  resetAttachments();
+  markPristine();
+  dialogRef.value?.open();
+};
+
+const removeRecord = async r => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`删除这条${KIND_LABELS[r.kind] || '检验'}记录？删掉后看板的合格率会跟着变。`))
+    return;
+
+  const ok = await store.delete(r.id);
+  if (ok) {
+    useAlert('已删除');
+    fetchList();
+  } else {
+    useAlert('删除失败');
+  }
+};
+
 const submit = async () => {
   if (invalid.value) return;
   const po = productionOrders.value.find(
     p => String(p.id) === String(form.productionOrderId)
   );
-  const ok = await store.create({
+  const payload = {
     kind: form.kind,
     itemType: isIqc.value ? 'MATERIAL' : 'PRODUCT',
     mesMaterialId: isIqc.value ? Number(form.mesMaterialId) || null : null,
@@ -208,9 +255,12 @@ const submit = async () => {
     videos: pending.videos.map(p => p.signedId),
     photos: pending.photos.map(p => p.signedId),
     files: pending.files.map(p => p.signedId),
-  });
+  };
+  const ok = editId.value
+    ? await store.update({ id: editId.value, ...payload })
+    : await store.create(payload);
   if (ok) {
-    useAlert('检验记录已录入');
+    useAlert(editId.value ? '已保存' : '检验记录已录入');
     dialogRef.value?.close();
     fetchList();
   }
@@ -298,6 +348,23 @@ onMounted(() => {
                 size="sm"
                 class="shrink-0"
                 @click.stop="openView(r)"
+              />
+              <Button
+                v-if="canEditRecord(r)"
+                label="编辑"
+                variant="faded"
+                size="sm"
+                class="shrink-0"
+                @click.stop="openEdit(r)"
+              />
+              <Button
+                v-if="canEditRecord(r)"
+                label="删除"
+                color="ruby"
+                variant="ghost"
+                size="sm"
+                class="shrink-0"
+                @click.stop="removeRecord(r)"
               />
             </div>
             <div
@@ -419,12 +486,29 @@ onMounted(() => {
                 {{ day(r.inspectedAt) }}
               </td>
               <td class="px-3 py-3 text-right">
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openView(r)"
-                />
+                <div class="flex justify-end gap-1">
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openView(r)"
+                  />
+                  <Button
+                    v-if="canEditRecord(r)"
+                    label="编辑"
+                    variant="faded"
+                    size="sm"
+                    @click="openEdit(r)"
+                  />
+                  <Button
+                    v-if="canEditRecord(r)"
+                    label="删除"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    @click="removeRecord(r)"
+                  />
+                </div>
               </td>
             </tr>
             <tr v-if="!records.length">
@@ -451,8 +535,7 @@ onMounted(() => {
       :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
-      title="新增质量检验"
-      description="结果留空按不良数自动判定"
+      :title="editId ? '编辑质量检验' : '新增质量检验'"
       :is-loading="saving"
       :disable-confirm-button="invalid"
       :dirty="isDirty"

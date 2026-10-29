@@ -63,6 +63,19 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 银行日记账 Excel 导入（财务 2026-10-29 需求③）。账户按名称匹配资金账户，
+  # 对不上的整行退回；按「账户+日期+摘要+金额」判重，重导同一个文件不会翻倍。
+  # 只落流水，不生成凭证——生成凭证是另一步，财务要自己挑模板和期间。
+  def import_transactions
+    return render json: { error: '请选择要导入的 Excel 文件' }, status: :unprocessable_entity if params[:file].blank?
+
+    result = Erp::CashJournalImportService.new(account: Current.account, user: current_user,
+                                               path: params[:file].tempfile.path).import!
+    render json: { payload: result }
+  rescue Erp::CashJournalImportService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   # 默认 200 笔够看；带 limit 的（导出）放宽到 5000 封顶。

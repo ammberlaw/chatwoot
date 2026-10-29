@@ -560,8 +560,18 @@ onMounted(async () => {
                     size="sm"
                     @click="openView(e)"
                   />
+                  <!-- 和手机卡片同口径：能不能动这张单看后端逐条下发的 canOperate，
+                       不是 mesCan('stock')。卡仓管权限的话，平板车间的杨义建得出单
+                       却看不到「编辑」和「过账」，单子永远停在草稿（2026-10-29 反馈）。 -->
                   <Button
-                    v-if="e.status === 'DRAFT' && mesCan('stock')"
+                    v-if="e.status === 'DRAFT' && e.canOperate"
+                    label="编辑"
+                    variant="faded"
+                    size="sm"
+                    @click="openEdit(e)"
+                  />
+                  <Button
+                    v-if="e.status === 'DRAFT' && e.canOperate"
                     label="过账"
                     color="iris"
                     size="sm"
@@ -571,7 +581,7 @@ onMounted(async () => {
                   <MesReturnControls
                     :record="e"
                     :store="store"
-                    :can-manage="mesCan('stock')"
+                    :can-manage="e.canOperate"
                   />
                   <Button
                     v-if="canRemoveIssue(e)"

@@ -231,6 +231,49 @@ class Mes::Shipment < ApplicationRecord
     Erp::OrderReceivableProgress.new(crm_sales_order).call
   end
 
+  # 收款约定：结算方式、指定收款账户。财务审「这笔钱该怎么收、收到哪个户」要对着看。
+  # payment_term 存的是 crm_option_items 的 code，票面上要显示名字。
+  def payment_term_label
+    code = crm_sales_order&.payment_term
+    return nil if code.blank?
+
+    account.crm_option_items.find_by(category: 'payment_term', code: code)&.name || code
+  end
+
+  def receipt_account_name
+    id = crm_sales_order&.receipt_account_id
+    id && account.erp_cash_accounts.find_by(id: id)&.name
+  end
+
+  # 这张订单收过哪几笔款：什么时候收的、走什么途径、收了多少。
+  #
+  # 出库审核页原来只给「应收 / 已收 / 还差」三个合计数，财务说「这样我核实不了」——
+  # 她要对着银行流水一笔笔核，只给个汇总数核不动（2026-10-29 反馈）。
+  #
+  # 走应收台账的冲抵关系取，口径和「已收」那个数同源，不会出现明细加起来对不上合计。
+  def receipt_rows
+    return [] if crm_sales_order.blank?
+
+    receivable = account.erp_receivables.find_by(crm_sales_order_id: crm_sales_order_id)
+    return [] if receivable.blank?
+
+    receivable.allocations
+              .includes(receipt_record: :cash_account)
+              .filter_map { |alloc| receipt_row(alloc) }
+              .sort_by { |row| row[:received_at].to_s }
+  end
+
+  def receipt_row(alloc)
+    record = alloc.receipt_record
+    return nil if record.blank? || record.status == 'VOID'
+
+    { receipt_no: record.receipt_no, received_at: record.received_at,
+      method_label: record.method_label, currency: record.currency,
+      # 金额取**冲到这张订单上的那部分**，不是整笔收款额：一笔款可能同时冲几张订单。
+      amount_micros: alloc.amount_micros,
+      account_name: record.cash_account&.name, reference_no: record.reference_no }
+  end
+
   # 款是否已收齐。查不到收款信息时返回 nil（＝不知道），不要假装收齐了。
   def fully_paid?
     state = receivable_state

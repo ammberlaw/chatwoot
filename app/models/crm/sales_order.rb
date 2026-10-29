@@ -291,6 +291,16 @@ class Crm::SalesOrder < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
+  # 建过应收台账就不许再改币种：台账建账时抄的是**当时**的币种和汇率，之后不会跟着动。
+  #
+  # 2026-10-29 生产实例：SO-20261020-01 建账时是 USD（台账记 USD 1788、汇率 6.7208），
+  # 10-27 订单被改成 CNY，台账还是 USD —— 财务在出库审核页看到的是「应收 USD 1788」，
+  # 实际该收 1788 人民币，差 7 倍。
+  #
+  # 不自动跟着改币种：台账的分期金额是按总额拆的，改了币种分期全对不上；已核销的钱
+  # 还会挂在错的币种上（台账那边本来就有「已有收款核销不能改币种」这条，这里是同一个口径
+  # 的另一半——原先只管了台账侧，订单侧敞着）。
+  validate :currency_locked_by_receivable, on: :update
   validates :order_kind, inclusion: { in: ORDER_KINDS }, allow_blank: true
   validates :delivery_method, inclusion: { in: DELIVERY_METHODS.keys }, allow_blank: true
   validates :tax_rate, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
@@ -331,6 +341,17 @@ class Crm::SalesOrder < ApplicationRecord
       row[:amount][at.month - 1] = amount.to_i
       row[:orders][at.month - 1] = count.to_i
     end.values
+  end
+
+  def currency_locked_by_receivable
+    return unless order_currency_changed?
+
+    receivable = account.erp_receivables.find_by(crm_sales_order_id: id)
+    return if receivable.blank?
+
+    errors.add(:order_currency,
+               "这张订单已建应收台账 #{receivable.receivable_no}（#{receivable.currency}），" \
+               '改币种会让台账和分期对不上。要改请先让财务处理台账。')
   end
 
   private

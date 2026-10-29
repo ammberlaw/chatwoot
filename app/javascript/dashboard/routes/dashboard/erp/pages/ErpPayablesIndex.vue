@@ -456,7 +456,7 @@ const paymentAmountMicros = computed(
 );
 
 const searchSuppliers = async q => {
-  const { data } = await MesSupplierAPI.get({ q, active: 'true' });
+  const { data } = await MesSupplierAPI.get({ q, active: 'true', per_page: 50 });
   supplierOptions.value = (data?.payload || []).map(s => ({
     value: s.id,
     label: s.name,

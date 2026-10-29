@@ -10,6 +10,8 @@ class Erp::CashAccountPolicy < ApplicationPolicy
   def update? = @account_user.erp_can?(:cash)
   def destroy? = @account_user.erp_can?(:cash)
   def transfer? = @account_user.erp_can?(:cash)
+  # 日记账导入写的是出纳的流水，同 cash 能力域
+  def import_transactions? = @account_user.erp_can?(:cash)
 end
 
 Erp::CashAccountPolicy.prepend_mod_with('Erp::CashAccountPolicy')

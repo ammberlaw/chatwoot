@@ -9,7 +9,7 @@
 //
 // 返修跟踪留着（这页本来的主角）：退出去多久、回来多少、还有几件在外面；
 // **2026-10-29 起登记返回会真的把货入回库**，不再是只改数字的台账。
-import { ref, reactive, computed, nextTick, onMounted } from 'vue';
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -83,6 +83,8 @@ const supplierOptions = ref([]);
 const orderOptions = ref([]);
 const warehouseOptions = ref([]);
 const purchaseOrderOptions = ref([]);
+// 来源单据 id → 这张单的原始数据（含 stock_entry_items），推料时按它铺行。
+const sourceEntryRows = new Map();
 const inboundEntryOptions = ref([]);
 // 退给供应商的货基本都先进了不良品仓，建单时默认指到那儿（名字匹配不上就不预设，
 // 不替用户瞎猜一个仓）。
@@ -136,6 +138,11 @@ const loadRefs = async () => {
     // 接口给的是 supplier_names（复数，一张采购单常含好几家）
     label: `${p.po_no}${p.supplier_names ? ` · ${p.supplier_names}` : ''}`,
   }));
+  // 推料要的是明细，options 只有 label——原始行单独留一份。
+  // ⚠️ 裸 axios ＝ snake_case，别和走 store 的驼峰混用。
+  [...(mr?.data?.payload || []), ...(se?.data?.payload || [])].forEach(e => {
+    sourceEntryRows.set(String(e.id), e);
+  });
   inboundEntryOptions.value = [
     ...(mr?.data?.payload || []).map(e => ({
       value: String(e.id),
@@ -176,13 +183,104 @@ const form = reactive({
   rows: [blankRow()],
 });
 const productLabels = reactive({});
+
+// ── 选了来源单据就把料推出来，仓管勾选 ──────────────────────────
+// 和车间的生产退料单同一套做法：原来这里选了入库单也什么都不推，
+// 仓管还得照着入库单一行行把编码敲回去，敲错了要等过账才被拦。
+//
+// 可退量 = 这张入库单**收了多少** − 这张入库单**已经退掉多少**。
+// 不按库存算：不良品仓里可能还堆着别的单退回来的同一颗料。
+const pushedRows = ref([]);
+const loadingRows = ref(false);
+const pickedRows = computed(() => form.rows.filter(r => r.checked));
+const allChecked = computed({
+  get: () =>
+    pushedRows.value.length > 0 &&
+    pickedRows.value.length === form.rows.length,
+  set: v => form.rows.forEach(r => { r.checked = v; }),
+});
+
+const rowError = row => {
+  if (!row.checked) return '';
+  const qty = Number(row.qty);
+  if (!qty || qty <= 0) return '填数量';
+  return qty > row.remain ? `最多 ${row.remain}` : '';
+};
+
+const loadReturnable = async entryId => {
+  pushedRows.value = [];
+  if (!entryId) return;
+
+  const entry = sourceEntryRows.get(String(entryId));
+  if (!entry) return;
+
+  loadingRows.value = true;
+  try {
+    // 这张入库单已经退给供应商多少（按料汇总）。
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/supplier_returns`,
+      { params: { source_stock_entry_id: entryId, per_page: 200 } }
+    );
+    const returned = new Map();
+    (data?.payload || []).forEach(ret => {
+      (ret.items || []).forEach(it => {
+        if (!it.crm_product_id) return;
+        returned.set(
+          it.crm_product_id,
+          (returned.get(it.crm_product_id) || 0) + (Number(it.qty) || 0)
+        );
+      });
+    });
+
+    pushedRows.value = (entry.stock_entry_items || [])
+      .filter(it => it.crm_product_id)
+      .map(it => {
+        const received = Number(it.received_qty ?? it.qty) || 0;
+        return {
+          crmProductId: it.crm_product_id,
+          materialNo: it.material_no || '',
+          name: it.material_name || it.product_name || '',
+          spec: it.specification || '',
+          unit: it.unit || '',
+          price: it.unit_price_micros
+            ? String(it.unit_price_micros / 1_000_000)
+            : '',
+          remain: received - (returned.get(it.crm_product_id) || 0),
+        };
+      })
+      .filter(r => r.remain > 0);
+  } finally {
+    loadingRows.value = false;
+  }
+};
+
+watch(
+  () => form.sourceStockEntryId,
+  async id => {
+    await loadReturnable(id);
+    // 没选来源单（或这张单没剩可退的）就回到手敲模式，别把人卡死。
+    form.rows = pushedRows.value.length
+      ? pushedRows.value.map(r => ({ ...r, checked: false, qty: '', remark: '' }))
+      : [blankRow()];
+  }
+);
+const onProductPicked = (row, product) => {
+  if (!product) return;
+  productLabels[product.id] =
+    `${product.sku || ''} ${product.name || ''}`.trim();
+  row.unit = row.unit || product.unit || '';
+};
+
 const invalid = computed(
   () =>
     !form.mesSupplierId ||
     !form.warehouseId ||
     // 退掉不要了必须挂采购单，否则到货量和应付都冲不了（后端也校验，这里先拦住省一次往返）
     (form.returnKind === 'REFUND' && !form.purchaseOrderId) ||
-    !form.rows.some(r => r.crmProductId && Number(r.qty) > 0)
+    // 推料模式：至少勾一行，且勾了的都要填对数量（不超可退量）
+    (pushedRows.value.length
+      ? !pickedRows.value.length || form.rows.some(r => rowError(r))
+      : !form.rows.some(r => r.crmProductId && Number(r.qty) > 0))
 );
 
 const openCreate = () => {
@@ -198,16 +296,11 @@ const openCreate = () => {
     remark: '',
     rows: [blankRow()],
   });
+  pushedRows.value = [];
   formDialogRef.value?.open();
 };
 const addRow = () => form.rows.push(blankRow());
 const removeRow = i => form.rows.splice(i, 1);
-const onProductPicked = (row, product) => {
-  if (!product) return;
-  productLabels[product.id] =
-    `${product.sku || ''} ${product.name || ''}`.trim();
-  row.unit = row.unit || product.unit || '';
-};
 
 const submit = async () => {
   if (invalid.value) return;
@@ -221,7 +314,9 @@ const submit = async () => {
       warehouse_id: Number(form.warehouseId),
       mes_purchase_order_id: form.purchaseOrderId || null,
       source_stock_entry_id: form.sourceStockEntryId || null,
+      // 推料模式下只提交勾选的；手敲模式没有 checked 字段，照原样按填没填判断。
       items_attributes: form.rows
+        .filter(r => (pushedRows.value.length ? r.checked : true))
         .filter(r => r.crmProductId && Number(r.qty) > 0)
         .map(r => ({
           crm_product_id: r.crmProductId,
@@ -613,7 +708,11 @@ onMounted(() => {
 
         <div class="flex items-center justify-between">
           <span class="text-heading-3 text-n-slate-12">退料明细</span>
+          <span v-if="pickedRows.length" class="text-label-small text-n-slate-11">
+            已选 {{ pickedRows.length }} / {{ form.rows.length }}
+          </span>
           <Button
+            v-if="!pushedRows.length"
             label="加一行"
             icon="i-lucide-plus"
             color="slate"
@@ -622,8 +721,74 @@ onMounted(() => {
             @click="addRow"
           />
         </div>
+
+        <!-- 选了来源单据就把那张单收的料推出来，仓管勾要退的那几行。
+             可退量 = 这张单收了多少 − 已经退掉多少。 -->
+        <div v-if="loadingRows" class="py-6 text-center text-n-slate-11">
+          正在取料…
+        </div>
+        <table v-else-if="pushedRows.length" class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-2 py-1 w-8">
+                <input v-model="allChecked" type="checkbox" class="size-4" />
+              </th>
+              <th class="px-2 py-1 font-medium whitespace-nowrap">物料编码</th>
+              <th class="px-2 py-1 font-medium">物料名称</th>
+              <th class="px-2 py-1 font-medium whitespace-nowrap">规格型号</th>
+              <th class="px-2 py-1 font-medium text-right whitespace-nowrap">可退</th>
+              <th class="px-2 py-1 font-medium whitespace-nowrap w-28">退料数量</th>
+              <th class="px-2 py-1 font-medium whitespace-nowrap w-24">单价</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, i) in form.rows"
+              :key="row.crmProductId || i"
+              class="border-b border-n-weak"
+            >
+              <td class="px-2 py-1">
+                <input v-model="row.checked" type="checkbox" class="size-4" />
+              </td>
+              <td class="px-2 py-1 font-mono whitespace-nowrap text-n-slate-12">
+                {{ row.materialNo || '—' }}
+              </td>
+              <td class="px-2 py-1 truncate max-w-[12rem]" :title="row.name">
+                {{ row.name || '—' }}
+              </td>
+              <td
+                class="px-2 py-1 truncate max-w-[10rem] text-n-slate-11"
+                :title="row.spec"
+              >
+                {{ row.spec || '—' }}
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                {{ row.remain }}{{ row.unit || '' }}
+              </td>
+              <td class="px-2 py-1">
+                <Input
+                  v-model="row.qty"
+                  size="sm"
+                  type="number"
+                  :disabled="!row.checked"
+                  :message="rowError(row)"
+                  :message-type="rowError(row) ? 'error' : 'info'"
+                />
+              </td>
+              <td class="px-2 py-1">
+                <Input
+                  v-model="row.price"
+                  size="sm"
+                  type="number"
+                  :disabled="!row.checked"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
         <div
-          v-for="(row, i) in form.rows"
+          v-for="(row, i) in pushedRows.length ? [] : form.rows"
           :key="i"
           class="flex items-center gap-2 p-2 border rounded-lg border-n-weak"
         >

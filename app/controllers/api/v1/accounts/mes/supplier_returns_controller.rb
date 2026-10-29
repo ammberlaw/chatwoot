@@ -8,10 +8,13 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
 
   RESULTS_PER_PAGE = 20
 
+  # 按来源单据筛是新建退料单时用的：要算「这张入库单的货还剩多少能退」＝ 收了多少 − 已退多少。
+  FILTERS = { status: :status, production_order_id: :production_order_id,
+              source_stock_entry_id: :source_stock_entry_id }.freeze
+
   def index
     scope = scoped_by_product_line(Current.account.mes_supplier_returns)
-    scope = scope.where(status: params[:status]) if params[:status].present?
-    scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
+    FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = apply_search(scope, params[:q])
     @returns_count = scope.count
     @returns = scope.includes(:mes_supplier, :production_order, :owner, :warehouse,

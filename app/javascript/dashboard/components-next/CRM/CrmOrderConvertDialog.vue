@@ -39,10 +39,14 @@ const KIND_OPTIONS = [
   { value: 'STOCK', label: '库存单 → 现货出库单' },
 ];
 
+// 下拉要带规格：同一个型号常有七八个商品编码（K717 外贸/迪拜、1+8G/1+16G、9832/6735、
+// 欧规/英规），只给「名称（编码）」七行长得一模一样，根本选不出该转哪个
+// （2026-10-29 反馈）。区分它们的信息全在规格里。
 const productOptions = computed(() =>
   products.value.map(p => ({
     value: p.id,
-    label: p.sku ? `${p.name}（${p.sku}）` : p.name,
+    label: [p.name, p.specification].filter(Boolean).join(' · ') +
+      (p.sku ? `（${p.sku}）` : ''),
   }))
 );
 
@@ -98,7 +102,14 @@ const open = async record => {
 
   (previewRes.data?.payload || []).forEach(li => {
     const product = li.crm_product_id
-      ? { id: li.crm_product_id, name: li.product_name, sku: li.product_sku }
+      ? {
+          id: li.crm_product_id,
+          name: li.product_name,
+          sku: li.product_sku,
+          // 后端 Crm::ConvertPreview 本来就给了 product_spec，不带上的话
+          // 已匹配那行的回显没有规格，和下拉里的其它项对不上。
+          specification: li.product_spec,
+        }
       : null;
     rows.push({
       // row = 明细行号（1 起），提交时回传：后端据此把选中的产品写回销售订单明细，

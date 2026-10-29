@@ -27,6 +27,18 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
     render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
+  # 录错了自己改（同删除，本人或管理员）。附件走 stage_blob 追加，不整组替换——
+  # has_many_attached 写进 strong params 会把历史附件 purge 掉。
+  def update
+    @inspection = Current.account.mes_inspections.find(params[:id])
+    ensure_owner_or_admin!(@inspection, '质检记录', :inspector_id)
+    return if performed?
+
+    @inspection.update!(inspection_params)
+    attach_staged_blobs
+    render 'api/v1/accounts/mes/inspections/show'
+  end
+
   def destroy
     inspection = Current.account.mes_inspections.find(params[:id])
     ensure_owner_or_admin!(inspection, '质检记录', :inspector_id)

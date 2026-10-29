@@ -804,7 +804,7 @@ watch(customerQuery, () => {
     return;
   }
   customerTimer = setTimeout(async () => {
-    const { data } = await CrmCustomerAPI.get({ q, page: 1 });
+    const { data } = await CrmCustomerAPI.get({ q, page: 1, per_page: 50 });
     customerHits.value = camelcaseKeys(data.payload || [], { deep: true });
   }, 350);
 });

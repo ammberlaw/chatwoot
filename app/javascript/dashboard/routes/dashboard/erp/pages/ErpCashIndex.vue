@@ -122,6 +122,51 @@ const switchTab = key => {
 // 折 CNY 列：外币账户没填期初本位币就显示「—」，不拿原币数字充数。
 const baseMoney = micros => (micros == null ? '—' : money(micros));
 
+/* ---------------- 导入日记账 ---------------- */
+// 银行流水从网银导出来是 Excel，原来只能一笔笔手敲——生产上这张表至今 0 条。
+// 账户按名称匹配资金账户，对不上的整行退回并列出来；重导同一个文件不会翻倍。
+const fileInputRef = ref(null);
+const importing = ref(false);
+const importResult = ref(null);
+
+const onPickFile = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+
+  importing.value = true;
+  importResult.value = null;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await ErpCashAccountAPI.importTransactions(fd);
+    importResult.value = data.payload;
+    const r = data.payload;
+    useAlert(
+      `导入完成：新增 ${r.created} 笔${r.skipped ? `，${r.skipped} 笔已存在跳过` : ''}`
+    );
+    loadTransactions();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导入失败');
+  } finally {
+    importing.value = false;
+  }
+};
+
+// 导入后没进去的行拼成一句话：只给总数的话财务不知道该去改哪几行。
+const importProblems = computed(() => {
+  const r = importResult.value;
+  if (!r) return [];
+  const out = [];
+  if (r.missing_account_count) {
+    out.push(
+      `${r.missing_account_count} 行的账户在资金账户里找不到：${r.missing_accounts.join('、')}`
+    );
+  }
+  if (r.bad_row_count) out.push(r.bad_rows.join('；'));
+  return out;
+});
+
 /* ---------------- 导出 ---------------- */
 // 按当前页签导：日记账导流水，报表导四栏表。
 // ⚠️ 日记账页面只给 200 笔，导出重新向后端要全量——导一张自己缺了一截还不说的流水表，
@@ -408,6 +453,24 @@ onMounted(async () => {
           @click="exportExcel"
         />
         <Button
+          v-if="canWrite && activeTab === 'ledger'"
+          label="导入日记账"
+          variant="outline"
+          color="slate"
+          size="sm"
+          class="btn-ink"
+          icon="i-lucide-file-spreadsheet"
+          :is-loading="importing"
+          @click="fileInputRef?.click()"
+        />
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".xlsx"
+          class="hidden"
+          @change="onPickFile"
+        />
+        <Button
           v-if="canWrite"
           label="内部划转"
           color="slate"
@@ -509,6 +572,14 @@ onMounted(async () => {
             折 CNY 走账面本位币（各笔按发生日汇率），与总账口径一致
           </span>
         </template>
+      </div>
+
+      <!-- 导入里没进去的行：只报个总数的话，财务不知道该回表里改哪几行 -->
+      <div
+        v-if="importProblems.length"
+        class="p-3 mx-4 mb-3 text-sm border rounded-lg sm:mx-6 border-n-amber-8 bg-n-amber-3 text-n-amber-11"
+      >
+        <p v-for="(line, i) in importProblems" :key="i">{{ line }}</p>
       </div>
 
       <div

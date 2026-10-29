@@ -182,7 +182,7 @@ const runCustSearch = kw => {
   }
   custTimer = setTimeout(async () => {
     try {
-      const { data } = await CrmCustomerAPI.get({ q, page: 1 });
+      const { data } = await CrmCustomerAPI.get({ q, page: 1, per_page: 50 });
       custResults.value = (data?.payload || []).slice(0, 8);
       custOpen.value = custResults.value.length > 0;
     } catch {

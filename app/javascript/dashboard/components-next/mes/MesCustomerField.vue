@@ -21,7 +21,7 @@ const runSearch = kw => {
   }
   timer = setTimeout(async () => {
     try {
-      const { data } = await CrmCustomerAPI.get({ q, page: 1 });
+      const { data } = await CrmCustomerAPI.get({ q, page: 1, per_page: 50 });
       results.value = (data?.payload || []).slice(0, 8);
       open.value = results.value.length > 0;
     } catch {

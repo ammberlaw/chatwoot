@@ -502,7 +502,10 @@ const searchRef = async () => {
         snapshot: { title: c.name, subtitle: '', code: '' },
       }));
     } else {
-      const { data } = await SalesOrderAPI.get({ q: refQuery.value });
+      const { data } = await SalesOrderAPI.get({
+        q: refQuery.value,
+        per_page: 50,
+      });
       refResults.value = (data.payload || []).map(o => ({
         ref_type: 'sales_order',
         ref_id: o.id,

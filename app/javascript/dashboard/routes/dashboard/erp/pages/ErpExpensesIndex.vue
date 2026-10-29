@@ -120,7 +120,7 @@ const form = reactive({
 const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const searchOrders = async q => {
-  const { data } = await CrmSalesOrderAPI.get({ q, page: 1 });
+  const { data } = await CrmSalesOrderAPI.get({ q, page: 1, per_page: 50 });
   orderOptions.value = (data?.payload || []).map(o => ({
     value: o.id,
     label: `${o.order_no} ${o.name || ''}`.trim(),

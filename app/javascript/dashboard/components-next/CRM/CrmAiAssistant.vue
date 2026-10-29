@@ -24,14 +24,18 @@ const panelRef = ref(null);
 const historyOpen = ref(false);
 const conversations = ref([]);
 const historyLoading = ref(false);
+const historyFailed = ref(false);
 
 const loadHistory = async () => {
   historyLoading.value = true;
+  historyFailed.value = false;
   try {
     const { data } = await CrmAgentAPI.get();
     conversations.value = data.payload || [];
   } catch {
+    // 拉不到和「一条都没有」长得一样，不区分的话用户会以为对话丢了。
     conversations.value = [];
+    historyFailed.value = true;
   } finally {
     historyLoading.value = false;
   }
@@ -111,6 +115,14 @@ const launcherStyle = computed(() => ({
   bottom: `${clampedPos.value.bottom}px`,
 }));
 
+// 面板贴着图标位置弹出，并夹取在视口内确保完整可见。
+const panelSize = ref({ width: PANEL_W, height: PANEL_H });
+const panelOrigin = ref(null);
+const panelBox = () => ({
+  width: Math.min(panelSize.value.width, vw.value - 16),
+  height: Math.min(panelSize.value.height, vh.value - 16),
+});
+
 // 夹取结果写回去：不写回的话，下次打开又从那个越界的旧值开始算。
 const syncViewport = () => {
   vw.value = window.innerWidth;
@@ -138,9 +150,6 @@ onMounted(() => {
   window.addEventListener('resize', syncViewport);
 });
 onBeforeUnmount(() => window.removeEventListener('resize', syncViewport));
-// 面板贴着图标位置弹出，并夹取在视口内确保完整可见。
-const panelSize = ref({ width: PANEL_W, height: PANEL_H });
-const panelOrigin = ref(null);
 const panelStyle = computed(() => {
   const width = Math.min(panelSize.value.width, vw.value - 16);
   const height = Math.min(panelSize.value.height, vh.value - 16);
@@ -158,11 +167,6 @@ const panelStyle = computed(() => {
 // 挡住正文时只能先关掉再把球拖走、重新打开。
 // 位置和尺寸一样只在本次会话里记，刷新回到贴着球弹出的默认位置。
 let dragStart;
-const panelBox = () => ({
-  width: Math.min(panelSize.value.width, vw.value - 16),
-  height: Math.min(panelSize.value.height, vh.value - 16),
-});
-
 const dragPanel = e => {
   if (!dragStart) return;
   const { width, height } = panelBox();
@@ -324,6 +328,12 @@ onBeforeUnmount(() => {
             class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
           >
             加载中…
+          </span>
+          <span
+            v-else-if="historyFailed"
+            class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
+          >
+            取不到历史对话
           </span>
           <span
             v-else-if="!conversations.length"

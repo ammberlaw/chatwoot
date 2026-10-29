@@ -136,9 +136,6 @@ const submitReject = async () => {
         >
           出库审核
         </h1>
-        <span class="text-xs text-n-slate-11">
-          放货前核对这张单的款收齐没有
-        </span>
       </div>
       <span
         v-if="pendingCount"
@@ -291,9 +288,76 @@ const submitReject = async () => {
                 }}
               </b>
             </span>
+            <!-- 收款约定：这笔钱按什么方式收、收到哪个户、信保单号多少。
+                 信保单号是财务去阿里平台核销的凭据，原来只能回订单里翻。 -->
+            <span v-if="s.payment_term_label" class="text-n-slate-11">
+              结算
+              <b class="ml-1 text-n-slate-12">{{ s.payment_term_label }}</b>
+            </span>
+            <span v-if="s.receipt_account_name" class="text-n-slate-11">
+              收款账户
+              <b class="ml-1 text-n-slate-12">{{ s.receipt_account_name }}</b>
+            </span>
+            <span v-if="s.insurance_order_no" class="text-n-slate-11">
+              信保单号
+              <b class="ml-1 text-n-slate-12">{{ s.insurance_order_no }}</b>
+            </span>
           </div>
+
+          <!-- 收过哪几笔：日期 / 途径 / 金额。财务对着银行流水核完才批。
+               金额是冲到**这张订单**上的那部分，一笔款冲几张订单时不会重复计。 -->
+          <table
+            v-if="s.receipts && s.receipts.length"
+            class="w-full mt-2 text-xs"
+          >
+            <thead>
+              <tr class="text-left text-n-slate-11">
+                <th class="px-3 py-1 font-medium whitespace-nowrap">收款日期</th>
+                <th class="px-3 py-1 font-medium whitespace-nowrap">途径</th>
+                <th class="px-3 py-1 font-medium whitespace-nowrap">收款账户</th>
+                <th class="px-3 py-1 font-medium whitespace-nowrap">水单号</th>
+                <th
+                  class="px-3 py-1 font-medium text-right whitespace-nowrap"
+                >
+                  收款金额
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="r in s.receipts"
+                :key="r.receipt_no"
+                class="border-t border-n-weak"
+              >
+                <td class="px-3 py-1 whitespace-nowrap text-n-slate-12">
+                  {{ r.received_at }}
+                </td>
+                <td class="px-3 py-1 whitespace-nowrap text-n-slate-12">
+                  {{ r.method_label || '—' }}
+                </td>
+                <td class="px-3 py-1 whitespace-nowrap text-n-slate-11">
+                  {{ r.account_name || '—' }}
+                </td>
+                <td class="px-3 py-1 whitespace-nowrap text-n-slate-11">
+                  {{ r.reference_no || '—' }}
+                </td>
+                <td
+                  class="px-3 py-1 font-medium text-right tabular-nums whitespace-nowrap text-n-slate-12"
+                >
+                  {{ money(r.amount_micros, r.currency) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <div
-            v-else
+            v-else-if="s.receivable_state && s.receivable_state.received_micros"
+            class="px-3 py-1 mt-1 text-xs text-n-slate-11"
+          >
+            已收 {{ money(s.receivable_state.received_micros, s.receivable_state.currency) }}，但没有对应的收款记录
+          </div>
+
+          <div
+            v-else-if="!s.receivable_state"
             class="px-3 py-2 mt-2 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
           >
             <template v-if="s.sales_order_no">

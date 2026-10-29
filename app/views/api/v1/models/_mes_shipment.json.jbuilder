@@ -24,6 +24,12 @@ if local_assigns[:detail]
   state = resource.receivable_state
   json.receivable_state state
   json.fully_paid state && state[:outstanding_micros].to_i <= 0
+  # 收过哪几笔：日期 / 途径 / 金额。财务要对着银行流水一笔笔核才敢批，
+  # 只给「应收·已收·还差」三个合计数她核不动（2026-10-29 反馈）。
+  json.receipts resource.receipt_rows
+  # 收款约定：这笔钱按什么方式收、收到哪个户。信保订单号在上面已单独下发。
+  json.payment_term_label resource.payment_term_label
+  json.receipt_account_name resource.receipt_account_name
 end
 json.reject_reason resource.reject_reason
 # 作废留痕：谁废的、什么时候、为什么（列表上「已作废」那行要能说清楚）。

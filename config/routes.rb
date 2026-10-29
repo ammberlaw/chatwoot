@@ -337,7 +337,9 @@ Rails.application.routes.draw do
                 post :duplicate
               end
             end
-            resources :kpi_sheets do
+            # 考核表由方案下发时批量生成，没有「单张新建」这个动作——
+            # resources 默认会生成 create 路由，而控制器没有这个方法，真有人 POST 就是 500。
+            resources :kpi_sheets, except: [:create] do
               collection do
                 # 侧栏角标：等我动手的考核表数。口径收在 Crm::KpiReminderJob.actionable_for，
                 # 和每周催办同一份判定——两边分家就会「角标说 3 张、点进去找不到」。
@@ -464,6 +466,8 @@ Rails.application.routes.draw do
                 get :transactions
                 get :report
                 post :transfer
+                # 银行日记账 Excel 导入
+                post :import_transactions
               end
             end
             resources :auto_voucher_rules, only: [:index, :update]
@@ -646,7 +650,7 @@ Rails.application.routes.draw do
                 post :reactivate
               end
             end
-            resources :inspections, only: [:index, :create, :destroy] do
+            resources :inspections, only: [:index, :create, :update, :destroy] do
               collection { post :stage_blob }
             end
             resources :serial_numbers, only: [:index, :create, :destroy] do

@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
@@ -398,6 +399,131 @@ const activeToggleCol = key =>
   isItemView.value ? toggleItemCol(key) : toggleOrderCol(key);
 const activeShowAllCols = () =>
   isItemView.value ? showAllItemCols() : showAllOrderCols();
+
+// ── 导出 Excel ───────────────────────────────────────────
+// 财务每月要整表拉去核对（2026-10-29 需求①「原料入库+退货，首页需要一个整体导出」）。
+//
+// ⚠️ 全量：当前筛选条件下的所有单，不是屏幕上这 15 条——重新向后端分页要完。
+// 导哪套列跟着当前视图走：按单一行一张单，按明细一行一条料（财务核对要的是后者）。
+const ORDER_EXPORT_COLS = [
+  { label: '单号', key: 'entryNo' },
+  { label: '类型', key: 'purpose' },
+  { label: '采购单', key: 'poNo' },
+  { label: '供应商', key: 'suppliers' },
+  { label: '数量', key: 'qty' },
+  { label: '金额', key: 'amount', money: true },
+  { label: '归属人', key: 'owner' },
+  { label: '核对', key: 'checked' },
+  { label: '审核', key: 'approval' },
+  { label: '状态', key: 'status' },
+  { label: '入库时间', key: 'posted' },
+  { label: '对内备注', key: 'internalRemark' },
+];
+
+const ITEM_EXPORT_COLS = [
+  { label: '入库单号', key: 'entryNo' },
+  { label: '类型', key: 'purpose' },
+  { label: '源单单号', key: 'sourceNo' },
+  { label: '供应商', key: 'supplier' },
+  { label: '物料编码', key: 'code' },
+  { label: '物料名称', key: 'name' },
+  { label: '规格型号', key: 'spec' },
+  { label: '收料仓库', key: 'warehouse' },
+  { label: '单位', key: 'unit' },
+  { label: '应收', key: 'qty' },
+  { label: '实收', key: 'receivedQty' },
+  { label: '单价', key: 'unitPrice', money: true },
+  { label: '金额', key: 'amount', money: true },
+  { label: '状态', key: 'status' },
+  { label: '入库时间', key: 'posted' },
+  { label: '备注', key: 'remark' },
+];
+
+const exportOrderRows = all =>
+  all.map(e => ({
+    entryNo: e.entry_no,
+    purpose: PURPOSE_LABELS[e.purpose] || e.purpose,
+    poNo: e.purchase_order_no || '',
+    suppliers: [
+      ...new Set(
+        (e.stock_entry_items || []).map(i => i.supplier_name).filter(Boolean)
+      ),
+    ].join('、'),
+    qty: (e.stock_entry_items || []).reduce(
+      (sum, i) => sum + Number(i.received_qty ?? i.qty ?? 0),
+      0
+    ),
+    amount: (e.stock_entry_items || []).reduce(
+      (sum, i) => sum + Number(i.amount_micros || 0),
+      0
+    ),
+    owner: e.owner_name || '',
+    checked: e.checked_at ? '已核对' : '',
+    approval: APPROVAL_LABELS[e.approval_status] || e.approval_status || '',
+    status: STATUS_LABELS[e.status] || e.status,
+    posted: (e.posted_at || '').slice(0, 10),
+    internalRemark: e.internal_remark || '',
+  }));
+
+const exportItemRows = all =>
+  all.flatMap(e =>
+    (e.stock_entry_items || []).map(i => ({
+      entryNo: e.entry_no,
+      purpose: PURPOSE_LABELS[e.purpose] || e.purpose,
+      sourceNo: i.source_po_no || e.purchase_order_no || '',
+      supplier: i.supplier_name || '',
+      code: i.material_no || '',
+      name: i.material_name || i.product_name || '',
+      spec: i.specification || '',
+      warehouse: whName(i.warehouse_id || e.to_warehouse_id),
+      unit: i.unit || '',
+      qty: i.qty,
+      receivedQty: i.received_qty ?? i.qty,
+      unitPrice: i.unit_price_micros,
+      amount: i.amount_micros,
+      status: STATUS_LABELS[e.status] || e.status,
+      posted: (e.posted_at || '').slice(0, 10),
+      remark: i.remark || '',
+    }))
+  );
+
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const all = await fetchAllRows(params => MesStockEntryAPI.get(params), {
+      purpose: 'MATERIAL_RECEIPT,PURCHASE_RETURN',
+      ...(filterOrderId.value
+        ? { production_order_id: filterOrderId.value }
+        : {}),
+      ...activeColFilterParams(),
+    });
+    // 接口回的是下划线命名的裸数据（不是 store 里的驼峰），两套视图各自摊一次。
+    const rows = isItemView.value ? exportItemRows(all) : exportOrderRows(all);
+    exportRowsToExcel(
+      {
+        title: isItemView.value ? '原料入库与退货明细' : '原料入库与退货',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: search.value.trim() || '（无）' },
+          { label: isItemView.value ? '明细条数' : '单据数', value: rows.length },
+        ],
+        columns: isItemView.value ? ITEM_EXPORT_COLS : ORDER_EXPORT_COLS,
+        rows,
+      },
+      `原料入库与退货_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+
 const activeResetCols = () =>
   isItemView.value ? resetItemCols() : resetOrderCols();
 const hiddenCols = computed(
@@ -1150,6 +1276,15 @@ useRouteQueryReentry(query => {
           size="sm"
           :is-loading="printing"
           @click="printSelected"
+        />
+        <!-- 导出是只读动作，不挂写权限 -->
+        <Button
+          label="导出 Excel"
+          variant="faded"
+          color="slate"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
         />
         <Button
           v-if="mesCan('stock')"
