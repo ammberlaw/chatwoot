@@ -19,8 +19,8 @@ json.total_debit_micros resource.total_debit_micros
 json.total_credit_micros resource.total_credit_micros
 json.balanced resource.balanced?
 json.editable resource.editable?
-json.prepared_by_name resource.prepared_by&.crm_name.presence || resource.prepared_by&.name
-json.posted_by_name resource.posted_by&.crm_name.presence || resource.posted_by&.name
+json.prepared_by_name resource.prepared_by&.finance_display_name
+json.posted_by_name resource.posted_by&.finance_display_name
 json.posted_at resource.posted_at
 json.reversal_of_no resource.reversal_of&.voucher_no
 json.reversed_by_no resource.reversed_by&.voucher_no

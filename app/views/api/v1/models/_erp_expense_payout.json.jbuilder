@@ -2,7 +2,7 @@ json.id resource.id
 json.payout_no resource.payout_no
 json.oa_approval_request_id resource.oa_approval_request_id
 json.request_title resource.approval_request&.title
-json.applicant_name resource.applicant&.crm_name.presence || resource.applicant&.name
+json.applicant_name resource.applicant&.finance_display_name
 json.amount_micros resource.amount_micros
 json.currency resource.currency
 json.expense_ledger_account_id resource.expense_ledger_account_id
@@ -18,4 +18,4 @@ json.paid_at resource.paid_at
 json.status resource.status
 json.status_label resource.status == Erp::ExpensePayout::VOID ? '已作废' : '正常'
 json.remark resource.remark
-json.recorded_by_name resource.recorded_by&.crm_name.presence || resource.recorded_by&.name
+json.recorded_by_name resource.recorded_by&.finance_display_name

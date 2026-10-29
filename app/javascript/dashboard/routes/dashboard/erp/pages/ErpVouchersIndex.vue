@@ -172,7 +172,8 @@ const ruleAccountOptions = computed(() => [
 // 每次点七八下「加一行」很烦。空行在保存时会被剔掉（见 payload 的 filter），
 // 不会因为摆了 8 行就逼着人填满。
 const DEFAULT_LINE_COUNT = 8;
-const blankLines = () => Array.from({ length: DEFAULT_LINE_COUNT }, () => blankLine());
+const blankLines = () =>
+  Array.from({ length: DEFAULT_LINE_COUNT }, () => blankLine());
 
 const blankLine = () => ({
   id: null,
@@ -700,6 +701,38 @@ const doBulkPost = async () => {
 // ── 批量作废 ──
 // 与批量过账同一批选中、同一套口径：只有待过账的能作废，已记账的一律不碰（错账走红冲）。
 // 作废不是删除——凭证号留着不断号，审计看得见这张作废过。
+// 可删的＝选中的全部（不像作废只限草稿）：已记账的也能删，
+// 结账期间/已红冲/红冲单由后端逐张判并报原因。
+const selectedAllIds = computed(() =>
+  records.value.filter(v => selectedIds.value.includes(v.id)).map(v => v.id)
+);
+const bulkDestroyRef = ref(null);
+const bulkDestroying = ref(false);
+const askBulkDestroy = () => bulkDestroyRef.value?.open();
+const doBulkDestroy = async () => {
+  bulkDestroying.value = true;
+  try {
+    const { data } = await ErpVoucherAPI.bulkDestroy(selectedAllIds.value);
+    const { deleted, failed = [], skipped = 0 } = data.payload || {};
+    const parts = [`已删除 ${deleted} 张`];
+    if (skipped) parts.push(`${skipped} 张已不在了，跳过`);
+    if (failed.length) {
+      parts.push(
+        `${failed.length} 张没删：${failed
+          .map(f => `${f.voucher_no}（${f.error}）`)
+          .join('；')}`
+      );
+    }
+    useAlert(parts.join('，'));
+    selectedIds.value = [];
+    fetchList();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '批量删除失败');
+  } finally {
+    bulkDestroying.value = false;
+  }
+};
+
 const bulkVoidRef = ref(null);
 const bulkVoiding = ref(false);
 const askBulkVoid = () => bulkVoidRef.value?.open();
@@ -887,6 +920,14 @@ onMounted(() => {
           size="sm"
           :is-loading="bulkVoiding"
           @click="askBulkVoid"
+        />
+        <Button
+          v-if="canWrite && selectedAllIds.length"
+          :label="`批量删除 ${selectedAllIds.length} 张`"
+          color="ruby"
+          size="sm"
+          :is-loading="bulkDestroying"
+          @click="askBulkDestroy"
         />
         <Button
           v-if="canWrite"
@@ -1150,7 +1191,6 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
-
       </template>
     </div>
 
@@ -1423,15 +1463,13 @@ onMounted(() => {
                           </span>
                         </div>
 
+                        <!-- 往来科目的客户/供应商不再打星号、不再卡保存
+                             （2026-10-29 财务要求，后端 VoucherLine 的校验也一并撤了）。
+                             想挂照样挂，只是不强制。 -->
                         <ErpDimensionFields
                           v-model="form.lines[index]"
                           :dimensions="
                             accountById(line.ledgerAccountId)?.dimensions || []
-                          "
-                          :required-dimension="
-                            { RECEIVABLE: 'customer', PAYABLE: 'supplier' }[
-                              accountById(line.ledgerAccountId)?.accountType
-                            ] || ''
                           "
                         />
 
@@ -1889,6 +1927,15 @@ onMounted(() => {
       :description="`确定把选中的 ${selectedDraftIds.length} 张待过账凭证全部作废？作废后凭证号留着、内容可查，但不再进账。已记账的不在其中，错账请用红冲。`"
       confirm-label="全部作废"
       @confirm="doBulkVoid"
+    />
+    <Dialog
+      ref="bulkDestroyRef"
+      type="alert"
+      width="sm"
+      title="批量删除"
+      :description="`确定删除选中的 ${selectedAllIds.length} 张凭证？删除后不可恢复，凭证号也不保留。已结账期间、已被红冲、以及红冲单本身删不掉，会逐张告诉你原因。`"
+      confirm-label="全部删除"
+      @confirm="doBulkDestroy"
     />
   </div>
 </template>

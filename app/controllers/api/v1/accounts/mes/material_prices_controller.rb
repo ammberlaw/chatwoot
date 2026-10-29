@@ -50,7 +50,42 @@ class Api::V1::Accounts::Mes::MaterialPricesController < Api::V1::Accounts::Mes:
     render 'api/v1/accounts/mes/material_prices/missing'
   end
 
+  # 从历史采购单回填标准价：每颗料取**最近一次**审批通过、未作废的采购单价。
+  #
+  # 这张表生产上一条都没有（2026-10-29 财务提「采购单价没有数据库」），而 300 多颗料
+  # 在采购单里本来就有真实成交价——与其让采购一颗颗敲，直接把采购价搬过来当起点。
+  #
+  # ⚠️ 只填**空缺**：本表已经有的那颗料一律跳过，不拿采购价盖掉财务手工维护的标准价。
+  def backfill_from_purchases
+    prices = recent_purchase_prices
+    fresh = prices.except(*Current.account.mes_material_prices.pluck(:crm_product_id))
+    ActiveRecord::Base.transaction do
+      fresh.each do |product_id, rate|
+        Current.account.mes_material_prices.create!(
+          crm_product_id: product_id, unit_price_micros: rate, updated_by: current_user,
+          remark: '从历史采购单回填（最近一次采购价）'
+        )
+      end
+    end
+    render json: { payload: { created: fresh.size, skipped: prices.size - fresh.size } }
+  end
+
   private
+
+  # { crm_product_id => rate_micros }。口径和 Mes::MaterialPriceResolver 的「最近采购价」
+  # 一致（审批通过、未作废、有价），所以回填进来的数和任务单上原来兜底显示的是同一个。
+  # 按时间升序 pluck 再 to_h：后写覆盖先写，留下的是最近那次。
+  def recent_purchase_prices
+    Mes::PurchaseItem.joins(:purchase_order)
+                     .where(account_id: Current.account.id)
+                     .where(mes_purchase_orders: { approval_status: Mes::MaterialPriceResolver::APPROVED_PO })
+                     .where.not(mes_purchase_orders: { status: Mes::MaterialPriceResolver::VOID_PO_STATUS })
+                     .where('mes_purchase_items.rate_micros > 0')
+                     .where.not(crm_product_id: nil)
+                     .order('mes_purchase_orders.created_at ASC')
+                     .pluck(:crm_product_id, :rate_micros)
+                     .to_h
+  end
 
   def fetch_material_price
     @material_price = Current.account.mes_material_prices.find(params[:id])

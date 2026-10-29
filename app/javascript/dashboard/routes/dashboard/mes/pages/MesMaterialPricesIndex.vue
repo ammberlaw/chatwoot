@@ -271,6 +271,35 @@ const exportList = async () => {
   }
 };
 
+// 一键从历史采购单回填：每颗料取最近一次审批通过的采购价，**只填空缺**，
+// 本表已经维护过的那颗料不动（不拿采购价盖掉财务定的标准价）。
+const backfilling = ref(false);
+const backfill = async () => {
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(
+      '从历史采购单回填标准价？\n每颗料取最近一次审批通过的采购价。本表已有的物料不会被覆盖。'
+    )
+  )
+    return;
+
+  backfilling.value = true;
+  try {
+    const { data } = await MesMaterialPriceAPI.backfillFromPurchases();
+    const r = data.payload;
+    useAlert(
+      r.created
+        ? `已回填 ${r.created} 条${r.skipped ? `，${r.skipped} 条本表已有、未覆盖` : ''}`
+        : '没有可回填的：采购单里有价的物料本表都已经维护过了'
+    );
+    load();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '回填失败');
+  } finally {
+    backfilling.value = false;
+  }
+};
+
 onMounted(() => {
   if (canRead.value) load();
 });
@@ -318,20 +347,23 @@ onMounted(() => {
           />
           <Button
             v-if="canWrite"
+            label="从采购单回填"
+            variant="outline"
+            color="slate"
+            size="sm"
+            class="btn-ink"
+            icon="i-lucide-history"
+            :is-loading="backfilling"
+            @click="backfill"
+          />
+          <Button
+            v-if="canWrite"
             label="新增"
             color="iris"
             size="sm"
             @click="openCreate()"
           />
         </div>
-      </div>
-
-      <div class="px-4 pb-3 sm:px-6">
-        <p class="text-label-small text-n-slate-11">
-          财务 / 采购维护的物料标准单价，用于算生产任务单的单台成本。取价顺序：
-          <b>本单采购价 → 本表标准价 → 最近一次采购价</b>
-          ，都没有的行在任务单和导出里留空并标「无单价」，不会按 0 计。
-        </p>
       </div>
 
       <div class="px-4 pb-3 sm:px-6">

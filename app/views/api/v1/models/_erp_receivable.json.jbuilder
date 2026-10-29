@@ -55,7 +55,8 @@ json.outstanding_micros resource.outstanding_micros
 json.status resource.status
 json.status_label Erp::Receivable::STATUS_LABELS[resource.status]
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.crm_name.presence || resource.owner&.name
+# 财务看的一律中文优先（见 User#finance_display_name）
+json.owner_name resource.owner&.finance_display_name
 json.remark resource.remark
 
 if local_assigns[:with_installments]

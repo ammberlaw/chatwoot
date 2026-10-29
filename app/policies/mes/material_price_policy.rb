@@ -11,6 +11,8 @@ class Mes::MaterialPricePolicy < ApplicationPolicy
   def update? = writable?
   def destroy? = writable?
   def import? = writable?
+  # 从历史采购单回填：只填空缺、不覆盖已维护的价，和手工录入同一个口子
+  def backfill_from_purchases? = writable?
 
   private
 

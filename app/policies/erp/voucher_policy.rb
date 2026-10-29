@@ -12,6 +12,7 @@ class Erp::VoucherPolicy < ApplicationPolicy
   def post_voucher? = @account_user.erp_can?(:voucher)
   def bulk_post? = @account_user.erp_can?(:voucher)
   def bulk_void? = @account_user.erp_can?(:voucher)
+  def bulk_destroy? = @account_user.erp_can?(:voucher)
   def reverse? = @account_user.erp_can?(:voucher)
   def void? = @account_user.erp_can?(:voucher)
   def summaries? = @account_user.can_access_erp?

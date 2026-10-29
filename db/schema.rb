@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_29_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_29_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2529,6 +2529,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_29_100000) do
     t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "allocation_breakdown"
     t.index ["account_id", "cost_type"], name: "index_erp_order_costs_on_account_id_and_cost_type"
     t.index ["account_id", "source_type", "source_id", "cost_type"], name: "index_erp_order_costs_on_source", unique: true, where: "(source_type IS NOT NULL)"
     t.index ["account_id"], name: "index_erp_order_costs_on_account_id"

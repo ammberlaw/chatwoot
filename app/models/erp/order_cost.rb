@@ -5,21 +5,22 @@
 #
 # Table name: erp_order_costs
 #
-#  id                 :bigint           not null, primary key
-#  amount_micros      :bigint           not null
-#  cost_type          :string           default("MATERIAL"), not null
-#  currency           :string           default("CNY"), not null
-#  exchange_rate      :decimal(12, 6)   default(1.0), not null
-#  happened_at        :date
-#  remark             :text
-#  source_type        :string
-#  created_at         :datetime         not null
-#  updated_at         :datetime         not null
-#  account_id         :bigint           not null
-#  created_by_id      :bigint
-#  crm_sales_order_id :bigint           not null
-#  mes_supplier_id    :bigint
-#  source_id          :bigint
+#  id                   :bigint           not null, primary key
+#  allocation_breakdown :jsonb
+#  amount_micros        :bigint           not null
+#  cost_type            :string           default("MATERIAL"), not null
+#  currency             :string           default("CNY"), not null
+#  exchange_rate        :decimal(12, 6)   default(1.0), not null
+#  happened_at          :date
+#  remark               :text
+#  source_type          :string
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  account_id           :bigint           not null
+#  created_by_id        :bigint
+#  crm_sales_order_id   :bigint           not null
+#  mes_supplier_id      :bigint
+#  source_id            :bigint
 #
 # Indexes
 #

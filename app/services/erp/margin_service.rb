@@ -92,7 +92,7 @@ class Erp::MarginService
       owner_id: order.owner_id,
       # 中文名优先。crm_name（CRM 英文名）是给对客场景用的——CRM 界面和外发邮件显英文，
       # 核心系统显中文。成本毛利是财务板块、只给自己人看，摆英文名反而对不上人。
-      owner_name: order.owner&.name.presence || order.owner&.crm_name
+      owner_name: order.owner&.finance_display_name
     }
   end
 

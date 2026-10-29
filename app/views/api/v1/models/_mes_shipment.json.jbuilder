@@ -52,11 +52,16 @@ json.sales_order_remark resource.crm_sales_order&.remark
 # 的 owner 就是业务员本人。两边都按 CRM 口径出名字，不要 production_order_owner_name
 # 那个带岗位前缀的（财务看到「PMC-Oliver Sun」只会以为是另一个人）。
 sales_order = resource.crm_sales_order
-json.sales_owner_name((sales_order&.owner || resource.production_order&.owner)&.crm_display_name)
+json.sales_owner_name((sales_order&.owner || resource.production_order&.owner)&.finance_display_name)
 json.sales_order_date sales_order&.order_date
 json.sales_delivery_date sales_order&.delivery_date
 json.sales_order_amount_micros sales_order&.order_amount_micros
 json.sales_order_currency sales_order&.order_currency
+# 运费：订单金额是**净货款、不含运费**（运费在销售订单上单独一栏），
+# 而客户打款是货款+运费一笔到账。财务审出库时要核的是「这单总共该收多少」，
+# 只给货款就对不上收款（2026-10-29 财务反馈「缺少订单号，运费体现等关键信息」）。
+json.sales_shipping_micros sales_order&.shipping_micros
+json.sales_gross_micros((sales_order&.order_amount_micros.to_i + sales_order&.shipping_micros.to_i if sales_order))
 # 信保订单号：业务在销售订单上填的那个（阿里信保单号），财务要拿它去平台上核。
 # 本来就存在 crm_sales_orders 上，只是 MES 出库列表一直没把它带出来。
 json.insurance_order_no sales_order&.insurance_order_no

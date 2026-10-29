@@ -107,6 +107,25 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     render json: { payload: void_each(ids) }
   end
 
+  BULK_DESTROY_LIMIT = 100
+
+  # 批量删除。和批量作废的区别：作废留痕（凭证号还在、内容可查），删除是真抹掉。
+  # 财务 2026-10-29 要的——自动凭证一天几十张，口径改了要清场时一张张删受不了。
+  #
+  # 逐张走 Voucher#deletable?，不是只许草稿：已记账的也能删（账簿按已过账凭证实时算，
+  # 删了余额自己跟着变），但结账期间/已红冲/红冲单这三种仍然挡住，理由逐张报出来。
+  def bulk_destroy
+    ids = Array(params[:voucher_ids]).map(&:to_i).select(&:positive?).uniq
+    return render json: { error: '请先选择要删除的凭证' }, status: :unprocessable_entity if ids.empty?
+
+    if ids.size > BULK_DESTROY_LIMIT
+      return render json: { error: "一次最多删除 #{BULK_DESTROY_LIMIT} 张，请分批操作" },
+                    status: :unprocessable_entity
+    end
+
+    render json: { payload: destroy_each(ids) }
+  end
+
   # 红冲：生成方向相反的凭证，两张互相引用。
   def reverse
     @voucher = Erp::VoucherPostingService.new(@voucher, current_user).reverse!
@@ -201,6 +220,27 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     Erp::DepreciationService.new(Current.account, current_user).rollback_voucher!(voucher)
   end
 
+  # 删不掉的要逐张说清楚为什么（期间已结账？已被红冲？），不能笼统报「失败 3 张」。
+  def destroy_each(ids)
+    done = 0
+    failed = []
+    Current.account.erp_vouchers.where(id: ids).order(:voucher_no).each do |voucher|
+      blocker = voucher.deletable? ? nil : (voucher.delete_blocker || '当前状态不能删除')
+      if blocker
+        failed << { voucher_no: voucher.voucher_no, error: blocker }
+        next
+      end
+      ActiveRecord::Base.transaction do
+        rollback_depreciation_side_effects(voucher)
+        voucher.destroy!
+      end
+      done += 1
+    rescue StandardError => e
+      failed << { voucher_no: voucher.voucher_no, error: posting_error(e) }
+    end
+    { deleted: done, failed: failed, skipped: ids.size - done - failed.size }
+  end
+
   def void_each(ids)
     each_draft(ids, :voided) do |voucher|
       ActiveRecord::Base.transaction do
@@ -212,13 +252,14 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
 
   # 表头漏斗可筛的列（列名 → SQL）。日期和状态不收录：工具栏已经有期间选择和状态下拉，
   # 同一个条件给两个入口，筛完对不上只会让人以为坏了。
-  # 制单/记账取 CRM 英文名优先（与列表、凭证详情显示的同一个名字，否则筛「吴仟」筛不出
-  # 列表上写着的那一行）。
+  # 制单/记账取**中文名优先**，必须和 User#finance_display_name 一个口径——
+  # 显示和筛选对不上的话，筛「吴仟」筛不出列表上写着的那一行（2026-10-29 把财务侧
+  # 显示改成中文优先时，这里差点漏掉）。
   COLUMN_SQL = {
     'voucher_no' => 'erp_vouchers.voucher_no',
     'summary' => 'erp_vouchers.summary',
-    'prepared_by' => "COALESCE(NULLIF(preparers.crm_name, ''), preparers.name)",
-    'posted_by' => "COALESCE(NULLIF(posters.crm_name, ''), posters.name)"
+    'prepared_by' => "COALESCE(NULLIF(preparers.name, ''), preparers.crm_name)",
+    'posted_by' => "COALESCE(NULLIF(posters.name, ''), posters.crm_name)"
   }.freeze
 
   def filtered_scope

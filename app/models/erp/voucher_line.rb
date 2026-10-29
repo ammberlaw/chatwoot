@@ -73,7 +73,6 @@ class Erp::VoucherLine < ApplicationRecord
   validates :amount_micros, numericality: { greater_than_or_equal_to: 0 }
   validates :base_amount_micros, numericality: { greater_than: 0 }
   validate :validate_postable_account
-  validate :validate_required_dimensions
 
   before_validation :assign_account_and_base_amount
 
@@ -118,13 +117,17 @@ class Erp::VoucherLine < ApplicationRecord
     errors.add(:currency, "科目「#{ledger_account.label}」是 #{ledger_account.currency} 外币科目，币种须一致")
   end
 
-  # 只卡往来科目的必填维度（应收挂客户、应付挂供应商），其余维度可填不强制——
-  # 往来不挂单位，供应商对账和「这个客户还欠多少」就查不出来。
-  def validate_required_dimensions
+  # 往来科目的客户/供应商**不再强制必填**（2026-10-29 财务两次要求，原话「这里不要搞成必填项」）。
+  #
+  # 代价说在前面：不挂单位的那几行，应收台账按客户查欠款、应付按供应商对账都统计不到，
+  # 账簿总数仍然对得上（账簿只认科目），但「这个客户还欠多少」会漏掉它们。
+  # 财务知道这个代价、仍然要求去掉——实际录凭证时很多行就是挂不上具体往来单位，
+  # 卡在这儿连存都存不了，比统计漏几行更难受。
+  #
+  # 校验撤了但维度字段都还在，想挂照样挂；要找哪些行没挂，用应收/应付台账对一遍。
+  # 真要收回去，把 `validate :validate_required_dimensions` 加回来即可。
+  def required_dimension_missing?
     dimension = ledger_account&.required_dimension
-    return if dimension.blank? || dimension_value(dimension).present?
-
-    label = Erp::LedgerAccount::DIMENSION_LABELS[dimension]
-    errors.add(:base, "科目「#{ledger_account.label}」是往来科目，必须填写#{label}")
+    dimension.present? && dimension_value(dimension).blank?
   end
 end

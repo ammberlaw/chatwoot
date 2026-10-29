@@ -29,14 +29,18 @@ class Erp::OverheadAllocationService
   def preview(period)
     from, to = range(period)
     total = overhead_total(from, to)
-    rows = finished_rows(from, to)
+    # 没挂销售订单的生产订单（备库存单）摊不出去——成本只能挂销售订单，它那份没地方记。
+    # 所以连分母都不让它进：留在分母里就是「算了台数却分不到钱」，总额会悄悄少摊一截，
+    # 「各单相加＝总额」的保证也跟着破。摊不到的单单独报给界面，别让它无声消失。
+    rows, skipped = finished_rows(from, to).partition { |r| sales_order_id(r[:production_order_id]) }
     qty = rows.sum { |r| r[:qty] }
     rate = qty.positive? ? (total / qty) : 0
     {
       period: period, overhead_micros: total, finished_qty: qty,
       rate_micros: rate.round,
       # 末位订单吸收舍入差，保证各单相加严格等于总额——差一分钱财务就要来问。
-      rows: with_rounding_fix(rows, rate, total)
+      rows: with_rounding_fix(rows, rate, total),
+      skipped_count: skipped.size, skipped_qty: skipped.sum { |r| r[:qty] }
     }
   end
 
@@ -114,20 +118,53 @@ class Erp::OverheadAllocationService
     rows
   end
 
+  # 一张生产订单只有一条 OVERHEAD 行（唯一索引），但它可能分几个月完工入库。
+  # 所以金额按月份累加：本月那一项替换掉，其余月份原样留着。
   def upsert_cost(row, period)
-    order = @account.mes_production_orders.find_by(id: row[:production_order_id])
-    return if order.nil? || order.crm_sales_order_id.blank?
+    so_id = sales_order_id(row[:production_order_id])
+    return if so_id.nil?
 
     cost = @account.erp_order_costs.find_or_initialize_by(
-      source_type: SOURCE_TYPE, source_id: order.id, cost_type: COST_TYPE
+      source_type: SOURCE_TYPE, source_id: row[:production_order_id], cost_type: COST_TYPE
     )
-    # 分摊结果为 0 就把行删掉，别留一条 0 元成本行误导人（同按单归集的处理）。
-    return cost.destroy if cost.persisted? && row[:amount_micros].to_i.zero?
-    return if row[:amount_micros].to_i.zero?
+    breakdown = merged_breakdown(cost, row, period)
+    total = breakdown.values.sum { |v| v['amount_micros'].to_i }
 
-    cost.update!(crm_sales_order_id: order.crm_sales_order_id,
-                 amount_micros: row[:amount_micros], currency: BASE_CURRENCY, exchange_rate: 1,
-                 remark: "#{period} 制造费用平均分摊（#{fnum(row[:qty])} 台）")
+    # 全部月份都摊成 0 就把行删掉，别留一条 0 元成本行误导人（同按单归集的处理）。
+    return cost.destroy if cost.persisted? && total.zero?
+    return if total.zero?
+
+    cost.update!(crm_sales_order_id: so_id, amount_micros: total,
+                 currency: BASE_CURRENCY, exchange_rate: 1,
+                 allocation_breakdown: breakdown, remark: breakdown_remark(breakdown))
+  end
+
+  # 本月摊成 0 就把该月那一项删掉，不是留个 0——否则备注里会挂一串「2026-09 0.00」。
+  def merged_breakdown(cost, row, period)
+    breakdown = (cost.allocation_breakdown || {}).dup
+    if row[:amount_micros].to_i.zero?
+      breakdown.delete(period)
+    else
+      breakdown[period] = { 'amount_micros' => row[:amount_micros], 'qty' => fnum(row[:qty]) }
+    end
+    breakdown
+  end
+
+  # 「制造费用按月分摊：2026-09 15,000.00（300 台）、2026-10 40,000.00（800 台）」
+  def breakdown_remark(breakdown)
+    parts = breakdown.sort.map do |period, v|
+      yuan = ActiveSupport::NumberHelper.number_to_rounded(v['amount_micros'].to_i / 1_000_000.0,
+                                                           precision: 2, delimiter: ',')
+      "#{period} #{yuan}（#{v['qty']} 台）"
+    end
+    "制造费用按月分摊：#{parts.join('、')}"
+  end
+
+  # { 生产订单 id => 销售订单 id }，没挂销售订单的取不到。一次查完，别在循环里逐张 find。
+  def sales_order_id(production_order_id)
+    @sales_order_ids ||= @account.mes_production_orders.where.not(crm_sales_order_id: nil)
+                                 .pluck(:id, :crm_sales_order_id).to_h
+    @sales_order_ids[production_order_id]
   end
 
   def fnum(value)

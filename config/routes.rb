@@ -408,6 +408,7 @@ Rails.application.routes.draw do
                 post :import
                 post :bulk_post
                 post :bulk_void
+                post :bulk_destroy
               end
               member do
                 post :post_voucher
@@ -480,7 +481,12 @@ Rails.application.routes.draw do
             end
             # BOM 成本表：按商品编码维护加工费/制造费用标准，供成本归集取数
             resources :bom_costs, only: [:index, :create, :update, :destroy] do
-              collection { post :import }
+              collection do
+                post :import
+                # 制造费用按月分摊：preview 只算不写，allocate 才落 erp_order_costs
+                get :overhead_preview
+                post :overhead_allocate
+              end
               # 展开看这个成品编码下的物料明细与料价（点开那一行才拉）
               member { get :materials }
             end
@@ -566,6 +572,8 @@ Rails.application.routes.draw do
                 post :import
                 # 缺价清单：任务单用到但三级价源都没有价的物料，给采购当补录工作单
                 get :missing
+                # 一键从历史采购单回填标准价（只填空缺，不覆盖已维护的）
+                post :backfill_from_purchases
               end
             end
             resources :bom_templates, except: [:new, :edit]

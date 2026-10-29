@@ -13,7 +13,7 @@ json.paid_at resource.paid_at
 json.reference_no resource.reference_no
 json.status resource.status
 json.status_label resource.status == Erp::PaymentRecord::VOID ? '已作废' : '正常'
-json.recorded_by_name resource.recorded_by&.crm_name.presence || resource.recorded_by&.name
+json.recorded_by_name resource.recorded_by&.finance_display_name
 json.allocated_micros resource.allocated_micros
 json.unallocated_micros resource.unallocated_micros
 json.remark resource.remark

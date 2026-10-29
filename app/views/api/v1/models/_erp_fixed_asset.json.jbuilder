@@ -18,5 +18,5 @@ json.disposal_income_micros resource.disposal_income_micros
 json.department_id resource.department_id
 json.department_name resource.department&.name
 json.keeper_id resource.keeper_id
-json.keeper_name resource.keeper&.crm_name.presence || resource.keeper&.name
+json.keeper_name resource.keeper&.finance_display_name
 json.remark resource.remark

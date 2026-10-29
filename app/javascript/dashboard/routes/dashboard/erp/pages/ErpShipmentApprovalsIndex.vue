@@ -386,14 +386,66 @@ const submitReject = async () => {
         <p class="text-sm text-n-slate-11">
           {{ approving.shipment_no }} · {{ approving.customer_name || '—' }}
         </p>
+        <!-- 财务审的是「这单该收多少、收齐没有」，所以订单号和金额要摆在眼前。
+             货款和运费分开列：订单金额不含运费，只给货款会和收款对不上。 -->
+        <div
+          class="grid grid-cols-2 gap-x-6 gap-y-1.5 px-3 py-2 text-sm rounded-lg bg-n-alpha-1"
+        >
+          <div class="flex justify-between">
+            <span class="text-n-slate-11">销售订单</span>
+            <span class="font-mono text-n-slate-12">
+              {{
+                approving.sales_order_no || approving.production_order_no || '—'
+              }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-n-slate-11">业务员</span>
+            <span class="text-n-slate-12">
+              {{ approving.sales_owner_name || '—' }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-n-slate-11">货款</span>
+            <span class="font-mono text-n-slate-12">
+              {{
+                money(
+                  approving.sales_order_amount_micros,
+                  approving.sales_order_currency
+                )
+              }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-n-slate-11">运费</span>
+            <span class="font-mono text-n-slate-12">
+              {{
+                money(
+                  approving.sales_shipping_micros,
+                  approving.sales_order_currency
+                )
+              }}
+            </span>
+          </div>
+          <div
+            class="flex justify-between col-span-2 pt-1.5 border-t border-n-weak"
+          >
+            <span class="text-n-slate-11">客户应付合计</span>
+            <span class="font-mono font-medium text-n-slate-12">
+              {{
+                money(
+                  approving.sales_gross_micros,
+                  approving.sales_order_currency
+                )
+              }}
+            </span>
+          </div>
+        </div>
         <div v-if="unpaidOf(approving)" class="flex flex-col gap-2">
           <label class="text-heading-3 text-n-slate-12">
             款没收齐，放行理由 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input
-            v-model="approveNote"
-            placeholder="放行理由"
-          />
+          <Input v-model="approveNote" placeholder="放行理由" />
         </div>
         <p v-else class="text-sm text-n-teal-11">款已收齐，可以放行。</p>
       </div>

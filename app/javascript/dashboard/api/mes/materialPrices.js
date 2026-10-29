@@ -12,4 +12,7 @@ API.import = formData =>
 // 缺价清单：生产任务单用到、但三级价源都查不到价的物料，按被用到的单数倒序。
 API.missing = () => axios.get(`${API.url}/missing`);
 
+// 一键从历史采购单回填标准价（只填空缺，不覆盖已维护的价）。
+API.backfillFromPurchases = () => axios.post(`${API.url}/backfill_from_purchases`);
+
 export default API;

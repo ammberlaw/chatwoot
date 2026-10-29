@@ -57,12 +57,17 @@ class Erp::CostRollupService
     (existing.keys - amounts.keys).each { |t| existing[t].destroy! }
 
     amounts.filter_map do |cost_type, amount|
+      row = existing[cost_type]
+      # 月末按 5101 实际发生额摊过的行不碰：这里算的是 BOM 标准单价 × 完工数量的估数，
+      # 估数不该盖实际数。标准值为 0 时下面那支还会把行删掉，更不能让它跑。
+      next if row&.allocation_breakdown.present?
+
       if amount <= 0
-        existing[cost_type]&.destroy!
+        row&.destroy!
         next
       end
 
-      write_row(existing[cost_type], production_order, amount, cost_type)
+      write_row(row, production_order, amount, cost_type)
     end
   end
 

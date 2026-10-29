@@ -11,4 +11,4 @@ json.happened_at resource.happened_at
 json.mes_supplier_id resource.mes_supplier_id
 json.supplier_name resource.mes_supplier&.name
 json.remark resource.remark
-json.created_by_name resource.created_by&.crm_name.presence || resource.created_by&.name
+json.created_by_name resource.created_by&.finance_display_name

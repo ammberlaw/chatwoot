@@ -62,6 +62,22 @@ class Api::V1::Accounts::Erp::BomCostsController < Api::V1::Accounts::Erp::BaseC
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # ── 制造费用按月分摊 ───────────────────────────────────────────
+  # 上面那两栏（人工费 / 制造费用）是**标准单价**，每台永远一样。
+  # 这里是财务要的另一种口径：当月 5101 实际发生额 ÷ 当月完工入库总量，按各单入库量摊回去。
+  # preview 只算不写——财务要先看分子分母对不对才敢落账；allocate 才写 erp_order_costs。
+  def overhead_preview
+    render json: { payload: with_order_no(overhead_service.preview(params[:period])) }
+  rescue Erp::OverheadAllocationService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def overhead_allocate
+    render json: { payload: with_order_no(overhead_service.allocate!(params[:period])) }
+  rescue Erp::OverheadAllocationService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   # 单价取 BOM 行上存的 rate_micros——那是做这张 BOM 时的料价，和 amount 自洽。
@@ -84,6 +100,22 @@ class Api::V1::Accounts::Erp::BomCostsController < Api::V1::Accounts::Erp::BaseC
   def per_page_param
     n = params[:per_page].to_i
     n.positive? ? [n, 500].min : 25
+  end
+
+  def overhead_service
+    Erp::OverheadAllocationService.new(Current.account)
+  end
+
+  # 服务只给 production_order_id，界面上要看得出是哪张单、什么产品。
+  def with_order_no(result)
+    orders = Current.account.mes_production_orders
+                    .where(id: result[:rows].map { |r| r[:production_order_id] })
+                    .pluck(:id, :order_no, :product_name).to_h { |id, no, name| [id, [no, name]] }
+    rows = result[:rows].map do |row|
+      no, name = orders[row[:production_order_id]]
+      row.merge(order_no: no, product_name: name)
+    end
+    result.merge(rows: rows)
   end
 
   def bom_cost_params

@@ -3,7 +3,7 @@ import { ref, computed, nextTick } from 'vue';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 
 // 自定义月份选择器（紫色玻璃圆角），替换原生 <input type="month"> 与 年/月 双下拉。
-// 值为 'YYYY-MM' 字符串，空串表示未选。弹层 Teleport 到 body + fixed 定位，
+// 值为 'YYYY-MM' 字符串，空串表示未选。弹层 Teleport（对话框内挂进 dialog，否则挂 body）+ fixed 定位，
 // 在对话框 / 滚动容器里也不会被裁切。
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -26,6 +26,7 @@ const open = ref(false);
 const triggerEl = ref(null);
 const popoverEl = ref(null);
 const popStyle = ref({});
+const teleportTarget = ref('body');
 
 onClickOutside(triggerEl, () => { open.value = false; }, { ignore: [popoverEl] }); // prettier-ignore
 // 滚动/缩放时关闭，避免 fixed 弹层与触发器错位。
@@ -75,6 +76,8 @@ const toggle = async () => {
     return;
   }
   viewYear.value = selectedYear.value || curYear;
+  // 在 <dialog>.showModal() 里要挂进 dialog 本身，teleport 到 body 会被顶层遮住
+  teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
   open.value = true;
   await nextTick();
   positionPopover();
@@ -122,8 +125,8 @@ const isCurrent = month => viewYear.value === curYear && curMonth === month;
       <span class="text-n-slate-10 i-lucide-calendar size-4 shrink-0" />
     </button>
 
-    <!-- 紫色玻璃弹层：Teleport 到 body，fixed 定位不被容器裁切 -->
-    <teleport to="body">
+    <!-- 紫色玻璃弹层：Teleport 出去 + fixed 定位，不被容器裁切 -->
+    <teleport :to="teleportTarget">
       <transition
         enter-active-class="transition duration-150 ease-out"
         enter-from-class="opacity-0 scale-95 -translate-y-1"

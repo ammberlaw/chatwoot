@@ -12,6 +12,10 @@ API.bulkPost = voucherIds =>
 // 批量作废：留痕不删，只作用于待过账的。
 API.bulkVoid = voucherIds =>
   axios.post(`${API.url}/bulk_void`, { voucher_ids: voucherIds });
+
+// 批量删除：真抹掉（作废是留痕）。已记账的也能删，结账期间/已红冲/红冲单会逐张报原因。
+API.bulkDestroy = voucherIds =>
+  axios.post(`${API.url}/bulk_destroy`, { voucher_ids: voucherIds });
 API.void = id => axios.post(`${API.url}/${id}/void`);
 
 // 原始单据影像（发票 / 水单扫描件）。已过账凭证也允许补传。

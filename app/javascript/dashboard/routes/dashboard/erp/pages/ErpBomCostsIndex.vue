@@ -15,6 +15,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 // BOM 成本表：按商品编码维护「人工费（生产人工）」和「制造费用」两个标准单价。
 //
 // 这张表直接喂给成本归集：成品入库过账后，Erp::CostRollupService 按
@@ -268,6 +269,60 @@ const missingHint = computed(() => {
   return `有 ${r.missing_count} 条商品编码在产品档案里找不到，这些行没有导入：${r.missing_skus.join('、')}${more}`;
 });
 
+// ── 制造费用按月分摊 ───────────────────────────────────────────
+// 上面两栏是标准单价（每台固定）；这里是财务的另一种口径：
+// 当月 5101 实际发生额 ÷ 当月完工入库总量，再按各单入库量摊回销售订单。
+// 预览只算不写，财务看过分子分母才点「落账分摊」。
+const ohRef = ref(null);
+const ohPeriod = ref(new Date().toLocaleDateString('sv').slice(0, 7));
+const ohResult = ref(null);
+const ohLoading = ref(false);
+const ohSaving = ref(false);
+
+const ohPreview = async () => {
+  if (!ohPeriod.value) return;
+  ohLoading.value = true;
+  ohResult.value = null;
+  try {
+    const { data } = await ErpBomCostAPI.overheadPreview(ohPeriod.value);
+    ohResult.value = data.payload;
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '取数失败');
+  } finally {
+    ohLoading.value = false;
+  }
+};
+
+// 分子为 0 时不许落账：那会把这些订单上原有的制造费用成本行清掉
+// （分摊和标准成本共用 erp_order_costs 的 OVERHEAD 行）。
+const ohAllocatable = computed(() => {
+  const r = ohResult.value;
+  return Boolean(r && Number(r.finished_qty) && Number(r.overhead_micros));
+});
+
+const openOverhead = () => {
+  ohResult.value = null;
+  ohRef.value?.open();
+  ohPreview();
+};
+
+const ohAllocate = async () => {
+  if (ohSaving.value) return;
+  ohSaving.value = true;
+  try {
+    const { data } = await ErpBomCostAPI.overheadAllocate(ohPeriod.value);
+    // 落账后预览数和结果数一模一样，弹窗不关的话看起来就像「点了没反应」
+    ohRef.value?.close();
+    useAlert(
+      `${ohPeriod.value} 制造费用已分摊到 ${data.payload.rows.length} 张订单`
+    );
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '分摊失败');
+  } finally {
+    ohSaving.value = false;
+  }
+};
+
 onMounted(load);
 </script>
 
@@ -304,6 +359,15 @@ onMounted(load);
           @change="onPickFile"
         />
         <Button
+          label="制造费用分摊"
+          variant="outline"
+          color="slate"
+          size="sm"
+          class="btn-ink"
+          icon="i-lucide-calculator"
+          @click="openOverhead"
+        />
+        <Button
           v-if="canWrite"
           label="新增"
           color="iris"
@@ -311,14 +375,6 @@ onMounted(load);
           @click="openCreate"
         />
       </div>
-    </div>
-
-    <div class="px-4 pb-3 sm:px-6">
-      <p class="text-label-small text-n-slate-11">
-        按商品编码维护人工费（生产人工）与制造费用的标准单价。成品入库过账后，系统按
-        <b>完工入库数量 × 单价</b>
-        自动归集到对应销售订单的成本里，和领料算出的材料成本一起算毛利。
-      </p>
     </div>
 
     <div class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
@@ -519,21 +575,135 @@ onMounted(load);
           <div class="flex flex-col gap-1">
             <label class="text-label text-n-slate-12">人工费（元/个）</label>
             <Input v-model="form.processFee" type="number" placeholder="0" />
-            <span class="text-label-small text-n-slate-10">
-              即生产人工，按完工入库数量计入成本
-            </span>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-label text-n-slate-12">制造费用（元/个）</label>
             <Input v-model="form.overheadFee" type="number" placeholder="0" />
-            <span class="text-label-small text-n-slate-10">
-              同样按完工入库数量计入成本
-            </span>
           </div>
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-label text-n-slate-12">备注</label>
           <Input v-model="form.remark" placeholder="选填" />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 制造费用按月分摊 -->
+    <Dialog
+      ref="ohRef"
+      :dismissible="false"
+      width="3xl"
+      confirm-button-color="iris"
+      title="制造费用按月分摊"
+      :is-loading="ohSaving"
+      :show-confirm-button="canWrite"
+      :disable-confirm-button="!ohAllocatable"
+      confirm-button-label="落账分摊"
+      cancel-button-label="关闭"
+      @confirm="ohAllocate"
+    >
+      <div class="flex flex-col gap-4">
+        <div class="flex items-center gap-2">
+          <MonthPicker
+            v-model="ohPeriod"
+            :clearable="false"
+            trigger-class="w-40 h-9"
+            @change="ohPreview"
+          />
+          <Button
+            label="重新取数"
+            variant="outline"
+            color="slate"
+            size="sm"
+            :is-loading="ohLoading"
+            @click="ohPreview"
+          />
+        </div>
+
+        <div v-if="ohResult" class="grid grid-cols-3 gap-3">
+          <div class="p-3 border rounded-lg border-n-weak bg-n-alpha-1">
+            <div class="text-label-small text-n-slate-11">制造费用发生额</div>
+            <div class="text-heading-2 tabular-nums text-n-slate-12">
+              {{ money(ohResult.overhead_micros) }}
+            </div>
+          </div>
+          <div class="p-3 border rounded-lg border-n-weak bg-n-alpha-1">
+            <div class="text-label-small text-n-slate-11">完工入库总量</div>
+            <div class="text-heading-2 tabular-nums text-n-slate-12">
+              {{ Number(ohResult.finished_qty) }}
+            </div>
+          </div>
+          <div class="p-3 border rounded-lg border-n-weak bg-n-alpha-1">
+            <div class="text-label-small text-n-slate-11">单位制造费用</div>
+            <div class="text-heading-2 tabular-nums text-n-slate-12">
+              {{ ohResult.finished_qty ? money(ohResult.rate_micros) : '—' }}
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="ohResult && ohResult.finished_qty && !Number(ohResult.overhead_micros)"
+          class="p-3 text-sm border rounded-lg border-n-amber-8 bg-n-amber-3 text-n-amber-11"
+        >
+          {{ ohPeriod }} 没有已过账的 5101 制造费用凭证
+        </div>
+
+        <div
+          v-if="ohResult && ohResult.skipped_count"
+          class="p-3 text-sm border rounded-lg border-n-slate-6 bg-n-alpha-1 text-n-slate-11"
+        >
+          未参与分摊：{{ ohResult.skipped_count }} 张 ·
+          {{ Number(ohResult.skipped_qty) }} 台（没挂销售订单）
+        </div>
+
+        <div v-if="ohResult" class="overflow-auto max-h-80">
+          <table class="w-max min-w-full text-sm">
+            <thead>
+              <tr
+                class="text-left text-n-slate-11 border-b border-n-weak [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1"
+              >
+                <th class="px-3 py-2 font-medium whitespace-nowrap">订单号</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">产品</th>
+                <th
+                  class="px-3 py-2 font-medium text-right whitespace-nowrap"
+                >
+                  完工入库
+                </th>
+                <th
+                  class="px-3 py-2 font-medium text-right whitespace-nowrap"
+                >
+                  分摊金额
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="r in ohResult.rows"
+                :key="r.production_order_id"
+                class="border-b border-n-weak"
+              >
+                <td class="px-3 py-2 font-medium whitespace-nowrap text-n-slate-12">
+                  {{ r.order_no || '—' }}
+                </td>
+                <td class="px-3 py-2 truncate max-w-[16rem]" :title="r.product_name">
+                  {{ r.product_name || '—' }}
+                </td>
+                <td class="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                  {{ Number(r.qty) }}
+                </td>
+                <td
+                  class="px-3 py-2 font-medium text-right tabular-nums whitespace-nowrap text-n-slate-12"
+                >
+                  {{ money(r.amount_micros) }}
+                </td>
+              </tr>
+              <tr v-if="!ohResult.rows.length">
+                <td colspan="4" class="px-3 py-8 text-center text-n-slate-11">
+                  {{ ohPeriod }} 这个月没有完工入库的订单，没什么可摊的。
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </Dialog>

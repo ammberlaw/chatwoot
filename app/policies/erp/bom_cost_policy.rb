@@ -9,6 +9,9 @@ class Erp::BomCostPolicy < ApplicationPolicy
   def update? = @account_user.erp_can?(:cost)
   def destroy? = @account_user.erp_can?(:cost)
   def import? = @account_user.erp_can?(:cost)
+  # 制造费用分摊：预览是只读（和 index 同口径），落账要 cost 能力域
+  def overhead_preview? = @account_user.can_access_erp?
+  def overhead_allocate? = @account_user.erp_can?(:cost)
 end
 
 Erp::BomCostPolicy.prepend_mod_with('Erp::BomCostPolicy')
