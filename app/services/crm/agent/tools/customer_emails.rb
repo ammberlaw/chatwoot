@@ -3,28 +3,66 @@
 # 邮件走的是**邮件专用权限口径**（老板看全员、CRM 团队负责人看本团队、其余只看自己），
 # 比客户的口径更严——邮件是私人往来通信，不能因为能看到这个客户就能看他和别人的通信。
 class Crm::Agent::Tools::CustomerEmails < Crm::Agent::Tools::Base
-  description '调取某个客户的往来邮件（按时间倒序），用来做往来总结、看谈到哪一步、提取客户要求。先用 find_customer 拿到客户ID。'
-  param :customer_id, type: 'integer', desc: '客户ID'
+  description '调取往来邮件（按时间倒序），用来做往来总结、看谈到哪一步、提取客户要求。' \
+              '两种叫法：给 customer_id＝看这个客户的全部往来（先用 find_customer 拿ID）；' \
+              '给 email_id＝**只知道一封信的ID时用这个**，会把这封信读出来并带上同客户的其他往来。' \
+              '要回信就先用 email_id 读一遍，别拿着ID直接 draft_reply——没读过原文写不出回复。'
+  param :customer_id, type: 'integer', desc: '客户ID', required: false
+  param :email_id, type: 'integer', desc: '某一封邮件的ID（用户正开着那封信时就是它）', required: false
   param :limit, type: 'integer', desc: '最多取几封，默认 15，上限 30', required: false
 
   # 单封正文给模型看的长度。给太长会把几十封的上下文撑爆，
   # 做往来总结真正有用的是开头那段（报价、要求、交期都在前面）。
   BODY_CLIP = 1200
 
-  def execute(customer_id:, limit: 15)
-    customer = scope.customers.find_by(id: customer_id)
-    return "看不到 ID #{customer_id} 这个客户。" if customer.nil?
+  def execute(customer_id: nil, email_id: nil, limit: 15)
+    focused = email_id.present? ? scope.emails.find_by(id: email_id) : nil
+    customer = resolve_customer(customer_id, focused)
+    blocker = blocker_for(customer_id, email_id, focused, customer)
+    return blocker if blocker
 
-    rows = scope.emails.where(crm_customer_id: customer.id)
-                .with_attached_files
-                .order(email_date: :desc, id: :desc).limit([limit.to_i, 30].min)
+    # 这封信还没建档到客户名下（邮件建档是后一步），那就只把它本身读出来。
+    return single(focused) if customer.nil?
+
+    rows = thread_rows(customer, focused, limit)
     return "#{customer.name} 名下没有你能看到的往来邮件。" if rows.empty?
 
-    header = "【#{customer.name} 的往来邮件】按时间倒序，共列 #{rows.size} 封：\n"
-    header + rows.map { |mail| render(mail) }.join("\n\n")
+    header(customer, focused, rows.size) + rows.map { |mail| render(mail) }.join("\n\n")
   end
 
   private
+
+  def resolve_customer(customer_id, focused)
+    id = customer_id.presence || focused&.crm_customer_id
+    id && scope.customers.find_by(id: id)
+  end
+
+  def blocker_for(customer_id, email_id, focused, customer)
+    return '要么给 customer_id，要么给 email_id，两个都没给没法查。' if customer_id.blank? && email_id.blank?
+    return "看不到 ID #{email_id} 这封邮件（它可能不在你的可见范围内）。" if email_id.present? && focused.nil?
+
+    "看不到 ID #{customer_id} 这个客户。" if customer_id.present? && customer.nil?
+  end
+
+  # 指名的那封排第一，后面接同客户的往来——回信要的就是「这封说了什么」+「之前谈到哪」。
+  def thread_rows(customer, focused, limit)
+    rest = scope.emails.where(crm_customer_id: customer.id)
+                .where.not(id: focused&.id)
+                .with_attached_files
+                .order(email_date: :desc, id: :desc).limit([limit.to_i, 30].min)
+    [focused, *rest].compact
+  end
+
+  def header(customer, focused, count)
+    return "【#{customer.name} 的往来邮件】按时间倒序，共列 #{count} 封：\n" if focused.nil?
+
+    "【#{customer.name}】第一封就是你要看的那封（邮件ID #{focused.id}），" \
+      "后面 #{count - 1} 封是之前的往来：\n"
+  end
+
+  def single(mail)
+    "【邮件ID #{mail.id}】这封信还没归到某个客户名下：\n#{render(mail)}"
+  end
 
   def render(mail)
     <<~TXT.strip

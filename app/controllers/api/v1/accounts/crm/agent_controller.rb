@@ -86,7 +86,22 @@ class Api::V1::Accounts::Crm::AgentController < Api::V1::Accounts::Crm::BaseCont
     route = ctx[:route].to_s[0, 60]
     return nil if route.blank? || !route.match?(/\A[a-z0-9_]+\z/)
 
-    { 'route' => route, 'subject' => ctx[:subject].to_s.strip[0, 60].presence }.compact
+    { 'route' => route, 'subject' => ctx[:subject].to_s.strip[0, 60].presence }
+      .merge(focus_param(ctx)).compact
+  end
+
+  # 用户此刻正看着哪条记录（页面登记，见前端 useAgentFocus）。
+  # 同样白名单式地收：kind 只认这几个词、id 只收数字——这三个值会被拼进提示词，
+  # 收自由文本等于给提示词注入开后门（label 是标题，截断后原样带，不参与指令）。
+  FOCUS_KINDS = %w[邮件 客户 订单 单据].freeze
+
+  def focus_param(ctx)
+    kind = ctx[:focus_kind].to_s
+    id = ctx[:focus_id].to_s
+    return {} unless FOCUS_KINDS.include?(kind) && id.match?(/\A\d{1,12}\z/)
+
+    { 'focus_kind' => kind, 'focus_id' => id,
+      'focus_label' => ctx[:focus_label].to_s.strip[0, 80].presence }
   end
 
   def customer_id_param

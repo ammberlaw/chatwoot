@@ -17,6 +17,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { useMapGetter } from 'dashboard/composables/store';
 import CrmAgentAPI from 'dashboard/api/crm/agent';
+import { useAgentFocus } from 'dashboard/composables/useAgentFocus';
 import Button from 'dashboard/components-next/button/Button.vue';
 import CrmAiMascot from 'dashboard/components-next/CRM/CrmAiMascot.vue';
 
@@ -117,12 +118,23 @@ const ensureConversation = async () => {
 // 用户提问时正开着哪一页。AI 球挂在全局外壳上，这里读到的就是他眼前那一页，
 // 不用去各个页面埋点。subject 取地址栏里的筛选词/单号（列表页点开一条时就是它），
 // 后端只收路由名和这一个词，不照单全收。
+const { agentFocus } = useAgentFocus();
+
 const pageContext = () => {
   const name = route?.name;
   if (!name) return undefined;
   const q = route.query || {};
   const subject = q.q || q.no || q.order_no || route.params?.id || '';
-  return { route: String(name), subject: String(subject).slice(0, 60) };
+  const ctx = { route: String(name), subject: String(subject).slice(0, 60) };
+  // 页面登记的「正看着哪条记录」（见 useAgentFocus）：邮件 ID 这类藏在组件状态里、
+  // 不在地址栏上的东西，不带上的话助手只能反问「是哪一封」。
+  const f = agentFocus.value;
+  if (f) {
+    ctx.focus_kind = f.kind;
+    ctx.focus_id = f.id;
+    ctx.focus_label = String(f.label || '').slice(0, 80);
+  }
+  return ctx;
 };
 
 // 发附件：展会上拍的规格表、手写询价、客户发来的实物照，以及客户直接丢过来的

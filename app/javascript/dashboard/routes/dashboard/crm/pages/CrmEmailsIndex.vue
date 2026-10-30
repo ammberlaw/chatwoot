@@ -1,6 +1,13 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+} from 'vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
@@ -9,6 +16,7 @@ import DOMPurify from 'dompurify';
 import MailBlocklistAPI from 'dashboard/api/crm/mailBlocklists';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
+import { useAgentFocus } from 'dashboard/composables/useAgentFocus';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
@@ -48,6 +56,14 @@ const currentUserId = useMapGetter('getCurrentUserID');
 const composeStore = useCrmComposeStore();
 const searchTerm = ref('');
 const selectedEmail = ref(null);
+// 告诉 AI 助手「现在看的是这封信」：它读不到本组件的状态，
+// 不登记的话用户说「帮我回复一下」，助手只能反问是哪一封。
+const { setAgentFocus, clearAgentFocus } = useAgentFocus();
+watch(selectedEmail, e => {
+  if (e?.id) setAgentFocus('邮件', e.id, e.subject || '');
+  else clearAgentFocus();
+});
+onBeforeUnmount(clearAgentFocus);
 // 中栏邮件列表折叠：折叠后阅读窗格占满，读长邮件更舒服（记忆到本地）。
 const listCollapsed = ref(
   localStorage.getItem('crmEmailListCollapsed') === '1'

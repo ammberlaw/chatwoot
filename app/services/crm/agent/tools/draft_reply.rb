@@ -12,8 +12,10 @@
 # 这样草稿在邮件撰写框里打开时看不出是 AI 建的还是人建的。
 class Crm::Agent::Tools::DraftReply < Crm::Agent::Tools::Base
   description '回复某一封往来邮件：存成草稿（不会发送）。收件人、Re: 主题、原文引用都由工具填好，' \
-              '你只写回复正文。**只要有邮件ID就能直接回，不需要先知道是哪个客户**——' \
-              '客户、收件人都由这封信自己带出来。用户没给ID时才先用 customer_emails 找。'
+              '你只写回复正文。不需要先知道是哪个客户——客户、收件人都由这封信自己带出来。' \
+              '⚠️ **但必须先读过这封信**：先 customer_emails(email_id: 这封的ID) 看客户问了什么，' \
+              '再照着问题写正文。没读就调这个＝写出一句「正在核对」的空草稿，等于没回。' \
+              '连ID都没有时，先用 customer_emails 找。'
   param :email_id, type: 'integer', desc: '要回复的那封邮件的 ID（customer_emails 列出来的「邮件ID #123」）'
   param :body, desc: '回复正文（纯文本，按客户所在国家的语言写）。**只写你要说的话**，' \
                      '不要自己抄一遍原邮件——引用由工具附在下面。'
