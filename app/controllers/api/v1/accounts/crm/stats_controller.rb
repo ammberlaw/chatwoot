@@ -203,10 +203,14 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     !(au.administrator? || au.crm_deputy_admin? || au.crm_manager? || au.crm_finance?)
   end
 
+  # 只遮**公司名和 id**（名字是客户名单、id 能点进详情）。
+  # 国家留着——地区排行就是按它算的，抹掉会让别人的客户全挤进「未填写国家」，
+  # 整张「成交客户地区排行」只剩一行（2026-10-29 上线当天就被发现）。
+  # 国家本身不是客户名单，看板给的地区分布正是开放它的目的。
   def mask_customer(row)
     return row if my_customer_ids.include?(row[:id])
 
-    row.merge(id: nil, name: nil, country: nil, masked: true)
+    row.merge(id: nil, name: nil, masked: true)
   end
 
   def my_customer_ids

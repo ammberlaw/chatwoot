@@ -1,11 +1,19 @@
 # 生产看板：聚合现有数据的只读总览。
+#
+# 看板对**所有人**给全公司口径（用户 2026-10-29 定：「这个是所有人都要可以看到公司的生产看板的」）。
+# 原来沿用 MES 板块的通用收敛（mes_visible_owner_ids：没有 MES 角色的业务员只看自己的单），
+# 结果业务员打开看板是「在产 0」，管理员是 28——页面打得开，数就是不对。
+#
+# ⚠️ 只在**这一页**放开。生产订单列表、领料、报工、质检那些明细页继续按原规则收敛——
+# 看板给的是汇总数（在产几单、卡在哪个阶段、交期预警），不暴露别人客户的型号与交期。
 class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
 
   def show
-    # 业务员只统计/预警自己的订单（管理员/主管按范围，操作岗看全部）。
-    owner_ids = mes_visible_owner_ids
-    active = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED')))
+    # ⚠️ 只有 show（生产看板）用全量；同一个控制器里的 pipeline（流水看板）
+    # 仍走 mes_visible_owner_ids，别在控制器层覆盖那两个方法。
+    owner_ids = :all
+    active = scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED'))
     assign_production_overview(active)
 
     assign_alerts(
@@ -120,9 +128,12 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     WorkingHours.working_time_between(event.entered_at, event.acked_at).to_i
   end
 
-  # 本期内已接单的阶段事件（限 6 个接单环节），按可见范围 + 产品线收敛。
+  # 本期内已接单的阶段事件（限 6 个接单环节），按产品线收敛。
+  # 只被 show（生产看板）这条链用，所以和看板同口径走全公司——
+  # 同一张看板上「完成数 / 按时交货率」本来就是全量，接单响应却按归属收敛的话，
+  # 几个数摆在一起口径都不一样。
   def ack_events_in(range)
-    orders = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders))
+    orders = scoped_by_product_line(Current.account.mes_production_orders)
     Current.account.mes_production_order_stage_events
            .where(stage: Mes::ProductionOrder::STAGE_BOARD_KEYS.keys)
            .where.not(acked_at: nil).where(acked_at: range)
