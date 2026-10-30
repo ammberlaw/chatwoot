@@ -30,7 +30,9 @@ class CrmAgentApi extends ApiClient {
     form.append('content', content || '');
     form.append('attachment', file);
     // multipart 没法直接塞对象，逐个字段铺平（和 JSON 那条路保持同样的内容）
-    ['route', 'subject', 'focus_kind', 'focus_id', 'focus_label'].forEach(k => {
+    // prettier-ignore
+    ['route', 'subject', 'focus_kind', 'focus_id', 'focus_label',
+      'selection_kind', 'selection_ids', 'selection_labels', 'selection_total'].forEach(k => {
       if (pageContext?.[k]) form.append(`page_context[${k}]`, pageContext[k]);
     });
     return axios.post(`${this.url}/${id}/create_message`, form, {

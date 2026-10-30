@@ -118,7 +118,7 @@ const ensureConversation = async () => {
 // 用户提问时正开着哪一页。AI 球挂在全局外壳上，这里读到的就是他眼前那一页，
 // 不用去各个页面埋点。subject 取地址栏里的筛选词/单号（列表页点开一条时就是它），
 // 后端只收路由名和这一个词，不照单全收。
-const { agentFocus } = useAgentFocus();
+const { agentFocus, agentSelection } = useAgentFocus();
 
 const pageContext = () => {
   const name = route?.name;
@@ -133,6 +133,15 @@ const pageContext = () => {
     ctx.focus_kind = f.kind;
     ctx.focus_id = f.id;
     ctx.focus_label = String(f.label || '').slice(0, 80);
+  }
+  // 列表页勾中的那几条。ID 走逗号串（multipart 那条路只能塞字符串），
+  // 名字另给一份，让它能复述「你勾的是这几家」而不是甩一串 ID。
+  const sel = agentSelection.value;
+  if (sel?.ids?.length) {
+    ctx.selection_kind = sel.kind;
+    ctx.selection_ids = sel.ids.join(',');
+    ctx.selection_labels = sel.labels.join(' / ').slice(0, 400);
+    ctx.selection_total = String(sel.total || sel.ids.length);
   }
   return ctx;
 };

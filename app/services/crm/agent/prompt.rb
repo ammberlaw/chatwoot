@@ -229,14 +229,38 @@ module Crm::Agent::Prompt
   def self.page_hint(context)
     return '' if context.blank?
 
+    # ⚠️ 认不出路由**不能**整段返回空：页面登记的「正看着哪条」「勾中了哪几条」
+    # 是实打实的 ID，不该因为少了一条页面标签就被一起丢掉
+    # （2026-10-30：客户列表的路由不在 ROUTE_LABEL 里，于是勾选信息静默消失）。
     label = Crm::Agent::SystemMap::ROUTE_LABEL[context['route'].to_s]
-    return '' if label.blank?
+    pinned = "#{focus_line(context)}#{selection_line(context)}"
+    return pinned if label.blank?
 
     subject = context['subject'].to_s.strip
     line = "用户现在正开着「#{label}」这一页"
     line += "，页面上正看着/筛着「#{subject}」" if subject.present?
-    "#{line}。#{focus_line(context)}他说「这张单」「这个客户」「这封信」而没报具体编号时，" \
+    "#{line}。#{pinned}" \
+      '他说「这张单」「这个客户」「这封信」而没报具体编号时，' \
       '优先按这个理解；他要是明说了别的单号或客户名，以他说的为准。'
+  end
+
+  # 列表页勾中的那几条。
+  #
+  # 「为选定客户批量准备邮件草稿」这句话是用户自己打的，然后被反问「你想给哪些客户」
+  # （2026-10-28 生产实例）——他勾完才问，理所当然认为助手看得见。
+  # 超过 30 条只带前 30，所以要把总数说清，否则它会以为勾的就这么多、少办一批还不自知。
+  def self.selection_line(context)
+    kind = context['selection_kind'].to_s
+    ids = context['selection_ids'].to_s.split(',').reject(&:blank?)
+    return '' if kind.blank? || ids.empty?
+
+    total = context['selection_total'].to_i
+    names = context['selection_labels'].to_s.strip
+    line = "**他此刻在列表里勾中了 #{total.positive? ? total : ids.size} 条#{kind}**"
+    line += "：#{names}" if names.present?
+    line += "。ID 是 #{ids.join('、')}"
+    line += "（只列出前 #{ids.size} 个，还有 #{total - ids.size} 条没列——办完这批要告诉他还剩多少）" if total > ids.size
+    "#{line}。他说「这几个」「选中的」「这批」就是指它们，直接按这些 ID 去办，不要反问是哪几个。"
   end
 
   # 页面登记的「正看着哪条记录」——邮件 ID 这类不在地址栏上的东西。

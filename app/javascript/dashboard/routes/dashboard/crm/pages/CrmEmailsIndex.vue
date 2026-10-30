@@ -58,12 +58,20 @@ const searchTerm = ref('');
 const selectedEmail = ref(null);
 // 告诉 AI 助手「现在看的是这封信」：它读不到本组件的状态，
 // 不登记的话用户说「帮我回复一下」，助手只能反问是哪一封。
-const { setAgentFocus, clearAgentFocus } = useAgentFocus();
+const {
+  setAgentFocus,
+  clearAgentFocus,
+  setAgentSelection,
+  clearAgentSelection,
+} = useAgentFocus();
 watch(selectedEmail, e => {
   if (e?.id) setAgentFocus('邮件', e.id, e.subject || '');
   else clearAgentFocus();
 });
-onBeforeUnmount(clearAgentFocus);
+onBeforeUnmount(() => {
+  clearAgentFocus();
+  clearAgentSelection();
+});
 // 中栏邮件列表折叠：折叠后阅读窗格占满，读长邮件更舒服（记忆到本地）。
 const listCollapsed = ref(
   localStorage.getItem('crmEmailListCollapsed') === '1'
@@ -196,6 +204,16 @@ const groupedRecords = computed(() => {
 // —— 多选 + 批量操作 ——
 const selectedIds = ref([]);
 const selectionActive = computed(() => selectedIds.value.length > 0);
+// 勾了哪几封也告诉助手：「把这几封总结一下」「这几封都回一下」才接得住，
+// 否则它只能反问是哪几封（和上面 selectedEmail 同一个道理）。
+watch(selectedIds, ids => {
+  const picked = records.value.filter(r => ids.includes(r.id));
+  setAgentSelection(
+    '邮件',
+    ids,
+    picked.map(r => r.subject || '(无主题)')
+  );
+});
 const toggleSelect = id => {
   const i = selectedIds.value.indexOf(id);
   if (i >= 0) selectedIds.value.splice(i, 1);

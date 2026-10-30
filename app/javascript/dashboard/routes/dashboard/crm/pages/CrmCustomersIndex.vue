@@ -8,6 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useAgentFocus } from 'dashboard/composables/useAgentFocus';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
@@ -337,6 +338,19 @@ const fetchCustomers = () => {
 
 // —— 勾选批量转移（主管团队视图）——
 const selectedIds = ref([]);
+
+// 勾了哪几家也告诉 AI 助手：生产上有人勾完几家打「为选定客户批量准备邮件草稿」，
+// 被反问「你想给哪些客户」——他默认助手看得见自己勾了谁（2026-10-28）。
+const { setAgentSelection, clearAgentSelection } = useAgentFocus();
+watch(selectedIds, ids => {
+  const picked = customers.value.filter(c => ids.includes(c.id));
+  setAgentSelection(
+    '客户',
+    ids,
+    picked.map(c => c.name)
+  );
+});
+onBeforeUnmount(clearAgentSelection);
 
 // 切换视图：共享走 activeFilter='shared'/'shared_out'；我的/团队走 managerView(私海内子视图)。
 const selectView = key => {

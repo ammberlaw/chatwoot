@@ -31,4 +31,25 @@ RSpec.describe Crm::Agent::SystemMap do
     # 这东西每一轮对话都要发一遍，失控了就是每条消息都在烧钱。
     expect(described_class.text.length).to be < 4000
   end
+
+  # ROUTE_LABEL 管的是另一件事：用户此刻**站在哪一页**（见 Prompt.page_hint）。
+  # 漏一条，助手在那页上就不知道他在看什么——2026-10-30 实测漏了 8 个，
+  # 其中包括客户列表和客户详情这两个最常用的页面。
+  CRM_ROUTES = Rails.root.join('app/javascript/dashboard/routes/dashboard/crm/routes.js')
+  MES_ROUTES = Rails.root.join('app/javascript/dashboard/routes/dashboard/mes/routes.js')
+  # 搁置未上线的功能故意不写进来：地图指向一个进不去的页面比不指更糟。
+  INTENTIONALLY_UNLABELLED = %w[crm_exhibitions_index].freeze
+
+  it '每一个 CRM/MES 页面都在 ROUTE_LABEL 里有个人话名字' do
+    names = [CRM_ROUTES, MES_ROUTES].flat_map do |file|
+      next [] unless file.exist?
+
+      file.read.scan(/(?:crmPage|mesPage)\(\s*'[^']+',\s*'([a-z0-9_]+)'/).flatten
+    end.uniq - INTENTIONALLY_UNLABELLED
+
+    missing = names.reject { |name| described_class::ROUTE_LABEL.key?(name) }
+
+    expect(missing).to be_empty,
+                       -> { "这些页面 ROUTE_LABEL 里没有名字，助手在这些页上认不出用户在看什么：\n  #{missing.join("\n  ")}" }
+  end
 end

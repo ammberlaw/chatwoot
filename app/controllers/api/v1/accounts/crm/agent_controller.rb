@@ -87,7 +87,21 @@ class Api::V1::Accounts::Crm::AgentController < Api::V1::Accounts::Crm::BaseCont
     return nil if route.blank? || !route.match?(/\A[a-z0-9_]+\z/)
 
     { 'route' => route, 'subject' => ctx[:subject].to_s.strip[0, 60].presence }
-      .merge(focus_param(ctx)).compact
+      .merge(focus_param(ctx)).merge(selection_param(ctx)).compact
+  end
+
+  # 列表页勾中的那几条。同样白名单：kind 只认那几个词、ID 只收数字且最多 30 个。
+  # labels 是显示名，截断后原样带，不参与指令。
+  MAX_SELECTION = 30
+
+  def selection_param(ctx)
+    kind = ctx[:selection_kind].to_s
+    ids = ctx[:selection_ids].to_s.split(',').map(&:strip).grep(/\A\d{1,12}\z/).first(MAX_SELECTION)
+    return {} unless FOCUS_KINDS.include?(kind) && ids.any?
+
+    { 'selection_kind' => kind, 'selection_ids' => ids.join(','),
+      'selection_labels' => ctx[:selection_labels].to_s.strip[0, 400].presence,
+      'selection_total' => ctx[:selection_total].to_s[/\A\d{1,6}\z/] }
   end
 
   # 用户此刻正看着哪条记录（页面登记，见前端 useAgentFocus）。
