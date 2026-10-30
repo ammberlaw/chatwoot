@@ -378,6 +378,15 @@ const SHORTCUT = {
   },
 };
 
+// 「怎么用」：唯一一个不去查数据、而是教人用的入口。
+// 生产上 42 人在 AI 名单里只有 11 人用过——多数人不是不需要，是不知道它能干什么。
+// 问句里带上岗位，它就按这个岗位举例，不会给仓管报「目标和提成」。
+const howtoShortcut = who => ({
+  text: `我是${who}，你能帮我做哪些事？举几个我能直接照着说的例子。`,
+  label: '怎么用',
+  icon: 'i-lucide-lightbulb',
+});
+
 const currentUser = useMapGetter('getCurrentUser');
 const mesRoles = computed(() => currentUser.value?.mes_roles || []);
 const hasMes = role => mesRoles.value.includes(role);
@@ -386,7 +395,7 @@ const hasMes = role => mesRoles.value.includes(role);
 // 三个里给一个业务、一个生产、一个全局，比三个全是业务贴近实际。
 const GENERAL_SHORTCUTS = computed(() => {
   if (hasMes('buyer'))
-    return [SHORTCUT.stock, SHORTCUT.stuck, SHORTCUT.whereIs];
+    return [SHORTCUT.stock, SHORTCUT.stuck, howtoShortcut('采购')];
   if (
     hasMes('warehouse') ||
     hasMes('production') ||
@@ -394,19 +403,19 @@ const GENERAL_SHORTCUTS = computed(() => {
     hasMes('pmc') ||
     hasMes('engineer')
   ) {
-    return [SHORTCUT.stuck, SHORTCUT.stock, SHORTCUT.whereIs];
+    return [SHORTCUT.stuck, SHORTCUT.stock, howtoShortcut('生产这边的')];
   }
   // 纯财务（有 crm_finance、不是业务员）：钱的事在前，单据诊断次之。
   if (
     currentUser.value?.crm_finance &&
     currentUser.value?.crm_role !== 'sales'
   ) {
-    return [SHORTCUT.unpaid, SHORTCUT.stuck, SHORTCUT.whereIs];
+    return [SHORTCUT.unpaid, SHORTCUT.stuck, howtoShortcut('财务')];
   }
   if (currentUser.value?.crm_role === 'sales') {
-    return [SHORTCUT.perf, SHORTCUT.unpaid, SHORTCUT.lead];
+    return [SHORTCUT.perf, SHORTCUT.unpaid, howtoShortcut('外贸业务员')];
   }
-  return [SHORTCUT.perf, SHORTCUT.stuck, SHORTCUT.whereIs];
+  return [SHORTCUT.perf, SHORTCUT.stuck, howtoShortcut('管理这边的')];
 });
 
 const shortcuts = computed(() =>
