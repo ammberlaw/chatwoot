@@ -1,4 +1,6 @@
 class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::BaseController
+  include Chat::MobileNoticeStream
+
   before_action :check_authorization
   before_action :fetch_conversation, only: [:show, :read, :update, :remove_participant, :transfer_owner, :leave]
   before_action :ensure_group_owner, only: [:update, :remove_participant, :transfer_owner]
@@ -21,7 +23,7 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   # 全局未读总数（侧栏「团队协同」角标用）。
   def unread_total
     total = Current.account.chat_conversations.for_user(current_user.id)
-                   .includes(:participants).sum { |c| c.unread_count_for(current_user.id) }
+                   .includes(:participants).sum { |c| chat_visible_unread_count(c) }
     render json: { count: total }
   end
 

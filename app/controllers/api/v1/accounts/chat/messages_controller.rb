@@ -1,13 +1,16 @@
 class Api::V1::Accounts::Chat::MessagesController < Api::V1::Accounts::BaseController
+  include Chat::MobileNoticeStream
+
   before_action :check_authorization
   before_action :fetch_conversation
 
   RESULTS_PER_PAGE = 50
 
   def index
-    @messages = @conversation.messages.includes(:sender, reply_to: :sender).order(id: :asc)
-                             .where('id > ?', params[:after].to_i)
-                             .limit(RESULTS_PER_PAGE)
+    @messages = chat_visible_messages(@conversation)
+                .includes(:sender, reply_to: :sender).order(id: :asc)
+                .where('id > ?', params[:after].to_i)
+                .limit(RESULTS_PER_PAGE)
     mark_read
   end
 
@@ -81,6 +84,8 @@ class Api::V1::Accounts::Chat::MessagesController < Api::V1::Accounts::BaseContr
   end
 
   def mark_read
+    return if mobile_notice_view? && params[:mark_read] == 'false'
+
     last = @conversation.messages.maximum(:id)
     @conversation.participants.where(user_id: current_user.id)
                  .update_all(last_read_message_id: last, last_read_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
