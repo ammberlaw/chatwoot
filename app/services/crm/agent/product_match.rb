@@ -63,8 +63,19 @@ class Crm::Agent::ProductMatch
     rows = relation.where(
       'crm_products.sku ILIKE :t OR crm_products.name ILIKE :t OR crm_products.specification ILIKE :t',
       t: "%#{word}%"
-    ).order(:sku).limit(cap).to_a
+    ).order(Arel.sql(name_first(word)), :sku).limit(cap).to_a
     rows.any? ? Result.new(rows: rows, tier: :contains, matched_term: word) : nil
+  end
+
+  # 名称/编码命中排在「只有规格里提到」的前面。
+  # 问「欧规电源线」时，一台规格写着「配欧规电源线」的整机会被 ILIKE 一起捞上来，
+  # 按编码排序它还排第一（2026-10-30 实测），而用户要的是那根线本身。
+  # 整机不删——有时他要的就是「哪些机器配欧规线」——只是往后放。
+  def name_first(word)
+    like = "%#{word}%"
+    ActiveRecord::Base.sanitize_sql_array(
+      ['CASE WHEN crm_products.name ILIKE ? OR crm_products.sku ILIKE ? THEN 0 ELSE 1 END', like, like]
+    )
   end
 
   def normalized(word, cap)
