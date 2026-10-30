@@ -660,6 +660,21 @@ const insertRowAfter = i => {
 // 先前的做法是在每行类别列塞一个「往下全设为此类」的 ↓ 按钮，结果把本就不宽的
 // 类别下拉挤成「整…」，整列看着很乱（2026-10-28 用户反馈），所以挪到工具条上，
 // 行里一个按钮都不留。
+// 往下全设为此类：包装料集中在末尾，点这行的 ↓ 就把它的类别刷到最后一行。
+// 这个按钮**只在鼠标悬到该格时浮出来**（绝对定位，不占列宽）——常驻那版
+// 会把类别下拉挤成「整…」，整列看着乱，这是它当初被拿掉的原因。
+const applyCategoryDownward = i => {
+  const value = form.rows[i]?.category;
+  if (!value) return;
+
+  form.rows.slice(i).forEach(r => {
+    r.category = value;
+  });
+};
+
+const categoryLabel = value =>
+  CATEGORY_OPTIONS.find(o => o.value === value)?.label || '';
+
 const catDialogRef = ref(null);
 const catForm = reactive({ from: 1, to: 1, value: CATEGORY_OPTIONS[0].value });
 
@@ -1866,13 +1881,25 @@ onBeforeUnmount(() =>
               >
                 {{ i + 1 }}
               </span>
-              <div :style="colPos('category')" class="min-w-0">
+              <div
+                :style="colPos('category')"
+                class="relative min-w-0 group/cat"
+              >
                 <SelectCard
                   v-model="row.category"
                   :options="CATEGORY_OPTIONS"
                   block
                   class="w-full min-w-0"
                 />
+                <button
+                  v-if="i < form.rows.length - 1"
+                  type="button"
+                  class="absolute hidden -right-2 top-1/2 z-10 -translate-y-1/2 size-5 shrink-0 place-items-center rounded bg-n-solid-1 text-n-slate-10 shadow-sm ring-1 ring-n-weak hover:text-n-iris-11 group-hover/cat:grid"
+                  :title="`第 ${i + 1} 行往下全设为「${categoryLabel(row.category)}」`"
+                  @click.stop="applyCategoryDownward(i)"
+                >
+                  <span class="i-lucide-arrow-down size-3.5 shrink-0" />
+                </button>
               </div>
               <div
                 :style="colPos('materialNo')"
