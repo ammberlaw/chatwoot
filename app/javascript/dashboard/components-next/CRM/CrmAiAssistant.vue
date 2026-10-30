@@ -15,6 +15,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import CrmAiMascot from './CrmAiMascot.vue';
 import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
 import CrmAgentAPI from 'dashboard/api/crm/agent';
+import CrmAgentMemoriesAPI from 'dashboard/api/crm/agentMemories';
 
 const open = ref(false);
 const panelRef = ref(null);
@@ -41,10 +42,47 @@ const loadHistory = async () => {
   }
 };
 
+// 助手记住的事。原来只能在对话里说「忘掉…」来删，而没人知道有这回事——
+// 生产上一个人同时存着「叫我懒宝宝」和「不要叫懒宝宝」两条打架的记忆，
+// 她自己既看不到也删不掉。
+const memoryOpen = ref(false);
+const memories = ref({ company: [], mine: [], may_edit_company: false });
+const memoryLoading = ref(false);
+const memoryFailed = ref(false);
+
 const toggleHistory = () => {
   historyOpen.value = !historyOpen.value;
   if (historyOpen.value) loadHistory();
+  memoryOpen.value = false;
 };
+
+const loadMemories = async () => {
+  memoryLoading.value = true;
+  memoryFailed.value = false;
+  try {
+    const { data } = await CrmAgentMemoriesAPI.get();
+    memories.value = data;
+  } catch {
+    memoryFailed.value = true;
+  } finally {
+    memoryLoading.value = false;
+  }
+};
+
+const toggleMemory = () => {
+  memoryOpen.value = !memoryOpen.value;
+  if (memoryOpen.value) loadMemories();
+  historyOpen.value = false;
+};
+
+const forgetMemory = async row => {
+  await CrmAgentMemoriesAPI.delete(row.id);
+  loadMemories();
+};
+
+const memoryEmpty = computed(
+  () => !memories.value.company.length && !memories.value.mine.length
+);
 
 const openConversation = async id => {
   historyOpen.value = false;
@@ -360,6 +398,96 @@ onBeforeUnmount(() => {
               {{ c.crm_customer_name }}
             </span>
           </button>
+        </div>
+      </div>
+
+      <div class="relative">
+        <button
+          type="button"
+          class="inline-flex items-center rounded-lg p-1 text-[#6b7078] hover:bg-black/5 hover:text-[#202124]"
+          title="它记住的事"
+          aria-label="它记住的事"
+          @click="toggleMemory"
+        >
+          <span class="i-lucide-brain size-4 shrink-0" aria-hidden="true" />
+        </button>
+
+        <div
+          v-if="memoryOpen"
+          class="absolute right-0 z-10 mt-1 flex max-h-80 w-80 flex-col overflow-auto rounded-xl border border-[#e8e8e8] bg-white py-1 shadow-xl"
+        >
+          <span
+            v-if="memoryLoading"
+            class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
+          >
+            加载中…
+          </span>
+          <span
+            v-else-if="memoryFailed"
+            class="px-3 py-2 text-label !text-[13px] text-[#858a92]"
+          >
+            取不到
+          </span>
+          <!-- 空着时不能只说「还没有」：这功能没人知道，得顺手说清怎么让它记 -->
+          <span
+            v-else-if="memoryEmpty"
+            class="px-3 py-2 text-label !text-[13px] leading-5 text-[#858a92]"
+          >
+            还没记住什么。跟它说「以后都…」「别再…」，它就会一直记着。
+          </span>
+          <template v-else>
+            <span
+              v-if="memories.company.length"
+              class="px-3 pt-2 pb-1 text-label !text-[12px] text-[#858a92]"
+            >
+              公司规矩 · 对所有人算数
+            </span>
+            <div
+              v-for="m in memories.company"
+              :key="m.id"
+              class="flex items-start gap-2 px-3 py-1.5 group/mem hover:bg-black/5"
+            >
+              <span
+                class="flex-1 min-w-0 text-label !text-[13px] leading-5 text-[#202124]"
+              >
+                {{ m.content }}
+              </span>
+              <button
+                v-if="memories.may_edit_company"
+                type="button"
+                class="mt-0.5 hidden shrink-0 rounded p-0.5 text-[#858a92] hover:text-[#202124] group-hover/mem:block"
+                title="删掉这条"
+                @click="forgetMemory(m)"
+              >
+                <span class="i-lucide-x size-3.5 shrink-0" />
+              </button>
+            </div>
+            <span
+              v-if="memories.mine.length"
+              class="px-3 pt-2 pb-1 text-label !text-[12px] text-[#858a92]"
+            >
+              我的习惯
+            </span>
+            <div
+              v-for="m in memories.mine"
+              :key="m.id"
+              class="flex items-start gap-2 px-3 py-1.5 group/mem hover:bg-black/5"
+            >
+              <span
+                class="flex-1 min-w-0 text-label !text-[13px] leading-5 text-[#202124]"
+              >
+                {{ m.content }}
+              </span>
+              <button
+                type="button"
+                class="mt-0.5 hidden shrink-0 rounded p-0.5 text-[#858a92] hover:text-[#202124] group-hover/mem:block"
+                title="删掉这条"
+                @click="forgetMemory(m)"
+              >
+                <span class="i-lucide-x size-3.5 shrink-0" />
+              </button>
+            </div>
+          </template>
         </div>
       </div>
 

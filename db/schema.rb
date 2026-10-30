@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_29_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_30_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -892,6 +892,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_29_120000) do
     t.bigint "source_conversation_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "scope", default: "USER", null: false
+    t.index ["account_id", "scope", "created_at"], name: "index_crm_agent_memories_on_account_scope_time"
     t.index ["account_id", "user_id", "created_at"], name: "index_crm_agent_memories_on_account_user_time"
   end
 

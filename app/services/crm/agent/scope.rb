@@ -11,7 +11,7 @@ class Crm::Agent::Scope
     @access = Crm::AccessScope.new(account, account_user)
   end
 
-  attr_reader :account
+  attr_reader :account, :account_user
 
   def user_id = @account_user&.user_id
 

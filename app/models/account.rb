@@ -84,6 +84,7 @@ class Account < ApplicationRecord
   has_many :crm_emails, class_name: 'Crm::Email', dependent: :destroy_async
   # CRM AI 助手的对话（见 Crm::Agent::Runner）
   has_many :crm_agent_conversations, class_name: 'Crm::AgentConversation', dependent: :destroy_async
+  has_many :crm_agent_memories, class_name: 'Crm::AgentMemory', dependent: :destroy_async
   has_many :crm_follow_up_notes, class_name: 'Crm::FollowUpNote', dependent: :destroy_async
   has_many :crm_follow_up_tasks, class_name: 'Crm::FollowUpTask', dependent: :destroy_async
   has_many :crm_schedule_events, class_name: 'Crm::ScheduleEvent', dependent: :destroy_async

@@ -10,12 +10,14 @@
 class Crm::Agent::Tools::DiagnoseDocument < Crm::Agent::Tools::Base
   description '诊断某张单据为什么做不了某个操作：卡在哪一步、下一步该谁动、那个人收到通知没有。' \
               '用户说「这单出不了货」「怎么没有审批按钮」「提交了没反应」「卡住了」时用这个。'
-  param :doc_no, desc: '单号。销售订单 WT-/MO-/PO- 开头，出库单 DN- 开头，采购单 PU- 开头，出入库单 SE- 开头', required: true
+  param :doc_no, desc: '单号，原样传用户给的。生产任务单 WT-/MO- 开头，出库单 DN-，采购单 PU-/PO-，' \
+                       '出入库单 SE-，退料单 RT-，CRM 销售订单 SO-，报价单 QT-，PI 的号是客户给的各式各样。' \
+                       '**前缀认不出来也照样传**，工具会在所有单据里找一遍。', required: true
   param :action, desc: '想做的操作，如 出库/审核/提交审批/接单/确认用料/下发采购/过账。说不清就不传，会把这张单上所有操作都过一遍', required: false
 
   def execute(doc_no:, action: nil)
     rec = Mes::DocDiagnosis.locate(scope.account, doc_no)
-    return "没找到单号 #{doc_no}。确认一下单号对不对（销售订单 WT- 开头、出库单 DN- 开头、采购单 PU- 开头）。" if rec.nil?
+    return outside_mes(doc_no) if rec.nil?
     return '你没有权限查看这张单。' unless visible?(rec)
 
     d = Mes::DocDiagnosis.for(rec, account_user)
@@ -25,6 +27,47 @@ class Crm::Agent::Tools::DiagnoseDocument < Crm::Agent::Tools::Base
   end
 
   private
+
+  # MES 诊断管不到的单：CRM 销售订单、报价单、PI。
+  #
+  # 原来这里一句「没找到，销售订单 WT- 开头」就打发了——而 crm_sales_orders 有 592 张
+  # 单全是 **SO-** 开头。2026-10-22 生产上有人问「SO-20261017-02 为什么转单库存为0」，
+  # 得到的回答是他自己的单号格式不对。答错比答不出来糟得多：他会去改一个本来就对的东西。
+  #
+  # 这几类没有动作判定可跑（卡不卡在于审批和业务，不是单据状态机），
+  # 所以只认出来是什么、什么状态、归谁，再指一条往下问的路。
+  def outside_mes(doc_no)
+    number = doc_no.to_s.strip
+    hit = scope.sales_orders.find_by(order_no: number) ||
+          scope.quotes.find_by(quote_no: number) ||
+          scope.pis.find_by(pi_no: number)
+    return not_found(number) if hit.nil?
+
+    describe_crm_doc(hit, number)
+  end
+
+  def describe_crm_doc(hit, number)
+    owner = User.find_by(id: hit.try(:owner_id))&.name
+    bits = ["【#{crm_doc_label(hit)} #{number}】这张单在 CRM 这边，不是 MES 的生产/出库流程，所以没有「卡在哪一步」可诊断。"]
+    bits << "状态：#{hit.try(:status) || '—'}#{approval_bit(hit)}"
+    bits << "归属：#{owner}" if owner
+    bits << '要看它转生产/出库之后的进度，用 order_progress；要看金额和明细，用 customer_profile。'
+    bits.join("\n")
+  end
+
+  def approval_bit(hit)
+    hit.respond_to?(:approval_status) && hit.approval_status.present? ? "　审批：#{hit.approval_status}" : ''
+  end
+
+  def crm_doc_label(hit)
+    { 'SalesOrder' => '销售订单', 'Quote' => '报价单', 'Pi' => 'PI' }[hit.class.name.demodulize] || '单据'
+  end
+
+  # 认不出来时别乱指格式：系统里 PI 的号是客户给的，什么样的都有。
+  def not_found(number)
+    "没找到单号 #{number}，你能看到的范围里也没有。" \
+      '确认一下是不是抄错了，或者这张单归别人、不在你的可见范围内。'
+  end
 
   def account_user = @account_user ||= scope.account.account_users.find_by(user_id: scope.user_id)
 

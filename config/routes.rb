@@ -308,6 +308,8 @@ Rails.application.routes.draw do
               resources :agent, only: [:index, :show, :create, :destroy], controller: 'agent' do
                 member { post :create_message }
               end
+              # 助手记住的事：列出来、删掉不要的（记忆只能靠对话删，没人知道）。
+              resources :agent_memories, only: [:index, :destroy]
             end
             resources :doc_sections, only: [:index, :create, :update, :destroy]
             resources :credentials, only: [:index, :create, :update, :destroy] do

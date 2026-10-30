@@ -125,6 +125,17 @@ module Crm::Agent::Prompt
       · 用户说「以后都…」「记住…」「不要再…」「我习惯…」，当场用 remember 记下来，
         并回他一句记住了什么。别只在嘴上答应——这轮对话一结束你就忘了，下次他得再教一遍。
         只记他**怎么用系统**的偏好，不记业务数据（价格、订单状态现查就有，记下来只会过期）。
+        **不用等他说「记住」**：他改了你写的东西、嫌你写得不对、或者顺口讲了他的做法
+        （「我们一般写 FOB」「别用 Dear Sir」「邮件别这么长」），这就是一条偏好，当场记。
+        几乎没有人知道这个功能存在（上生产至今全公司只记下 2 条，还都是改称呼的），
+        等他开口＝永远不会发生。记完只说一句「这条我记下了，以后都这样」，不要长篇解释。
+        他讲的是「我们公司一律…」「以后大家都…」这种全员口径，就带上 company_wide: true；
+        不够格立规矩的工具会拒，拒了就按他个人的记。
+      · 他说「这个不对」「怎么又这样」「这功能是不是坏了」——先分清是你答错了还是系统真有毛病。
+        你答错就改过来，顺手把他纠正你的那点用 remember 记住。
+        是系统的毛病（单据卡住、数算不对、按钮点了没反应）就用 report_issue 报上去，
+        别只说一句「建议你找管理员」——他找谁、怎么描述、当时什么状态，全得他自己重来一遍。
+        查实过的六个报上来的问题，六个都是真 bug，所以别替他判断「可能是误操作」。
       · 用户跟你说完一次电话/微信沟通（「刚跟他聊完，他说…」「下周三再跟」），
         主动用 log_follow_up 记下来并把下次跟进时间定上——不记，客户的「上次跟进时间」
         就一直停在那，接着被公海回收。
@@ -176,17 +187,27 @@ module Crm::Agent::Prompt
       '一律按今天这个日期往后算，算完把具体日期（2026-10-22 这种）写进工具参数里，别自己另记一套。'
   end
 
-  # 这个人之前让你记住的事。
+  # 之前让你记住的事：全公司的规矩 + 这个人自己的习惯。
   #
-  # 每条都是他亲口说的偏好或纠正，不是你推断出来的，所以照着做别打折扣。
-  # 只注入他自己的（记忆按人隔离）——把别人的习惯串进来比没有记忆更糟。
+  # 每条都是人亲口说的，不是你推断出来的，所以照着做别打折扣。
+  # 个人那档按人隔离——把别人的习惯串进来比没有记忆更糟；公司规矩是管理员立的，全员都带。
+  # 两档分开摆，冲突时个人习惯优先：规矩是底线口径，具体怎么写还是跟他本人的习惯走。
   def self.memory_hint(conversation)
     return '' if conversation.blank? || conversation.user_id.blank?
 
-    rows = Crm::AgentMemory.for_user(conversation.account_id, conversation.user_id).limit(40).to_a
-    return '' if rows.empty?
+    company = Crm::AgentMemory.for_account(conversation.account_id).limit(20).to_a
+    mine = Crm::AgentMemory.for_user(conversation.account_id, conversation.user_id).limit(40).to_a
+    return '' if company.empty? && mine.empty?
 
-    "他以前让你记住的事（照做，别再问一遍）：\n" + rows.reverse.map { |m| "· #{m.content}" }.join("\n")
+    [memory_block('公司定下的规矩（对所有人都算数，照做）', company),
+     memory_block('他本人让你记住的事（照做，别再问一遍。和上面的规矩冲突时以这里为准）', mine)]
+      .compact.join("\n\n")
+  end
+
+  def self.memory_block(title, rows)
+    return nil if rows.empty?
+
+    "#{title}：\n" + rows.reverse.map { |m| "· #{m.content}" }.join("\n")
   end
 
   # 用户提问那一刻正开着哪一页。
