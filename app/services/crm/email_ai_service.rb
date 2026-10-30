@@ -89,8 +89,16 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
       "size_hint": "规模线索：员工数、成立年份、工厂/门店、覆盖市场等，官网提到才写",
       "country": "国家或地区",
       "legit": "看起来是否为正常运营的真实公司，只填三选一：real / suspicious / unknown",
+      "legal_entity": "法定实体全称，含 GmbH / Ltd / S.L. / B.V. 这类后缀；多见于法律信息页",
+      "address": "注册地址或办公地址，有门牌邮编就写全",
+      "management": "负责人/管理层姓名与职务，如 Geschäftsführer、CEO、Owner；多个用顿号分隔",
+      "product_lines": "他们自己在卖的产品线或自有品牌，逐项列出，用顿号分隔",
+      "buying_categories": "据此判断他们可能向我们采购的品类，逐项列出，用顿号分隔；这是推断，写不出就填未提及",
       "note": "给业务员的一句话判断或提醒（例如是否值得重点跟进、是同行还是终端客户等）"
     }
+    注意：输入里会用【首页】【法律信息页】【关于我们】【产品线】【联系方式】标出内容来自哪一页。
+    法定实体、地址、负责人优先采信法律信息页（欧洲公司这一页是法律强制的，信息最准）。
+    buying_categories 之外的字段一律只能照抄原文事实，不许推断。
   PROMPT
 
   KPI_SCORING_SYSTEM = <<~PROMPT.freeze
@@ -283,6 +291,13 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
   end
 
   # 公司背调：site_text 为官网抓取的文本（由 Crm::CompanyLookupService 提供），返回字段化 Hash。
+  # 通用入口：给一段 system + user，要一个 JSON 回来。
+  # 给那些不值得在本类里单开一个方法的一次性用途（如 AI 助手每日质检的诊断）用，
+  # 免得调用方 send 进私有方法。
+  def ask_json(system_prompt, user_prompt)
+    parse_json(ask(system_prompt, user_prompt))
+  end
+
   def company_profile(domain:, site_text:)
     raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text)}")
     parse_json(raw)

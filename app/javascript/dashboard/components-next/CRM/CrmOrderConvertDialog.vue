@@ -50,14 +50,31 @@ const productOptions = computed(() =>
   }))
 );
 
-// 产品档案上千条，不预载——下拉按关键词远程搜，选中的那条并进选项里保持回显。
+// 搜过的产品留一份底，按 id 存。
+//
+// ⚠️ 这份底是必须的：ComboBox 选中时只回传 value，拿不到整条产品记录，
+// 而每次远程搜索都会把 products 整个换掉。原来只把 row.product 并回去，
+// 可 row.product 只在打开弹窗、后端已匹配到产品时才有值——用户自己从下拉里
+// 选的那几行它一直是 null。于是选完第一行、再搜第二个编码时，第一行选中的
+// 那条已经不在候选里，下拉找不到对应项，**看起来就是前面选的全被清掉**。
+// （2026-10-30 金蝶外贸单转单，一张单四五个编码，选第二个时前面全没了。）
+const seenProducts = new Map();
+
+const rememberProducts = list => {
+  list.forEach(p => {
+    if (p?.id) seenProducts.set(p.id, p);
+  });
+};
+
+// 产品档案上千条，不预载——下拉按关键词远程搜，已选中的并进选项里保持回显。
 const searchProducts = async q => {
   const { data } = await MesProductAPI.get({ q, per_page: 30 });
   const found = data?.payload || [];
-  const picked = rows.map(r => r.product).filter(Boolean);
+  rememberProducts(found);
   const merged = [...found];
-  picked.forEach(p => {
-    if (!merged.some(m => m.id === p.id)) merged.push(p);
+  rows.forEach(r => {
+    const picked = seenProducts.get(r.productId);
+    if (picked && !merged.some(m => m.id === picked.id)) merged.push(picked);
   });
   products.value = merged;
 };
@@ -123,8 +140,10 @@ const open = async record => {
       convertedOrderNo: li.converted_order_no || '',
     });
   });
-  // 已匹配到的产品先进选项，下拉不搜也能回显名字。
-  products.value = rows.map(r => r.product).filter(Boolean);
+  // 已匹配到的产品先进选项，下拉不搜也能回显名字；同时进底库，后面搜别的行不会把它挤掉。
+  const matched = rows.map(r => r.product).filter(Boolean);
+  rememberProducts(matched);
+  products.value = matched;
   // 明细为空的订单（老单/没填明细）给一行空的，手动选产品填数量也能转。
   if (!rows.length)
     rows.push({

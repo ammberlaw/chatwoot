@@ -325,9 +325,15 @@ onBeforeUnmount(() => {
     />
   </button>
 
-  <!-- 对话面板 -->
+  <!-- 对话面板。
+       用 v-show 而不是 v-if：v-if 会在关闭时把整个面板卸载，CrmAgentPanel 里的
+       conversation、滚动位置、没发出去的半截问句全跟着没了，再打开就是一轮新对话
+       （2026-10-30 反馈：关掉再打开，刚才问的东西找不回来了）。
+       隐藏着也留在 DOM 里，还在跑的那一轮会继续轮询，回来时答案已经在那儿了。
+       球那边的条件本来就带 !open，两者仍然互斥。 -->
   <div
-    v-else-if="canUse"
+    v-if="canUse"
+    v-show="open"
     :style="panelStyle"
     class="fixed z-[55] flex flex-col overflow-hidden border shadow-2xl rounded-2xl border-[#e8e8e8] bg-white font-sans antialiased text-label !text-[14px] !font-normal !leading-6 !tracking-normal"
   >

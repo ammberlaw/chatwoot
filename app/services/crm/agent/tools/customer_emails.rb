@@ -4,23 +4,29 @@
 # 比客户的口径更严——邮件是私人往来通信，不能因为能看到这个客户就能看他和别人的通信。
 class Crm::Agent::Tools::CustomerEmails < Crm::Agent::Tools::Base
   description '调取往来邮件（按时间倒序），用来做往来总结、看谈到哪一步、提取客户要求。' \
-              '两种叫法：给 customer_id＝看这个客户的全部往来（先用 find_customer 拿ID）；' \
-              '给 email_id＝**只知道一封信的ID时用这个**，会把这封信读出来并带上同客户的其他往来。' \
-              '要回信就先用 email_id 读一遍，别拿着ID直接 draft_reply——没读过原文写不出回复。'
+              '三种叫法：给 customer_id＝看这个客户的全部往来（先用 find_customer 拿ID）；' \
+              '给 email_id＝**只知道一封信的ID时用这个**，会把这封信读出来并带上同客户的其他往来；' \
+              '给 query＝**用户把邮件原文粘进来、或只报得出发件人邮箱和主题时用这个**，' \
+              '按发件人/收件人/主题去找那封信，找到了就有邮件ID，接着才能 draft_reply。' \
+              '要回信就先把原文读一遍，别拿着ID直接 draft_reply——没读过原文写不出回复。'
   param :customer_id, type: 'integer', desc: '客户ID', required: false
   param :email_id, type: 'integer', desc: '某一封邮件的ID（用户正开着那封信时就是它）', required: false
+  param :query, type: 'string', desc: '发件人邮箱、收件人邮箱或主题里的关键词', required: false
   param :limit, type: 'integer', desc: '最多取几封，默认 15，上限 30', required: false
 
   # 单封正文给模型看的长度。给太长会把几十封的上下文撑爆，
   # 做往来总结真正有用的是开头那段（报价、要求、交期都在前面）。
   BODY_CLIP = 1200
 
-  def execute(customer_id: nil, email_id: nil, limit: 15)
+  def execute(customer_id: nil, email_id: nil, query: nil, limit: 15)
+    return search(query, limit) if customer_id.blank? && email_id.blank? && query.present?
+
     focused = email_id.present? ? scope.emails.find_by(id: email_id) : nil
     customer = resolve_customer(customer_id, focused)
-    blocker = blocker_for(customer_id, email_id, focused, customer)
-    return blocker if blocker
+    blocker_for(customer_id, email_id, focused, customer) || thread_text(customer, focused, limit)
+  end
 
+  def thread_text(customer, focused, limit)
     # 这封信还没建档到客户名下（邮件建档是后一步），那就只把它本身读出来。
     return single(focused) if customer.nil?
 
@@ -32,13 +38,41 @@ class Crm::Agent::Tools::CustomerEmails < Crm::Agent::Tools::Base
 
   private
 
+  # 按发件人/收件人/主题找信。
+  #
+  # 为什么必须有这条路：全库 6122 封邮件里有 2732 封（44.6%）没挂到任何客户名下，
+  # 只按 customer_id 查就有近一半概率扑空——信明明在库里。
+  # 2026-10-29 生产上真发生过：业务员把一封询盘原文整段粘进来，助手调了 21 次工具、
+  # 查遍产品档案，最后回头跟她要「邮件ID」；而那封信就躺在库里（ID 6195），
+  # 她给的发件人邮箱和主题足够把它捞出来。
+  def search(query, limit)
+    q = query.to_s.strip
+    return '搜邮件至少给一个发件人邮箱或主题关键词。' if q.length < 2
+
+    rows = matching_emails(q, limit)
+    return "没找到发件人/收件人/主题里带「#{q}」的邮件。换个关键词，或者确认这封信有没有收进系统。" if rows.empty?
+
+    "【按「#{q}」找到 #{rows.size} 封】要回哪一封，就拿它的邮件ID去 draft_reply：\n" +
+      rows.map { |mail| render(mail) }.join("\n\n")
+  end
+
+  def matching_emails(query, limit)
+    like = "%#{query.downcase}%"
+    scope.emails
+         .where('LOWER(from_address) LIKE :q OR LOWER(to_address) LIKE :q OR LOWER(subject) LIKE :q',
+                q: like)
+         .with_attached_files
+         .order(email_date: :desc, id: :desc)
+         .limit([limit.to_i, 30].min)
+  end
+
   def resolve_customer(customer_id, focused)
     id = customer_id.presence || focused&.crm_customer_id
     id && scope.customers.find_by(id: id)
   end
 
   def blocker_for(customer_id, email_id, focused, customer)
-    return '要么给 customer_id，要么给 email_id，两个都没给没法查。' if customer_id.blank? && email_id.blank?
+    return 'customer_id、email_id、query 三个里至少给一个。' if customer_id.blank? && email_id.blank?
     return "看不到 ID #{email_id} 这封邮件（它可能不在你的可见范围内）。" if email_id.present? && focused.nil?
 
     "看不到 ID #{customer_id} 这个客户。" if customer_id.present? && customer.nil?

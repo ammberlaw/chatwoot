@@ -113,6 +113,14 @@ crm_daily_brief_job:
   class: 'Crm::DailyBriefJob'
   queue: scheduled_jobs
 
+# CRM：AI 助手每日体检，北京时间 09:00（在今日简报之后，错开）。
+# 机检昨天的对话找出它掉链子的地方，再调一次模型写成诊断，推给管理员/副管理员。
+# 只出诊断不自动改提示词——改错了不报错，只会悄悄变笨。没问题就不发。
+crm_agent_quality_job:
+  cron: '0 1 * * *'
+  class: 'Crm::AgentQualityJob'
+  queue: scheduled_jobs
+
 # CRM：业务员邮箱 IMAP/POP 收信，每 1 分钟拉取新邮件（被动延迟≤1分钟；用户可在邮件页手动「收取」立即拉）
 crm_fetch_imap_emails_job:
   cron: '* * * * *'
