@@ -6,10 +6,19 @@ class Api::V1::Accounts::Crm::MyTargetController < Api::V1::Accounts::Crm::BaseC
 
   def show
     year = (params[:year] || Time.zone.today.year).to_i
-    render json: { year: year, months: months_payload(year) }
+    render json: { year: year, months: months_payload(year), baseline: baseline_payload }
   end
 
   private
+
+  # 本月保本线：做多少销售额，提成刚好覆盖自己的月薪。只给这一个数——
+  # 他看自己的工资条本来就知道月薪，但页面上不摆月薪，免得截图外传。
+  def baseline_payload
+    result = Crm::SalaryBaseline.new(account: Current.account).for_owner(current_user.id)
+    { monthly_micros: result.recorded_micros.presence || result.suggested_micros,
+      from_salary_table: result.recorded_micros.present?,
+      new_hire: result.new_hire?, tenure_months: result.tenure_months }
+  end
 
   def year_range(year)
     Time.zone.local(year, 1, 1)...Time.zone.local(year + 1, 1, 1)

@@ -20,6 +20,8 @@ const selMonth = ref(nowMonth); // 0-11
 const tableMetric = ref('amount'); // amount | customer
 const amountInput = ref('');
 const countInput = ref('');
+// 本月保本线：做多少成交额，提成刚好覆盖自己的月薪。只拿这一个数，页面不摆月薪。
+const baseline = ref(null);
 
 const yearOptions = [nowYear - 2, nowYear - 1, nowYear, nowYear + 1];
 const yearSelectOptions = yearOptions.map(y => ({ value: y, label: `${y}年` }));
@@ -33,6 +35,7 @@ const fetchData = async () => {
       params: { year: year.value },
     });
     months.value = data.months;
+    baseline.value = data.baseline;
   } finally {
     loading.value = false;
   }
@@ -59,6 +62,17 @@ const signedMoney = micros => {
   return `${sign(n)}¥${Math.abs(n).toLocaleString()}`;
 };
 const signedInt = n => `${sign(n)}${Math.abs(Math.round(n))}`;
+
+const baselineYuan = computed(() =>
+  Math.round(yuan(baseline.value?.monthly_micros))
+);
+// 填了、且比保本线低——2026-10 生产上两个人干过这事（底线 45 万、自己填 20 万）。
+const belowBaseline = computed(
+  () =>
+    baselineYuan.value > 0 &&
+    amountInput.value !== '' &&
+    Number(amountInput.value) < baselineYuan.value
+);
 
 // ── 结转计算：季度内逐月滚，每季度初(0/3/6/9)清零 ──
 const rows = computed(() => {
@@ -458,6 +472,23 @@ const cell = (r, isAmt) => {
               step="1000"
               class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
+            <div v-if="baselineYuan" class="flex items-center gap-2">
+              <button
+                type="button"
+                class="px-2 py-1 rounded-lg text-label-small transition-colors bg-n-alpha-2 text-n-slate-11 motion-reduce:transition-none hover:text-n-iris-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+                @click="amountInput = String(baselineYuan)"
+              >
+                保本线 ¥{{ baselineYuan.toLocaleString() }}
+              </button>
+              <span
+                v-if="belowBaseline"
+                class="text-label-small text-n-ruby-11"
+              >
+                低于保本线 ¥{{
+                  (baselineYuan - Number(amountInput)).toLocaleString()
+                }}
+              </span>
+            </div>
           </label>
           <label class="flex flex-col items-start gap-2">
             <span class="text-label text-n-slate-11">新客户数</span>

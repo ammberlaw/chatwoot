@@ -195,6 +195,31 @@ class Crm::Customer < ApplicationRecord
     STAR_TIERS_RMB.count { |tier| rmb >= tier }
   end
 
+  # 成交后自动归入「成交客户」分组。
+  #
+  # 只动**被订单直接证伪**的这两种：没分组的，和还挂着「未成交客户」的。
+  # 生产上 2026-10-30 有 29 个没分组、20 个写着未成交客户的客户其实早就付款下单了，
+  # 分组得靠人记得回去改，于是没人改。
+  # 不动「成交重点客户」「成交样品客户」——改过去是降级；也不动「Linkedin 开发客户」，
+  # 那是开发渠道不是成交状态，覆盖掉就再也查不出这个客户是从哪来的（那批人来源字段大多是空的）。
+  #
+  # 只降不升的反向动作（订单删光了退回未成交）**不做**：分组是人会手动调的字段，
+  # 系统自动改回去等于跟人抢方向盘。
+  PROMOTABLE_GROUPS = [nil, '', 'NOT_WON'].freeze
+  WON_GROUP = 'WON'.freeze
+
+  def promote_won_group!
+    return unless deal_order_count.to_i.positive?
+    return unless PROMOTABLE_GROUPS.include?(customer_group)
+
+    self.customer_group = WON_GROUP
+    self.audit_comment = '成交自动归组：该客户已有销售订单'
+    # 跳校验不跳回调：小满迁来的历史客户在 trade_country / industry 这些 inclusion
+    # 校验上本来就可能不合法，走 update! 会把订单保存一起回滚掉；
+    # 而 audited 挂在回调上，这样写分组变更照样进「操作历史」。
+    save(validate: false)
+  end
+
   # 成交汇总回写（对应 Twenty customer-deal-rollup 触发器）：
   # 累计成交额 / 成交订单数 / 首次·最近成交时间，口径=非 CANCELLED 订单。
   def recompute_deal_rollup!

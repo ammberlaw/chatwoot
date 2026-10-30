@@ -403,8 +403,12 @@ class Crm::SalesOrder < ApplicationRecord
   end
 
   # 回写客户成交汇总；订单换了客户时，新旧两个客户都要重算。
+  # 重算完顺手把还没标成交的客户归进「成交客户」分组（见 Crm::Customer#promote_won_group!）。
   def rollup_customer_deals
     customer_ids = [crm_customer_id, crm_customer_id_previously_was].compact.uniq
-    Crm::Customer.where(id: customer_ids).find_each(&:recompute_deal_rollup!)
+    Crm::Customer.where(id: customer_ids).find_each do |customer|
+      customer.recompute_deal_rollup!
+      customer.promote_won_group!
+    end
   end
 end

@@ -41,7 +41,10 @@ fi
 
 echo
 echo "══════ 2/3  本地代码树 vs 生产运行容器 ══════"
-FIND='find app config lib db -type f \( -name "*.rb" -o -name "*.jbuilder" -o -name "*.vue" -o -name "*.js" -o -name "*.json" -o -name "*.yml" \) -not -path "*/node_modules/*" -not -name "._*"'
+# .erb 是 2026-10-30 补进来的：原来这个列表没有它，于是所有视图模板（展会落地页、
+# 各种 mailer 模板、引导页）对这道闸全程隐形——改了也不会出现在「本次该部署的」里，
+# 跟当初漏掉 tailwind.config.js 是同一类盲区。
+FIND='find app config lib db -type f \( -name "*.rb" -o -name "*.jbuilder" -o -name "*.vue" -o -name "*.js" -o -name "*.json" -o -name "*.yml" -o -name "*.erb" \) -not -path "*/node_modules/*" -not -name "._*"'
 loc="$(mktemp)"; rem="$(mktemp)"
 trap 'rm -f "$loc" "$rem"' EXIT
 

@@ -298,7 +298,13 @@ Rails.application.routes.draw do
             end
             resources :knowledge_categories, only: [:index, :create, :update, :destroy]
             resources :teams
-            resources :sales_targets
+            resources :sales_targets do
+              # 目标体检：谁没设、谁低于保本线。一键补按保本线铺当年剩余月份。
+              collection do
+                get :audit
+                post :seed
+              end
+            end
             resource :public_pool_settings, only: [:show, :update]
             resource :ai_settings, only: [:show, :update], controller: 'ai_settings'
             post 'ai_settings/test', to: 'ai_settings#test'

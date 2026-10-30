@@ -30,7 +30,11 @@
     }
     .hero .from { font-size: 13px; opacity: 0.85; letter-spacing: 0.04em; text-transform: uppercase; }
     .hero h1 { margin: 10px 0 6px; font-size: 26px; line-height: 1.25; font-weight: 700; }
-    .hero .meta { margin-top: 14px; font-size: 14px; line-height: 1.9; opacity: 0.95; }
+    .hero .meta { margin-top: 14px; font-size: 14px; opacity: 0.95; }
+    .hero .meta .row { display: flex; align-items: center; gap: 9px; min-height: 26px; }
+    /* 内联 SVG（lucide）：这页是发给客户的，原来用 emoji 当图标不够正式；
+       内联而不是引外部图标库，是因为邮件里点开的落地页不该再去请求第三方资源。 */
+    .hero .meta svg { flex: none; width: 16px; height: 16px; opacity: 0.85; }
     .hero .meta b { font-weight: 600; }
     .badge {
       display: inline-block; margin-top: 16px; padding: 7px 14px; border-radius: 999px;
@@ -71,11 +75,11 @@
         <h1><%= @exhibition.name %></h1>
         <div class="meta">
           <% if @exhibition.starts_on %>
-            <div>📅 <b><%= @exhibition.starts_on.strftime('%b %d, %Y') %><%= " – #{@exhibition.ends_on.strftime('%b %d, %Y')}" if @exhibition.ends_on %></b></div>
+            <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg><b><%= @exhibition.starts_on.strftime('%b %d, %Y') %><%= " – #{@exhibition.ends_on.strftime('%b %d, %Y')}" if @exhibition.ends_on %></b></div>
           <% end %>
           <% loc = [@exhibition.venue, @exhibition.city, @exhibition.country].reject(&:blank?).join(', ') %>
-          <% if loc.present? %><div>📍 <%= loc %></div><% end %>
-          <% if @exhibition.featured_products.present? %><div>🏷️ <%= @exhibition.featured_products %></div><% end %>
+          <% if loc.present? %><div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span><%= loc %></span></div><% end %>
+          <% if @exhibition.featured_products.present? %><div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span><%= @exhibition.featured_products %></span></div><% end %>
         </div>
         <% if @exhibition.booth_no.present? %>
           <span class="badge">Booth <%= @exhibition.booth_no %><%= " · #{@exhibition.hall}" if @exhibition.hall.present? %></span>
