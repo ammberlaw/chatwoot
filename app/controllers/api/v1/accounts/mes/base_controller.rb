@@ -91,13 +91,34 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     Crm::AccessScope.new(Current.account, au).visible_owner_ids
   end
 
-  # 生产订单按可见范围过滤（owner_id = 归属业务员）。
-  # 备货订单（order_kind=STOCK，外贸共享库存）对全业务可见，不受 owner 收敛。
-  def scoped_by_owner(scope)
-    ids = mes_visible_owner_ids
-    return scope if ids == :all
+  # 生产订单的可见条件，三处共用（订单本身 / 下游单据 / BOM）：
+  #   · owner_id 在可见范围内 —— 归属业务员，老规矩
+  #   · 备货单（order_kind=STOCK，外贸共享库存）全业务可见
+  #   · **客户共享给我的** —— 老板把客户共享给助理，助理在这个客户上做报价、PI、
+  #     销售订单、生产订单（见客户详情的「共享」）。CRM 那边靠 handled_by_id 认经办人，
+  #     而生产订单表只有 owner_id、没有经办人这个概念，于是助理建完就看不见自己建的单，
+  #     老板建的更没她的份（2026-10-30 实查：叶爱玲被共享的客户下有 3 张归老板的单她看不到，
+  #     同样这些客户在 CRM 侧她经办的 15 张全看得见）。
+  #     按共享放行与「共享给你就能在这个客户上建单」这条现有规则一致。
+  ORDER_VISIBLE_SQL = <<~SQL.squish.freeze
+    mes_production_orders.owner_id IN (:ids)
+    OR mes_production_orders.order_kind = :stock
+    OR mes_production_orders.crm_sales_order_id IN (
+      SELECT so.id FROM crm_sales_orders so
+      JOIN crm_customers c ON c.id = so.crm_customer_id
+      WHERE c.account_id = :account_id AND c.shared_user_ids && ARRAY[:uid]::bigint[]
+    )
+  SQL
 
-    scope.where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK')
+  def order_visible_conditions
+    [ORDER_VISIBLE_SQL, { ids: mes_visible_owner_ids, stock: 'STOCK',
+                          account_id: Current.account.id, uid: current_user.id }]
+  end
+
+  def scoped_by_owner(scope)
+    return scope if mes_visible_owner_ids == :all
+
+    scope.where(*order_visible_conditions)
   end
 
   # 下游单据按其关联生产订单的归属业务员过滤（业务员只看自己订单的单据）。
@@ -106,8 +127,7 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     ids = mes_visible_owner_ids
     return scope if ids == :all
 
-    visible = Current.account.mes_production_orders
-                     .where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK').select(:id)
+    visible = Current.account.mes_production_orders.where(*order_visible_conditions).select(:id)
     scope.where(production_order_id: visible)
   end
 
@@ -117,8 +137,7 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     ids = mes_visible_owner_ids
     return scope if ids == :all
 
-    order_bom_ids = Current.account.mes_production_orders
-                           .where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK')
+    order_bom_ids = Current.account.mes_production_orders.where(*order_visible_conditions)
                            .where.not(bom_id: nil).select(:bom_id)
     scope.where('id IN (:bids) OR owner_id IN (:ids)', bids: order_bom_ids, ids: ids)
   end
