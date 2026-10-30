@@ -20,21 +20,29 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     }
   end
 
-  # 上班/下班打卡：第一次记上班，之后记下班（重复打卡取更晚时间，加班晚走再点一次即可）。
+  # 上班/下班打卡。两种调用方式：
+  #
+  # ① 不带 punch_type（旧客户端、网页端）——沿用原推断：第一次记上班、之后记下班，
+  #    临下班才打当天第一次卡的记为下班（见 past_workday_midpoint?）。
+  # ② 带 punch_type=in|out（App 读到 supports_explicit_punch 后走这条）——按他点的记。
+  #    显式 out 不受「首次打卡时间窗口」限制：深圳组 09:00–18:30、13:33 忘打上班卡
+  #    要主动下班，推断那条只在下班前 60 分钟内才肯记下班，满足不了。
+  #
   # 外勤打卡（field=true）：出差/客户现场，跳过地点校验并标记为外勤（计出勤、不判迟到）。
+  PUNCH_TYPES = %w[in out].freeze
+
   def clock
+    punch_type = params[:punch_type].presence
+    return render_unprocessable('无效的打卡类型') if punch_type && PUNCH_TYPES.exclude?(punch_type)
+
     group = group_for(current_user.id)
     field = ActiveModel::Type::Boolean.new.cast(params[:field])
-    lat = params[:lat]
-    lng = params[:lng]
-    ip = request.remote_ip
-    if !field && !group.location_ok?(lat: lat, lng: lng, ip: ip)
-      return render json: { error: location_error(group) }, status: :unprocessable_entity
-    end
+    at = punch_origin
+    return render_unprocessable(location_error(group)) if location_blocked?(group, field, at)
 
-    render json: record_json(punch!(group: group, field: field, lat: lat, lng: lng, ip: ip))
-  rescue TooSoon => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: record_json(punch!(now: now_local, group: group, field: field, punch_type: punch_type, at: at))
+  rescue TooSoon, PunchConflict => e
+    render_unprocessable(e.message)
   end
 
   # 返回当前请求的公网 IP，供管理员「把当前网络设为打卡网络」一键抓取。
@@ -163,31 +171,55 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
          .map { |u| { user_id: u.id, name: u.name } }
   end
 
-  # 一次打卡落库：首次记上班、之后记下班；外勤(field)持久化并置 FIELD（当天保持外勤）。
-  # find_or_initialize + save! 遇同天并发/连点会撞唯一键，rescue 后重取（此时已存在→按下班处理）。
-  # 上班后 MIN_WORK_MINUTES 分钟内再打卡会被当成下班，用异常挡掉并提示。
+  # 一次打卡落库。外勤(field)持久化并置 FIELD（当天保持外勤）。
+  #
+  # 并发与重试都在**事务 + 行锁**里判断：App 在网络超时后会重发同一次打卡，
+  # 不锁的话两个请求各自读到「还没下班卡」、各写一次，第二次会把时间改掉。
+  # 当天还没有记录时锁不到行，这种情况靠唯一键兜底——撞键说明别的请求刚建好，
+  # rescue 后重来一次就会走到「锁到已有行」那条路。
   TooSoon = Class.new(StandardError)
+  PunchConflict = Class.new(StandardError)
 
-  def punch!(group:, field:, lat:, lng:, ip:)
-    now = Time.current.in_time_zone(Crm::AttendanceRecord::TZ)
-    ctx = { now: now, field: field, lat: lat, lng: lng, ip: ip, group: group }
+  def punch!(now:, group:, field:, punch_type:, at:)
+    ctx = { now: now, group: group, field: field, punch_type: punch_type,
+            ip: at[:ip], lat: at[:lat], lng: at[:lng] }
     attempts = 0
     begin
-      rec = Current.account.crm_attendance_records
-                   .find_or_initialize_by(user_id: current_user.id, work_date: now.to_date)
-      if too_soon_to_clock_out?(rec, now)
-        raise TooSoon, "刚打过上班卡（#{rec.clock_in_at.in_time_zone(Crm::AttendanceRecord::TZ).strftime('%H:%M')}），" \
-                       "#{MIN_WORK_MINUTES} 分钟内不记下班卡，避免误触"
+      Crm::AttendanceRecord.transaction do
+        rec = locked_or_new_record(ctx[:now].to_date)
+        guard_punch!(rec, ctx)
+        apply_punch(rec, ctx)
+        rec.save! if rec.changed?
+        rec
       end
-
-      apply_punch(rec, ctx)
-      rec.save!
-      rec
     rescue ActiveRecord::RecordNotUnique
       raise if (attempts += 1) > 1
 
       retry
     end
+  end
+
+  # 当天已有记录就 SELECT … FOR UPDATE 锁住它，没有则起一条新的（新记录无从冲突）。
+  def locked_or_new_record(date)
+    Current.account.crm_attendance_records.lock.find_by(user_id: current_user.id, work_date: date) ||
+      Current.account.crm_attendance_records.new(user_id: current_user.id, work_date: date)
+  end
+
+  # 打卡前的两道拦截（都在行锁内判，所以并发下判断依据是最新值）。
+  def guard_punch!(rec, ctx)
+    raise PunchConflict, '今天已经打过下班卡了，补上班卡请联系人事' if reverse_punch?(rec, ctx)
+    # 误触保护对显式下班同样生效（契约里写明要保留）；显式上班不受影响。
+    return if ctx[:punch_type] == 'in'
+    return unless too_soon_to_clock_out?(rec, ctx[:now])
+
+    raise TooSoon, "刚打过上班卡（#{rec.clock_in_at.in_time_zone(Crm::AttendanceRecord::TZ).strftime('%H:%M')}），" \
+                   "#{MIN_WORK_MINUTES} 分钟内不记下班卡，避免误触"
+  end
+
+  # 已经打过下班卡，再来补上班卡＝倒着写，一条记录会变成上班晚于下班。
+  # 这种只能走 HR 补卡（adjust），那条路有修正人留痕。
+  def reverse_punch?(rec, ctx)
+    ctx[:punch_type] == 'in' && rec.clock_in_at.nil? && rec.clock_out_at.present?
   end
 
   # 上班卡刚打完手滑再点一下，第二下会被当成下班卡（实测两次相差 0.6 秒，当天直接记早退）。
@@ -200,23 +232,45 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   end
 
   def apply_punch(rec, ctx)
-    if rec.clock_in_at.nil? && !ctx[:field] && past_workday_midpoint?(ctx)
-      # 忘打上班卡、当天较晚(已过工作时段中点)才来打 → 记为下班；上班留空(显示缺上班卡，走补卡)，
-      # 不再把这一下误记成「上班」导致下不了班。
-      rec.assign_attributes(clock_out_at: ctx[:now], clock_out_ip: ctx[:ip],
-                            clock_out_lat: ctx[:lat].presence, clock_out_lng: ctx[:lng].presence)
-    elsif rec.clock_in_at.nil?
+    rec.field = true if ctx[:field]
+    slot = punch_slot(rec, ctx)
+    write_punch(rec, slot, ctx) if slot
+    if rec.field?
+      rec.status = 'FIELD' unless rec.adjusted_by_id
+    else
+      rec.recompute_status!(ctx[:group])
+    end
+  end
+
+  # 这一下记哪一格：:in / :out / nil（nil＝幂等，时间一个字都不改）。
+  #
+  # 显式打卡的幂等是契约要求的：App 网络超时后会重发，重发不能把时间改掉。
+  # ⚠️ 副作用：显式 out 之后加班晚走再点一次，不会再刷新下班时间了
+  #（旧的推断路径仍然取更晚时间）。晚走要改时间得走 HR 补卡。
+  def punch_slot(rec, ctx)
+    case ctx[:punch_type]
+    when 'in' then rec.clock_in_at.nil? ? :in : nil
+    when 'out' then rec.clock_out_at.nil? ? :out : nil
+    else inferred_slot(rec, ctx)
+    end
+  end
+
+  # 旧客户端/网页端的推断：有上班卡就记下班；没上班卡但已进入下班时间窗口也记下班
+  #（忘打上班卡、临下班才来打的那种，上班留空走补卡）；其余记上班。
+  def inferred_slot(rec, ctx)
+    return :out if rec.clock_in_at.present?
+    return :out if !ctx[:field] && past_workday_midpoint?(ctx)
+
+    :in
+  end
+
+  def write_punch(rec, slot, ctx)
+    if slot == :in
       rec.assign_attributes(clock_in_at: ctx[:now], clock_in_ip: ctx[:ip],
                             clock_in_lat: ctx[:lat].presence, clock_in_lng: ctx[:lng].presence)
     else
       rec.assign_attributes(clock_out_at: ctx[:now], clock_out_ip: ctx[:ip],
                             clock_out_lat: ctx[:lat].presence, clock_out_lng: ctx[:lng].presence)
-    end
-    rec.field = true if ctx[:field]
-    if rec.field?
-      rec.status = 'FIELD' unless rec.adjusted_by_id
-    else
-      rec.recompute_status!(ctx[:group])
     end
   end
 
@@ -283,6 +337,17 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   def render_forbidden
     render json: { error: '无权限执行该操作' }, status: :forbidden
   end
+
+  def render_unprocessable(message)
+    render json: { error: message }, status: :unprocessable_entity
+  end
+
+  def now_local = Time.current.in_time_zone(Crm::AttendanceRecord::TZ)
+
+  def punch_origin = { ip: request.remote_ip, lat: params[:lat], lng: params[:lng] }
+
+  # 外勤跳过地点校验（出差/客户现场本来就不在打卡范围内）。
+  def location_blocked?(group, field, at) = !field && !group.location_ok?(**at)
 
   # 看谁的考勤：默认自己；带 user_id 时需在可见范围内（超管/管理员全员，负责人=下属）。
   def viewable_user_id
@@ -483,7 +548,10 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     { id: rec.id, user_id: rec.user_id, work_date: rec.work_date,
       clock_in_at: rec.clock_in_at&.in_time_zone(tz)&.strftime('%H:%M'),
       clock_out_at: rec.clock_out_at&.in_time_zone(tz)&.strftime('%H:%M'),
-      status: rec.status, note: rec.note, source: rec.source, adjusted_by_name: rec.adjusted_by&.name }
+      status: rec.status, note: rec.note, source: rec.source, adjusted_by_name: rec.adjusted_by&.name,
+      # 缺卡单独标出来：主动打了下班卡的那天状态会是 NORMAL/EARLY_LEAVE，
+      # 光看 status 像是完整出勤，但上班卡其实是空的（导出里的「上班缺卡」列同理）。
+      missing_in: rec.clock_in_at.nil?, missing_out: rec.clock_out_at.nil? }
   end
 
   def group_json(group)
@@ -492,6 +560,9 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
       break_end_time: group.break_end_time, grace_minutes: group.grace_minutes,
       holidays: group.holidays, extra_workdays: group.extra_workdays,
       geo_enabled: group.geo_enabled, ip_enabled: group.ip_enabled,
+      # App 据此才放开独立的「上班/下班」两个按钮。后端没支持就不能只放开按钮，
+      # 否则下班会被推断成上班。
+      supports_explicit_punch: true,
       office_lat: group.office_lat&.to_f, office_lng: group.office_lng&.to_f,
       geo_radius_m: group.geo_radius_m }
   end
