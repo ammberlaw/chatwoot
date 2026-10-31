@@ -277,7 +277,7 @@ onMounted(() => {
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -353,7 +353,7 @@ onMounted(() => {
           :current-page="page"
           :total-items="records.length"
           :items-per-page="PER_PAGE"
-          class="mt-3"
+          class="sticky bottom-0 z-10 mt-3"
           @update:current-page="page = $event"
         />
       </template>

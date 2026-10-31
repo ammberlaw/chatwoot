@@ -443,7 +443,7 @@ onMounted(load);
         :current-page="currentPage"
         :total-items="totalCount"
         :items-per-page="ITEMS_PER_PAGE"
-        class="!bg-transparent before:!hidden"
+        class="sticky bottom-0 z-10"
         @update:current-page="currentPage = $event"
       />
     </div>

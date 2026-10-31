@@ -694,7 +694,7 @@ onMounted(() => {
 
       <HScrollButtons />
       <div
-        class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
+        class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
       >
         <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
           产品编码由工程 / PMC 维护，你当前为只读。
@@ -896,7 +896,7 @@ onMounted(() => {
           :current-page="currentPage"
           :total-items="totalCount"
           :items-per-page="itemsPerPage"
-          class="mt-3 !bg-transparent before:!hidden"
+          class="mt-3 sticky bottom-0 z-10"
           @update:current-page="currentPage = $event"
         />
       </div>

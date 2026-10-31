@@ -1193,7 +1193,7 @@ useRouteQueryReentry(async query => {
 
     <HScrollButtons />
     <div
-      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+      class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -1696,7 +1696,7 @@ useRouteQueryReentry(async query => {
         :current-page="currentPage"
         :total-items="totalCount"
         :items-per-page="ITEMS_PER_PAGE"
-        class="!bg-transparent before:!hidden"
+        class="sticky bottom-0 z-10"
         @update:current-page="currentPage = $event"
       />
     </div>

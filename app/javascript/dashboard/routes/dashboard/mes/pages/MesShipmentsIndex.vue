@@ -856,7 +856,7 @@ onMounted(() => {
 
     <HScrollButtons />
     <div
-      class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
+      class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -1196,7 +1196,7 @@ onMounted(() => {
         :current-page="currentPage"
         :total-items="totalCount"
         :items-per-page="ITEMS_PER_PAGE"
-        class="!bg-transparent before:!hidden"
+        class="sticky bottom-0 z-10"
         @update:current-page="currentPage = $event"
       />
     </div>
@@ -1547,10 +1547,14 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             款没收齐，放行理由 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input
-            v-model="approveNote"
-            placeholder="放行理由"
-          />
+          <Input v-model="approveNote" placeholder="放行理由" />
+          <!-- 只在还没填时提示，填了就消失。
+               原来按钮灰着不给任何说明，财务只看到「还差 USD 446.00」+ 一个点不动的
+               「审核通过」，判断不出是系统坏了还是自己漏了什么（2026-10-30 反馈
+               「收款未同步导致不能审批出货」，实际是先发后收、填个理由就能过）。 -->
+          <p v-if="!approveNote.trim()" class="text-label-small text-n-slate-10">
+            填好才能点「审核通过」——先发后收是允许的，写明原因即可。
+          </p>
         </div>
       </div>
     </Dialog>

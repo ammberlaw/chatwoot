@@ -749,7 +749,7 @@ const exportList = async () => {
           :current-page="currentPage"
           :total-items="totalCount"
           :items-per-page="ITEMS_PER_PAGE"
-          class="mt-3 !bg-transparent before:!hidden"
+          class="mt-3 sticky bottom-0 z-10"
           @update:current-page="currentPage = $event"
         />
       </div>

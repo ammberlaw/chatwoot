@@ -2216,12 +2216,14 @@ watch(currentPage, fetchRecords);
     />
 
     <div
-      class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <!-- 列表。分成上下两段：表格自己滚，分页器留在滚动区**外面**。
            原来两者在同一个 overflow-auto 里，分页器跟着表格往下走——这张表一页 15 行、
            十几列还要横拉，每次翻页都得先划到最底下才点得到（2026-10-30 反馈
-           「下面的页数需要锁定固定在右下角，不用每次都划到最下面才能点」）。 -->
+           「下面的页数需要锁定固定在右下角，不用每次都划到最下面才能点」）。
+           外层不留 pb：分页器自带上边框和实色底，当贴底工具条用，悬在离底 24px 的位置
+           下面会空出一条（2026-10-31 反馈「这个页面太高了」）。右侧详情面板自己补 mb。 -->
       <HScrollButtons />
       <div class="flex flex-col flex-1 min-w-0 min-h-0">
         <div class="flex-1 min-w-0 overflow-auto">
@@ -2724,7 +2726,7 @@ watch(currentPage, fetchRecords);
       <!-- 详情：8 阶段进度条（流程视图；订单明细看「查看」弹窗） -->
       <div
         v-if="selected"
-        class="flex flex-col p-5 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak [.theme-classic_&]:!bg-white [.theme-classic_&]:rounded-3xl [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:md:w-96 [.theme-classic_&]:p-6"
+        class="flex flex-col p-5 mb-4 sm:mb-6 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak [.theme-classic_&]:!bg-white [.theme-classic_&]:rounded-3xl [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:md:w-96 [.theme-classic_&]:p-6"
       >
         <div class="flex items-center gap-2 mb-1 [.theme-classic_&]:mb-3">
           <span
