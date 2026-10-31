@@ -524,14 +524,10 @@ const ORDER_COLUMN_DEFS = [
   },
   { key: 'suppliers', label: '供应商', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'order', label: '销售订单', tdClass: 'px-3 py-3 text-n-slate-11' },
-  // 上游两条备注紧挨着「销售订单」列：采购要在自己这页看到业务和工程交代了什么，
-  // 不用来回切单（问题点 B3/B4）。**位置是这条需求的一半**——上一版把它们追加在
-  // 列数组末尾，这张表 17 列、不横拉到底根本看不见，用户照样反馈「未改」。
-  {
-    key: 'salesOrderRemark',
-    label: '销售订单备注',
-    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
-  },
+  // 生产任务单备注紧挨着「销售订单」列：采购要在自己这页看到工程交代了什么，
+  // 不用来回切单（问题点 B3/B4）。**位置是这条需求的一半**——上一版把它追加在
+  // 列数组末尾，这张表十几列、不横拉到底根本看不见，用户照样反馈「未改」。
+  // 「销售订单备注」2026-10-30 按反馈撤掉：和生产任务单备注重复，列又太多（用户原话「可以不要」）。
   {
     key: 'bomRemark',
     label: '生产任务单备注',
@@ -544,6 +540,24 @@ const ORDER_COLUMN_DEFS = [
     tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
   },
   { key: 'status', label: '收货状态', tdClass: 'px-3 py-3 text-n-slate-11' },
+  // 收货日期＝明细行上最后一批到货的那天（采购员逐行填）；
+  // 入库状态/入库时间来自仓管过账的原料入库单，不是采购员自己点的。
+  // 两件事两张单，原来列表上只看得到「收货状态」，仓库到底入没入库在这页查不到。
+  {
+    key: 'arrivalDate',
+    label: '收货日期',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'inboundStatus',
+    label: '入库状态',
+    tdClass: 'px-3 py-3 whitespace-nowrap',
+  },
+  {
+    key: 'inboundAt',
+    label: '入库时间',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'total',
     label: '总额',
@@ -1375,6 +1389,19 @@ useRouteQueryReentry(async query => {
                 <template v-else-if="col.key === 'status'">
                   <MesStatusPill :label="STATUS_LABELS[p.status]" />
                 </template>
+                <template v-else-if="col.key === 'arrivalDate'">
+                  {{ day(p.arrivalDate) }}
+                </template>
+                <template v-else-if="col.key === 'inboundStatus'">
+                  <MesStatusPill
+                    v-if="p.inboundStatus === 'DONE'"
+                    label="已入库"
+                  />
+                  <span v-else class="text-n-slate-10">未入库</span>
+                </template>
+                <template v-else-if="col.key === 'inboundAt'">
+                  {{ day(p.inboundAt) }}
+                </template>
                 <template v-else-if="col.key === 'total'">
                   {{ yuan(p.totalAmountMicros) }}
                 </template>
@@ -1409,11 +1436,6 @@ useRouteQueryReentry(async query => {
                 </template>
                 <template v-else-if="col.key === 'remark'">
                   <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
-                </template>
-                <template v-else-if="col.key === 'salesOrderRemark'">
-                  <span :title="p.salesOrderRemark || ''">
-                    {{ p.salesOrderRemark || '—' }}
-                  </span>
                 </template>
                 <template v-else-if="col.key === 'bomRemark'">
                   <span :title="p.bomRemark || ''">

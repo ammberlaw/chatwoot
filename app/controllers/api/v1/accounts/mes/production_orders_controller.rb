@@ -590,10 +590,27 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 每页条数：默认沿用 RESULTS_PER_PAGE(15)，供列表分页；调用方(如报工订单下拉)需一次性
   # 拿到全部在产订单时可传 per_page，封顶 500 防止拉全表。
 
-  # 列表分档：mine=我的客户订单（归属我）｜ stock=库存备货（全业务共享）｜ all=可见全部。
+  # 列表分档：mine=我的客户订单（归属我**或我经办的**）｜ stock=库存备货（全业务共享）｜ all=可见全部。
+  #
+  # 「我经办的」这一半是 2026-10-30 补的：共享客户里助理建的单，业绩归客户归属人（老板），
+  # 生产订单的 owner 跟着也是老板，于是助理在「我的订单」页签里找不到自己做的单，
+  # 只能切到「全部」里翻——实测叶爱玲经办的 13 张单有 2 张归陈云钢，就是这么丢的
+  # （用户原话：「她只能看到责任人是她自己的单，所以会多次问我们这个单的进度」）。
+  # 生产订单表没有经办人这个概念，所以回头去 crm_sales_orders 认 handled_by_id。
+  # 这里**只放宽页签筛选**，整体可见范围仍由 ORDER_VISIBLE_SQL 收口，不多给一张单。
+  MINE_SQL = <<~SQL.squish.freeze
+    mes_production_orders.owner_id = :uid
+    OR mes_production_orders.crm_sales_order_id IN (
+      SELECT so.id FROM crm_sales_orders so
+      WHERE so.account_id = :account_id AND so.handled_by_id = :uid
+    )
+  SQL
+
   def apply_list_scope(scope)
     case params[:list_scope]
-    when 'mine' then scope.where(owner_id: current_user.id, order_kind: 'CUSTOMER')
+    when 'mine'
+      scope.where(order_kind: 'CUSTOMER')
+           .where(MINE_SQL, uid: current_user.id, account_id: Current.account.id)
     when 'stock' then scope.stock
     else scope
     end

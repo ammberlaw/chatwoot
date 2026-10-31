@@ -27,6 +27,14 @@ json.sales_order_remark resource.production_order&.remark
 json.bom_remark resource.production_order&.bom&.remark
 json.status resource.status
 json.approval_status resource.approval_status
+# 收货日期：采购员在明细行上逐行填的到货日期，整单取最后一批到的那天
+#（部分到货时前面几行早到了，看整单该关心的是「齐了没、最晚哪天到的」）。
+json.arrival_date resource.purchase_items.filter_map(&:arrival_date).max&.to_date
+# 入库状态/入库时间：仓管在原料入库单过账后同步过来。列表批量算好放在 @inbound_map，
+# 详情页只有一条、现算即可（Mes::PurchaseInboundStatus）。
+inbound = (@inbound_map || Mes::PurchaseInboundStatus.new(resource.account).for_ids([resource.id]))[resource.id]
+json.inbound_at inbound&.dig(:posted_at)
+json.inbound_status inbound.present? ? 'DONE' : 'NONE'
 # 关闭/启用/删除三个按钮的显隐：别让前端自己推状态组合，口径只留模型一处。
 json.closed resource.closed?
 json.deletable resource.deletable?

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_30_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3442,6 +3442,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_140000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "color"
     t.index ["account_id"], name: "index_mes_shipment_items_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_shipment_items_on_crm_product_id"
     t.index ["shipment_id"], name: "index_mes_shipment_items_on_shipment_id"

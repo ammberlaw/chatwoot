@@ -31,8 +31,32 @@ const warehouseId = ref('');
 // 转单备注：写给下游（生产/仓管）看的交代。定制单每行各一张生产订单，都带同一份；
 // 出库单接在「由销售订单 X 转入」后面，出处那行保留。
 const remark = ref('');
-// [{ name, qty, unit, productId, convertedOrderNo }]
+// [{ name, qty, unit, productId, warehouseId, color, convertedOrderNo }]
 const rows = reactive([]);
+
+// 外贸成品的颜色。生产上 mes_boms.bare_color 的真实值是「黑色1000」
+// 「蓝色600、粉色600、红色600、绿色200」这种颜色带数量的写法，枚举装不下，
+// 所以这里只给常用色当快捷入口，特殊情况留空、去备注里写清楚。
+// 行上的仓库：默认跟单头那个走，要分仓时才逐行改。
+const warehouseRowOptions = computed(() => [
+  { value: '', label: '跟整单仓库' },
+  ...warehouses.value.map(w => ({ value: w.id, label: w.name })),
+]);
+
+const COLOR_OPTIONS = [
+  { value: '', label: '不指定颜色' },
+  ...[
+    '黑色',
+    '白色',
+    '灰色',
+    '银色',
+    '蓝色',
+    '红色',
+    '绿色',
+    '橙色',
+    '粉色',
+  ].map(c => ({ value: c, label: c })),
+];
 
 const KIND_OPTIONS = [
   { value: 'CUSTOM', label: '定制单 → 生产订单' },
@@ -90,7 +114,8 @@ const canSubmit = computed(
     !!kind.value &&
     pendingRows.value.length > 0 &&
     pendingRows.value.every(r => r.productId && Number(r.qty) > 0) &&
-    (kind.value !== 'STOCK' || !!warehouseId.value)
+    (kind.value !== 'STOCK' ||
+      pendingRows.value.every(r => r.warehouseId || warehouseId.value))
 );
 
 // 订单金额含不含税：同一家公司两种合同都有，所以不在账套上一刀切，转单时当场勾。
@@ -137,6 +162,8 @@ const open = async record => {
       unit: li.unit || '',
       productId: li.crm_product_id || '',
       product,
+      warehouseId: '',
+      color: '',
       convertedOrderNo: li.converted_order_no || '',
     });
   });
@@ -152,6 +179,8 @@ const open = async record => {
       unit: '',
       productId: '',
       product: null,
+      warehouseId: '',
+      color: '',
       convertedOrderNo: '',
     });
   await nextTick();
@@ -164,6 +193,8 @@ const addRow = () =>
     unit: '',
     productId: '',
     product: null,
+    warehouseId: '',
+    color: '',
     convertedOrderNo: '',
   });
 const removeRow = i => rows.splice(i, 1);
@@ -196,10 +227,16 @@ const submitStock = async () => {
       crm_product_id: r.productId,
       qty: r.qty,
       unit: r.unit || undefined,
+      // 行上没单独选仓就用单头那个（整单一个仓是最常见的情况，不必每行都点）。
+      warehouse_id: r.warehouseId || warehouseId.value || undefined,
+      color: r.color || undefined,
       row: r.row,
     })),
   });
-  return `已生成出库单 ${data.shipment_no || ''}，等待主管审核`.trim();
+  const nos = (data.shipment_nos || [data.shipment_no]).filter(Boolean);
+  return nos.length > 1
+    ? `已按仓库生成 ${nos.length} 张出库单 ${nos.join('、')}，等待主管审核`
+    : `已生成出库单 ${nos[0] || ''}，等待主管审核`.trim();
 };
 
 const submit = async () => {
@@ -321,6 +358,22 @@ defineExpose({ open });
             v-model="row.unit"
             class="flex-1"
             :disabled="!!row.convertedOrderNo"
+          />
+          <SelectCard
+            v-if="kind === 'STOCK'"
+            v-model="row.color"
+            class="flex-[2] min-w-0"
+            :options="COLOR_OPTIONS"
+            :disabled="!!row.convertedOrderNo"
+            block
+          />
+          <SelectCard
+            v-if="kind === 'STOCK'"
+            v-model="row.warehouseId"
+            class="flex-[2] min-w-0"
+            :options="warehouseRowOptions"
+            :disabled="!!row.convertedOrderNo"
+            block
           />
           <button
             type="button"

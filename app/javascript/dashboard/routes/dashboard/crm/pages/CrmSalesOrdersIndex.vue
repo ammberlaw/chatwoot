@@ -53,9 +53,22 @@ const isAdmin = computed(
     currentUser.value?.role === 'administrator' ||
     currentUser.value?.crm_role === 'deputy_admin'
 );
-const canManageSelected = computed(
-  () => !!selectedOrder.value && selectedOrder.value.ownerId === currentUser.value?.id
-);
+// 负责人**或经办人**都能改。
+//
+// 订单上的「负责人」是业绩归属人——共享客户里助理建的单，业绩归客户归属人（老板），
+// handled_by 才是实际建单的那个人（见 PisController#create 的 performance_owner_id）。
+// 只认负责人的话，建单的人自己回头补个附件都进不去：2026-10-30 反馈的那张
+// SO-20261030-04 就是叶爱玲建的、挂在陈云钢名下，她打开只有「转单」没有「编辑」。
+// 全库 551 张订单里 22 张是这种「经办人 ≠ 负责人」。
+//
+// 这里放开的是一个**界面上多余的限制**，不是放宽权限：后端 update 本来就只按
+// 团队可见性收口（visible_sales_orders），从不校验负责人。
+const canManageSelected = computed(() => {
+  const order = selectedOrder.value;
+  if (!order) return false;
+  const me = currentUser.value?.id;
+  return order.ownerId === me || order.handledById === me;
+});
 // 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
 // 财务要算进「能看全部」：isCrmSales 的口径是「非管理员/副管/主管」，财务也落在里面，
 // 不特判的话会被当成纯业务员锁在「我的」视图——而财务名下 0 张单，列表就是空的。

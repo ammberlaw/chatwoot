@@ -65,17 +65,15 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     # 建单与提交必须同生共死：原先没包事务，现货不足导致 submit 失败时出库单已落库，
     # 之后这张销售订单永远报「已生成出库单 DN-xxx，不能重复转单」——转不动也看不出
     # 该去删那张草稿。回滚掉就当这次转单没发生过。
-    ActiveRecord::Base.transaction do
-      @shipment = Current.account.mes_shipments.new(converted_shipment_attrs(sales_order))
-      @shipment.fallback_product_line = current_product_line
-      @shipment.save!
-      # 与手工开单同路径：提交即预占成品库存并进主管审核。
-      @shipment.submit_for_approval!(current_user)
+    @shipments = ActiveRecord::Base.transaction do
+      items_by_warehouse.map { |warehouse_id, items| build_converted_shipment!(sales_order, warehouse_id, items) }
     end
+    @shipment = @shipments.first
     record_tax_basis!(sales_order)
     # 人工点中的产品落回明细 + 别名记忆，下次不用再从上千条产品档案里搜一遍。
     Crm::ConvertChoiceRecorder.new(sales_order).call(convert_choice_rows)
-    render 'api/v1/accounts/mes/shipments/show'
+    render json: { shipment_nos: @shipments.map(&:shipment_no), count: @shipments.size,
+                   shipment_no: @shipment&.shipment_no }
   rescue StandardError => e
     render json: { error: business_error(e) }, status: :unprocessable_entity
   end
@@ -287,15 +285,40 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     Current.account.mes_shipments.where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED').first
   end
 
-  def converted_shipment_attrs(sales_order)
+  # 一个仓一张出库单。
+  #
+  # 外贸现货单常常一张单里既有成品（外贸仓）又有配件（原材料仓），而出库单的仓库在**单头**、
+  # 明细行没有仓库字段：预占量、扣库存、仓管审批路由全按单头那个仓走（见 Mes::Shipment#reserved）。
+  # 所以不是给行加仓库，而是按行上选的仓分组、各出一张——每张仍然只有一个仓，
+  # 库存那套逻辑一行不用改，而且本来就是两个仓库各自的作业，各仓的仓管各管各的那张更清楚。
+  def items_by_warehouse
+    rows = convert_items
+    grouped = rows.group_by { |row| row[:warehouse_id].presence || params[:warehouse_id] }
+    raise StandardError, '请为每一行选择出库仓库' if grouped.keys.any?(&:blank?)
+
+    grouped
+  end
+
+  def build_converted_shipment!(sales_order, warehouse_id, items)
+    shipment = Current.account.mes_shipments.new(
+      converted_shipment_attrs(sales_order, warehouse_id, items)
+    )
+    shipment.fallback_product_line = current_product_line
+    shipment.save!
+    # 与手工开单同路径：提交即预占成品库存并进主管审核。
+    shipment.submit_for_approval!(current_user)
+    shipment
+  end
+
+  def converted_shipment_attrs(sales_order, warehouse_id, items)
     {
       kind: 'STOCK',
       crm_sales_order: sales_order,
       crm_customer_id: sales_order.crm_customer_id,
-      warehouse_id: params[:warehouse_id],
+      warehouse_id: warehouse_id,
       owner_id: sales_order.owner_id || current_user.id,
       remark: converted_remark(sales_order),
-      shipment_items_attributes: convert_items
+      shipment_items_attributes: items.map { |row| row.except(:warehouse_id) }
     }
   end
 
@@ -307,10 +330,10 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   def convert_items
     rows = Array(params[:items]).filter_map do |row|
-      permitted = row.permit(:crm_product_id, :qty, :unit, :remark)
+      permitted = row.permit(:crm_product_id, :qty, :unit, :remark, :warehouse_id, :color)
       next if permitted[:crm_product_id].blank? || permitted[:qty].to_d <= 0
 
-      permitted.to_h
+      permitted.to_h.symbolize_keys
     end
     raise StandardError, '没有可转的明细行（每行都要选中产品档案并填数量）' if rows.empty?
 
@@ -398,7 +421,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   def shipment_params
     params.require(:shipment).permit(
       :kind, :crm_sales_order_id, :crm_customer_id, :production_order_id, :warehouse_id, :owner_id, :remark,
-      shipment_items_attributes: [:id, :crm_product_id, :qty, :unit, :remark, :_destroy]
+      shipment_items_attributes: [:id, :crm_product_id, :qty, :unit, :remark, :color, :_destroy]
     )
   end
 end

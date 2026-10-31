@@ -3,6 +3,7 @@
 # Table name: mes_shipment_items
 #
 #  id             :bigint           not null, primary key
+#  color          :string
 #  qty            :decimal(16, 3)   not null
 #  remark         :text
 #  unit           :string

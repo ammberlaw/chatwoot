@@ -2218,444 +2218,49 @@ watch(currentPage, fetchRecords);
     <div
       class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
     >
-      <!-- 列表 -->
+      <!-- 列表。分成上下两段：表格自己滚，分页器留在滚动区**外面**。
+           原来两者在同一个 overflow-auto 里，分页器跟着表格往下走——这张表一页 15 行、
+           十几列还要横拉，每次翻页都得先划到最底下才点得到（2026-10-30 反馈
+           「下面的页数需要锁定固定在右下角，不用每次都划到最下面才能点」）。 -->
       <HScrollButtons />
-      <div class="flex-1 min-w-0 overflow-auto">
-        <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
-          加载中…
-        </div>
-        <template v-else>
-          <!-- 手机卡片列表（<768px） -->
-          <div class="flex flex-col gap-2 md:hidden">
-            <div
-              v-for="po in records"
-              :key="po.id"
-              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-              :class="{
-                'bg-n-alpha-2 !border-n-iris-9':
-                  selected && selected.id === po.id,
-              }"
-              @click="selectRow(po)"
-            >
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-n-slate-12 truncate">
-                  {{ po.orderNo }}
-                </span>
-                <span
-                  v-tooltip.top="stageTipOf(po)"
-                  class="shrink-0 px-2 py-0.5 text-xs rounded-full"
-                  :class="stageChipOf(po)"
-                >
-                  {{ stageTextOf(po) }}
-                </span>
-                <span
-                  v-if="isStalled(po)"
-                  v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
-                  class="shrink-0 text-xs cursor-help text-n-ruby-11"
-                >
-                  ⚠
-                </span>
-                <span class="flex-1" />
-                <div class="flex items-center gap-1 shrink-0" @click.stop>
-                  <Button
-                    v-if="canEditRow(po)"
-                    label="编辑"
-                    variant="ghost"
-                    color="iris"
-                    size="sm"
-                    @click="openEditSpec(po)"
-                  />
-                  <Button
-                    label="查看"
-                    variant="ghost"
-                    size="sm"
-                    @click="openDetail(po)"
-                  />
-                  <Button
-                    v-if="canDeleteRow(po)"
-                    label="删除"
-                    variant="ghost"
-                    color="ruby"
-                    size="sm"
-                    @click="deleteOrder(po)"
-                  />
-                </div>
-              </div>
-              <div
-                class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs"
-              >
-                <span
-                  v-if="po.orderKind === 'STOCK'"
-                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-teal-3 text-n-teal-11"
-                >
-                  外贸库存备货
-                </span>
-                <span
-                  v-if="po.isOutsourced"
-                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-amber-3 text-n-amber-11"
-                >
-                  外购
-                </span>
-                <span
-                  v-if="po.intakeKind && po.intakeKind !== 'NEW'"
-                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-slate-3 text-n-slate-11"
-                >
-                  {{ po.intakeLabel }}
-                </span>
-                <span
-                  v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
-                  class="px-1.5 py-0.5 rounded-full"
-                  :class="rowApprovalClass(po.approvalStatus)"
-                >
-                  {{ APPROVAL_LABELS[po.approvalStatus] }}
-                </span>
-              </div>
-              <div class="mt-1 text-xs text-n-slate-11 truncate">
-                {{ po.productName }}
-              </div>
-              <div
-                class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-n-slate-11"
-              >
-                <span
-                  >数量：{{ po.producedQty }} / {{ po.qty }} {{ po.unit }}</span
-                >
-                <span v-if="po.piNo">PI {{ po.piNo }}</span>
-                <span v-if="po.productSku" class="text-n-iris-11">
-                  商品编码 {{ po.productSku }}
-                </span>
-              </div>
-              <div
-                class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-n-slate-11"
-              >
-                <span
-                  v-if="deliveryStatus(po)"
-                  :class="DUE_CLASS[deliveryStatus(po).level]"
-                >
-                  交期：{{ deliveryStatus(po).label }}
-                </span>
-                <span v-if="po.remark">备注：{{ po.remark }}</span>
-                <span v-if="po.salesOrderNo">来源：{{ po.salesOrderNo }}</span>
-                <span>负责人：{{ po.ownerName || '—' }}</span>
-              </div>
-              <div
-                v-if="ackChip(po)"
-                class="mt-1 text-[11px] leading-tight text-n-slate-10"
-              >
-                <span>
-                  <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
-                  <span v-if="stallDays(po) > 0">
-                    · 停留 {{ stallDays(po) }} 天</span
-                  >
-                </span>
-              </div>
-            </div>
-            <div
-              v-if="!records.length"
-              class="px-3 py-10 text-center text-n-slate-11"
-            >
-              还没有生产订单。点右上角「从销售订单转入」开始。
-            </div>
+      <div class="flex flex-col flex-1 min-w-0 min-h-0">
+        <div class="flex-1 min-w-0 overflow-auto">
+          <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+            加载中…
           </div>
-
-          <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行。
-               收起过列就不再压这个最小宽——否则列都收完了表格还是 1240px 宽，照样要横着拖。 -->
-          <table
-            class="hidden md:table w-full text-sm"
-            :class="hiddenCols ? '' : 'md:min-w-[1240px]'"
-          >
-            <!-- 表头冻结在列表容器顶部：这张表十几列又长，往下翻就对不上「这一列是什么」了
-                 （10.19 反馈「这个抬头可以冻结吗？下拉后不知道对应的是什么项了」）。
-                 ⚠ 底色必须下在 **th 单元格**上，不能下在 thead/tr 上：CSS 表格的绘制顺序是
-                 行组(thead) → 行(tr) → 单元格，thead 属于行组，tbody 的行比它后画，
-                 背景放 thead 上会被数据行盖住，滚动时表头文字和行文字叠在一起
-                 （10.19 反馈的「下拉以后字符会重叠在抬头那里」就是这个）。 -->
-            <thead class="sticky top-0 z-20 [&_th]:bg-n-solid-1">
-              <tr
-                class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
-              >
-                <!-- 序号不进 visibleColumns：它不是业务列，不该能被拖走或收起 -->
-                <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">#</th>
-                <!-- 拖列头即可改顺序，按人记在本机 -->
-                <th
-                  v-for="col in visibleColumns"
-                  :key="col.key"
-                  draggable="true"
-                  class="relative px-3 py-3 font-medium transition-colors cursor-move select-none"
-                  :class="isDragging(col.key) ? 'opacity-40' : ''"
-                  :style="colStyle(col.key)"
-                  title="拖动可调整列顺序"
-                  @dragstart="onColDragStart(col.key)"
-                  @dragover.prevent
-                  @drop="onColDrop(col.key)"
-                >
-                  <ColResizeHandle
-                    :column-key="col.key"
-                    :active="isResizing(col.key)"
-                    @resize-start="(e, th) => startResize(col.key, e, th)"
-                    @auto-fit="autoFitColumn"
-                  />
-                  <span class="inline-flex items-center gap-1">
-                    {{ col.label }}
-                    <MesColumnFilter
-                      v-if="filterOf(col)"
-                      v-model="colFilters[filterOf(col).key]"
-                      :type="filterOf(col).type"
-                      :placeholder="filterOf(col).placeholder || '输入关键字'"
-                      @change="onColFilterChange"
-                    />
-                  </span>
-                </th>
-                <th
-                  class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
-                />
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(po, rowIdx) in records"
+          <template v-else>
+            <!-- 手机卡片列表（<768px） -->
+            <div class="flex flex-col gap-2 md:hidden">
+              <div
+                v-for="po in records"
                 :key="po.id"
-                class="border-b cursor-pointer group/row border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
-                :class="
-                  selected && selected.id === po.id
-                    ? '[&>td]:!bg-n-iris-2 [&>td]:!text-n-slate-12 [&>td:first-child]:shadow-[inset_4px_0_0_0_rgb(var(--iris-9))]'
-                    : ''
-                "
+                class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+                :class="{
+                  'bg-n-alpha-2 !border-n-iris-9':
+                    selected && selected.id === po.id,
+                }"
                 @click="selectRow(po)"
               >
-                <td class="px-3 py-3 tabular-nums text-n-slate-10">
-                  {{ (currentPage - 1) * ITEMS_PER_PAGE + rowIdx + 1 }}
-                </td>
-                <!-- 中间列按 visibleColumns 渲染（收起的列不出现），顺序随表头拖拽实时变化 -->
-                <td
-                  v-for="col in visibleColumns"
-                  :key="col.key"
-                  :class="[col.tdClass, colStyle(col.key).width && 'truncate']"
-                  :style="colStyle(col.key)"
-                >
-                  <template v-if="col.key === 'no'">
-                    <span
-                      class="inline-flex items-center gap-1 whitespace-nowrap"
-                    >
-                      <span>{{ po.orderNo }}</span>
-                      <button
-                        v-if="po.orderNo"
-                        v-tooltip.top="'复制工单号'"
-                        type="button"
-                        class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
-                        @click.stop="copyNo(po.orderNo)"
-                      />
-                    </span>
-                    <span
-                      v-if="po.orderKind === 'STOCK'"
-                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
-                      title="外贸库存备货订单：全业务共享库存"
-                    >
-                      外贸库存备货
-                    </span>
-                    <span
-                      v-if="po.isOutsourced"
-                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-amber-3 text-n-amber-11"
-                      title="外购成品：工程判定外购，跳过生产，采购按单买"
-                    >
-                      外购
-                    </span>
-                    <!-- 返单／样机：开头两段少走一位，相关的人一眼看出这单不用等谁 -->
-                    <span
-                      v-if="po.intakeKind && po.intakeKind !== 'NEW'"
-                      v-tooltip.top="intakeTip(po.intakeKind)"
-                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full cursor-help whitespace-nowrap bg-n-slate-3 text-n-slate-11"
-                    >
-                      {{ po.intakeLabel }}
-                    </span>
-                    <span
-                      v-if="
-                        po.approvalStatus && po.approvalStatus !== 'APPROVED'
-                      "
-                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap"
-                      :class="rowApprovalClass(po.approvalStatus)"
-                    >
-                      {{ APPROVAL_LABELS[po.approvalStatus] }}
-                    </span>
-                    <span
-                      v-if="po.piNo"
-                      class="block text-xs font-normal text-n-slate-10"
-                    >
-                      PI {{ po.piNo }}
-                    </span>
-                    <span
-                      v-if="po.productSku"
-                      class="block text-xs font-normal text-n-iris-11"
-                    >
-                      商品编码 {{ po.productSku }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'model'">
-                    <span class="block truncate" :title="po.productName || ''">
-                      {{ po.productName }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'qty'">
-                    {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
-                  </template>
-                  <template v-if="col.key === 'stage'">
-                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span
-                        v-tooltip.top="stageTipOf(po)"
-                        class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
-                        :class="stageChipOf(po)"
-                      >
-                        {{ stageTextOf(po) }}
-                      </span>
-                      <span
-                        v-if="isStalled(po)"
-                        v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
-                        class="ml-1 text-xs cursor-help text-n-ruby-11"
-                      >
-                        ⚠
-                      </span>
-                      <!-- 卡点：料卡在等客户确认/等文件/打样这类事上，责任人不在采购。
-                           摆在阶段旁边，相关的人一眼看出这张单卡在谁手里。 -->
-                      <span
-                        v-for="bk in po.blockerSummary || []"
-                        :key="bk.kind"
-                        v-tooltip.top="blockerTip(bk)"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full cursor-help border border-n-amber-7 bg-n-amber-2 text-n-amber-12"
-                      >
-                        <span class="w-3 h-3 shrink-0 i-lucide-flag" />
-                        {{ bk.label }} {{ bk.count }}
-                      </span>
-                      <!-- 阶段进度：一排点＋已走几步，跟药丸同一行。
-                           外购单点数更少（短流程），不是「跳了几步」。 -->
-                      <span class="flex items-center gap-1">
-                        <template
-                          v-for="(st, si) in stageFlowOf(po)"
-                          :key="st.value"
-                        >
-                          <span
-                            v-if="si"
-                            class="w-2 h-px shrink-0"
-                            :class="
-                              !stageNotLive(po) && si <= stageIndexOf(po)
-                                ? 'bg-n-iris-9'
-                                : 'bg-n-slate-5'
-                            "
-                          />
-                          <span
-                            v-tooltip.top="st.label"
-                            class="rounded-full cursor-help size-2 shrink-0"
-                            :class="stageDotClass(po, si)"
-                          />
-                        </template>
-                        <span
-                          class="ml-1 text-[11px] tabular-nums whitespace-nowrap shrink-0 text-n-slate-10"
-                        >
-                          {{ stageProgressText(po) }}
-                        </span>
-                      </span>
-                    </div>
-                    <!-- 卡在谁那·卡了多久·接单态：不点开也一眼看清 -->
-                    <div
-                      class="mt-0.5 text-[11px] leading-tight text-n-slate-10"
-                    >
-                      <span v-if="ackChip(po)">
-                        <span :class="ackChip(po).cls">{{
-                          ackChip(po).text
-                        }}</span>
-                        <span v-if="stallDays(po) > 0">
-                          · 停留 {{ stallDays(po) }} 天</span
-                        >
-                      </span>
-                    </div>
-                  </template>
-                  <template v-if="col.key === 'due'">
-                    <span
-                      v-if="deliveryStatus(po)"
-                      :class="DUE_CLASS[deliveryStatus(po).level]"
-                    >
-                      {{ deliveryStatus(po).label }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </template>
-                  <template v-if="col.key === 'sku'">
-                    {{ po.productSku || '—' }}
-                  </template>
-                  <template v-if="col.key === 'spec'">
-                    <span
-                      class="block truncate"
-                      :title="po.specification || ''"
-                    >
-                      {{ po.specification || '—' }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'inboundQty'">
-                    {{ po.fgInboundQty || 0 }}
-                  </template>
-                  <template v-if="col.key === 'pendingQty'">
-                    <span :class="pendingCls(po)">{{ pendingQty(po) }}</span>
-                  </template>
-                  <template v-if="col.key === 'issueState'">
-                    <span :class="issueState(po).cls">
-                      {{ issueState(po).label }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'doneState'">
-                    <span :class="doneState(po).cls">
-                      {{ doneState(po).label }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'kitState'">
-                    <span
-                      v-for="b in kitBadges(po)"
-                      :key="b.label"
-                      class="inline-block px-1.5 py-0.5 mr-1 text-xs rounded"
-                      :class="b.cls"
-                    >
-                      {{ b.label }}
-                    </span>
-                    <span
-                      v-if="!kitBadges(po).length"
-                      class="text-xs text-n-slate-10"
-                    >
-                      —
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'remark'">
-                    <span class="block truncate" :title="po.remark || ''">
-                      {{ po.remark || '—' }}
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'salesOrder'">
-                    <!-- 挂了 CRM 销售订单就能点进去看原单（走该页现成的 ?focus=<id> 定位） -->
-                    <span
-                      class="inline-flex items-center gap-1 whitespace-nowrap"
-                    >
-                      <button
-                        v-if="po.crmSalesOrderId && po.salesOrderNo"
-                        type="button"
-                        class="underline text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
-                        @click.stop="goCrmSalesOrder(po.crmSalesOrderId)"
-                      >
-                        {{ po.salesOrderNo }}
-                      </button>
-                      <span v-else>{{ po.salesOrderNo || '—' }}</span>
-                      <button
-                        v-if="po.salesOrderNo"
-                        v-tooltip.top="'复制销售单号'"
-                        type="button"
-                        class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
-                        @click.stop="copyNo(po.salesOrderNo)"
-                      />
-                    </span>
-                  </template>
-                  <template v-if="col.key === 'owner'">
-                    {{ po.ownerName || '—' }}
-                  </template>
-                </td>
-                <td
-                  class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
-                  @click.stop
-                >
-                  <div class="flex items-center justify-end gap-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-n-slate-12 truncate">
+                    {{ po.orderNo }}
+                  </span>
+                  <span
+                    v-tooltip.top="stageTipOf(po)"
+                    class="shrink-0 px-2 py-0.5 text-xs rounded-full"
+                    :class="stageChipOf(po)"
+                  >
+                    {{ stageTextOf(po) }}
+                  </span>
+                  <span
+                    v-if="isStalled(po)"
+                    v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                    class="shrink-0 text-xs cursor-help text-n-ruby-11"
+                  >
+                    ⚠
+                  </span>
+                  <span class="flex-1" />
+                  <div class="flex items-center gap-1 shrink-0" @click.stop>
                     <Button
                       v-if="canEditRow(po)"
                       label="编辑"
@@ -2670,8 +2275,6 @@ watch(currentPage, fetchRecords);
                       size="sm"
                       @click="openDetail(po)"
                     />
-                    <!-- 删除原先只画在手机卡片那段，桌面表格这一列没有——用电脑的人
-                         怎么都找不到入口（10.19 反馈「没有删除这个功能」）。 -->
                     <Button
                       v-if="canDeleteRow(po)"
                       label="删除"
@@ -2681,27 +2284,439 @@ watch(currentPage, fetchRecords);
                       @click="deleteOrder(po)"
                     />
                   </div>
-                </td>
-              </tr>
-              <tr v-if="!records.length">
-                <!-- 列数 = 序号 + 可见业务列 + 右侧操作列；写死的话加一列就对不齐 -->
-                <td
-                  :colspan="visibleColumns.length + 2"
-                  class="px-3 py-10 text-center text-n-slate-11"
+                </div>
+                <div
+                  class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs"
                 >
-                  还没有销售订单。点右上角「从销售订单转入」开始。
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </template>
+                  <span
+                    v-if="po.orderKind === 'STOCK'"
+                    class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-teal-3 text-n-teal-11"
+                  >
+                    外贸库存备货
+                  </span>
+                  <span
+                    v-if="po.isOutsourced"
+                    class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-amber-3 text-n-amber-11"
+                  >
+                    外购
+                  </span>
+                  <span
+                    v-if="po.intakeKind && po.intakeKind !== 'NEW'"
+                    class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-slate-3 text-n-slate-11"
+                  >
+                    {{ po.intakeLabel }}
+                  </span>
+                  <span
+                    v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
+                    class="px-1.5 py-0.5 rounded-full"
+                    :class="rowApprovalClass(po.approvalStatus)"
+                  >
+                    {{ APPROVAL_LABELS[po.approvalStatus] }}
+                  </span>
+                </div>
+                <div class="mt-1 text-xs text-n-slate-11 truncate">
+                  {{ po.productName }}
+                </div>
+                <div
+                  class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-n-slate-11"
+                >
+                  <span
+                    >数量：{{ po.producedQty }} / {{ po.qty }}
+                    {{ po.unit }}</span
+                  >
+                  <span v-if="po.piNo">PI {{ po.piNo }}</span>
+                  <span v-if="po.productSku" class="text-n-iris-11">
+                    商品编码 {{ po.productSku }}
+                  </span>
+                </div>
+                <div
+                  class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-n-slate-11"
+                >
+                  <span
+                    v-if="deliveryStatus(po)"
+                    :class="DUE_CLASS[deliveryStatus(po).level]"
+                  >
+                    交期：{{ deliveryStatus(po).label }}
+                  </span>
+                  <span v-if="po.remark">备注：{{ po.remark }}</span>
+                  <span v-if="po.salesOrderNo"
+                    >来源：{{ po.salesOrderNo }}</span
+                  >
+                  <span>负责人：{{ po.ownerName || '—' }}</span>
+                </div>
+                <div
+                  v-if="ackChip(po)"
+                  class="mt-1 text-[11px] leading-tight text-n-slate-10"
+                >
+                  <span>
+                    <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
+                    <span v-if="stallDays(po) > 0">
+                      · 停留 {{ stallDays(po) }} 天</span
+                    >
+                  </span>
+                </div>
+              </div>
+              <div
+                v-if="!records.length"
+                class="px-3 py-10 text-center text-n-slate-11"
+              >
+                还没有生产订单。点右上角「从销售订单转入」开始。
+              </div>
+            </div>
 
+            <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行。
+                 收起过列就不再压这个最小宽——否则列都收完了表格还是 1240px 宽，照样要横着拖。 -->
+            <table
+              class="hidden md:table w-full text-sm"
+              :class="hiddenCols ? '' : 'md:min-w-[1240px]'"
+            >
+              <!-- 表头冻结在列表容器顶部：这张表十几列又长，往下翻就对不上「这一列是什么」了
+                   （10.19 反馈「这个抬头可以冻结吗？下拉后不知道对应的是什么项了」）。
+                   ⚠ 底色必须下在 **th 单元格**上，不能下在 thead/tr 上：CSS 表格的绘制顺序是
+                   行组(thead) → 行(tr) → 单元格，thead 属于行组，tbody 的行比它后画，
+                   背景放 thead 上会被数据行盖住，滚动时表头文字和行文字叠在一起
+                   （10.19 反馈的「下拉以后字符会重叠在抬头那里」就是这个）。 -->
+              <thead class="sticky top-0 z-20 [&_th]:bg-n-solid-1">
+                <tr
+                  class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
+                >
+                  <!-- 序号不进 visibleColumns：它不是业务列，不该能被拖走或收起 -->
+                  <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">
+                    #
+                  </th>
+                  <!-- 拖列头即可改顺序，按人记在本机 -->
+                  <th
+                    v-for="col in visibleColumns"
+                    :key="col.key"
+                    draggable="true"
+                    class="relative px-3 py-3 font-medium transition-colors cursor-move select-none"
+                    :class="isDragging(col.key) ? 'opacity-40' : ''"
+                    :style="colStyle(col.key)"
+                    title="拖动可调整列顺序"
+                    @dragstart="onColDragStart(col.key)"
+                    @dragover.prevent
+                    @drop="onColDrop(col.key)"
+                  >
+                    <ColResizeHandle
+                      :column-key="col.key"
+                      :active="isResizing(col.key)"
+                      @resize-start="(e, th) => startResize(col.key, e, th)"
+                      @auto-fit="autoFitColumn"
+                    />
+                    <span class="inline-flex items-center gap-1">
+                      {{ col.label }}
+                      <MesColumnFilter
+                        v-if="filterOf(col)"
+                        v-model="colFilters[filterOf(col).key]"
+                        :type="filterOf(col).type"
+                        :placeholder="filterOf(col).placeholder || '输入关键字'"
+                        @change="onColFilterChange"
+                      />
+                    </span>
+                  </th>
+                  <th
+                    class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                  />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(po, rowIdx) in records"
+                  :key="po.id"
+                  class="border-b cursor-pointer group/row border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
+                  :class="
+                    selected && selected.id === po.id
+                      ? '[&>td]:!bg-n-iris-2 [&>td]:!text-n-slate-12 [&>td:first-child]:shadow-[inset_4px_0_0_0_rgb(var(--iris-9))]'
+                      : ''
+                  "
+                  @click="selectRow(po)"
+                >
+                  <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                    {{ (currentPage - 1) * ITEMS_PER_PAGE + rowIdx + 1 }}
+                  </td>
+                  <!-- 中间列按 visibleColumns 渲染（收起的列不出现），顺序随表头拖拽实时变化 -->
+                  <td
+                    v-for="col in visibleColumns"
+                    :key="col.key"
+                    :class="[
+                      col.tdClass,
+                      colStyle(col.key).width && 'truncate',
+                    ]"
+                    :style="colStyle(col.key)"
+                  >
+                    <template v-if="col.key === 'no'">
+                      <span
+                        class="inline-flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <span>{{ po.orderNo }}</span>
+                        <button
+                          v-if="po.orderNo"
+                          v-tooltip.top="'复制工单号'"
+                          type="button"
+                          class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
+                          @click.stop="copyNo(po.orderNo)"
+                        />
+                      </span>
+                      <span
+                        v-if="po.orderKind === 'STOCK'"
+                        class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
+                        title="外贸库存备货订单：全业务共享库存"
+                      >
+                        外贸库存备货
+                      </span>
+                      <span
+                        v-if="po.isOutsourced"
+                        class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-amber-3 text-n-amber-11"
+                        title="外购成品：工程判定外购，跳过生产，采购按单买"
+                      >
+                        外购
+                      </span>
+                      <!-- 返单／样机：开头两段少走一位，相关的人一眼看出这单不用等谁 -->
+                      <span
+                        v-if="po.intakeKind && po.intakeKind !== 'NEW'"
+                        v-tooltip.top="intakeTip(po.intakeKind)"
+                        class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full cursor-help whitespace-nowrap bg-n-slate-3 text-n-slate-11"
+                      >
+                        {{ po.intakeLabel }}
+                      </span>
+                      <span
+                        v-if="
+                          po.approvalStatus && po.approvalStatus !== 'APPROVED'
+                        "
+                        class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap"
+                        :class="rowApprovalClass(po.approvalStatus)"
+                      >
+                        {{ APPROVAL_LABELS[po.approvalStatus] }}
+                      </span>
+                      <span
+                        v-if="po.piNo"
+                        class="block text-xs font-normal text-n-slate-10"
+                      >
+                        PI {{ po.piNo }}
+                      </span>
+                      <span
+                        v-if="po.productSku"
+                        class="block text-xs font-normal text-n-iris-11"
+                      >
+                        商品编码 {{ po.productSku }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'model'">
+                      <span
+                        class="block truncate"
+                        :title="po.productName || ''"
+                      >
+                        {{ po.productName }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'qty'">
+                      {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
+                    </template>
+                    <template v-if="col.key === 'stage'">
+                      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          v-tooltip.top="stageTipOf(po)"
+                          class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
+                          :class="stageChipOf(po)"
+                        >
+                          {{ stageTextOf(po) }}
+                        </span>
+                        <span
+                          v-if="isStalled(po)"
+                          v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                          class="ml-1 text-xs cursor-help text-n-ruby-11"
+                        >
+                          ⚠
+                        </span>
+                        <!-- 卡点：料卡在等客户确认/等文件/打样这类事上，责任人不在采购。
+                             摆在阶段旁边，相关的人一眼看出这张单卡在谁手里。 -->
+                        <span
+                          v-for="bk in po.blockerSummary || []"
+                          :key="bk.kind"
+                          v-tooltip.top="blockerTip(bk)"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full cursor-help border border-n-amber-7 bg-n-amber-2 text-n-amber-12"
+                        >
+                          <span class="w-3 h-3 shrink-0 i-lucide-flag" />
+                          {{ bk.label }} {{ bk.count }}
+                        </span>
+                        <!-- 阶段进度：一排点＋已走几步，跟药丸同一行。
+                             外购单点数更少（短流程），不是「跳了几步」。 -->
+                        <span class="flex items-center gap-1">
+                          <template
+                            v-for="(st, si) in stageFlowOf(po)"
+                            :key="st.value"
+                          >
+                            <span
+                              v-if="si"
+                              class="w-2 h-px shrink-0"
+                              :class="
+                                !stageNotLive(po) && si <= stageIndexOf(po)
+                                  ? 'bg-n-iris-9'
+                                  : 'bg-n-slate-5'
+                              "
+                            />
+                            <span
+                              v-tooltip.top="st.label"
+                              class="rounded-full cursor-help size-2 shrink-0"
+                              :class="stageDotClass(po, si)"
+                            />
+                          </template>
+                          <span
+                            class="ml-1 text-[11px] tabular-nums whitespace-nowrap shrink-0 text-n-slate-10"
+                          >
+                            {{ stageProgressText(po) }}
+                          </span>
+                        </span>
+                      </div>
+                      <!-- 卡在谁那·卡了多久·接单态：不点开也一眼看清 -->
+                      <div
+                        class="mt-0.5 text-[11px] leading-tight text-n-slate-10"
+                      >
+                        <span v-if="ackChip(po)">
+                          <span :class="ackChip(po).cls">{{
+                            ackChip(po).text
+                          }}</span>
+                          <span v-if="stallDays(po) > 0">
+                            · 停留 {{ stallDays(po) }} 天</span
+                          >
+                        </span>
+                      </div>
+                    </template>
+                    <template v-if="col.key === 'due'">
+                      <span
+                        v-if="deliveryStatus(po)"
+                        :class="DUE_CLASS[deliveryStatus(po).level]"
+                      >
+                        {{ deliveryStatus(po).label }}
+                      </span>
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
+                    <template v-if="col.key === 'sku'">
+                      {{ po.productSku || '—' }}
+                    </template>
+                    <template v-if="col.key === 'spec'">
+                      <span
+                        class="block truncate"
+                        :title="po.specification || ''"
+                      >
+                        {{ po.specification || '—' }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'inboundQty'">
+                      {{ po.fgInboundQty || 0 }}
+                    </template>
+                    <template v-if="col.key === 'pendingQty'">
+                      <span :class="pendingCls(po)">{{ pendingQty(po) }}</span>
+                    </template>
+                    <template v-if="col.key === 'issueState'">
+                      <span :class="issueState(po).cls">
+                        {{ issueState(po).label }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'doneState'">
+                      <span :class="doneState(po).cls">
+                        {{ doneState(po).label }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'kitState'">
+                      <span
+                        v-for="b in kitBadges(po)"
+                        :key="b.label"
+                        class="inline-block px-1.5 py-0.5 mr-1 text-xs rounded"
+                        :class="b.cls"
+                      >
+                        {{ b.label }}
+                      </span>
+                      <span
+                        v-if="!kitBadges(po).length"
+                        class="text-xs text-n-slate-10"
+                      >
+                        —
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'remark'">
+                      <span class="block truncate" :title="po.remark || ''">
+                        {{ po.remark || '—' }}
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'salesOrder'">
+                      <!-- 挂了 CRM 销售订单就能点进去看原单（走该页现成的 ?focus=<id> 定位） -->
+                      <span
+                        class="inline-flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <button
+                          v-if="po.crmSalesOrderId && po.salesOrderNo"
+                          type="button"
+                          class="underline text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                          @click.stop="goCrmSalesOrder(po.crmSalesOrderId)"
+                        >
+                          {{ po.salesOrderNo }}
+                        </button>
+                        <span v-else>{{ po.salesOrderNo || '—' }}</span>
+                        <button
+                          v-if="po.salesOrderNo"
+                          v-tooltip.top="'复制销售单号'"
+                          type="button"
+                          class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
+                          @click.stop="copyNo(po.salesOrderNo)"
+                        />
+                      </span>
+                    </template>
+                    <template v-if="col.key === 'owner'">
+                      {{ po.ownerName || '—' }}
+                    </template>
+                  </td>
+                  <td
+                    class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                    @click.stop
+                  >
+                    <div class="flex items-center justify-end gap-1">
+                      <Button
+                        v-if="canEditRow(po)"
+                        label="编辑"
+                        variant="ghost"
+                        color="iris"
+                        size="sm"
+                        @click="openEditSpec(po)"
+                      />
+                      <Button
+                        label="查看"
+                        variant="ghost"
+                        size="sm"
+                        @click="openDetail(po)"
+                      />
+                      <!-- 删除原先只画在手机卡片那段，桌面表格这一列没有——用电脑的人
+                           怎么都找不到入口（10.19 反馈「没有删除这个功能」）。 -->
+                      <Button
+                        v-if="canDeleteRow(po)"
+                        label="删除"
+                        variant="ghost"
+                        color="ruby"
+                        size="sm"
+                        @click="deleteOrder(po)"
+                      />
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="!records.length">
+                  <!-- 列数 = 序号 + 可见业务列 + 右侧操作列；写死的话加一列就对不齐 -->
+                  <td
+                    :colspan="visibleColumns.length + 2"
+                    class="px-3 py-10 text-center text-n-slate-11"
+                  >
+                    还没有销售订单。点右上角「从销售订单转入」开始。
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+        </div>
         <PaginationFooter
           v-if="totalCount > ITEMS_PER_PAGE"
           :current-page="currentPage"
           :total-items="totalCount"
           :items-per-page="ITEMS_PER_PAGE"
-          class="!bg-transparent before:!hidden"
+          class="shrink-0 !bg-transparent before:!hidden"
           @update:current-page="currentPage = $event"
         />
       </div>

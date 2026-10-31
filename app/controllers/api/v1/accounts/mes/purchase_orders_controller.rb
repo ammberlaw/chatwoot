@@ -25,6 +25,8 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     # 不预加载就是一页 15 条多查 30 次。
     @purchase_orders = scope.includes(production_order: :bom)
                             .order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
+    # 入库状态/入库时间要查原料入库单，一页 15 张单逐张查就是 15 次。一次批量取完。
+    @inbound_map = Mes::PurchaseInboundStatus.new(Current.account).for_ids(@purchase_orders.map(&:id))
   end
 
   def show; end

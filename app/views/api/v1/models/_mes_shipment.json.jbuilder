@@ -96,6 +96,8 @@ json.shipment_items do
     json.specification item.crm_product&.specification
     json.qty item.qty
     json.unit item.unit
+    # 外贸成品的颜色：业务在转单时逐行选，仓管照它拣货。
+    json.color item.color
     json.unit_price line&.dig(:unit_price)
     # 这行的价跟上次比高了还是低了。对不上订单行、或这个品名没历史就不给。
     mark = line && price_marks[line[:name]]
