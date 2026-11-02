@@ -184,8 +184,24 @@ class Crm::Email < ApplicationRecord
     end
   end
 
+  # ⚠️ 这里原来写的是 `send_now? && will_save_change_to_send_now?`——只认 send_now
+  # **从 false 翻成 true 的那一次**。于是记录一旦落到 (send_now=true, DRAFT)，
+  # 再点发送时 send_now 没有「变化」，这条永不触发、信永远发不出去，界面上的表现
+  # 就是「点了发送又变回草稿」。2026-11-02 生产上卡了 3 封（#6538 当天的那封）。
+  #
+  # 怎么落到那个状态的：草稿自动保存会把 send_status 原样 PATCH 回 DRAFT
+  # （控制器放行客户端传的 send_status），而 send_now 还留着 true——sidekiq 停摆
+  # 那两天信在队列里排着没发完，人回去改草稿，就把 PENDING 盖成了 DRAFT。
   def normalize_send_now
-    self.send_status = 'PENDING' if send_now? && will_save_change_to_send_now?
+    # 显式改回草稿＝撤回这次发送，send_now 要跟着落下来，别留下自相矛盾的状态。
+    if will_save_change_to_send_status? && send_status == 'DRAFT'
+      self.send_now = false
+      return
+    end
+
+    # 不看「是否刚翻成 true」，只看「现在要发、且还没在队列里」——
+    # 中间漏过一次入队，之后任何一次保存都还能把它重新推上去。
+    self.send_status = 'PENDING' if send_now? && send_status != 'PENDING'
   end
 
   def enqueue_send
