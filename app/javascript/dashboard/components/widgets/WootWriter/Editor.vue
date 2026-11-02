@@ -92,6 +92,9 @@ const props = defineProps({
   enableVariables: { type: Boolean, default: false },
   enableCannedResponses: { type: Boolean, default: true },
   enableCaptainTools: { type: Boolean, default: false },
+  // 藏掉 Chatwoot 自带的 copilot 按钮：CRM 侧用我们自己的 AI（DeepSeek），
+  // 两个 AI 入口并排摆在同一条工具栏上，用户分不清该点哪个。
+  hideCopilot: { type: Boolean, default: false },
   variables: { type: Object, default: () => ({}) },
   signature: { type: String, default: '' },
   // allowSignature is a kill switch, ensuring no signature methods
@@ -172,7 +175,9 @@ const editorMenuOptions = computed(() => {
     captainTasksEnabled.value
   );
 
-  return formatting.menu;
+  return props.hideCopilot
+    ? formatting.menu.filter(item => item !== 'copilot')
+    : formatting.menu;
 });
 
 const createState = (content, placeholder, plugins = [], methods = {}) => {

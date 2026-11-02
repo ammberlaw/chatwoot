@@ -107,6 +107,12 @@
         "LANG_PLACEHOLDER": "对方语言",
         "SAVE_ERROR": "翻译设置保存失败"
       },
+      "SEARCH": {
+        "LABEL": "搜索聊天记录",
+        "PLACEHOLDER": "搜索本会话消息",
+        "EMPTY": "没有匹配的消息",
+        "OUTGOING": "我方"
+      },
       "RESOLVE_ACTION": "Resolve",
       "REOPEN_ACTION": "Reopen",
       "OPEN_ACTION": "Open",

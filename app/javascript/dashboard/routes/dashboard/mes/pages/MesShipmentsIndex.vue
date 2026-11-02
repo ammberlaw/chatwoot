@@ -179,10 +179,16 @@ const printShipment = () =>
     { page: '@page{size:9.5in 5.5in;margin:8mm}', brandHeader: false }
   );
 
+// 照金蝶那张单的信息量：仓管拣货要的是料号、规格、颜色和这一行的特殊交代，
+// 只给「成品/数量/单位」等于让人回销售订单里翻（用户 2026-11-02 反馈）。
 const VIEW_ITEM_COLS = [
+  { label: '商品编码', key: 'productSku' },
   { label: '成品', key: 'productName' },
+  { label: '规格型号', key: 'specification', wrap: true },
+  { label: '颜色', key: 'color' },
   { label: '数量', key: 'qty', align: 'right' },
   { label: '单位', key: 'unit' },
+  { label: '行备注', key: 'remark', wrap: true },
 ];
 
 const productionOrders = ref([]);
@@ -1495,6 +1501,29 @@ onMounted(() => {
       @confirm="submitApprove"
     >
       <div class="flex flex-col gap-3">
+        <!-- 单据抬头：**不依赖应收台账**，所以查不到收款时照样要显示。
+             原来只有收款那块有内容，走到兜底分支就剩一段说明——财务点「审核通过」
+             时连自己在批哪张单都不知道，待审有好几张时点错就放错货（用户 2026-11-02）。 -->
+        <div
+          v-if="approving"
+          class="flex flex-wrap items-center px-3 py-2 rounded-lg gap-x-4 gap-y-1 text-label-small bg-n-alpha-1"
+        >
+          <span class="font-mono font-medium text-n-slate-12">
+            {{ approving.shipmentNo }}
+          </span>
+          <span v-if="approving.customerName" class="text-n-slate-11">
+            {{ approving.customerName }}
+          </span>
+          <span v-if="approving.salesOrderNo" class="font-mono text-n-slate-11">
+            {{ approving.salesOrderNo }}
+          </span>
+          <span v-if="approving.insuranceOrderNo" class="text-n-slate-11">
+            信保单号
+            <b class="ml-1 font-mono text-n-slate-12">
+              {{ approving.insuranceOrderNo }}
+            </b>
+          </span>
+        </div>
         <div
           v-if="approveLoading"
           class="py-4 text-sm text-center text-n-slate-10"
@@ -1563,6 +1592,7 @@ onMounted(() => {
       ref="viewDialogRef"
       :title="viewing ? `出库单 ${viewing.shipmentNo}` : '出库单明细'"
       hide-print
+      width="7xl"
       :fields="viewFields"
       items-title="出库成品"
       :item-columns="VIEW_ITEM_COLS"

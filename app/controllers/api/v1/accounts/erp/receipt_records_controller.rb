@@ -132,7 +132,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   def receipt_params
     params.require(:receipt).permit(
       :crm_customer_id, :cash_account_id, :amount_micros, :currency, :exchange_rate, :bank_charge_micros,
-      :method, :received_at, :reference_no, :remark
+      :method, :received_at, :reference_no, :trade_assurance_no, :remark
     )
   end
 end

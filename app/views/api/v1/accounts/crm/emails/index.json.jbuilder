@@ -10,6 +10,7 @@ json.payload do
                                              counterparty_name: @counterparty_names[email.id],
                                              last_open: @last_opens[email.id],
                                              distributions: @distributions[email.id] || [],
-                                             ai_draft_id: (@ai_drafts || {})[email.id]
+                                             ai_draft_id: (@ai_drafts || {})[email.id],
+                                             replied: (@replied_ids || Set.new).include?(email.id)
   end
 end

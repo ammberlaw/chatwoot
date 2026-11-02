@@ -48,6 +48,19 @@ end
 if Current.account_user&.mes_staff?
   json.outsource_supplier_id resource.outsource_supplier_id
   json.outsource_supplier_name resource.outsource_supplier&.name
+
+  # 委外加工进度（只读）。订单页要的是「看得见这单在 XX 厂加工中」——安排委外是
+  # 工程/PMC 在生产任务单上做的事，这里不给操作入口，只给进度。
+  # 加工费单价不下发：订单页是业务条线也会看的地方，别把商务价摆上去。
+  json.outsource_orders resource.outsource_orders.order(:id) do |ww|
+    json.id ww.id
+    json.order_no ww.order_no
+    json.status ww.status
+    json.supplier_name ww.mes_supplier&.name
+    json.qty ww.qty
+    json.received_qty ww.received_qty
+    json.delivery_date ww.delivery_date
+  end
 end
 json.bom_no resource.bom&.bom_no
 # 这张单的料卡在哪（按「等谁」归类汇总）。列表和详情都据此显示「3 项等业务文件 · 已卡 5 天」，

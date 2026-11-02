@@ -487,19 +487,48 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       class="flex flex-col gap-3 px-4 py-3 sm:px-6 sm:py-4 md:flex-row md:items-center md:justify-between [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
         <h1
-          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          class="text-heading-1 text-n-slate-12"
         >
           产品档案
         </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <Button
+          label="刷新"
+          variant="outline"
+          color="slate"
+          size="sm"
+          icon="i-lucide-rotate-cw"
+          :is-loading="isFetching"
+          @click="refreshAll"
+        />
+        <!-- 导出是只读动作，不挂管理权限 -->
+        <Button
+          label="导出 Excel"
+          variant="faded"
+          color="slate"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
+        />
+        <Button
+          v-if="canManage"
+          label="新增产品"
+          color="iris"
+          size="sm"
+          @click="openCreate"
+        />
+      </div>
+    </div>
+
+    <div class="mx-4 mb-3 flex flex-wrap items-center gap-2 border-b border-n-weak pb-3 sm:mx-6 [.theme-classic_&]:sm:!mx-8">
         <SelectCard
           :model-value="categoryFilter"
           :options="categoryFilterOptions"
@@ -533,43 +562,18 @@ onMounted(() => {
           </button>
         </div>
         <Button
-          label="刷新"
-          variant="outline"
-          color="slate"
-          icon="i-lucide-rotate-cw"
-          :is-loading="isFetching"
-          @click="refreshAll"
-        />
-        <Button
           label="搜索"
           variant="outline"
           color="slate"
           size="sm"
           @click="reload"
         />
-        <!-- 导出是只读动作，不挂管理权限 -->
-        <Button
-          label="导出 Excel"
-          variant="faded"
-          color="slate"
-          size="sm"
-          :is-loading="exporting"
-          @click="exportList"
-        />
-        <Button
-          v-if="canManage"
-          label="新增产品"
-          color="iris"
-          size="sm"
-          @click="openCreate"
-        />
-      </div>
     </div>
 
     <div class="flex flex-1 min-h-0">
       <!-- 左侧：商品类别树（产品线 → 类别，对齐金蝶）+ 产品分组树 -->
       <aside
-        class="flex-col hidden gap-1 px-2 py-3 overflow-y-auto border-r md:flex w-56 shrink-0 border-n-weak"
+        class="flex-col hidden gap-1 px-2 py-3 overflow-y-auto border-r md:flex w-48 shrink-0 bg-n-alpha-1 border-n-weak"
       >
         <div class="flex items-center justify-between px-2 mb-1">
           <span class="text-xs font-medium text-n-slate-11">商品类别</span>
@@ -773,7 +777,7 @@ onMounted(() => {
           </div>
 
           <!-- 列多：设最小宽度，窄屏外层 overflow-auto 自动横向滑动；仅「规格」长文本允许换行，其余列不换行 -->
-          <table class="hidden md:table w-full md:min-w-[1320px] text-sm">
+          <table class="hidden md:table w-full md:min-w-[1320px] text-sm border-separate border-spacing-0">
             <thead class="sticky top-0 z-10">
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap bg-n-solid-1 [&>th]:bg-n-solid-1"
@@ -797,7 +801,7 @@ onMounted(() => {
                 </th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">单位</th>
                 <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
-                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                <th class="sticky right-0 z-20 min-w-[200px] border-l border-n-weak !bg-white px-3 py-3 font-medium text-right whitespace-nowrap">
                   操作
                 </th>
               </tr>
@@ -856,7 +860,7 @@ onMounted(() => {
                     {{ p.isActive ? '启用' : '已禁用' }}
                   </span>
                 </td>
-                <td class="px-3 py-3">
+                <td class="sticky right-0 z-10 min-w-[200px] border-l border-n-weak !bg-white px-3 py-3 whitespace-nowrap">
                   <div v-if="canManage" class="flex justify-end gap-1">
                     <Button
                       label="编辑"
@@ -896,7 +900,7 @@ onMounted(() => {
           :current-page="currentPage"
           :total-items="totalCount"
           :items-per-page="itemsPerPage"
-          class="mt-3 sticky bottom-0 z-10"
+          class="mt-0 sticky bottom-0 z-10 bg-white border-t border-n-weak"
           @update:current-page="currentPage = $event"
         />
       </div>

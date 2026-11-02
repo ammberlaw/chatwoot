@@ -24,24 +24,28 @@ module Crm::CustomerScoring
     self.customer_code = format('WT%07d', last + 1)
   end
 
-  # 15 项加权，总分 100。原有「风险等级 4 分」按业务要求取消计分（字段本身保留、仍可填），
-  # 那 4 分并入「最近跟进」——跟进是外贸最该被激励的动作，且由系统自动写入、不增加录入负担。
+  # 14 项加权，总分 100。两次调整都只动权重、不动总分，等级门槛（GRADE_FLOORS）才一直可比：
+  # ① 原有「风险等级 4 分」取消计分（字段保留、仍可填），那 4 分并入过「最近跟进」；
+  # ② 2026-10-31「最近跟进 11 分」也取消：当初的前提是它由系统自动写入，
+  #    实际上只有人手点了跟进按钮才会有值（生产 13231 个客户里只有 145 个有），
+  #    等于全员白丢 11 分、等级被整体压低。而且这是**资料**完整度，
+  #    跟没跟进属于活跃度，本来就不该混在一起（活跃度看 LAST_TOUCH_SQL）。
+  #    这 11 分按「对外贸有多关键」分回最核心的几项资料。
   def compute_completeness
     s = 0
-    s += 5 if trade_country.present?
+    s += 8 if trade_country.present?
     s += 5 if website.present?
     s += 4 if industry.present?
     s += 4 if trade_region.present? || trade_city.present?
-    s += 7 if primary_contact_name.present?
-    s += 16 if contact_email.present?
+    s += 9 if primary_contact_name.present?
+    s += 20 if contact_email.present?
     s += 10 if whats_app.present? || wechat.present?
     s += 5 if contact_phone.present?
     s += 7 if customer_level.present?
-    s += 7 if product_group.present?
+    s += 8 if product_group.present?
     s += 4 if source_channel.present?
     s += 4 if customer_group.present?
-    s += 6 if customer_status.present?
-    s += 11 if last_follow_up_at.present?
+    s += 7 if customer_status.present?
     s += 5 if customer_remark.present?
     self.info_completeness_score = s
     self.completeness_grade = GRADE_FLOORS.find { |_g, floor| s >= floor }&.first || 'POOR'

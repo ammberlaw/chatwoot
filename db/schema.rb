@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_31_210000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1975,8 +1975,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
     t.integer "recycle_days_sample_won"
     t.integer "recycle_days_not_won"
     t.integer "recycle_days_social_media"
-    t.boolean "opportunity_recycle_enabled", default: true, null: false
-    t.integer "opportunity_stale_days", default: 30, null: false
     t.bigint "exempt_user_ids", default: [], null: false, array: true
     t.integer "claim_cooldown_days", default: 30, null: false
     t.boolean "monthly_report_enabled", default: true, null: false
@@ -2554,6 +2552,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
     t.datetime "updated_at", null: false
     t.string "settle_type", default: "PUBLIC", null: false
     t.date "incurred_on"
+    t.bigint "mes_outsource_order_id"
+    t.index ["account_id", "mes_outsource_order_id"], name: "index_erp_payables_on_account_and_outsource_order"
     t.index ["account_id", "mes_purchase_order_id", "mes_supplier_id"], name: "uniq_erp_payable_po_supplier", unique: true, where: "(mes_purchase_order_id IS NOT NULL)"
     t.index ["account_id", "payable_no"], name: "index_erp_payables_on_account_id_and_payable_no", unique: true
     t.index ["account_id", "status"], name: "index_erp_payables_on_account_id_and_status"
@@ -2627,8 +2627,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "trade_assurance_no"
     t.index ["account_id", "receipt_no"], name: "index_erp_receipt_records_on_account_id_and_receipt_no", unique: true
     t.index ["account_id", "received_at"], name: "index_erp_receipt_records_on_account_id_and_received_at"
+    t.index ["account_id", "trade_assurance_no"], name: "index_erp_receipt_records_on_account_and_trade_assurance"
     t.index ["account_id"], name: "index_erp_receipt_records_on_account_id"
     t.index ["cash_account_id"], name: "index_erp_receipt_records_on_cash_account_id"
     t.index ["crm_customer_id"], name: "index_erp_receipt_records_on_crm_customer_id"
@@ -3202,6 +3204,52 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
     t.index ["account_id", "production_order_id"], name: "index_mes_order_forwards_on_account_id_and_production_order_id"
   end
 
+  create_table "mes_outsource_materials", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "outsource_order_id", null: false
+    t.bigint "mes_material_id"
+    t.bigint "crm_product_id"
+    t.string "unit"
+    t.decimal "qty_numerator", precision: 16, scale: 6, default: "1.0", null: false
+    t.decimal "qty_denominator", precision: 16, scale: 6, default: "1.0", null: false
+    t.decimal "loss_rate", precision: 6, scale: 2, default: "0.0", null: false
+    t.decimal "std_qty", precision: 16, scale: 3, default: "0.0", null: false
+    t.bigint "from_warehouse_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_outsource_materials_on_account_id"
+    t.index ["outsource_order_id"], name: "index_mes_outsource_materials_on_outsource_order_id"
+  end
+
+  create_table "mes_outsource_orders", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "order_no", null: false
+    t.bigint "production_order_id"
+    t.bigint "mes_supplier_id", null: false
+    t.string "product_line"
+    t.string "status", default: "DRAFT", null: false
+    t.date "doc_date", null: false
+    t.date "delivery_date"
+    t.bigint "crm_product_id", null: false
+    t.decimal "qty", precision: 16, scale: 3, default: "0.0", null: false
+    t.string "unit"
+    t.bigint "mes_warehouse_id"
+    t.bigint "to_warehouse_id"
+    t.bigint "fee_rate_micros", default: 0, null: false
+    t.boolean "fee_tax_included", default: false, null: false
+    t.decimal "tax_rate", precision: 6, scale: 2, default: "0.0", null: false
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "order_no"], name: "index_mes_outsource_orders_on_account_id_and_order_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_outsource_orders_on_account_id_and_product_line"
+    t.index ["account_id", "status"], name: "index_mes_outsource_orders_on_account_id_and_status"
+    t.index ["mes_supplier_id"], name: "index_mes_outsource_orders_on_mes_supplier_id"
+    t.index ["production_order_id"], name: "index_mes_outsource_orders_on_production_order_id"
+  end
+
   create_table "mes_production_order_stage_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -3546,12 +3594,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_30_180000) do
     t.text "reject_reason"
     t.bigint "extra_purchase_order_ids", default: [], null: false, array: true
     t.integer "print_count", default: 0, null: false
+    t.bigint "outsource_order_id"
     t.index ["account_id", "approval_status"], name: "index_mes_stock_entries_on_account_and_approval"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
     t.index ["account_id"], name: "index_mes_stock_entries_on_account_id"
     t.index ["extra_purchase_order_ids"], name: "index_mes_stock_entries_on_extra_purchase_order_ids", using: :gin
+    t.index ["outsource_order_id"], name: "index_mes_stock_entries_on_outsource_order_id"
     t.index ["owner_id"], name: "index_mes_stock_entries_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_stock_entries_on_production_order_id"
     t.index ["purchase_order_id"], name: "index_mes_stock_entries_on_purchase_order_id"

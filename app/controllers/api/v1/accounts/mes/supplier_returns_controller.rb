@@ -10,11 +10,37 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
 
   # 按来源单据筛是新建退料单时用的：要算「这张入库单的货还剩多少能退」＝ 收了多少 − 已退多少。
   FILTERS = { status: :status, production_order_id: :production_order_id,
-              source_stock_entry_id: :source_stock_entry_id }.freeze
+              source_stock_entry_id: :source_stock_entry_id, return_kind: :return_kind }.freeze
+
+  # 表头上每列各自的筛选（对标金蝶的漏斗）。放后端是因为列表分页：
+  # 前端只过滤本页，第 2 页往后的命中就全看不见了。
+  COLUMN_LIKE_FILTERS = {
+    col_no: ->(scope, v) { scope.where('mes_supplier_returns.return_no ILIKE ?', "%#{v}%") },
+    col_supplier: lambda { |scope, v|
+      scope.where(mes_supplier_id: Mes::Supplier.where('name ILIKE ?', "%#{v}%").select(:id))
+    },
+    col_reason: ->(scope, v) { scope.where('mes_supplier_returns.reason ILIKE ?', "%#{v}%") },
+    # 「关联单号」那一列显示的是来源采购单号或来源入库单号，两个都得认。
+    col_ref: lambda { |scope, v|
+      scope.where(
+        'mes_supplier_returns.mes_purchase_order_id IN (SELECT id FROM mes_purchase_orders WHERE po_no ILIKE :t) ' \
+        'OR mes_supplier_returns.source_stock_entry_id IN (SELECT id FROM mes_stock_entries WHERE entry_no ILIKE :t)',
+        t: "%#{v}%"
+      )
+    },
+    # 退出 / 返回是 date 列，到日那天本身算在内，直接按日期比即可（不必补 23:59:59）。
+    sent_from: ->(scope, v) { scope.where('mes_supplier_returns.sent_on >= ?', v) },
+    sent_to: ->(scope, v) { scope.where('mes_supplier_returns.sent_on <= ?', v) },
+    returned_from: ->(scope, v) { scope.where('mes_supplier_returns.returned_on >= ?', v) },
+    returned_to: ->(scope, v) { scope.where('mes_supplier_returns.returned_on <= ?', v) }
+  }.freeze
 
   def index
     scope = scoped_by_product_line(Current.account.mes_supplier_returns)
     FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
+    # 建单日期区间（from / to，与采购申请单、采购单同一套参数名）。
+    scope = scoped_by_created_range(scope)
+    scope = apply_column_filters(scope)
     scope = apply_search(scope, params[:q])
     @returns_count = scope.count
     @returns = scope.includes(:mes_supplier, :production_order, :owner, :warehouse,
@@ -69,6 +95,13 @@ class Api::V1::Accounts::Mes::SupplierReturnsController < Api::V1::Accounts::Mes
     render 'api/v1/accounts/mes/supplier_returns/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def apply_column_filters(scope)
+    COLUMN_LIKE_FILTERS.each do |param, apply|
+      scope = apply.call(scope, params[param].to_s.strip) if params[param].present?
+    end
+    scope
   end
 
   def apply_search(scope, raw)

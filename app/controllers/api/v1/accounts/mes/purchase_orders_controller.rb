@@ -174,7 +174,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     scope = Mes::PurchaseOrderFilter.apply(scope, params)
     scope = scope.where(has_exception: true) if params[:exception] == 'true'
     scope = apply_search(scope, params[:q]) if params[:q].present?
-    scope
+    scoped_by_created_range(scope)
   end
 
   # 采购审批人（不兼 MES 岗的副总经理等）看他负责产线的采购单全部。

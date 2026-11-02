@@ -112,17 +112,17 @@ class Mes::Shipment < ApplicationRecord
                         .pluck(:manager_ids).flatten.compact.uniq
     return configured if configured.any?
 
-    # 没配审核人时回落**财务 + 管理员**。
+    # 没配审核人时回落**财务**；一个财务都没有才轮到管理员。
     #
-    # 原先这里还带着 crm_role='deputy_admin'。副管能看全公司的业务数据，但看得见
-    # ≠ 该他审——这道审的是「这张单的款收齐没有」，是财务的活。2026-10-26 实例：
-    # 副管 crm_finance=false、也没配进审核人名单，却天天收到别人的出库审核待办
-    # 和手机推送，还真能点通过。
-    # 兜底只是「没配名单时别让单子卡死」，不是给人发职责。
-    account.account_users.active_members
-           .where(role: roles_administrator)
-           .or(account.account_users.active_members.where(crm_finance: true))
-           .pluck(:user_id).uniq
+    # 这道审的是「这张单的款收齐没有」，是财务的活。兜底只是「没配名单时别让单子
+    # 卡死」，不是给人发职责——先摘掉的是 deputy_admin（2026-10-26：副管没配进
+    # 名单却天天收别人的出库审核待办，还真能点通过），2026-11-02 用户定，管理员
+    # 同样不该落进来：生产上两位财务都在，老板却跟着进了审核人名单。
+    # 真没有财务时仍回落管理员——否则单子没人审，比多吵一个人糟得多。
+    finance = account.account_users.active_members.where(crm_finance: true).pluck(:user_id).uniq
+    return finance if finance.any?
+
+    account.account_users.active_members.where(role: roles_administrator).pluck(:user_id).uniq
   end
 
   def self.roles_administrator = AccountUser.roles[:administrator]

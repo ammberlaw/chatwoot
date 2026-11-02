@@ -11,6 +11,7 @@ import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
+import ConversationSearch from './ConversationSearch.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ConversationTranslationAPI from 'dashboard/api/crm/conversationTranslation';
 import { TRANSLATE_LANGUAGES } from 'dashboard/helper/translationLanguages';
@@ -34,6 +35,9 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
+
+// 会话内搜聊天记录（面板挂在顶栏下方，见 ConversationSearch.vue）
+const showSearch = ref(false);
 const store = useStore();
 const route = useRoute();
 const conversationHeader = ref(null);
@@ -148,8 +152,13 @@ const onTargetLanguageChange = () => {
 <template>
   <div
     ref="conversationHeader"
-    class="flex flex-col gap-3 items-center justify-between flex-1 w-full min-w-0 xl:flex-row px-3 pt-3 pb-2 h-24 xl:h-12"
+    class="relative flex flex-col gap-3 items-center justify-between flex-1 w-full min-w-0 xl:flex-row px-3 pt-3 pb-2 h-24 xl:h-12"
   >
+    <ConversationSearch
+      v-if="showSearch"
+      :conversation-id="chat.id"
+      @close="showSearch = false"
+    />
     <div
       class="flex items-center justify-start w-full xl:w-auto max-w-full min-w-0 xl:flex-1"
     >
@@ -159,7 +168,7 @@ const onTargetLanguageChange = () => {
         class="ltr:mr-2 rtl:ml-2"
       />
       <Avatar
-          rounded-full
+        rounded-full
         :name="currentContact.name"
         :src="currentContact.thumbnail"
         :size="32"
@@ -214,6 +223,19 @@ const onTargetLanguageChange = () => {
         class="hidden md:flex"
       />
       <div class="flex items-center gap-1.5">
+        <button
+          v-tooltip.bottom="$t('CONVERSATION.HEADER.SEARCH.LABEL')"
+          type="button"
+          class="flex items-center justify-center rounded-lg size-8 shrink-0"
+          :class="
+            showSearch
+              ? 'bg-n-iris-3 text-n-iris-11'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
+          "
+          @click="showSearch = !showSearch"
+        >
+          <span class="i-lucide-search size-4 shrink-0" />
+        </button>
         <button
           v-tooltip.bottom="$t('CONVERSATION.HEADER.TRANSLATE.TOGGLE')"
           type="button"

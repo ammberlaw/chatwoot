@@ -21,6 +21,8 @@ const props = defineProps({
   enableVariables: { type: Boolean, default: false },
   enableCannedResponses: { type: Boolean, default: true },
   enableCaptainTools: { type: Boolean, default: false },
+  // 用我们自己的 AI 时把 Chatwoot 自带的 copilot 按钮藏掉（见 WootWriter/Editor.vue）。
+  hideCopilot: { type: Boolean, default: false },
   signature: { type: String, default: '' },
   allowSignature: { type: Boolean, default: false },
   sendWithSignature: { type: Boolean, default: false },
@@ -122,6 +124,7 @@ watch(
         :enable-variables="enableVariables"
         :enable-canned-responses="enableCannedResponses"
         :enable-captain-tools="enableCaptainTools"
+        :hide-copilot="hideCopilot"
         :signature="signature"
         :allow-signature="allowSignature"
         :send-with-signature="sendWithSignature"

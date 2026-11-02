@@ -23,6 +23,7 @@ import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
 const store = useMesInspectionsStore();
@@ -33,14 +34,37 @@ const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
 // 列表搜索：工单号 / 成品名 / 不良原因。
 const searchQuery = ref('');
+// 表头逐列筛选（口径与后端 InspectionsController::COLUMN_LIKE_FILTERS 一一对应）。
+const colFilters = reactive({
+  kind: '',
+  col_object: '',
+  col_owner: '',
+  result: '',
+  col_defect: '',
+  col_inspector: '',
+  inspected: { from: '', to: '' },
+});
 const fetchList = () =>
   store.get({
     page: currentPage.value,
     q: searchQuery.value.trim() || undefined,
+    kind: colFilters.kind || undefined,
+    result: colFilters.result || undefined,
+    col_object: colFilters.col_object.trim() || undefined,
+    col_owner: colFilters.col_owner.trim() || undefined,
+    col_defect: colFilters.col_defect.trim() || undefined,
+    col_inspector: colFilters.col_inspector.trim() || undefined,
+    from: colFilters.inspected.from || undefined,
+    to: colFilters.inspected.to || undefined,
   });
 const onSearch = () => {
   currentPage.value = 1;
   fetchList();
+};
+// 换筛选条件回第 1 页——否则在第 3 页筛出 2 条结果会看到空列表。
+const onColFilterChange = () => {
+  if (currentPage.value === 1) fetchList();
+  else currentPage.value = 1;
 };
 const materialsStore = useMesMaterialsStore();
 
@@ -65,6 +89,36 @@ const RESULT = {
   FAIL: { label: '不合格', cls: STATUS_TONE.fail },
   CONDITIONAL: { label: '让步接收', cls: STATUS_TONE.busy },
 };
+
+// 表头筛选的列映射。放在 KIND_LABELS / RESULT 之后——它要用这两张表拼下拉项。
+const FILTERABLE = {
+  kind: {
+    type: 'select',
+    key: 'kind',
+    options: [{ value: '', label: '全部类型' }, ...kindOptions],
+  },
+  object: {
+    type: 'text',
+    key: 'col_object',
+    placeholder: '工单号 / 物料 / 成品',
+  },
+  owner: { type: 'text', key: 'col_owner', placeholder: '归属人' },
+  result: {
+    type: 'select',
+    key: 'result',
+    options: [
+      { value: '', label: '全部结果' },
+      ...Object.entries(RESULT).map(([value, v]) => ({
+        value,
+        label: v.label,
+      })),
+    ],
+  },
+  defect: { type: 'text', key: 'col_defect', placeholder: '不良原因' },
+  inspector: { type: 'text', key: 'col_inspector', placeholder: '检验员' },
+  inspected: { type: 'date', key: 'inspected' },
+};
+const filterOf = key => FILTERABLE[key];
 
 // 只读查看
 const viewDialogRef = ref(null);
@@ -411,26 +465,72 @@ onMounted(() => {
           </div>
         </div>
         <table class="hidden w-full text-sm md:table">
+          <!-- 表头白底吸顶：加了逐列筛选，筛选框得一直够得着。 -->
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                类型
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('kind').key]"
+                  type="select"
+                  :options="filterOf('kind').options"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[160px]">
                 对象
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('object').key]"
+                  :placeholder="filterOf('object').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
                 归属人
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('owner').key]"
+                  :placeholder="filterOf('owner').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">
                 检验/合格/不良
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">结果</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                结果
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('result').key]"
+                  type="select"
+                  :options="filterOf('result').options"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[96px]">
                 不良原因
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('defect').key]"
+                  :placeholder="filterOf('defect').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
                 检验员
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('inspector').key]"
+                  :placeholder="filterOf('inspector').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                日期
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('inspected').key]"
+                  type="date"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3" />
             </tr>
           </thead>

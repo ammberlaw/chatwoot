@@ -15,6 +15,7 @@
 #  reference_no       :string
 #  remark             :text
 #  status             :string           default("NORMAL"), not null
+#  trade_assurance_no :string
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
 #  account_id         :bigint           not null
@@ -24,11 +25,12 @@
 #
 # Indexes
 #
-#  index_erp_receipt_records_on_account_id                  (account_id)
-#  index_erp_receipt_records_on_account_id_and_receipt_no   (account_id,receipt_no) UNIQUE
-#  index_erp_receipt_records_on_account_id_and_received_at  (account_id,received_at)
-#  index_erp_receipt_records_on_cash_account_id             (cash_account_id)
-#  index_erp_receipt_records_on_crm_customer_id             (crm_customer_id)
+#  index_erp_receipt_records_on_account_and_trade_assurance  (account_id,trade_assurance_no)
+#  index_erp_receipt_records_on_account_id                   (account_id)
+#  index_erp_receipt_records_on_account_id_and_receipt_no    (account_id,receipt_no) UNIQUE
+#  index_erp_receipt_records_on_account_id_and_received_at   (account_id,received_at)
+#  index_erp_receipt_records_on_cash_account_id              (cash_account_id)
+#  index_erp_receipt_records_on_crm_customer_id              (crm_customer_id)
 #
 class Erp::ReceiptRecord < ApplicationRecord
   NORMAL = 'NORMAL'.freeze

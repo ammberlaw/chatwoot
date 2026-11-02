@@ -9,8 +9,6 @@
 #  exempt_user_ids              :bigint           default([]), not null, is an Array
 #  monthly_report_enabled       :boolean          default(TRUE), not null
 #  name                         :string           default("客户池规则")
-#  opportunity_recycle_enabled  :boolean          default(TRUE), not null
-#  opportunity_stale_days       :integer          default(30), not null
 #  pool_limit_key_account_won   :integer
 #  pool_limit_not_won           :integer
 #  pool_limit_sample_won        :integer

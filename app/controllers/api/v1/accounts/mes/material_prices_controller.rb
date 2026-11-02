@@ -13,6 +13,7 @@ class Api::V1::Accounts::Mes::MaterialPricesController < Api::V1::Accounts::Mes:
     end
     @material_prices_count = scope.count
     @material_prices = scope.order('crm_products.sku').page(page_param).per(per_page_param)
+    @purchase_marks = recent_purchase_marks(@material_prices.map(&:crm_product_id))
   end
 
   def create
@@ -71,6 +72,33 @@ class Api::V1::Accounts::Mes::MaterialPricesController < Api::V1::Accounts::Mes:
   end
 
   private
+
+  # 本页这些料「上次买花了多少、找谁买的、一共买过几次」。
+  #
+  # 标准价这张表自己只有一个数，光看它判断不了「这价还作不作数」——
+  # 得拿真实成交价对一对。口径同 Mes::LastPurchasePrice（审批通过、未作废、有价），
+  # 所以这里显示的和采购单上带出来的是同一个数。
+  #
+  # 一次查完本页 25 行，不逐行往返。
+  def recent_purchase_marks(product_ids)
+    return {} if product_ids.blank?
+
+    items = Mes::PurchaseItem.joins(:purchase_order).includes(:purchase_order, :mes_supplier)
+                             .where(account_id: Current.account.id, crm_product_id: product_ids)
+                             .where(mes_purchase_orders: { approval_status: Mes::MaterialPriceResolver::APPROVED_PO })
+                             .where.not(mes_purchase_orders: { status: Mes::MaterialPriceResolver::VOID_PO_STATUS })
+                             .where('mes_purchase_items.rate_micros > 0')
+                             .order('mes_purchase_orders.created_at DESC')
+    items.group_by(&:crm_product_id).transform_values { |rows| mark_of(rows) }
+  end
+
+  def mark_of(rows)
+    latest = rows.first
+    { rate_micros: latest.rate_micros, price_tax_included: latest.price_tax_included,
+      supplier_name: latest.mes_supplier&.name, po_no: latest.purchase_order&.po_no,
+      ordered_at: latest.purchase_order&.created_at, times: rows.size,
+      supplier_count: rows.filter_map(&:mes_supplier_id).uniq.size }
+  end
 
   # { crm_product_id => rate_micros }。口径和 Mes::MaterialPriceResolver 的「最近采购价」
   # 一致（审批通过、未作废、有价），所以回填进来的数和任务单上原来兜底显示的是同一个。

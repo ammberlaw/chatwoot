@@ -25,6 +25,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MesMultiNoCell from 'dashboard/components-next/mes/MesMultiNoCell.vue';
 import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
@@ -32,6 +33,8 @@ import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+const expandedRowActions = ref(null);
+
 const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
 const router = useRouter();
@@ -74,6 +77,9 @@ const currentPage = ref(1);
 // 下单状态 / 审批状态：两个字段互相独立（已下单≠已审批），所以分两个下拉。
 // 选项表依赖下面的 STATUS_LABELS / APPROVAL_LABELS，放在它们之后（见文件下方）。
 const statusFilter = ref('');
+// 建单日期区间：单子攒得多，不按时间收口就只能一页页翻。
+const fromDate = ref('');
+const toDate = ref('');
 const approvalFilter = ref('');
 
 // 表头漏斗（对标金蝶）。条件发后端算（见 Mes::PurchaseOrderFilter）：列表是分页的，
@@ -108,6 +114,8 @@ const fetchList = () => {
     ...Object.fromEntries(
       Object.entries(colFilters).map(([k, v]) => [k, v.trim() || undefined])
     ),
+    from: fromDate.value || undefined,
+    to: toDate.value || undefined,
     page: currentPage.value,
   });
 };
@@ -126,6 +134,7 @@ watch(search, () => {
   searchTimer = setTimeout(resetToFirstPage, 300);
 });
 watch(onlyMine, resetToFirstPage);
+watch([fromDate, toDate], resetToFirstPage);
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 // micros → ¥金额（两位小数），空值给「—」。采购模块内部可见价格，销售端不涉及。
@@ -818,6 +827,8 @@ const exportList = async () => {
     const pos = await fetchAllRows(params => MesPurchaseOrderAPI.get(params), {
       q: search.value.trim() || undefined,
       owner_id: onlyMine.value ? currentUserId.value : undefined,
+      from: fromDate.value || undefined,
+      to: toDate.value || undefined,
     });
     const moneyCols = canViewAmount.value;
     const config = isItemView.value
@@ -963,14 +974,14 @@ const VIEW_ITEM_COLS = [
 const priceNote = it => {
   const b = it.priceBenchmark;
   if (!b) return null;
-  if (b.skipReason) return { level: 'warn', text: b.skipReason };
+  if (b.skipReason) return { level: 'warn', text: `系统提示：${b.skipReason}` };
   if (b.level === 'normal') return null;
 
   const last = (Number(b.lastRateMicros) / 1e6).toFixed(2);
   const pct = Math.abs(Math.round(b.diffRatio * 100));
   return {
     level: b.level,
-    text: `比${b.scopeLabel}${b.diffRatio > 0 ? '贵' : '便宜'} ${pct}%`,
+    text: `系统提示：比${b.scopeLabel}${b.diffRatio > 0 ? '贵' : '便宜'} ${pct}%`,
     title: `${b.scopeLabel} ¥${last} · ${b.poNo}${b.supplierName ? ` · ${b.supplierName}` : ''}`,
   };
 };
@@ -1054,16 +1065,26 @@ useRouteQueryReentry(async query => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <h1
-        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        class="text-heading-1 text-n-slate-12"
       >
         采购单
       </h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <div data-tabbar="page" class="!my-0 [&>button]:!h-[26px]">
+          <button
+            v-for="m in VIEW_MODES"
+            :key="m.key"
+            :aria-selected="viewMode === m.key"
+            @click="viewMode = m.key"
+          >
+            {{ m.label }}
+          </button>
+        </div>
         <!-- h-8 和同排的按钮等高：不给高度它就只有一行文字那么高（24px），
              和旁边 32px 的控件一比就是没对齐。 -->
         <button
@@ -1080,16 +1101,6 @@ useRouteQueryReentry(async query => {
         <!-- 这条 tab 和按钮并排在工具栏里，得压到同样 32px 高：全局 [data-tabbar] 规则
              给了 margin-block 和更大的内边距（别处它自己占一行，38px 正好），
              属性选择器特指度比 my-0 高，所以这里要带 ! 才盖得住。 -->
-        <div data-tabbar="page" class="!my-0 [&>button]:!h-[26px]">
-          <button
-            v-for="m in VIEW_MODES"
-            :key="m.key"
-            :aria-selected="viewMode === m.key"
-            @click="viewMode = m.key"
-          >
-            {{ m.label }}
-          </button>
-        </div>
         <!-- 收起用不到的列：列少了就不用横着拖滚动条（同生产订单） -->
         <div class="relative">
           <Button
@@ -1097,8 +1108,7 @@ useRouteQueryReentry(async query => {
             variant="outline"
             color="slate"
             size="sm"
-            class="btn-ink"
-            icon="i-lucide-columns-3"
+              icon="i-lucide-columns-3"
             @click="showColumnPanel = !showColumnPanel"
           />
           <!-- 透明兜底层：点面板外面收起来，省掉一个全局 click 监听 -->
@@ -1138,6 +1148,7 @@ useRouteQueryReentry(async query => {
           size="sm"
           @click="toggleDensity"
         />
+
         <!-- 导出是只读动作，不挂采购写权限；金额列按 canViewAmount 决定出不出 -->
         <Button
           label="导出 Excel"
@@ -1181,6 +1192,17 @@ useRouteQueryReentry(async query => {
         v-model="approvalFilter"
         :options="APPROVAL_FILTER_OPTIONS"
         @update:model-value="resetToFirstPage"
+      />
+      <DatePicker
+        v-model="fromDate"
+        placeholder="建单日起"
+        trigger-class="w-36"
+      />
+      <span class="text-sm text-n-slate-10">至</span>
+      <DatePicker
+        v-model="toDate"
+        placeholder="建单日止"
+        trigger-class="w-36"
       />
       <label
         class="flex items-center gap-1.5 text-sm cursor-pointer select-none text-n-slate-11"
@@ -1328,7 +1350,7 @@ useRouteQueryReentry(async query => {
                 />
               </th>
               <th
-                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak w-[264px] min-w-[264px] max-w-[264px] !bg-white"
               />
             </tr>
           </thead>
@@ -1444,10 +1466,10 @@ useRouteQueryReentry(async query => {
                 </template>
               </td>
               <td
-                class="px-3 py-3 text-right whitespace-nowrap sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="px-3 py-3 text-right whitespace-nowrap sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak w-[264px] min-w-[264px] max-w-[264px] !bg-white"
               >
                 <div
-                  class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
+                  class="flex w-[240px] flex-wrap items-center justify-end gap-1 [&>button]:shrink-0"
                 >
                   <Button
                     label="查看"
@@ -1477,6 +1499,14 @@ useRouteQueryReentry(async query => {
                     size="sm"
                     @click="rejectPo(p)"
                   />
+                  <Button
+                    :label="expandedRowActions === p.id ? '收起' : '更多'"
+                    variant="ghost"
+                    color="slate"
+                    size="sm"
+                    @click="expandedRowActions = expandedRowActions === p.id ? null : p.id"
+                  />
+                  <div v-if="expandedRowActions === p.id" class="flex flex-wrap items-center justify-end gap-1 border-t border-n-weak pt-2">
                   <Button
                     v-if="canEditRow(p)"
                     label="编辑"
@@ -1529,6 +1559,7 @@ useRouteQueryReentry(async query => {
                       @click="removeOrder(p)"
                     />
                   </span>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -1586,7 +1617,7 @@ useRouteQueryReentry(async query => {
                 />
               </th>
               <th
-                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-[''] px-3 py-2"
+                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak w-[88px] min-w-[88px] !bg-white px-3 py-2"
               />
             </tr>
           </thead>
@@ -1669,7 +1700,7 @@ useRouteQueryReentry(async query => {
                 </template>
               </td>
               <td
-                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap w-[88px] min-w-[88px] !bg-white"
               >
                 <Button
                   label="查看"

@@ -5,6 +5,7 @@ import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesPipelineBoardIndex from './pages/MesPipelineBoardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
 import MesSupplierReturnsIndex from './pages/MesSupplierReturnsIndex.vue';
+import MesOutsourceOrdersIndex from './pages/MesOutsourceOrdersIndex.vue';
 import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesBomIntakeIndex from './pages/MesBomIntakeIndex.vue';
@@ -53,6 +54,12 @@ export const routes = [
     'supplier-returns',
     'mes_supplier_returns_index',
     MesSupplierReturnsIndex
+  ),
+  // 委外加工：料发给加工厂、做好收回来。建单只能从生产订单转，所以这页没有「新建」。
+  mesPage(
+    'outsource-orders',
+    'mes_outsource_orders_index',
+    MesOutsourceOrdersIndex
   ),
   mesPage('pipeline', 'mes_pipeline_index', MesPipelineBoardIndex),
   mesPage(

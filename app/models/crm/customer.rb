@@ -82,9 +82,11 @@ class Crm::Customer < ApplicationRecord
   CUSTOMER_STATUSES = %w[PROSPECT FOLLOWING WON DORMANT LOST].freeze
   CUSTOMER_GROUPS = %w[KEY_ACCOUNT_WON WON SAMPLE_WON NOT_WON SOCIAL_MEDIA].freeze
 
-  # 「最后互动时间」：跟进记录 / 往来邮件 / 下单 / 会话(WhatsApp 等) / 商机动态 五者取最新，
+  # 「最后互动时间」：跟进记录 / 往来邮件 / 下单 / 会话(WhatsApp 等) / 商机动态 / PI / 日程 取最新，
   # 建档时间兜底（新建档不会一上来就判成沉默）。客户列表的「最近联系」、流失预警、
   # 公海自动回收都读这一份，避免各处口径打架——只在一个地方沉默就被收走是最伤业务的。
+  # 日程只认**已经发生**的（starts_at <= NOW）：下个月的跟进提醒不是「已经联系过」，
+  # 算进来会让每个排了日程的客户永远不沉默。
   # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
   # 使 +86 138-0013-8000 与 13800138000 判为同号。%s 处填要归一化的列名。
   # 查重的地方都得用同一份，否则「客户页说不重复、名片确认时说重复」这种自相矛盾很难查。
@@ -100,7 +102,10 @@ class Crm::Customer < ApplicationRecord
       COALESCE((SELECT MAX(cv.last_activity_at) FROM conversations cv
                   JOIN contacts ct ON ct.id = cv.contact_id
                  WHERE ct.crm_customer_id = crm_customers.id), crm_customers.created_at),
-      COALESCE((SELECT MAX(op.last_activity_at) FROM crm_opportunities op WHERE op.crm_customer_id = crm_customers.id), crm_customers.created_at)
+      COALESCE((SELECT MAX(op.last_activity_at) FROM crm_opportunities op WHERE op.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(pi.pi_date) FROM crm_pis pi WHERE pi.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(se.starts_at) FROM crm_schedule_events se
+                 WHERE se.customer_id = crm_customers.id AND se.starts_at <= NOW()), crm_customers.created_at)
     )
   SQL
   # 产品分组两类：平板电脑(TABLET) / 商显工控(COMMERCIAL_DISPLAY，含原商显+工控)。
@@ -187,6 +192,17 @@ class Crm::Customer < ApplicationRecord
   def move_to_public_pool!(at: Time.current)
     update!(is_in_public_pool: true, public_pool_at: at, previous_owner_id: account_owner_id,
             account_owner_id: nil, assigned_by_id: nil)
+    sync_opportunity_owner!(nil)
+  end
+
+  # 商机跟着客户跑：客户换到谁手上（转移 / 认领 / 进公海），名下商机的负责人一起换。
+  # 用户 2026-10-31 定：商机不单独回收，默认跟客户——所以三条换手路径都要带上它，
+  # 否则客户进了公海、商机还挂在原业务员名下，业绩和看板两头对不上。
+  # 已在商机公海里的不动（共享池语义，与客户转移的 cascade_reassign 同一口径）。
+  # 走 update_all：换负责人不是「商机被推进」，不该顶掉 last_activity_at。
+  def sync_opportunity_owner!(owner_id)
+    account.crm_opportunities.where(crm_customer_id: id, is_in_public_pool: false)
+           .update_all(owner_id: owner_id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
   end
 
   # 客户星级 0–5：按累计成交额（人民币）自动评定。deal_total_amount_micros 已是折人民币口径。

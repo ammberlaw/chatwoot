@@ -375,6 +375,7 @@
         "CUSTOMER": "客户",
         "STATUS": "状态",
         "AMOUNT": "金额",
+        "FREIGHT": "运费",
         "PAYMENT_TERM": "结算方式",
         "ORDER_DATE": "下单日期",
         "DELIVERY_DATE": "交期",

@@ -27,6 +27,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import MesSupplierReturnPrintSheet from 'dashboard/components-next/mes/MesSupplierReturnPrintSheet.vue';
 import { printElement } from 'dashboard/helper/printHelper';
 
@@ -57,16 +58,68 @@ const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
 );
 
+// 退法：只扣库存 / 连采购应付一起冲（口径见后端 Mes::SupplierReturn::RETURN_KINDS）。
+const RETURN_KINDS = [
+  { value: 'REPLACE', label: '退换' },
+  { value: 'REFUND', label: '退货' },
+];
+
 const currentPage = ref(1);
 const activeStatus = ref('');
 const searchQuery = ref('');
+// 建单日期区间：退料单按月攒，不按时间收口就只能一页页翻（参数名 from/to，与采购申请单、采购单同一套）。
+const fromDate = ref('');
+const toDate = ref('');
+// 表头逐列筛选（后端口径见 SupplierReturnsController::COLUMN_LIKE_FILTERS）。
+// 状态不放漏斗——上面那排页签就是它，两个入口筛同一件事只会打架。
+const colFilters = reactive({
+  col_no: '',
+  col_supplier: '',
+  return_kind: '',
+  col_ref: '',
+  col_reason: '',
+  sent: { from: '', to: '' },
+  returned: { from: '', to: '' },
+});
+const FILTERABLE = {
+  no: { type: 'text', key: 'col_no', placeholder: '退料单号' },
+  supplier: { type: 'text', key: 'col_supplier', placeholder: '供应商' },
+  kind: {
+    type: 'select',
+    key: 'return_kind',
+    options: [{ value: '', label: '全部退法' }, ...RETURN_KINDS],
+  },
+  ref: { type: 'text', key: 'col_ref', placeholder: '采购单号 / 入库单号' },
+  reason: { type: 'text', key: 'col_reason', placeholder: '退料原因' },
+  sent: { type: 'date', key: 'sent' },
+  returned: { type: 'date', key: 'returned' },
+};
+const filterOf = key => FILTERABLE[key];
 
 const fetchList = () =>
   store.get({
     page: currentPage.value,
     status: activeStatus.value || undefined,
     q: searchQuery.value.trim() || undefined,
+    from: fromDate.value || undefined,
+    to: toDate.value || undefined,
+    return_kind: colFilters.return_kind || undefined,
+    col_no: colFilters.col_no.trim() || undefined,
+    col_supplier: colFilters.col_supplier.trim() || undefined,
+    col_ref: colFilters.col_ref.trim() || undefined,
+    col_reason: colFilters.col_reason.trim() || undefined,
+    sent_from: colFilters.sent.from || undefined,
+    sent_to: colFilters.sent.to || undefined,
+    returned_from: colFilters.returned.from || undefined,
+    returned_to: colFilters.returned.to || undefined,
   });
+
+// 换筛选条件回第 1 页——否则在第 3 页筛出 2 条结果会看到空列表。
+const onColFilterChange = () => {
+  currentPage.value = 1;
+  fetchList();
+};
+watch([fromDate, toDate], onColFilterChange);
 
 const onPage = page => {
   currentPage.value = page;
@@ -166,11 +219,6 @@ const blankRow = () => ({
   price: '',
   remark: '',
 });
-// 退法：只扣库存 / 连采购应付一起冲（口径见后端 Mes::SupplierReturn::RETURN_KINDS）。
-const RETURN_KINDS = [
-  { value: 'REPLACE', label: '退换' },
-  { value: 'REFUND', label: '退货' },
-];
 const form = reactive({
   mesSupplierId: '',
   productionOrderId: '',
@@ -462,13 +510,26 @@ onMounted(() => {
       >
         {{ f.label }}
       </button>
-      <div class="w-64 ms-auto">
-        <Input
-          v-model="searchQuery"
-          size="sm"
-          placeholder="搜索单号、原因"
-          @keyup.enter="onPage(1)"
+      <div class="flex items-center gap-2 ms-auto">
+        <DatePicker
+          v-model="fromDate"
+          placeholder="建单日起"
+          trigger-class="w-32 !h-8"
         />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          placeholder="建单日止"
+          trigger-class="w-32 !h-8"
+        />
+        <div class="w-56">
+          <Input
+            v-model="searchQuery"
+            size="sm"
+            placeholder="搜索单号、原因"
+            @keyup.enter="onPage(1)"
+          />
+        </div>
       </div>
     </div>
 
@@ -489,13 +550,63 @@ onMounted(() => {
           <tr
             class="border-b border-n-weak [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:whitespace-nowrap"
           >
-            <th class="px-3 py-2 font-medium text-left">单号</th>
-            <th class="px-3 py-2 font-medium text-left">供应商</th>
-            <th class="px-3 py-2 font-medium text-left">退料方式</th>
-            <th class="px-3 py-2 font-medium text-left">关联单号</th>
-            <th class="px-3 py-2 font-medium text-left">退料原因</th>
-            <th class="px-3 py-2 font-medium text-left">退出</th>
-            <th class="px-3 py-2 font-medium text-left">返回</th>
+            <th class="px-3 py-2 font-medium text-left">
+              单号
+              <MesColumnFilter
+                v-model="colFilters[filterOf('no').key]"
+                :placeholder="filterOf('no').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              供应商
+              <MesColumnFilter
+                v-model="colFilters[filterOf('supplier').key]"
+                :placeholder="filterOf('supplier').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              退料方式
+              <MesColumnFilter
+                v-model="colFilters[filterOf('kind').key]"
+                type="select"
+                :options="filterOf('kind').options"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              关联单号
+              <MesColumnFilter
+                v-model="colFilters[filterOf('ref').key]"
+                :placeholder="filterOf('ref').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              退料原因
+              <MesColumnFilter
+                v-model="colFilters[filterOf('reason').key]"
+                :placeholder="filterOf('reason').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              退出
+              <MesColumnFilter
+                v-model="colFilters[filterOf('sent').key]"
+                type="date"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium text-left">
+              返回
+              <MesColumnFilter
+                v-model="colFilters[filterOf('returned').key]"
+                type="date"
+                @change="onColFilterChange"
+              />
+            </th>
             <th class="px-3 py-2 font-medium text-right">在外天数</th>
             <th class="px-3 py-2 font-medium text-left">状态</th>
             <th class="px-3 py-2 font-medium text-right">操作</th>

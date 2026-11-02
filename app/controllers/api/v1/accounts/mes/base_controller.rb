@@ -57,6 +57,14 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     current_product_line ? scope.where(product_line: current_product_line) : scope
   end
 
+  # 建单日期区间（from/to，含当天）。单据攒多了之后不按时间收口就只能一页页翻。
+  # 口径对齐各列表自身的 created_at 倒序。
+  def scoped_by_created_range(scope)
+    scope = scope.where(created_at: params[:from].to_date.beginning_of_day..) if params[:from].present?
+    scope = scope.where(created_at: ..params[:to].to_date.end_of_day) if params[:to].present?
+    scope
+  end
+
   # 被当前产线筛掉的「未设产线」记录数（产线为空时恒为 0——那会儿什么都没筛掉）。
   #
   # 为什么要报这个数：产线分流是 where(product_line: X)，product_line 为空的单据

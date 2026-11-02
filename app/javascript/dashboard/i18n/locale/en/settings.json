@@ -485,6 +485,7 @@
     "MES_G_WAREHOUSE": "仓库",
     "MES_G_OUTBOUND": "出货",
     "MES_SUPPLIER_RETURNS": "采购退料",
+    "MES_OUTSOURCE_ORDERS": "委外加工",
     "MES_MATERIALS": "物料",
     "MES_SUPPLIERS": "供应商",
     "MES_WAREHOUSES": "仓库档案",

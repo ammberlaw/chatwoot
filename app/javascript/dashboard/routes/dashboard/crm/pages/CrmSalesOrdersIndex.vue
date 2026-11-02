@@ -472,7 +472,7 @@ const priceHint = li => {
   const pct = Math.abs(Math.round(b.diff_ratio * 100));
   return {
     level: b.level,
-    text: `比${b.scope_label} ${b.last_price} ${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
+    text: `系统提示：比${b.scope_label} ${b.last_price} ${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
     title: `${b.scope_label}：${b.order_no}（${(b.order_date || '').slice(0, 10)}）单价 ${b.last_price}`,
   };
 };
@@ -930,6 +930,11 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                     fmtDate(record.deliveryDate)
                   }}
                 </span>
+                <span v-if="record.shippingMicros">
+                  {{ t('CRM.SALES_ORDERS.TABLE.FREIGHT') }}：{{
+                    fmtMoney(record.shippingMicros, record.orderCurrency)
+                  }}
+                </span>
                 <span v-if="record.paymentTerm">
                   {{ t('CRM.SALES_ORDERS.TABLE.PAYMENT_TERM') }}：{{
                     paymentTermLabel(record.paymentTerm)
@@ -983,6 +988,13 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
                 >
                   {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
+                </th>
+                <!-- 运费单列：上面那列「金额」是货值不含运费，财务对账时少一笔对不上
+                     （用户 2026-11-02 反馈）。没填运费的留「—」，不摆 0 混淆。 -->
+                <th
+                  class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.FREIGHT') }}
                 </th>
                 <th
                   class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
@@ -1062,6 +1074,15 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   class="px-3 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
                 >
                   {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+                </td>
+                <td
+                  class="px-3 py-3 text-right tabular-nums text-n-slate-11 whitespace-nowrap"
+                >
+                  {{
+                    record.shippingMicros
+                      ? fmtMoney(record.shippingMicros, record.orderCurrency)
+                      : '—'
+                  }}
                 </td>
                 <!-- 结算方式：存的是字典 code，列表显示中文名；没填的留「—」，一眼看出哪些单要补 -->
                 <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">

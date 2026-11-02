@@ -19,6 +19,7 @@ import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
@@ -76,8 +77,69 @@ const viewItems = computed(() =>
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
+const searchQuery = ref('');
+// 表头逐列筛选（后端口径见 StockEntriesController::COLUMN_LIKE_FILTERS）。
+// 放后端是因为列表分页：前端只过滤本页，第 2 页往后的命中就全看不见了。
+const colFilters = reactive({
+  col_no: '',
+  col_mo: '',
+  col_color: '',
+  col_owner: '',
+  col_checked: '',
+  status: '',
+  posted: { from: '', to: '' },
+});
+const FILTERABLE = {
+  no: { type: 'text', key: 'col_no', placeholder: '入库单号' },
+  mo: { type: 'text', key: 'col_mo', placeholder: '销售订单号' },
+  color: { type: 'text', key: 'col_color', placeholder: '颜色' },
+  owner: { type: 'text', key: 'col_owner', placeholder: '归属人' },
+  checked: {
+    type: 'select',
+    key: 'col_checked',
+    options: [
+      { value: '', label: '全部' },
+      { value: 'YES', label: '已清点' },
+      { value: 'NO', label: '待清点' },
+    ],
+  },
+  status: {
+    type: 'select',
+    key: 'status',
+    options: [
+      { value: '', label: '全部状态' },
+      ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
+        value,
+        label,
+      })),
+    ],
+  },
+  posted: { type: 'date', key: 'posted' },
+};
+const filterOf = key => FILTERABLE[key];
 const fetchList = () =>
-  store.get({ purpose: 'MANUFACTURE', page: currentPage.value });
+  store.get({
+    purpose: 'MANUFACTURE',
+    page: currentPage.value,
+    q: searchQuery.value.trim() || undefined,
+    status: colFilters.status || undefined,
+    col_no: colFilters.col_no.trim() || undefined,
+    col_mo: colFilters.col_mo.trim() || undefined,
+    col_color: colFilters.col_color.trim() || undefined,
+    col_owner: colFilters.col_owner.trim() || undefined,
+    col_checked: colFilters.col_checked || undefined,
+    posted_from: colFilters.posted.from || undefined,
+    posted_to: colFilters.posted.to || undefined,
+  });
+const onSearch = () => {
+  currentPage.value = 1;
+  fetchList();
+};
+// 换筛选条件回第 1 页——否则在第 3 页筛出 2 条结果会看到空列表。
+const onColFilterChange = () => {
+  if (currentPage.value === 1) fetchList();
+  else currentPage.value = 1;
+};
 watch(currentPage, fetchList);
 
 const productionOrders = ref([]);
@@ -251,13 +313,21 @@ onMounted(() => {
            （他是成品入库这一阶段的负责人）。后端 StockEntryPolicy#create? 本来就是
            stock || report，这里原先只认 report，比后端还严——仓管看得到「清点确认入库」
            却看不到「新建」。与后端对齐。 -->
-      <Button
-        v-if="mesCan('report') || mesCan('stock')"
-        label="新建成品入库单"
-        color="iris"
-        size="sm"
-        @click="openCreate"
-      />
+      <div class="flex items-center gap-2">
+        <Input
+          v-model="searchQuery"
+          placeholder="搜索单号、销售订单、成品"
+          class="reset-base !h-9 w-64"
+          @keyup.enter="onSearch"
+        />
+        <Button
+          v-if="mesCan('report') || mesCan('stock')"
+          label="新建成品入库单"
+          color="iris"
+          size="sm"
+          @click="openCreate"
+        />
+      </div>
     </div>
 
     <MesBoardOwnerBar board-key="mes_fg_inbound_index" />
@@ -336,19 +406,64 @@ onMounted(() => {
         <table class="hidden md:table w-full text-sm">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                单号
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('no').key]"
+                  :placeholder="filterOf('no').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[160px]">
                 销售订单
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('mo').key]"
+                  :placeholder="filterOf('mo').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">颜色</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                颜色
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('color').key]"
+                  :placeholder="filterOf('color').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
                 归属人
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('owner').key]"
+                  :placeholder="filterOf('owner').placeholder"
+                  @change="onColFilterChange"
+                />
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[112px]">
                 仓库清点
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('checked').key]"
+                  type="select"
+                  :options="filterOf('checked').options"
+                  @change="onColFilterChange"
+                />
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">过账时间</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                状态
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('status').key]"
+                  type="select"
+                  :options="filterOf('status').options"
+                  @change="onColFilterChange"
+                />
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                过账时间
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('posted').key]"
+                  type="date"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3" />
             </tr>
           </thead>

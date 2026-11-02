@@ -1642,6 +1642,13 @@ const menuItems = computed(() => {
               to: accountScopedRoute('mes_supplier_returns_index'),
               activeOn: ['mes_supplier_returns_index'],
             },
+            // 委外加工：料还是我们的，只是换个地方加工，所以跟着仓库这一组放。
+            {
+              name: 'MES Outsource Orders',
+              label: t('SIDEBAR.MES_OUTSOURCE_ORDERS'),
+              to: accountScopedRoute('mes_outsource_orders_index'),
+              activeOn: ['mes_outsource_orders_index'],
+            },
             ...(isMesStaff.value || isFinanceViewer.value
               ? [
                   {
@@ -2399,6 +2406,7 @@ const ROUTE_MODULE = {
   mes_suppliers_index: 'mes',
   mes_stock_entries_index: 'mes',
   mes_supplier_returns_index: 'mes',
+  mes_outsource_orders_index: 'mes',
   mes_material_issues_index: 'mes',
   mes_material_returns_index: 'mes',
   mes_production_records_index: 'mes',

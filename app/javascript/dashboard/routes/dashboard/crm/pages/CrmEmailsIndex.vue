@@ -233,6 +233,28 @@ const clearSelection = () => {
   selectedIds.value = [];
 };
 const bulkBusy = ref(false);
+// 收件箱的三档轻重：未读最重，已读常规，**已回复的再降一档**。
+// 这样一眼扫过去看到的是「还剩哪几封要回」，而不是「哪几封回过了」——
+// 要回的信自己跳出来，回完的自动沉下去（用户 2026-11-02 选的方案）。
+const isRepliedInbox = r => r.folder === 'INBOX' && r.replied;
+// 待回复＝收件箱里还没回的，不论读没读。读过但没回的信最容易被忘掉，
+// 它要和未读一样显眼；回过的整行压到 slate-9 彻底沉底。
+const isPendingReply = r => r.folder === 'INBOX' && !r.replied;
+const senderClass = r => {
+  if (isRepliedInbox(r)) return 'font-normal text-n-slate-9';
+  if (isPendingReply(r)) return 'font-semibold text-n-slate-12';
+  return r.folder === 'INBOX' && !r.isRead
+    ? 'font-semibold text-n-slate-12'
+    : 'font-medium text-n-slate-11';
+};
+const subjectClass = r => {
+  if (isRepliedInbox(r)) return 'font-normal text-n-slate-9';
+  if (isPendingReply(r)) return 'font-medium text-n-slate-12';
+  return r.folder === 'INBOX' && !r.isRead
+    ? 'font-medium text-n-slate-12'
+    : 'text-n-slate-11';
+};
+
 const bulkMarkRead = async isRead => {
   bulkBusy.value = true;
   try {
@@ -2398,11 +2420,7 @@ watch(
                   <div class="flex items-center justify-between gap-2">
                     <span
                       class="text-sm truncate"
-                      :class="
-                        record.folder === 'INBOX' && !record.isRead
-                          ? 'font-semibold text-n-slate-12'
-                          : 'font-medium text-n-slate-11'
-                      "
+                      :class="senderClass(record)"
                     >
                       {{ counterpartyLabel(record) }}
                     </span>
@@ -2412,11 +2430,7 @@ watch(
                   </div>
                   <div
                     class="mt-0.5 text-sm truncate"
-                    :class="
-                      record.folder === 'INBOX' && !record.isRead
-                        ? 'font-medium text-n-slate-12'
-                        : 'text-n-slate-11'
-                    "
+                    :class="subjectClass(record)"
                   >
                     <span
                       v-if="record._threadCount > 1"
@@ -2502,6 +2516,15 @@ watch(
                         {{ distributionLabel(record).suffix }}
                       </span>
                     </span>
+                    <!-- 这封来信已经回过了。按主题线程判定（见后端 replied_ids_for），
+                         手工回、AI 回、另起一封回都认得出来——不标的话「这封我回没回」
+                         只能点进去翻，一屏十几封全靠记。 -->
+                    <Icon
+                      v-if="record.replied"
+                      icon="i-lucide-reply"
+                      class="size-3 shrink-0 text-n-slate-9"
+                      title="已回复"
+                    />
                     <Icon
                       v-if="record.files?.length"
                       icon="i-lucide-paperclip"

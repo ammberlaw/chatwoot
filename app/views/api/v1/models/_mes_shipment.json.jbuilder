@@ -98,6 +98,9 @@ json.shipment_items do
     json.unit item.unit
     # 外贸成品的颜色：业务在转单时逐行选，仓管照它拣货。
     json.color item.color
+    # 行备注＝这一行的特殊交代（「欧规插头」「放多一个英规充电器」）。
+    # 以前没下发，仓管在出库单上看不到，只能回销售订单里翻（用户 2026-11-02 反馈）。
+    json.remark item.remark
     json.unit_price line&.dig(:unit_price)
     # 这行的价跟上次比高了还是低了。对不上订单行、或这个品名没历史就不给。
     mark = line && price_marks[line[:name]]

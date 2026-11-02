@@ -58,6 +58,17 @@ class Crm::Opportunity < ApplicationRecord
   scope :open_stages, -> { where.not(sales_stage: %w[WON LOST]) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
 
+  # 商机「最后动静」。这一列过去从来没有人写过（上线至今生产 181 条全是空的），
+  # 而客户的「最后互动」(Crm::Customer::LAST_TOUCH_SQL) 把它算作一路来源——
+  # 空着就等于这一路恒等于建档时间，白占一格。
+  #
+  # 口径＝**商机本身被推进过**（阶段、金额、下一步、备注…任一实质字段变化），
+  # 不含该客户的邮件往来和下单：那两路在 LAST_TOUCH_SQL 里各自有来源，
+  # 混进来会让「商机多久没动」永远看不出停滞。
+  ACTIVITY_IGNORED_ATTRS = %w[last_activity_at updated_at].freeze
+
+  before_save :stamp_last_activity
+
   def amount
     amount_micros.to_f / 1_000_000 if amount_micros
   end
@@ -73,5 +84,13 @@ class Crm::Opportunity < ApplicationRecord
     # 避免外币商机因暂无历史牌价被静默排除出人民币汇总，导致看板金额偏低。
     rate = Crm::FxRate.rate_for(currency, Date.current) || Crm::FxRate.rate_on_or_after(currency, Date.current)
     rate && (amount_micros * rate).round
+  end
+
+  private
+
+  def stamp_last_activity
+    return if (changed - ACTIVITY_IGNORED_ATTRS).empty?
+
+    self.last_activity_at = Time.current
   end
 end

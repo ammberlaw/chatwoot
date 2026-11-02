@@ -13,8 +13,10 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import TemplatesAPI from 'dashboard/api/crm/emailTemplates';
+import CrmAiAPI from 'dashboard/api/crm/ai';
 import { uploadInlineDataUriImages } from 'dashboard/helper/uploadHelper';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { vOnClickOutside } from '@vueuse/components';
 
 const { t } = useI18n();
 const store = useCrmEmailTemplatesStore();
@@ -58,7 +60,6 @@ const categoryOptions = Object.entries(CATEGORY_META).map(([value, m]) => ({
 
 const L = {
   new: '新建模板',
-  hint: '常用邮件范本，写信时一键套用（开发信 / 报价 / 跟进 / 催款…）。',
   empty: '还没有模板，点右上「新建模板」开始',
   all: '全部',
   subjectLabel: '主题：',
@@ -70,6 +71,16 @@ const L = {
   deleted: '已删除',
   error: '操作失败',
   bodyLabel: '正文（可插入图片）',
+  aiButton: 'AI 写信',
+  aiTitle: 'AI 写模板',
+  aiPlaceholder:
+    '用中文描述这个范本要写什么，例如：第一次联系客户的开发信，介绍 10.1 寸工业平板；催客户确认 PI，语气客气点…',
+  aiHint:
+    '默认写英文（可在描述里指定其他语言）；生成的主题和正文会填进上面，可再改。',
+  aiGenerate: '生成',
+  aiGenerating: '生成中…（约 10 秒）',
+  aiNeedIntent: '请先描述这个模板要写什么',
+  aiFailed: 'AI 生成失败，请稍后再试',
   attachLabel: '附件（套用模板时随邮件带出）',
   addFile: '加附件',
   allScope: '全部',
@@ -142,8 +153,35 @@ const fmtSize = n => {
   return `${(n / 1048576).toFixed(1)}MB`;
 };
 
+// AI 写模板：跟写邮件那边同一套（Crm::EmailAiService / DeepSeek），不是 Chatwoot 自带的 copilot。
+// 模板没有具体收件人，所以不带往来原文，纯按意图生成一份范本，主题和正文一起填进表单。
+const aiOpen = ref(false);
+const aiIntent = ref('');
+const aiLoading = ref(false);
+
+const generateAi = async () => {
+  const intent = aiIntent.value.trim();
+  if (!intent) {
+    useAlert(L.aiNeedIntent);
+    return;
+  }
+  aiLoading.value = true;
+  try {
+    const { data } = await CrmAiAPI.compose({ intent });
+    if (data.body) form.body = data.body;
+    if (data.subject) form.subjectTemplate = data.subject;
+    aiOpen.value = false;
+  } catch (e) {
+    useAlert(e?.response?.data?.message || L.aiFailed);
+  } finally {
+    aiLoading.value = false;
+  }
+};
+
 const openCreate = () => {
   editingId.value = null;
+  aiOpen.value = false;
+  aiIntent.value = '';
   readonly.value = false;
   resetForm();
   markPristine();
@@ -232,7 +270,6 @@ onMounted(() => store.get());
         <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.EMAIL_TEMPLATES.HEADER') }}
         </h1>
-        <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
         :label="L.new"
@@ -412,10 +449,59 @@ onMounted(() => store.get());
           v-model="form.subjectTemplate"
           :label="t('CRM.EMAIL_TEMPLATES.FORM.SUBJECT')"
         />
-        <div>
-          <label class="block mb-0.5 text-heading-3 text-n-slate-12">
-            {{ L.bodyLabel }}
-          </label>
+        <div class="relative">
+          <div class="flex items-center justify-between mb-0.5 gap-2">
+            <label class="text-heading-3 text-n-slate-12">
+              {{ L.bodyLabel }}
+            </label>
+            <!-- AI 写模板：中文说意图 → 生成主题和正文（我们自己的 DeepSeek，非 Chatwoot copilot） -->
+            <div
+              v-if="!readonly"
+              v-on-click-outside="() => !aiLoading && (aiOpen = false)"
+              class="relative shrink-0"
+            >
+              <button
+                class="inline-flex items-center h-8 gap-1 px-2.5 text-sm border rounded-lg reset-base border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
+                :title="L.aiTitle"
+                @click="aiOpen = !aiOpen"
+              >
+                <Icon icon="i-ph-sparkle-fill" class="size-4 shrink-0" />
+                {{ L.aiButton }}
+              </button>
+              <div
+                v-if="aiOpen"
+                class="absolute right-0 z-30 p-3 border rounded-lg shadow-lg top-10 w-[26rem] bg-n-solid-1 border-n-weak"
+              >
+                <p class="mb-2 text-[13px] font-medium text-n-slate-12">
+                  {{ L.aiTitle }}
+                </p>
+                <textarea
+                  v-model="aiIntent"
+                  rows="3"
+                  class="w-full px-2.5 py-2 mb-1 text-sm border rounded-lg resize-none reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:border-n-amber-9"
+                  :placeholder="L.aiPlaceholder"
+                  :disabled="aiLoading"
+                />
+                <p class="mb-2 text-xs leading-relaxed text-n-slate-10">
+                  {{ L.aiHint }}
+                </p>
+                <button
+                  class="inline-flex items-center h-8 gap-1.5 px-3 text-sm font-medium rounded-lg reset-base bg-n-amber-9 text-white hover:bg-n-amber-10 disabled:opacity-60"
+                  :disabled="aiLoading"
+                  @click="generateAi"
+                >
+                  <Icon
+                    :icon="
+                      aiLoading ? 'i-lucide-loader-circle' : 'i-ph-sparkle-fill'
+                    "
+                    class="size-4 shrink-0"
+                    :class="aiLoading ? 'animate-spin' : ''"
+                  />
+                  {{ aiLoading ? L.aiGenerating : L.aiGenerate }}
+                </button>
+              </div>
+            </div>
+          </div>
           <div
             class="overflow-y-auto border rounded-lg reset-base border-n-weak bg-n-solid-1 min-h-[180px] max-h-[360px] px-3 py-2"
           >
@@ -423,6 +509,7 @@ onMounted(() => store.get());
               v-model="form.body"
               editor-key="crm-email-template"
               channel-type="Channel::Email"
+              hide-copilot
               enable-text-color
               :enable-canned-responses="false"
               :show-character-count="false"

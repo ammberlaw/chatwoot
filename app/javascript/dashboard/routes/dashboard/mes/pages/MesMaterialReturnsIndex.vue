@@ -29,6 +29,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -58,15 +59,55 @@ const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
 const searchQuery = ref('');
+// 表头逐列筛选（后端口径见 StockEntriesController::COLUMN_LIKE_FILTERS）。
+const colFilters = reactive({
+  col_no: '',
+  col_mo: '',
+  col_model: '',
+  col_to_wh: '',
+  status: '',
+  posted: { from: '', to: '' },
+});
+const FILTERABLE = {
+  no: { type: 'text', key: 'col_no', placeholder: '退料单号' },
+  mo: { type: 'text', key: 'col_mo', placeholder: '生产任务单号' },
+  model: { type: 'text', key: 'col_model', placeholder: '型号' },
+  warehouse: { type: 'text', key: 'col_to_wh', placeholder: '退回仓库' },
+  status: {
+    type: 'select',
+    key: 'status',
+    options: [
+      { value: '', label: '全部状态' },
+      ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
+        value,
+        label,
+      })),
+    ],
+  },
+  posted: { type: 'date', key: 'posted' },
+};
+const filterOf = key => FILTERABLE[key];
 const fetchList = () =>
   store.get({
     purpose: 'MATERIAL_RETURN',
     page: currentPage.value,
     q: searchQuery.value.trim() || undefined,
+    status: colFilters.status || undefined,
+    col_no: colFilters.col_no.trim() || undefined,
+    col_mo: colFilters.col_mo.trim() || undefined,
+    col_model: colFilters.col_model.trim() || undefined,
+    col_to_wh: colFilters.col_to_wh.trim() || undefined,
+    posted_from: colFilters.posted.from || undefined,
+    posted_to: colFilters.posted.to || undefined,
   });
 const onSearch = () => {
   currentPage.value = 1;
   fetchList();
+};
+// 换筛选条件回第 1 页——否则在第 3 页筛出 2 条结果会看到空列表。
+const onColFilterChange = () => {
+  if (currentPage.value === 1) fetchList();
+  else currentPage.value = 1;
 };
 watch(currentPage, fetchList);
 
@@ -358,14 +399,61 @@ onMounted(() => {
       <!-- 同采购退料：w-max 按内容撑开（写 w-full 的话列一多中文会被逐字折成竖排），
            min-w-full 保证数据少时也铺满。弹窗里那张明细表不改——它在定宽容器里，列就该铺满。 -->
       <table class="w-max min-w-full text-sm">
-        <thead class="text-left text-n-slate-11 bg-n-alpha-1">
+        <!-- 表头白底吸顶，与原料入库/销售订单一致。原来写的是 bg-n-alpha-1 灰底块，
+             全站只有这一页是灰条（2026-10-31 反馈「这个 ui 设计怎么和其它板块的不一样」）。 -->
+        <thead
+          class="text-left text-n-slate-11 [&>tr>th]:sticky [&>tr>th]:top-0 [&>tr>th]:z-10 [&>tr>th]:bg-n-solid-1 [&>tr>th]:border-b [&>tr>th]:border-n-weak"
+        >
           <tr>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">单号</th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">生产任务单</th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">型号</th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">退回仓库</th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">状态</th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">过账时间</th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              单号
+              <MesColumnFilter
+                v-model="colFilters[filterOf('no').key]"
+                :placeholder="filterOf('no').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              生产任务单
+              <MesColumnFilter
+                v-model="colFilters[filterOf('mo').key]"
+                :placeholder="filterOf('mo').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              型号
+              <MesColumnFilter
+                v-model="colFilters[filterOf('model').key]"
+                :placeholder="filterOf('model').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              退回仓库
+              <MesColumnFilter
+                v-model="colFilters[filterOf('warehouse').key]"
+                :placeholder="filterOf('warehouse').placeholder"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              状态
+              <MesColumnFilter
+                v-model="colFilters[filterOf('status').key]"
+                type="select"
+                :options="filterOf('status').options"
+                @change="onColFilterChange"
+              />
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
+              过账时间
+              <MesColumnFilter
+                v-model="colFilters[filterOf('posted').key]"
+                type="date"
+                @change="onColFilterChange"
+              />
+            </th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
               操作
             </th>

@@ -554,11 +554,14 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
            .pluck(:crm_product_id, :order_no).to_h
   end
 
+  # 转进来的单一律落草稿、不自动提交审批：规格只带得过来一部分（硬件规格等 CRM 侧
+  # 根本没录入口），转完**必定**要进编辑窗补齐再走审批。原来有 :order 能力的人转单
+  # 直接 APPROVED、业务员转单自动提交审批，两条路都把一张还没填完的单推进了流程。
+  # （用户 2026-11-02 定）
   def save_converted_order(sales_order, row)
     order = build_converted_order(sales_order, row)
     order.fallback_product_line = current_product_line
     order.save!
-    order.submit_for_approval!(current_user) unless Current.account_user.mes_can?(:order)
     order
   end
 
@@ -567,8 +570,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     Current.account.mes_production_orders.new(
       converted_order_attrs(sales_order, product, row).merge(
         crm_sales_order: sales_order, crm_product: product, order_kind: 'CUSTOMER',
-        # 有 :order 能力者由已确认销售订单转入，直接生效；业务员转入的落草稿等审批（见 convert）。
-        approval_status: Current.account_user.mes_can?(:order) ? 'APPROVED' : 'DRAFT'
+        # 一律草稿（见 save_converted_order）：转过来的单规格还不全，得先补再审。
+        approval_status: 'DRAFT'
       )
     )
   end
@@ -582,9 +585,42 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       pi_no: sales_order.pi_no,
       delivery_date: row[:delivery_date] || sales_order.delivery_date,
       owner_id: row[:owner_id] || sales_order.owner_id || current_user.id,
+      spec: converted_spec(sales_order, row),
       # 转单弹窗里写的备注：一次转多行就每张单都带一份（业务写的多半是整单的交代）。
       remark: params[:remark].presence
     }
+  end
+
+  # 转单带规格：以前一个字段都不带，生产那边打开订单明细全是「—」，业务填过的东西
+  # 要再问一遍、再填一遍（用户 2026-11-02 反馈）。
+  #
+  # CRM 能提供的只有这些，照实带：客户 / 国家（客户档案）/ 发货时间（交期），
+  # 以及明细行上那段规格文本和订单备注——后两者塞进「备注（定制要求）」，
+  # 它们是自由文本，拆不成 CPU/RAM 这种结构化项，硬拆只会填错。
+  # ⚠️ 硬件规格、皮套颜色、配件这些仍然是空的：**CRM 侧根本没有录入的地方**，
+  # 不是这里漏带。要让它们也自动带过来，得先在销售订单上开出对应的录入项。
+  def converted_spec(sales_order, row)
+    customer = sales_order.crm_customer
+    notes = [line_item_spec(sales_order, row), sales_order.remark.presence].compact.join("\n")
+    spec = {
+      'customer' => customer&.name,
+      'country' => customer&.trade_country,
+      'shipDate' => (row[:delivery_date] || sales_order.delivery_date)&.to_date&.to_s
+    }.compact_blank
+    spec['customNotes'] = notes if notes.present?
+    spec
+  end
+
+  # 销售订单明细行上业务填的那段规格文本。按行号取（row 从 1 起），
+  # 行号对不上（老单没存 row）就回落到按产品匹配。
+  def line_item_spec(sales_order, row)
+    items = sales_order.line_items
+    return nil unless items.is_a?(Array)
+
+    idx = row[:row].to_i
+    item = items[idx - 1] if idx.positive?
+    item ||= items.find { |li| li['crm_product_id'].to_i == row[:crm_product_id].to_i }
+    item && (item['spec'].presence || item['specification'].presence)
   end
 
   # 每页条数：默认沿用 RESULTS_PER_PAGE(15)，供列表分页；调用方(如报工订单下拉)需一次性

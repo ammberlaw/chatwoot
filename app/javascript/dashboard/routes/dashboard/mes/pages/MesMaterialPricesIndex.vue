@@ -42,6 +42,35 @@ const missingRows = ref([]);
 const missingLoading = ref(false);
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+const day = d => (d ? new Date(d).toLocaleDateString() : '—');
+
+// 标准价 vs 最近一次真实成交价。
+// 这张表只有一个手工维护的数，光看它判断不了「还作不作数」——差得越多越该回来改。
+// 税别不同不比（含税价和不含税价直接比是错的，同采购单那边的做法）。
+const priceGap = row => {
+  const mark = row.last_purchase;
+  const std = Number(row.unit_price_micros || 0);
+  if (!mark?.rate_micros || !std) return null;
+
+  const last = Number(mark.rate_micros);
+  const ratio = (std - last) / last;
+  const pct = Math.abs(Math.round(ratio * 100));
+  if (pct < 1) return { tone: 'text-n-slate-10', text: '持平' };
+  return {
+    tone: pct >= 30 ? 'text-n-ruby-11' : 'text-n-amber-11',
+    text: `标准价${ratio > 0 ? '高' : '低'} ${pct}%`,
+  };
+};
+
+// 「上次买」那一格的悬停说明：哪张单、哪家、什么税别。
+const lastPurchaseTitle = row => {
+  const mark = row.last_purchase;
+  if (!mark) return '';
+  const tax = mark.price_tax_included ? '含税' : '未税';
+  return [mark.po_no, mark.supplier_name, tax, day(mark.ordered_at)]
+    .filter(Boolean)
+    .join(' · ');
+};
 // 页面按「元」输入，落库按 micros：单价可能带小数（如 2.35）
 const toMicros = yuan => Math.round(Number(yuan || 0) * 1_000_000);
 const toYuan = micros => (micros ? String(micros / 1_000_000) : '');
@@ -256,11 +285,34 @@ const exportList = async () => {
           { label: '物料名称', key: 'name' },
           { label: '规格型号', key: 'specification' },
           { label: '单位', key: 'unit' },
-          { label: '单价', key: 'unit_price_micros', money: true },
+          { label: '标准价', key: 'unit_price_micros', money: true },
+          { label: '上次买', key: 'lastRate', money: true },
+          { label: '税别', key: 'lastTax' },
+          { label: '供应商', key: 'lastSupplier' },
+          { label: '上次采购单', key: 'lastPoNo' },
+          { label: '上次采购日期', key: 'lastOrderedAt' },
+          { label: '价差', key: 'gapText' },
+          { label: '采购次数', key: 'lastTimes' },
           { label: '备注', key: 'remark' },
           { label: '最近修改', key: 'updated_by_name' },
+          { label: '修改时间', key: 'updatedAtText' },
         ],
-        rows: all,
+        // 采购历史在接口里是嵌套对象，摊平成列才导得出去。
+        rows: all.map(row => ({
+          ...row,
+          lastRate: row.last_purchase?.rate_micros,
+          lastTax: row.last_purchase
+            ? row.last_purchase.price_tax_included
+              ? '含税'
+              : '未税'
+            : '',
+          lastSupplier: row.last_purchase?.supplier_name || '',
+          lastPoNo: row.last_purchase?.po_no || '',
+          lastOrderedAt: day(row.last_purchase?.ordered_at),
+          gapText: priceGap(row)?.text || '',
+          lastTimes: row.last_purchase?.times || '',
+          updatedAtText: day(row.updated_at),
+        })),
       },
       `物料单价表_${new Date().toLocaleDateString('sv')}`
     );
@@ -306,7 +358,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       v-if="!canRead"
       class="flex items-center justify-center flex-1 text-sm text-n-slate-11"
@@ -315,9 +367,9 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-        <h1 class="text-xl font-semibold text-n-slate-12">物料单价表</h1>
-        <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+        <h1 class="text-heading-1 text-n-slate-12">物料单价表</h1>
+        <div class="flex flex-wrap items-center gap-2">
           <!-- 导出是只读动作，不挂写权限 -->
           <Button
             label="导出 Excel"
@@ -333,8 +385,7 @@ onMounted(() => {
             variant="outline"
             color="slate"
             size="sm"
-            class="btn-ink"
-            icon="i-lucide-file-spreadsheet"
+              icon="i-lucide-file-spreadsheet"
             :is-loading="importing"
             @click="fileInputRef?.click()"
           />
@@ -351,8 +402,7 @@ onMounted(() => {
             variant="outline"
             color="slate"
             size="sm"
-            class="btn-ink"
-            icon="i-lucide-history"
+              icon="i-lucide-history"
             :is-loading="backfilling"
             @click="backfill"
           />
@@ -366,7 +416,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="px-4 pb-3 sm:px-6">
+      <div class="px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8">
         <div class="flex gap-1" data-tabbar="page">
           <button
             type="button"
@@ -387,7 +437,7 @@ onMounted(() => {
 
       <!-- 单价表 -->
       <template v-if="tab === 'list'">
-        <div class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
+        <div class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8">
           <input
             v-model="keyword"
             placeholder="搜物料编码 / 名称 / 规格"
@@ -414,9 +464,13 @@ onMounted(() => {
         </div>
 
         <HScrollButtons />
-        <div class="flex-1 px-4 overflow-auto sm:px-6">
-          <table class="w-full text-sm">
-            <thead>
+        <div class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
+          <!-- 12 列的宽表：w-max 按内容撑开、容器横滚。写 w-full 的话中文没空格，
+               供应商名会被逐字折成竖排的一列字（见 MesSupplierReturnsIndex 同款注释）。 -->
+          <table
+            class="w-max min-w-full text-sm border-separate border-spacing-0 [&_td]:border-b [&_td]:border-n-weak"
+          >
+            <thead class="sticky top-0 z-10 bg-white [&_th]:bg-white">
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
                 <th class="px-3 py-2 font-medium whitespace-nowrap">
                   物料编码
@@ -429,7 +483,15 @@ onMounted(() => {
                 </th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">单位</th>
                 <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
-                  单价
+                  标准价
+                </th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  上次买
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">供应商</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">价差</th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  采购次数
                 </th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">备注</th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">
@@ -453,9 +515,51 @@ onMounted(() => {
                 <td class="px-3 py-2 text-right tabular-nums">
                   {{ money(row.unit_price_micros) }}
                 </td>
-                <td class="px-3 py-2 text-n-slate-11">{{ row.remark }}</td>
+                <td
+                  class="px-3 py-2 text-right tabular-nums text-n-slate-11 whitespace-nowrap"
+                  :title="lastPurchaseTitle(row)"
+                >
+                  <span v-if="row.last_purchase">
+                    {{ money(row.last_purchase.rate_micros) }}
+                  </span>
+                  <span v-else>—</span>
+                  <span
+                    v-if="row.last_purchase"
+                    class="ml-1 text-xs text-n-slate-10"
+                  >
+                    {{ row.last_purchase.price_tax_included ? '含税' : '未税' }}
+                  </span>
+                  <div v-if="row.last_purchase" class="text-xs text-n-slate-10">
+                    {{ day(row.last_purchase.ordered_at) }}
+                  </div>
+                </td>
                 <td class="px-3 py-2 text-n-slate-11">
-                  {{ row.updated_by_name }}
+                  <span v-if="row.last_purchase?.supplier_name">
+                    {{ row.last_purchase.supplier_name }}
+                  </span>
+                  <span v-else>—</span>
+                  <div
+                    v-if="row.last_purchase?.supplier_count > 1"
+                    class="text-xs text-n-slate-10"
+                  >
+                    另有 {{ row.last_purchase.supplier_count - 1 }} 家供过
+                  </div>
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap">
+                  <span v-if="priceGap(row)" :class="priceGap(row).tone">
+                    {{ priceGap(row).text }}
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td class="px-3 py-2 text-right tabular-nums text-n-slate-11">
+                  {{ row.last_purchase?.times || '—' }}
+                </td>
+                <td class="px-3 py-2 text-n-slate-11">{{ row.remark }}</td>
+                <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
+                  {{ row.updated_by_name || '—' }}
+                  <div class="text-xs text-n-slate-10">
+                    {{ day(row.updated_at) }}
+                  </div>
                 </td>
                 <td class="px-3 py-2 text-right whitespace-nowrap">
                   <Button
@@ -477,7 +581,7 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="!rows.length && !loading">
-                <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+                <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
                   还没有单价。点右上角「导入 Excel」把现有单价表贴进来。
                 </td>
               </tr>
@@ -504,9 +608,9 @@ onMounted(() => {
           </p>
         </div>
         <HScrollButtons />
-        <div class="flex-1 px-4 overflow-auto sm:px-6">
-          <table class="w-full text-sm">
-            <thead>
+        <div class="flex-1 min-h-0 px-4 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
+          <table class="w-full text-sm border-separate border-spacing-0 [&_td]:border-b [&_td]:border-n-weak">
+            <thead class="sticky top-0 z-10 bg-white [&_th]:bg-white">
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
                 <th class="px-3 py-2 font-medium">物料编码</th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">

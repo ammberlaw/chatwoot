@@ -36,7 +36,9 @@ class SearchAPI extends ApiClient {
     });
   }
 
-  messages({ q, page = 1, since, until, from, inboxId }) {
+  // conversationId（会话的 display_id）＝ 只在这一张会话里翻聊天记录；
+  // 传了它后端就不卡 3 个月时间窗（见 SearchService#message_base_query）。
+  messages({ q, page = 1, since, until, from, inboxId, conversationId }) {
     return axios.get(`${this.url}/messages`, {
       params: {
         q,
@@ -45,6 +47,7 @@ class SearchAPI extends ApiClient {
         until,
         from,
         inbox_id: inboxId,
+        conversation_id: conversationId,
       },
     });
   }

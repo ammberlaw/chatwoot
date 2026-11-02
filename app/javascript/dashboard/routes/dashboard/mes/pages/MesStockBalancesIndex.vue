@@ -223,11 +223,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">库存结存</h1>
+      <h1 class="text-heading-1 text-n-slate-12">库存结存</h1>
       <div class="flex items-center gap-2">
         <!-- 导出是只读动作，不挂库存写权限 -->
         <Button
@@ -248,19 +248,19 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div class="mx-4 mb-2 flex flex-wrap items-center gap-2 border-b border-n-weak bg-white pb-4 pt-1 sm:mx-6 [.theme-classic_&]:sm:!mx-8">
       <Input
         v-model="q"
         placeholder="搜编码 / 名称 / 规格"
-        class="w-64"
-        custom-input-class="reset-base h-9"
+        class="w-full sm:w-72"
+        custom-input-class="reset-base !h-9 !bg-white !rounded-lg !outline-[#e4e5e9] !shadow-none"
       />
-      <SelectCard v-model="warehouseId" :options="warehouseOptions" />
-      <SelectCard v-model="itemType" :options="ITEM_TYPE_OPTIONS" />
-      <label class="flex items-center gap-2 text-sm text-n-slate-11">
+      <SelectCard v-model="warehouseId" :options="warehouseOptions" class="[&_button]:!h-9 [&_button]:!min-h-0 [&_button]:!py-1.5 [&_button]:!text-label-small" />
+      <SelectCard v-model="itemType" :options="ITEM_TYPE_OPTIONS" class="[&_button]:!h-9 [&_button]:!min-h-0 [&_button]:!py-1.5 [&_button]:!text-label-small" />
+      <label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-label-small text-n-slate-11">
         <input
           type="checkbox"
-          class="align-middle reset-base"
+          class="size-4 rounded border-n-weak accent-[#303238] align-middle reset-base"
           :checked="shortOnly"
           @change="shortOnly = !shortOnly"
         />
@@ -268,10 +268,10 @@ onMounted(() => {
       </label>
       <!-- 条数在这儿给准确值：翻页条用的是紧凑格式，1803 会显示成「1k+」，看库存要精确数。
            不做数量合计——个/台/片/条/m/kg 加在一起没有意义。 -->
-      <span class="ml-auto text-sm text-n-slate-11">
+      <span class="ml-auto flex items-center gap-2 whitespace-nowrap text-label-small text-n-slate-11">
         {{ records.length.toLocaleString() }} 条
-        <span v-if="shortCount" class="text-n-ruby-11">
-          · 短缺 {{ shortCount }}
+        <span v-if="shortCount" class="border-l border-n-weak pl-3 font-medium text-n-ruby-11">
+          短缺 {{ shortCount }}
         </span>
       </span>
     </div>
@@ -282,9 +282,9 @@ onMounted(() => {
         加载中…
       </div>
       <template v-else>
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left border-b text-n-slate-11 border-n-weak">
+        <table class="w-full min-w-[1000px] border-separate border-spacing-0 text-label-small [&_td]:!py-3 [&_th]:!py-3">
+          <thead class="sticky top-0 z-10 bg-white">
+            <tr class="text-left text-n-slate-11 [&_th]:border-b [&_th]:border-n-weak">
               <!-- 窄列一律 nowrap：规格那列一长，表头会被挤成「类 / 型」竖排。 -->
               <th class="px-3 py-3 font-medium whitespace-nowrap">编码</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap min-w-[152px]">
@@ -308,16 +308,16 @@ onMounted(() => {
             <tr
               v-for="b in paged"
               :key="b.id"
-              class="border-b border-n-weak hover:bg-n-alpha-1"
-              :class="{ 'bg-n-ruby-2': b.isShort }"
+              class="group transition-colors [&_td]:border-b [&_td]:border-n-weak hover:bg-n-alpha-1"
+              :class="{ '[&_td:first-child]:border-l-2 [&_td:first-child]:border-l-n-ruby-9': b.isShort }"
             >
               <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ b.sku || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-12">
+              <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ b.productName || b.materialName || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="max-w-[340px] truncate px-3 py-3 text-n-slate-10" :title="b.specification || undefined">
                 {{ b.specification || '—' }}
               </td>
               <td class="px-3 py-3 whitespace-nowrap">
@@ -327,15 +327,16 @@ onMounted(() => {
                 {{ b.itemType === 'PRODUCT' ? '成品' : '原料' }}
               </td>
               <td
-                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
+                class="px-3 py-3 text-right tabular-nums whitespace-nowrap text-n-slate-12"
               >
                 {{ Number(b.qty).toLocaleString() }}
                 <span class="text-xs text-n-slate-10">{{ b.unit || '' }}</span>
               </td>
-              <td class="px-3 py-3 text-right text-n-slate-11">
+              <td class="px-3 py-3 text-right tabular-nums text-n-slate-10">
                 {{ Number(b.reservedQty || 0).toLocaleString() }}
               </td>
-              <td class="px-3 py-3 text-right text-n-slate-12">
+              <td class="px-3 py-3 text-right font-medium tabular-nums"
+                :class="b.isShort ? 'text-n-ruby-11' : 'text-n-slate-12'">
                 {{ Number(b.availableQty || 0).toLocaleString() }}
               </td>
             </tr>
@@ -353,7 +354,7 @@ onMounted(() => {
           :current-page="page"
           :total-items="records.length"
           :items-per-page="PER_PAGE"
-          class="sticky bottom-0 z-10 mt-3"
+          class="sticky bottom-0 z-10 mt-0 border-t border-n-weak bg-white py-2"
           @update:current-page="page = $event"
         />
       </template>

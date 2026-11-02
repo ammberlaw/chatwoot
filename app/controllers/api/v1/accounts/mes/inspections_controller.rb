@@ -50,9 +50,42 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
 
   private
 
+  # 表头逐列筛选，命名与原料入库一致（col_* + COLUMN_LIKE_FILTERS）。
+  # 「对象」一列在界面上是工单号/物料名/成品名三选一显示，所以要三张表都匹；
+  # 用子查询不用 join——join 会让同时命中物料和成品的记录冒出两行。
+  COLUMN_LIKE_FILTERS = {
+    col_object: lambda { |scope, v|
+      like = "%#{v}%"
+      orders = Mes::ProductionOrder.where('order_no ILIKE :q OR product_name ILIKE :q', q: like).select(:id)
+      materials = Mes::Material.where('name ILIKE :q OR material_no ILIKE :q', q: like).select(:id)
+      products = Crm::Product.where('name ILIKE :q OR sku ILIKE :q', q: like).select(:id)
+      scope.where(production_order_id: orders)
+           .or(scope.where(mes_material_id: materials))
+           .or(scope.where(crm_product_id: products))
+    },
+    col_owner: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder.joins(:owner)
+                                                           .where('users.name ILIKE ?', "%#{v}%").select(:id))
+    },
+    col_defect: ->(scope, v) { scope.where('mes_inspections.defect_reason ILIKE ?', "%#{v}%") },
+    col_inspector: lambda { |scope, v|
+      scope.where(inspector_id: User.where('users.name ILIKE ?', "%#{v}%").select(:id))
+    }
+  }.freeze
+
   def apply_filters(scope)
     %i[kind result production_order_id].each do |key|
       scope = scope.where(key => params[key]) if params[key].present?
+    end
+    scope = apply_column_filters(scope)
+    scope = scope.where(inspected_at: params[:from].to_date.beginning_of_day..) if params[:from].present?
+    scope = scope.where(inspected_at: ..params[:to].to_date.end_of_day) if params[:to].present?
+    scope
+  end
+
+  def apply_column_filters(scope)
+    COLUMN_LIKE_FILTERS.each do |param, apply|
+      scope = apply.call(scope, params[param].to_s.strip) if params[param].present?
     end
     scope
   end

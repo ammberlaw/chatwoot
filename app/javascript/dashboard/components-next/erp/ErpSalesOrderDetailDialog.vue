@@ -3,6 +3,7 @@ import { ref, computed, nextTick } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpReceivableAPI from 'dashboard/api/erp/receivables';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
@@ -32,6 +33,28 @@ const PO_STATUS_LABELS = {
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
 
+const ORDER_KIND_LABELS = { CUSTOM: '定制单', STOCK: '库存单' };
+const orderKindLabel = computed(
+  () => ORDER_KIND_LABELS[orderDetail.value?.order?.order_kind] || ''
+);
+
+// 外币单折本位币：汇率后端一直在传。本位币单（CNY 或汇率 1）不重复印一遍。
+const baseAmount = computed(() => {
+  const o = orderDetail.value?.order;
+  const rate = Number(o?.exchange_rate);
+  if (!o?.amount_micros || !rate || rate === 1) return '';
+  return fmtMoney(Math.round(o.amount_micros * rate));
+});
+
+const outstandingMicros = computed(() => {
+  const r = orderDetail.value?.receivable;
+  if (!r) return 0;
+  return Math.max(
+    (r.total_amount_micros || 0) - (r.received_amount_micros || 0),
+    0
+  );
+});
+
 // 本次比上次贵标红、便宜标绿。首次采购没有可比的，不着色。
 const priceClass = lp => {
   if (!lp.rate_micros || !lp.this_rate_micros) return 'text-n-slate-11';
@@ -50,11 +73,20 @@ const plainMoney = v =>
         maximumFractionDigits: 2,
       });
 
+// 付款方式存的是 code（BANK_TRANSFER / ALIBABA …），中文名在「分组/来源设置」里配，
+// 原来直接把 code 印给财务看。ensureLoaded 只拉分组和来源，payment_term 要单独取。
+const { load: loadCrmOptions, paymentTermLabel } = useCrmOptions();
+const paymentTermText = computed(() => {
+  const code = orderDetail.value?.order?.payment_term;
+  return code ? paymentTermLabel(code) || code : '';
+});
+
 const open = async orderId => {
   if (!orderId) return;
   orderDetail.value = null;
   orderLoading.value = true;
   dialogRef.value?.open();
+  loadCrmOptions('payment_term');
   try {
     const { data } = await ErpReceivableAPI.orderDetail(orderId);
     orderDetail.value = data.payload;
@@ -150,6 +182,11 @@ const drillTitle = computed(() => {
             {{ orderDetail.order.currency || 'CNY' }}
             {{ money(orderDetail.order.amount_micros) }}
           </span>
+          <!-- 外币单只给原币，财务对不出这单值多少钱。汇率后端一直在传，补上折算。
+               本位币单（CNY，汇率 1）不重复印一遍。 -->
+          <span v-if="baseAmount" class="font-mono text-xs text-n-slate-11">
+            ≈ CNY {{ baseAmount }}（汇率 {{ orderDetail.order.exchange_rate }}）
+          </span>
         </div>
         <!-- 运费是向客户另收的钱，订单金额里不含它——不单列出来，财务就对不上
            建账金额，也看不出这单到底该收客户多少。 -->
@@ -160,19 +197,29 @@ const drillTitle = computed(() => {
             {{ money(orderDetail.order.shipping_micros) }}
           </span>
         </div>
+        <div v-if="orderKindLabel" class="flex flex-col">
+          <span class="text-xs text-n-slate-11">订单类型</span>
+          <span>{{ orderKindLabel }}</span>
+        </div>
         <div v-if="orderDetail.order.opportunity_name" class="flex flex-col">
           <span class="text-xs text-n-slate-11">来源商机</span>
           <span>{{ orderDetail.order.opportunity_name }}</span>
         </div>
-        <div v-if="orderDetail.order.payment_term" class="flex flex-col">
+        <div v-if="paymentTermText" class="flex flex-col">
           <span class="text-xs text-n-slate-11">付款方式</span>
-          <span>{{ orderDetail.order.payment_term }}</span>
+          <span>{{ paymentTermText }}</span>
         </div>
         <div v-if="orderDetail.receivable" class="flex flex-col">
           <span class="text-xs text-n-slate-11">已建应收</span>
           <span class="font-mono">{{
             orderDetail.receivable.receivable_no
           }}</span>
+          <!-- 从应收台账点进来的人，第一个要知道的就是收了多少、还差多少。 -->
+          <span class="font-mono text-xs text-n-slate-11">
+            已收
+            {{ fmtMoney(orderDetail.receivable.received_amount_micros || 0) }} ·
+            未收 {{ fmtMoney(outstandingMicros) }}
+          </span>
         </div>
       </div>
 

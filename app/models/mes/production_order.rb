@@ -192,6 +192,9 @@ class Mes::ProductionOrder < ApplicationRecord
   has_many :order_forwards, -> { order(created_at: :desc) }, class_name: 'Mes::OrderForward', dependent: :destroy, inverse_of: :production_order
   # 一张生产订单可挂多张采购单（如主料/辅料各一张，不同采购员）。
   has_many :purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :nullify, inverse_of: :production_order
+  # 委外加工单（≠ outsource_supplier 那个「外购」：外购是整台买进来，委外是我们的料换个地方加工）。
+  # 挂在这里只为让订单页**看得见**「在 XX 厂加工中」——安排委外是工程/PMC 在生产任务单上做的事。
+  has_many :outsource_orders, class_name: 'Mes::OutsourceOrder', dependent: :nullify, inverse_of: :production_order
 
   # 删单拦截：这张单一旦有下游单据，硬删会把它们全变成孤儿（采购单的 dependent 是
   # :nullify，入库/领料/质检等则直接指向一个不存在的单）。谁挡着就报谁，让人自己判断

@@ -597,6 +597,7 @@ onMounted(load);
           结账＝结转损益到本年利润 + 冻结该期间凭证
         </span>
       </div>
+      <div class="ml-auto flex shrink-0 items-center gap-2">
       <Button
         v-if="canExport"
         label="导出 Excel"
@@ -607,6 +608,7 @@ onMounted(load);
         @click="exportExcel"
       />
       <Button label="刷新" color="slate" size="sm" @click="load" />
+      </div>
     </div>
 
     <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">

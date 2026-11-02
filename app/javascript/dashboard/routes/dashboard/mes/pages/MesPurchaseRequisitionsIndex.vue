@@ -66,6 +66,9 @@ const statusFilterOptions = [
 const filterStatus = ref('');
 const filterPurpose = ref('');
 const search = ref('');
+// 建单日期区间：申请单攒得快，不按时间收口就只能一页页翻。
+const fromDate = ref('');
+const toDate = ref('');
 const currentPage = ref(1);
 
 const load = () => {
@@ -75,10 +78,12 @@ const load = () => {
     status: filterStatus.value || undefined,
     purpose: filterPurpose.value || undefined,
     q: search.value.trim() || undefined,
+    from: fromDate.value || undefined,
+    to: toDate.value || undefined,
   });
 };
 watch(currentPage, load);
-watch([filterStatus, filterPurpose], () => {
+watch([filterStatus, filterPurpose, fromDate, toDate], () => {
   if (currentPage.value !== 1) currentPage.value = 1;
   else load();
 });
@@ -525,6 +530,8 @@ const exportList = async () => {
         status: filterStatus.value || undefined,
         purpose: filterPurpose.value || undefined,
         q: search.value.trim() || undefined,
+        from: fromDate.value || undefined,
+        to: toDate.value || undefined,
       }
     );
     // 接口直拉的是未驼峰化的原始 payload，字段用下划线。
@@ -639,6 +646,17 @@ const exportList = async () => {
           type="text"
           placeholder="搜索申请单号"
           class="w-52 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
+        />
+        <DatePicker
+          v-model="fromDate"
+          placeholder="建单日起"
+          trigger-class="w-36"
+        />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          placeholder="建单日止"
+          trigger-class="w-36"
         />
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
       </div>

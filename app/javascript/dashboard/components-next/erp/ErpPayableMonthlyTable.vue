@@ -128,9 +128,9 @@ defineExpose({ load });
   <div class="flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-sm text-n-slate-11">{{ L.asOf }}</span>
-      <MonthPicker v-model="asOf" :clearable="false" trigger-class="w-32" />
+      <MonthPicker v-model="asOf" :clearable="false" trigger-class="w-32 !h-8 !py-1" />
       <span class="text-sm text-n-slate-11">{{ L.span }}</span>
-      <SelectCard v-model="span" :options="SPANS" @update:model-value="load" />
+      <SelectCard v-model="span" :options="SPANS" trigger-class="!h-8 !py-1" @update:model-value="load" />
       <Button :label="L.query" color="iris" size="sm" @click="load" />
       <Button
         v-if="meta"
@@ -150,7 +150,7 @@ defineExpose({ load });
         size="sm"
         @click="exportExcel"
       />
-      <span v-if="meta" class="text-sm text-n-slate-11">
+      <span v-if="meta" class="ml-auto text-label-small text-n-slate-11">
         {{ L.total }}
         <span class="font-mono text-n-slate-12">
           {{ money(totals.total) }}
@@ -163,16 +163,11 @@ defineExpose({ load });
     </div>
 
     <div v-else-if="meta" ref="sheetRef" class="flex flex-col gap-3">
-      <div class="text-base font-semibold text-center text-n-slate-12">
-        {{ L.title }}
-      </div>
-      <div class="-mt-2 text-xs text-center text-n-slate-11">
-        {{ L.asOf }} {{ meta.as_of }} · {{ L.unit }} · {{ L.note }}
-      </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-n-weak pb-2 text-label-small text-n-slate-10"><span>{{ L.title }}</span><span>{{ L.unit }} · {{ L.note }}</span></div>
       <HScrollButtons />
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead>
+          <thead class="sticky top-0 z-10 bg-white">
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="px-3 py-2 font-medium whitespace-nowrap">
                 <span class="inline-flex items-center gap-1">

@@ -360,6 +360,12 @@ const fields = computed(() => {
       label: '当前状态',
       value: statusLabel(c.customer_status),
     },
+    // 归属人：主管/管理员点进别人的客户时，得先知道这是谁的单（用户 2026-11-02 反馈）。
+    {
+      icon: 'i-lucide-user-round',
+      label: '归属人',
+      value: dash(c.account_owner_name),
+    },
   ];
 });
 

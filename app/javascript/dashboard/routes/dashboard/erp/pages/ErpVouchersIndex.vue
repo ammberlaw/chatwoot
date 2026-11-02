@@ -27,6 +27,8 @@ import ErpVoucherPrintSheet from 'dashboard/components-next/erp/ErpVoucherPrintS
 import { printElement } from 'dashboard/helper/printHelper';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { useListDensity } from 'dashboard/composables/useListDensity';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 记账凭证：手工凭证录入 + 过账 / 红冲 / 作废。
@@ -34,6 +36,26 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useErpVouchersStore();
 const accountStore = useErpLedgerAccountsStore();
 const { erpCan } = useErpRole();
+const { compact, toggleDensity } = useListDensity();
+// 表头拖拽调序：顺序按人记在本机（与应收/应付台账同一套 composable）。
+// 勾选列和操作列不参与——它们不是数据列，拖走了就找不回来。
+const VOUCHER_COLUMN_DEFS = [
+  { key: 'no', label: '凭证字号', filter: 'voucher_no' },
+  { key: 'date', label: '日期' },
+  { key: 'summary', label: '摘要', filter: 'summary' },
+  { key: 'debit', label: '借方合计', right: true },
+  { key: 'credit', label: '贷方合计', right: true },
+  { key: 'status', label: '状态' },
+  { key: 'people', label: '制单 / 记账' },
+];
+const {
+  visibleColumns: voucherCols,
+  isDragging: isVoucherColDragging,
+  onColDragStart: onVoucherColDragStart,
+  onColDrop: onVoucherColDrop,
+  resetOrder: resetVoucherColOrder,
+  colStyle: voucherColStyle,
+} = useOrderableColumns(VOUCHER_COLUMN_DEFS, 'erp.voucherCols.v1');
 const canWrite = computed(() => erpCan('voucher'));
 
 const ITEMS_PER_PAGE = 15;
@@ -887,6 +909,22 @@ onMounted(() => {
           size="sm"
           @click="toggleSortByCreated"
         />
+        <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
+        <Button
+          label="恢复默认列序"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="resetVoucherColOrder"
+        />
+        <!-- 行高是全站开关（body.list-compact），切一次所有列表跟着变 -->
+        <Button
+          :label="compact ? '宽松行高' : '紧凑行高'"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="toggleDensity"
+        />
         <!-- 导出是只读动作，不挂写权限 -->
         <Button
           label="导出 Excel"
@@ -998,36 +1036,27 @@ onMounted(() => {
                     @change="toggleSelectAll"
                   />
                 </th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1">
-                    凭证字号
-                    <TableHeaderFilter
-                      v-model="colFilters.voucher_no"
-                      @change="resetAndFetch"
-                    />
-                  </span>
-                </th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1">
-                    摘要
-                    <TableHeaderFilter
-                      v-model="colFilters.summary"
-                      @change="resetAndFetch"
-                    />
-                  </span>
-                </th>
-                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                  借方合计
-                </th>
-                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                  贷方合计
-                </th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  <!-- 一列两个人名，所以两个漏斗，各自紧跟在自己那个词后面。
+                <th
+                  v-for="col in voucherCols"
+                  :key="col.key"
+                  draggable="true"
+                  class="relative px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                  :class="[
+                    col.right ? 'text-right' : '',
+                    isVoucherColDragging(col.key) ? 'opacity-40' : '',
+                  ]"
+                  :style="voucherColStyle(col.key)"
+                  title="拖动可调整列顺序"
+                  @dragstart="onVoucherColDragStart(col.key)"
+                  @dragover.prevent
+                  @drop="onVoucherColDrop(col.key)"
+                >
+                  <!-- 制单/记账一列两个人名，所以两个漏斗，各自紧跟在自己那个词后面。
                        两个挨在一起（制单 / 记账 ∨∨）谁也分不清哪个筛哪个。 -->
-                  <span class="inline-flex items-center gap-1">
+                  <span
+                    v-if="col.key === 'people'"
+                    class="inline-flex items-center gap-1"
+                  >
                     制单
                     <TableHeaderFilter
                       v-model="colFilters.prepared_by"
@@ -1037,6 +1066,18 @@ onMounted(() => {
                     记账
                     <TableHeaderFilter
                       v-model="colFilters.posted_by"
+                      @change="resetAndFetch"
+                    />
+                  </span>
+                  <span
+                    v-else
+                    class="inline-flex items-center gap-1"
+                    :class="col.right ? 'flex-row-reverse' : ''"
+                  >
+                    {{ col.label }}
+                    <TableHeaderFilter
+                      v-if="col.filter"
+                      v-model="colFilters[col.filter]"
                       @change="resetAndFetch"
                     />
                   </span>
@@ -1061,56 +1102,76 @@ onMounted(() => {
                     @change="toggleSelect(v.id)"
                   />
                 </td>
-                <td
-                  class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12"
-                >
-                  {{ v.voucherNo }}
-                  <span v-if="v.reversalOfNo" class="text-xs text-n-ruby-11">
-                    红冲 {{ v.reversalOfNo }}
-                  </span>
-                  <span
-                    v-else-if="v.reversedByNo"
-                    class="text-xs text-n-slate-10"
+                <!-- 数据列按列序渲染；v-if 不能和 v-for 同元素，所以外面套一层 template。 -->
+                <template v-for="col in voucherCols" :key="col.key">
+                  <td
+                    class="px-3 py-2"
+                    :class="[
+                      col.right ? 'font-mono text-right text-n-slate-12' : '',
+                      col.key === 'no'
+                        ? 'font-mono whitespace-nowrap text-n-slate-12'
+                        : '',
+                      ['date', 'people'].includes(col.key)
+                        ? 'whitespace-nowrap text-n-slate-11'
+                        : '',
+                      col.key === 'summary' ? 'text-n-slate-12' : '',
+                    ]"
+                    :style="voucherColStyle(col.key)"
                   >
-                    已被 {{ v.reversedByNo }} 红冲
-                  </span>
-                </td>
-                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
-                  {{ v.voucherDate }}
-                </td>
-                <td class="px-3 py-2 text-n-slate-12">
-                  <!-- 下限撑住不被挤扁，上限截断防超长摘要把表拉到几屏宽；全文走 title 悬浮看。 -->
-                  <div class="flex items-center gap-1 min-w-56 max-w-96">
-                    <span class="truncate" :title="v.summary || ''">
-                      {{ v.summary || '—' }}
-                    </span>
-                    <span
-                      v-if="v.documentCount"
-                      class="inline-flex items-center gap-0.5 text-xs shrink-0 text-n-slate-10"
-                      title="已附原始单据影像"
+                    <template v-if="col.key === 'no'">
+                      {{ v.voucherNo }}
+                      <span
+                        v-if="v.reversalOfNo"
+                        class="text-xs text-n-ruby-11"
+                      >
+                        红冲 {{ v.reversalOfNo }}
+                      </span>
+                      <span
+                        v-else-if="v.reversedByNo"
+                        class="text-xs text-n-slate-10"
+                      >
+                        已被 {{ v.reversedByNo }} 红冲
+                      </span>
+                    </template>
+                    <template v-else-if="col.key === 'date'">
+                      {{ v.voucherDate }}
+                    </template>
+                    <!-- 下限撑住不被挤扁，上限截断防超长摘要把表拉到几屏宽；全文走 title 悬浮看。 -->
+                    <div
+                      v-else-if="col.key === 'summary'"
+                      class="flex items-center gap-1 min-w-56 max-w-96"
                     >
-                      <span class="i-lucide-paperclip size-3" />
-                      {{ v.documentCount }}
+                      <span class="truncate" :title="v.summary || ''">
+                        {{ v.summary || '—' }}
+                      </span>
+                      <span
+                        v-if="v.documentCount"
+                        class="inline-flex items-center gap-0.5 text-xs shrink-0 text-n-slate-10"
+                        title="已附原始单据影像"
+                      >
+                        <span class="i-lucide-paperclip size-3" />
+                        {{ v.documentCount }}
+                      </span>
+                    </div>
+                    <template v-else-if="col.key === 'debit'">
+                      {{ money(v.totalDebitMicros) }}
+                    </template>
+                    <template v-else-if="col.key === 'credit'">
+                      {{ money(v.totalCreditMicros) }}
+                    </template>
+                    <span
+                      v-else-if="col.key === 'status'"
+                      class="inline-block px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                      :class="STATUS_CLASS[v.status]"
+                    >
+                      {{ v.statusLabel }}
                     </span>
-                  </div>
-                </td>
-                <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(v.totalDebitMicros) }}
-                </td>
-                <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(v.totalCreditMicros) }}
-                </td>
-                <td class="px-3 py-2">
-                  <span
-                    class="inline-block px-2 py-0.5 text-xs rounded whitespace-nowrap"
-                    :class="STATUS_CLASS[v.status]"
-                  >
-                    {{ v.statusLabel }}
-                  </span>
-                </td>
-                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
-                  {{ v.preparedByName || '—' }} / {{ v.postedByName || '—' }}
-                </td>
+                    <template v-else-if="col.key === 'people'">
+                      {{ v.preparedByName || '—' }} /
+                      {{ v.postedByName || '—' }}
+                    </template>
+                  </td>
+                </template>
                 <td class="px-3 py-2" @click.stop>
                   <div class="flex items-center justify-end gap-1">
                     <Button
@@ -1186,7 +1247,10 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="!records.length">
-                <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+                <td
+                  :colspan="voucherCols.length + 2"
+                  class="px-3 py-10 text-center text-n-slate-11"
+                >
                   该期间还没有凭证。点右上角「新建凭证」开始记账。
                 </td>
               </tr>

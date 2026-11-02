@@ -329,15 +329,20 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   def convert_items
-    rows = Array(params[:items]).filter_map do |row|
-      permitted = row.permit(:crm_product_id, :qty, :unit, :remark, :warehouse_id, :color)
-      next if permitted[:crm_product_id].blank? || permitted[:qty].to_d <= 0
-
-      permitted.to_h.symbolize_keys
+    all_rows = Array(params[:items]).map do |row|
+      row.permit(:crm_product_id, :qty, :unit, :remark, :warehouse_id, :color)
     end
+    rows = all_rows.select { |r| r[:crm_product_id].present? && r[:qty].to_d.positive? }
     raise StandardError, '没有可转的明细行（每行都要选中产品档案并填数量）' if rows.empty?
 
-    rows
+    # ⚠️ 缺产品/缺数量的行**不能静默跳过**。原来是 filter_map 直接 next 掉：
+    # 只要有一行匹配上，转单就"成功"，剩下的行连人带货一起消失，没有任何提示——
+    # 货少发了谁都不知道。界面上 canSubmit 已经拦了，但这里是 API，App 和别的
+    # 调用方绕得过去，后端必须自己把门守住。
+    skipped = all_rows.size - rows.size
+    raise StandardError, "有 #{skipped} 行没选产品档案或没填数量，转单已取消；补齐后再转，以免少发货" if skipped.positive?
+
+    rows.map { |r| r.to_h.symbolize_keys }
   end
 
   # 产品关联回写用的 (明细行号 → 产品)。row 是明细行号（1 起），弹窗里手工加的行没有。

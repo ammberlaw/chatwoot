@@ -32,6 +32,15 @@
 - **Naming**: Use clear, descriptive names with consistent casing
 - **Vue API**: Always use Composition API with `<script setup>` at the top
 
+## UI 修改与多人协作规则
+
+- UI 调整只修改对应的局部样式；确有必要时，仅修改相关布局行。
+- 必须基于目标文件的最新内容应用局部补丁。禁止用旧工作树、备份或其它版本整文件覆盖，包括通过 `cp`、`docker cp` 或整文件写入同步源码。
+- 修改和同步前检查目标文件的最新差异；发现 Claude 或其他协作者的新改动时，先核对并保留，不得用旧版本覆盖。
+- Claude 已完成的功能改动不得因 UI 调整被修改或撤销，包括业务逻辑、接口调用、权限判断、数据处理、筛选、分页和导出。
+- 撤回 UI 方案时，只逆向撤回本次 UI 补丁，不得恢复整份旧文件或回退无关功能。
+- 本地开发站同步同样使用经过检查的局部补丁；同步前执行补丁检查，遇到内容变化或冲突立即停止，重新核对差异后再处理。
+
 ## Styling
 
 - **Tailwind Only**:  

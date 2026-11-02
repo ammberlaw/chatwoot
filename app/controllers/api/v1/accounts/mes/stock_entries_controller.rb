@@ -76,6 +76,27 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
       scope.where(production_order_id: Mes::ProductionOrder.joins(:owner)
                                                            .where('users.name ILIKE ?', "%#{v}%").select(:id))
     },
+    # 生产领料/退料那两页的「生产任务单 / 销售订单」列显示的是生产订单号。
+    col_mo: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder.where('order_no ILIKE ?', "%#{v}%").select(:id))
+    },
+    # 「型号」列显示的是生产订单上的成品名，与物料名（col_name）不是同一个东西。
+    col_model: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder.where('product_name ILIKE ?', "%#{v}%").select(:id))
+    },
+    # 退料的「退回仓库」是入库方向的 to_warehouse_id；领料的发料仓是 from_warehouse_id。
+    col_to_wh: lambda { |scope, v|
+      scope.where(to_warehouse_id: Mes::Warehouse.where('name ILIKE ?', "%#{v}%").select(:id))
+    },
+    col_from_wh: lambda { |scope, v|
+      scope.where(from_warehouse_id: Mes::Warehouse.where('name ILIKE ?', "%#{v}%").select(:id))
+    },
+    # 成品入库单自己身上的颜色（同一张工单按颜色分几次入库，仓管最常按颜色找）。
+    col_color: ->(scope, v) { scope.where('mes_stock_entries.color ILIKE ?', "%#{v}%") },
+    # 仓库清点：已清点＝有清点时间。列表那一列显示的就是这个，筛选跟着同一个字段走。
+    col_checked: lambda { |scope, v|
+      v == 'YES' ? scope.where.not(warehouse_confirmed_at: nil) : scope.where(warehouse_confirmed_at: nil)
+    },
     q: ->(scope, v) { scope.where(SEARCH_SQL, q: "%#{v}%") },
     # 过账时间区间：单边留空＝只卡一头；到日那天整天都算在内，所以补到 23:59:59。
     posted_from: ->(scope, v) { scope.where('mes_stock_entries.posted_at >= ?', v) },

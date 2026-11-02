@@ -42,10 +42,23 @@ class Crm::RecycleStaleCustomersJob < ApplicationJob
     touch = Crm::Customer::LAST_TOUCH_SQL
     stale = scope.where("#{touch} <= ?", cutoff)
     stale = stale.where.not(last_follow_up_at: nil) unless settings.recycle_never_followed?
+    ids = stale.pluck(:id)
+    return 0 if ids.empty?
+
     # 批量置入公海（记录原归属人供领回冷却校验），单条 UPDATE 无需逐条校验
-    stale.update_all( # rubocop:disable Rails/SkipsModelValidations
+    scope.klass.where(id: ids).update_all( # rubocop:disable Rails/SkipsModelValidations
       'is_in_public_pool = TRUE, public_pool_at = NOW(), previous_owner_id = account_owner_id, ' \
       'account_owner_id = NULL, assigned_by_id = NULL'
     )
+    release_opportunities(ids)
+    ids.size
+  end
+
+  # 商机跟着客户跑：客户被收进公海，名下商机也不该还挂在原业务员名下
+  # （用户 2026-10-31 定：商机不单独回收，默认跟客户）。口径同
+  # Crm::Customer#sync_opportunity_owner! —— 已在商机公海里的不动。
+  def release_opportunities(customer_ids)
+    Crm::Opportunity.where(crm_customer_id: customer_ids, is_in_public_pool: false)
+                    .update_all(owner_id: nil, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
   end
 end

@@ -12,7 +12,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmSignatureEditor from 'dashboard/components-next/CRM/CrmSignatureEditor.vue';
 import CrmSignatureGenerator from 'dashboard/components-next/CRM/CrmSignatureGenerator.vue';
 import CrmWhatsappWebBinding from 'dashboard/components-next/CRM/CrmWhatsappWebBinding.vue';
@@ -22,6 +22,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 const { t } = useI18n();
 const store = useCrmMailAccountsStore();
 const sigStore = useCrmEmailSignaturesStore();
+const settingsSection = ref('accounts');
 const dialogRef = ref(null);
 const sigDialogRef = ref(null);
 
@@ -436,13 +437,13 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden bg-white rounded-3xl border border-white/50"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak bg-white [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1 class="text-heading-1 text-n-slate-12">
           {{ t('CRM.MAIL_ACCOUNTS.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-10">
@@ -450,6 +451,7 @@ onMounted(() => {
         </p>
       </div>
       <Button
+        v-if="settingsSection === 'accounts'"
         :label="L.new"
         icon="i-lucide-plus"
         color="iris"
@@ -457,7 +459,18 @@ onMounted(() => {
       />
     </div>
 
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+    <div class="shrink-0 border-b border-n-weak px-4 sm:px-8">
+      <div data-tabbar="page" class="!my-2 inline-flex">
+        <button :aria-selected="settingsSection === 'accounts'" @click="settingsSection = 'accounts'">邮箱账户</button>
+        <button :aria-selected="settingsSection === 'signatures'" @click="settingsSection = 'signatures'">{{ L.sigTitle }}</button>
+        <button :aria-selected="settingsSection === 'whatsapp'" @click="settingsSection = 'whatsapp'">WhatsApp</button>
+        <button v-if="canManageBlocklist" :aria-selected="settingsSection === 'blocklist'" @click="settingsSection = 'blocklist'">{{ L.blTitle }}</button>
+      </div>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+      <div class="mx-auto w-full max-w-[1100px]">
+      <section v-show="settingsSection === 'accounts'" class="bg-white py-2">
       <div v-if="isFetching" class="p-8 text-sm text-center text-n-slate-11">
         {{ t('CRM.EMAILS.LOADING') }}
       </div>
@@ -479,7 +492,8 @@ onMounted(() => {
               {{ L.defaultTitle }}
             </label>
             <div class="flex-1 w-full max-w-md">
-              <Select
+              <SelectCard
+                block
                 class="w-full"
                 :model-value="String(defaultAccountId)"
                 :options="defaultAccountOptions"
@@ -492,16 +506,16 @@ onMounted(() => {
           </p>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div class="overflow-hidden rounded-xl border border-n-weak">
           <div
             v-for="record in records"
             :key="record.id"
-            class="flex flex-col gap-3 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7"
+            class="group flex flex-col gap-3 border-b border-n-weak p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between hover:bg-n-alpha-1 cursor-pointer"
             @click="openEdit(record)"
           >
-            <div class="flex items-start gap-3">
+            <div class="flex min-w-0 flex-1 items-center gap-3">
               <div
-                class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-iris-4 text-n-iris-11"
+                class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-[#f1f2f4] text-[#62666f]"
               >
                 <Icon icon="i-lucide-mail" class="size-4" />
               </div>
@@ -527,14 +541,14 @@ onMounted(() => {
                 {{ PROVIDERS[record.provider] || record.provider }}
               </span>
             </div>
-            <div class="flex items-center justify-between pt-1">
+            <div class="flex shrink-0 items-center justify-between gap-6 sm:pl-6">
               <button
                 class="inline-flex items-center gap-1.5"
                 @click.stop="toggleActive(record)"
               >
                 <span
                   class="relative w-8 h-4 rounded-full transition-colors"
-                  :class="record.isActive ? 'bg-n-teal-9' : 'bg-n-slate-5'"
+                  :class="record.isActive ? 'bg-[#303238]' : 'bg-n-slate-5'"
                 >
                   <span
                     class="absolute top-0.5 size-3 rounded-full bg-white transition-all"
@@ -544,7 +558,7 @@ onMounted(() => {
                 <span
                   class="text-xs"
                   :class="
-                    record.isActive ? 'text-n-teal-11' : 'text-n-slate-10'
+                    record.isActive ? 'text-n-slate-11' : 'text-n-slate-10'
                   "
                 >
                   {{ record.isActive ? L.active : L.inactive }}
@@ -570,24 +584,26 @@ onMounted(() => {
           </div>
         </div>
       </template>
+      </section>
 
       <!-- 个性签名库 -->
-      <div class="pt-6 mt-6 border-t border-n-weak">
+      <div v-show="settingsSection === 'signatures'" class="min-w-0 bg-white py-2">
         <div
-          class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between"
+          class="flex flex-col gap-3 mb-5 sm:flex-row sm:items-start sm:justify-between"
         >
           <div class="min-w-0">
-            <h2 class="text-base font-medium text-n-slate-12">
+            <h2 class="text-heading-2 text-n-slate-12">
               {{ L.sigTitle }}
             </h2>
             <p class="mt-0.5 text-xs text-n-slate-10">{{ L.sigHint }}</p>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex shrink-0 flex-wrap items-center gap-2">
             <Button
               label="用模板生成"
               icon="i-lucide-wand-sparkles"
               size="sm"
-              color="iris"
+              variant="outline"
+              color="slate"
               @click="showGenerator = true"
             />
             <Button
@@ -608,12 +624,12 @@ onMounted(() => {
         </div>
         <div
           v-else
-          class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+          class="grid grid-cols-1 gap-4 lg:grid-cols-2"
         >
           <div
             v-for="sig in signatures"
             :key="sig.id"
-            class="flex flex-col gap-2 p-4 transition-shadow border cursor-pointer rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7"
+            class="flex flex-col gap-2 p-4 transition-shadow border cursor-pointer rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-slate-7"
             @click="openSigEdit(sig)"
           >
             <div class="flex items-center gap-1.5">
@@ -645,18 +661,18 @@ onMounted(() => {
       </div>
 
       <!-- 我的 WhatsApp -->
-      <div class="pt-6 mt-6 border-t border-n-weak">
+      <div v-show="settingsSection === 'whatsapp'" class="min-w-0 bg-white py-2 [&_.grid]:!grid-cols-1 md:[&_.grid]:!grid-cols-2">
         <div class="mb-3 min-w-0">
-          <h2 class="text-base font-medium text-n-slate-12">{{ L.waTitle }}</h2>
+          <h2 class="text-heading-2 text-n-slate-12">{{ L.waTitle }}</h2>
           <p class="mt-0.5 text-xs text-n-slate-10">{{ L.waHint }}</p>
         </div>
         <CrmWhatsappWebBinding />
       </div>
 
       <!-- 收信黑名单（仅管理员/副管理员；规则全公司生效） -->
-      <div v-if="canManageBlocklist" class="pt-6 mt-6 border-t border-n-weak">
+      <div v-if="canManageBlocklist" v-show="settingsSection === 'blocklist'" class="min-w-0 bg-white py-2">
         <div class="mb-3 min-w-0">
-          <h2 class="text-base font-medium text-n-slate-12">{{ L.blTitle }}</h2>
+          <h2 class="text-heading-2 text-n-slate-12">{{ L.blTitle }}</h2>
           <p class="mt-0.5 text-xs text-n-slate-10">{{ L.blHint }}</p>
         </div>
 
@@ -671,7 +687,7 @@ onMounted(() => {
           <Button
             :label="L.blAdd"
             size="sm"
-            color="iris"
+            color="slate"
             :is-loading="blockBusy"
             @click="addBlockRule()"
           />
@@ -697,11 +713,11 @@ onMounted(() => {
         <p v-if="!blockRules.length" class="text-xs text-n-slate-10">
           {{ L.blEmpty }}
         </p>
-        <div v-else class="flex flex-col gap-2">
+        <div v-else class="overflow-hidden rounded-xl border border-[#e6e8ec]">
           <div
             v-for="rule in blockRules"
             :key="rule.id"
-            class="flex items-center gap-3 px-3 py-2 border rounded-lg border-n-weak"
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-[#eceef1] last:border-b-0"
           >
             <span class="text-sm font-medium truncate shrink-0 text-n-slate-12">
               {{ rule.value }}
@@ -724,6 +740,7 @@ onMounted(() => {
             />
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -756,8 +773,9 @@ onMounted(() => {
             <label class="block mb-0.5 text-heading-3 text-n-slate-12">
               {{ t('CRM.MAIL_ACCOUNTS.FORM.PROVIDER') }}
             </label>
-            <Select
-              v-model="form.provider"
+            <SelectCard
+              block
+                v-model="form.provider"
               class="w-full"
               :options="providerOptions"
             />
@@ -766,8 +784,9 @@ onMounted(() => {
             <label class="block mb-0.5 text-heading-3 text-n-slate-12">
               {{ t('CRM.MAIL_ACCOUNTS.FORM.SSL') }}
             </label>
-            <Select
-              v-model="form.useSsl"
+            <SelectCard
+              block
+                v-model="form.useSsl"
               class="w-full"
               :options="sslOptions"
             />
@@ -804,7 +823,8 @@ onMounted(() => {
               <label class="block mb-0.5 text-heading-3 text-n-slate-12">
                 收件方式
               </label>
-              <Select
+              <SelectCard
+                block
                 v-model="form.receiveMode"
                 class="w-full"
                 :options="receiveOptions"
@@ -814,7 +834,8 @@ onMounted(() => {
               <label class="block mb-0.5 text-heading-3 text-n-slate-12">
                 收件加密
               </label>
-              <Select
+              <SelectCard
+                block
                 v-model="form.imapSsl"
                 class="w-full"
                 :options="imapSslOptions"

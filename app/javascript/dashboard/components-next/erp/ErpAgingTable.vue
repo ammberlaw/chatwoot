@@ -14,6 +14,8 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 // 点客户行展开该客户的单据明细；金额一律本位币，明细里带原币便于核对。
 const props = defineProps({
   title: { type: String, required: true },
+  compact: { type: Boolean, default: false },
+  toolbarTarget: { type: String, default: null },
   partyLabel: { type: String, required: true },
   fetcher: { type: Function, required: true },
 });
@@ -114,15 +116,17 @@ defineExpose({ load });
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <div class="flex flex-wrap items-center gap-2">
+  <div class="flex flex-col gap-3" :class="compact && 'gap-2'">
+    <Teleport :to="toolbarTarget || 'body'" :disabled="!toolbarTarget">
+    <div class="flex flex-wrap items-center justify-end gap-2">
       <SelectCard
         v-model="basis"
         :options="BASIS_OPTIONS"
+        :trigger-class="compact ? '!h-8 !py-1 text-label-small' : ''"
         @update:model-value="load"
       />
       <span class="text-sm text-n-slate-11">截至</span>
-      <DatePicker v-model="asOf" :clearable="false" trigger-class="w-36" />
+      <DatePicker v-model="asOf" :clearable="false" :trigger-class="compact ? 'w-36 !h-8 !py-1' : 'w-36'" />
       <Button label="查询" color="iris" size="sm" @click="load" />
       <Button
         v-if="meta"
@@ -142,27 +146,29 @@ defineExpose({ load });
         size="sm"
         @click="exportExcel"
       />
-      <span v-if="meta" class="text-sm text-n-slate-11">
-        未结合计
-        <span class="font-mono text-n-slate-12">
-          {{ money(totals.total_micros) }}
-        </span>
-      </span>
+      <span v-if="meta && !compact" class="ml-auto flex items-baseline gap-2 text-label-small text-n-slate-11">未结合计 <span class="font-medium tabular-nums text-n-slate-12">{{ money(totals.total_micros) }}</span></span>
     </div>
+
+    </Teleport>
 
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
     <div v-else-if="meta" ref="sheetRef" class="flex flex-col gap-3">
+      <div v-if="compact" class="flex flex-wrap items-center justify-between gap-2 border-b border-n-weak pb-2 text-label-small text-n-slate-10">
+        <span>{{ title }}</span><div class="flex flex-wrap items-center gap-4"><span>未结合计 <span class="font-medium tabular-nums text-n-slate-12">{{ money(totals.total_micros) }}</span></span><span>单位：元（本位币）</span></div>
+      </div>
+      <template v-else>
       <div class="text-base font-semibold text-center text-n-slate-12">
         {{ title }}
       </div>
       <div class="-mt-2 text-xs text-center text-n-slate-11">
         截至 {{ meta.as_of }} · 单位：元（本位币）
       </div>
+      </template>
       <HScrollButtons />
       <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
+        <table class="w-full text-sm" :class="compact && '[&_td]:py-2.5'">
+          <thead class="sticky top-0 z-10 bg-white">
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="px-3 py-2 font-medium">{{ partyLabel }}</th>
               <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
@@ -220,7 +226,7 @@ defineExpose({ load });
                   :colspan="buckets.length + 2"
                   class="px-3 py-2 bg-n-alpha-1"
                 >
-                  <table class="text-xs w-fit">
+                  <table class="text-label-small w-fit">
                     <thead>
                       <tr class="text-left text-n-slate-11">
                         <th

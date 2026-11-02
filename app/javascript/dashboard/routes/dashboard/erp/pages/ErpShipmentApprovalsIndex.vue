@@ -55,7 +55,7 @@ const priceHint = item => {
   const pct = Math.abs(Math.round(b.diff_ratio * 100));
   return {
     level: b.level,
-    text: `比${b.scope_label}${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
+    text: `系统提示：比${b.scope_label}${b.diff_ratio > 0 ? '高' : '低'} ${pct}%`,
     title: `${b.scope_label}：${b.order_no}（${(b.order_date || '').slice(0, 10)}）单价 ${b.last_price}`,
   };
 };
@@ -140,13 +140,13 @@ const submitReject = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
         <h1
-          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1"
+          class="text-heading-1 text-n-slate-12"
         >
           出库审核
         </h1>
@@ -171,40 +171,18 @@ const submitReject = async () => {
       >
         没有等你审核的出库单。
       </div>
-      <div v-else class="flex flex-col gap-2">
+      <div v-else class="flex flex-col gap-4">
         <div
           v-for="s in records"
           :key="s.id"
-          class="p-4 border rounded-xl border-n-weak bg-n-solid-1"
+          class="overflow-hidden p-4 sm:p-5 border rounded-2xl border-n-weak bg-white"
         >
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium text-n-slate-12">{{ s.shipment_no }}</span>
+            <span class="text-heading-2 text-n-slate-12">{{ s.shipment_no }}</span>
             <span
               class="px-2 py-0.5 text-xs rounded-full bg-n-slate-3 text-n-slate-11"
             >
               {{ s.kind === 'STOCK' ? '现货出库' : '生产出库' }}
-            </span>
-            <span class="text-xs text-n-slate-11">
-              {{ s.customer_name || '—' }}
-            </span>
-            <span
-              v-if="s.sales_order_no"
-              class="font-mono text-xs text-n-slate-10"
-            >
-              {{ s.sales_order_no }}
-            </span>
-            <!-- 没挂销售订单的生产出库单，生产单号是唯一能往回追的线索 -->
-            <span
-              v-else-if="s.production_order_no"
-              class="font-mono text-xs text-n-slate-10"
-            >
-              {{ s.production_order_no }}
-            </span>
-            <span class="text-xs text-n-slate-11">
-              业务
-              <b class="ml-0.5 text-n-slate-12">
-                {{ s.sales_owner_name || '—' }}
-              </b>
             </span>
             <!-- 小额单（≤5000 美金 / 3 万人民币）仓库自己就能批，不用财务逐张看。
                  仍列在这里是留个兜底：仓库没动的，财务照样批得了。 -->
@@ -224,23 +202,63 @@ const submitReject = async () => {
             />
             <Button
               label="驳回"
-              variant="ghost"
+              variant="outline"
               color="ruby"
               size="sm"
               @click="openReject(s)"
             />
           </div>
 
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-n-weak pb-3 text-label-small">
+            <span class="text-label font-medium text-n-slate-12">
+              {{ s.customer_name || '—' }}
+            </span>
+            <span
+              v-if="s.sales_order_no"
+              class="tabular-nums text-xs text-n-slate-10"
+            >
+              {{ s.sales_order_no }}
+            </span>
+            <!-- 没挂销售订单的生产出库单，生产单号是唯一能往回追的线索 -->
+            <span
+              v-else-if="s.production_order_no"
+              class="tabular-nums text-xs text-n-slate-10"
+            >
+              {{ s.production_order_no }}
+            </span>
+            <span class="text-xs text-n-slate-11">
+              业务
+              <b class="ml-0.5 text-n-slate-12">
+                {{ s.sales_owner_name || '—' }}
+              </b>
+            </span>
+          </div>
+
           <!-- 单据头：本次出库往往只是整张订单的一车，财务要对得上订单总额和交期；
                制单/提交是出了问题该找谁。备注独占一行（客户的特别交代常写在这）。 -->
           <div
             v-if="hasOrderMeta(s)"
-            class="flex flex-wrap items-center mt-2 text-xs gap-x-5 gap-y-1 text-n-slate-11"
+            class="flex flex-wrap items-center mt-3 text-label-small gap-x-5 gap-y-1.5 text-n-slate-11"
           >
+            <!-- 货款与运费分开列，再给一个合计。订单金额字段本身**不含运费**，
+                 卡片上只摆一个「订单金额」，财务拿它对收款就差一笔运费对不上
+                 （审核弹窗里早就是三行，卡片漏了同一套处理；用户 2026-11-02 反馈）。 -->
             <span v-if="s.sales_order_amount_micros != null">
-              订单金额
+              货款
               <b class="ml-1 tabular-nums text-n-slate-12">
                 {{ money(s.sales_order_amount_micros, s.sales_order_currency) }}
+              </b>
+            </span>
+            <span v-if="s.sales_shipping_micros">
+              运费
+              <b class="ml-1 tabular-nums text-n-slate-12">
+                {{ money(s.sales_shipping_micros, s.sales_order_currency) }}
+              </b>
+            </span>
+            <span v-if="s.sales_shipping_micros">
+              客户应付合计
+              <b class="ml-1 tabular-nums text-n-slate-12">
+                {{ money(s.sales_gross_micros, s.sales_order_currency) }}
               </b>
             </span>
             <span v-if="day(s.sales_order_date)">
@@ -257,7 +275,7 @@ const submitReject = async () => {
             <span v-if="day(s.submitted_at)">
               提交 {{ day(s.submitted_at) }}
             </span>
-            <span v-if="s.sales_order_remark" class="w-full">
+            <span v-if="s.sales_order_remark" class="w-full leading-5">
               订单备注 {{ s.sales_order_remark }}
             </span>
             <span v-if="s.remark" class="w-full">出库备注 {{ s.remark }}</span>
@@ -266,8 +284,8 @@ const submitReject = async () => {
           <!-- 收款情况：财务放不放行就看这一行 -->
           <div
             v-if="s.receivable_state"
-            class="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2 mt-2 text-xs rounded-lg"
-            :class="unpaidOf(s) ? 'bg-n-amber-2' : 'bg-n-teal-2'"
+            class="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-3 mt-3 text-label-small rounded-lg border"
+            :class="unpaidOf(s) ? 'bg-[#fffaf0] border-[#f1e6c7]' : 'bg-n-alpha-1 border-n-weak'"
           >
             <span class="text-n-slate-11">
               应收
@@ -292,7 +310,7 @@ const submitReject = async () => {
               </b>
             </span>
             <span :class="unpaidOf(s) ? 'text-n-amber-11' : 'text-n-teal-11'">
-              {{ unpaidOf(s) ? '还差' : '已收齐' }}
+              {{ unpaidOf(s) ? '未收金额' : '已收齐' }}
               <b class="ml-1 tabular-nums">
                 {{
                   money(
@@ -302,8 +320,21 @@ const submitReject = async () => {
                 }}
               </b>
             </span>
-            <!-- 收款约定：这笔钱按什么方式收、收到哪个户、信保单号多少。
-                 信保单号是财务去阿里平台核销的凭据，原来只能回订单里翻。 -->
+          </div>
+
+          <!-- 收款约定：按什么方式收、收到哪个户、信保单号多少。
+               ⚠️ 这一组**不能**跟着上面的应收块一起条件渲染：原来整组写在
+               `v-if="s.receivable_state"` 里，订单没在财务建账时连信保单号一起藏掉——
+               而恰恰是没建账的单，财务才最需要这个号去阿里平台对出是哪一笔
+               （用户 2026-11-02 反馈「没有信保订单号，不知道是哪个订单的」）。 -->
+          <div
+            v-if="
+              s.payment_term_label ||
+              s.receipt_account_name ||
+              s.insurance_order_no
+            "
+            class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-2 text-label-small"
+          >
             <span v-if="s.payment_term_label" class="text-n-slate-11">
               结算
               <b class="ml-1 text-n-slate-12">{{ s.payment_term_label }}</b>
@@ -322,7 +353,7 @@ const submitReject = async () => {
                金额是冲到**这张订单**上的那部分，一笔款冲几张订单时不会重复计。 -->
           <table
             v-if="s.receipts && s.receipts.length"
-            class="w-full mt-2 text-xs"
+            class="w-full mt-3 text-label !font-normal [&_td]:py-2 [&_th]:text-label-small"
           >
             <thead>
               <tr class="text-left text-n-slate-11">
@@ -387,8 +418,8 @@ const submitReject = async () => {
           <!-- 货物明细：财务要知道这一车放的是什么、值多少钱才敢签字。
                数据接口本来就带（shipment_items），原先这页没渲染，只有一个单号和两个按钮
                （10.20 反馈「这个出库审核没有单据详情，审核不了」）。 -->
-          <div v-if="s.shipment_items?.length" class="mt-2 overflow-x-auto">
-            <table class="w-full text-xs min-w-[520px]">
+          <div v-if="s.shipment_items?.length" class="mt-4 overflow-x-auto">
+            <table class="w-full text-label !font-normal min-w-[520px] [&_td]:py-2.5 [&_th]:py-2 [&_th]:text-label-small">
               <thead>
                 <tr class="text-left text-n-slate-10">
                   <th class="py-1 pr-3 font-medium">商品编码</th>
@@ -405,10 +436,10 @@ const submitReject = async () => {
                   :key="it.id"
                   class="border-t border-n-weak text-n-slate-11"
                 >
-                  <td class="py-1 pr-3 font-mono">
+                  <td class="py-1 pr-3 tabular-nums">
                     {{ it.product_sku || '—' }}
                   </td>
-                  <td class="py-1 pr-3 text-n-slate-12">
+                  <td class="py-1 pr-3 font-medium text-n-slate-12">
                     {{ it.product_name || '—' }}
                   </td>
                   <td class="py-1 pr-3">{{ it.specification || '—' }}</td>
@@ -420,7 +451,7 @@ const submitReject = async () => {
                     <!-- 跟上次成交比高了还是低了。正常就不出字，没异常别占地方。 -->
                     <span
                       v-if="priceHint(it)"
-                      class="block text-xs"
+                      class="mt-1 block text-label-small"
                       :class="
                         priceHint(it).level === 'alert'
                           ? 'text-n-ruby-11 font-medium'
@@ -438,7 +469,7 @@ const submitReject = async () => {
               </tbody>
             </table>
             <div
-              class="flex flex-wrap items-center gap-x-5 gap-y-1 pt-1 mt-1 text-xs border-t border-n-weak text-n-slate-11"
+              class="flex flex-wrap items-center gap-x-5 gap-y-2 pt-3 mt-1 text-label-small border-t border-n-weak text-n-slate-11"
             >
               <span>
                 本次出库合计
@@ -484,7 +515,7 @@ const submitReject = async () => {
         >
           <div class="flex justify-between">
             <span class="text-n-slate-11">销售订单</span>
-            <span class="font-mono text-n-slate-12">
+            <span class="tabular-nums text-n-slate-12">
               {{
                 approving.sales_order_no || approving.production_order_no || '—'
               }}
@@ -498,7 +529,7 @@ const submitReject = async () => {
           </div>
           <div class="flex justify-between">
             <span class="text-n-slate-11">货款</span>
-            <span class="font-mono text-n-slate-12">
+            <span class="tabular-nums text-n-slate-12">
               {{
                 money(
                   approving.sales_order_amount_micros,
@@ -509,7 +540,7 @@ const submitReject = async () => {
           </div>
           <div class="flex justify-between">
             <span class="text-n-slate-11">运费</span>
-            <span class="font-mono text-n-slate-12">
+            <span class="tabular-nums text-n-slate-12">
               {{
                 money(
                   approving.sales_shipping_micros,
@@ -522,7 +553,7 @@ const submitReject = async () => {
             class="flex justify-between col-span-2 pt-1.5 border-t border-n-weak"
           >
             <span class="text-n-slate-11">客户应付合计</span>
-            <span class="font-mono font-medium text-n-slate-12">
+            <span class="tabular-nums font-medium text-n-slate-12">
               {{
                 money(
                   approving.sales_gross_micros,

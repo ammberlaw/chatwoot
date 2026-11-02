@@ -924,26 +924,24 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
-      class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center justify-between gap-2 px-6 py-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <div class="i-lucide-file-output size-5 text-n-iris-9" />
         <h1
-          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          class="text-heading-1 text-n-slate-12"
         >
           应付管理
         </h1>
-        <span v-if="activeTab === 'ledger'" class="text-sm text-n-slate-11">
-          应付 {{ sum(ledgerMeta.total_micros) }} · 已付
-          {{ sum(ledgerMeta.paid_micros) }} · 未付
-          <span class="text-n-slate-12">{{
-            sum(ledgerMeta.outstanding_micros)
-          }}</span>
-        </span>
+        <div v-if="activeTab === 'ledger'" class="ml-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-label-small text-n-slate-11">
+          <span>应付 <span class="font-medium tabular-nums text-n-slate-12">{{ sum(ledgerMeta.total_micros) }}</span></span>
+          <span>已付 <span class="font-medium tabular-nums text-n-slate-12">{{ sum(ledgerMeta.paid_micros) }}</span></span>
+          <span class="rounded-md bg-[#fff9e8] px-2.5 py-1">未付 <span class="font-medium tabular-nums text-n-slate-12">{{ sum(ledgerMeta.outstanding_micros) }}</span></span>
+        </div>
         <span
-          v-else-if="activeTab === 'payments'"
+          v-if="activeTab === 'payments'"
           class="text-sm text-n-slate-11"
         >
           本页付款合计 {{ money(paymentMeta.amount_micros) }}
@@ -957,37 +955,23 @@ onMounted(() => {
         </span>
       </div>
       <div class="flex items-center gap-2">
-        <Input
-          v-if="isDocTab"
-          v-model="keyword"
-          size="sm"
-          placeholder="搜单号 / 供应商 / 采购单号"
-          custom-input-class="w-44"
-          @keyup.enter="reload"
-        />
-        <!-- 按月对账：财务一个月一个月地核，没有月份就只能从头翻到尾 -->
-        <MonthPicker
-          v-if="activeTab === 'reconcile'"
-          v-model="reconMonth"
-          placeholder="收货月份"
-          trigger-class="w-32 h-8"
-        />
-        <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事 -->
         <Button
-          v-if="activeColFilterCount"
-          :label="`清除筛选 (${activeColFilterCount})`"
-          variant="ghost"
-          color="ruby"
+          v-if="canLedger && activeTab === 'ledger'"
+          label="从采购单建账"
+          color="iris"
           size="sm"
-          @click="clearColFilters"
+          @click="openBuild"
         />
         <Button
-          v-if="isDocTab"
-          label="查询"
-          color="slate"
+          v-if="canSettle && activeTab === 'payments'"
+          label="登记付款"
+          color="iris"
           size="sm"
-          @click="reload"
+          @click="openPayment()"
         />
+        <details v-if="activeTab !== 'aging' && activeTab !== 'monthly'" class="relative shrink-0">
+          <summary class="flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-n-weak bg-white px-3 text-label-small text-n-slate-11 hover:bg-n-alpha-1">更多操作 <span class="i-lucide-chevron-down size-3.5" /></summary>
+          <div class="absolute right-0 top-full z-30 mt-2 flex w-64 flex-col items-stretch gap-2 rounded-xl border border-n-weak bg-white p-3 shadow-lg">
         <!-- 列序是本机记忆，拖乱了要有路回来 -->
         <Button
           v-if="activeTab === 'ledger'"
@@ -1024,25 +1008,13 @@ onMounted(() => {
           size="sm"
           @click="openVoucherPanel"
         />
-        <Button
-          v-if="canLedger && activeTab === 'ledger'"
-          label="从采购单建账"
-          color="iris"
-          size="sm"
-          @click="openBuild"
-        />
-        <Button
-          v-if="canSettle && activeTab === 'payments'"
-          label="登记付款"
-          color="iris"
-          size="sm"
-          @click="openPayment()"
-        />
+          </div>
+        </details>
       </div>
     </div>
 
     <div
-      class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center gap-2 px-6 pb-2 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center gap-2" data-tabbar="page">
         <button
@@ -1072,17 +1044,51 @@ onMounted(() => {
           </span>
         </button>
       </div>
+      <div v-if="activeTab === 'aging'" id="ap-aging-toolbar" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2" />
+        <Input
+          v-if="isDocTab"
+          v-model="keyword"
+          size="sm"
+          placeholder="搜单号 / 供应商 / 采购单号"
+          custom-input-class="!h-8 w-44"
+          @keyup.enter="reload"
+        />
+        <!-- 按月对账：财务一个月一个月地核，没有月份就只能从头翻到尾 -->
+        <MonthPicker
+          v-if="activeTab === 'reconcile'"
+          v-model="reconMonth"
+          placeholder="收货月份"
+          trigger-class="w-32 h-8"
+        />
+        <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事 -->
+        <Button
+          v-if="activeColFilterCount"
+          :label="`清除筛选 (${activeColFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearColFilters"
+        />
+        <Button
+          v-if="isDocTab"
+          label="查询"
+          color="slate"
+          size="sm"
+          @click="reload"
+        />
       <!-- 台账筛选：状态 / 结算（含税·未税）/ 发生日期区间。
            发生日期＝货到那天，跟「按月未付」表同一个口径，两处数才对得上。 -->
       <template v-if="activeTab === 'ledger'">
         <SelectCard
           v-model="statusFilter"
           :options="STATUS_OPTIONS"
+          trigger-class="!h-8 !py-1 text-label-small"
           @update:model-value="loadLedgers"
         />
         <SelectCard
           v-model="settleFilter"
           :options="SETTLE_OPTIONS"
+          trigger-class="!h-8 !py-1 text-label-small"
           @update:model-value="loadLedgers"
         />
       </template>
@@ -1092,14 +1098,14 @@ onMounted(() => {
         <DatePicker
           v-model="fromDate"
           :placeholder="`${DATE_LABEL[activeTab]}起`"
-          trigger-class="w-36"
+          trigger-class="w-32 !h-8 !py-1"
           @change="reload"
         />
         <span class="text-sm text-n-slate-10">至</span>
         <DatePicker
           v-model="toDate"
           :placeholder="`${DATE_LABEL[activeTab]}止`"
-          trigger-class="w-36"
+          trigger-class="w-32 !h-8 !py-1"
           @change="reload"
         />
       </template>
@@ -1107,7 +1113,7 @@ onMounted(() => {
 
     <HScrollButtons />
     <div
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex-1 min-h-0 px-6 pb-0 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -1117,9 +1123,9 @@ onMounted(() => {
       <!-- 列序可拖、用不到的列可收起（同应收台账与 MES 那几张表），按人记在本机。 -->
       <table
         v-else-if="activeTab === 'ledger'"
-        class="w-full text-sm min-w-max"
+        class="w-full text-sm min-w-max border-separate border-spacing-0"
       >
-        <thead>
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th
               v-for="col in ledgerVisibleCols"
@@ -1162,7 +1168,7 @@ onMounted(() => {
           <tr
             v-for="{ row, item, li, span } in ledgerRows"
             :key="`${row.id}-${li}`"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="border-b border-n-weak hover:bg-n-alpha-1 [&_td]:border-b [&_td]:border-n-weak"
           >
             <!-- 台账级的列只在第一行出一次、跨完整笔；明细级一行料一行。
                  v-if 不能和 v-for 同元素，所以外面套一层 template。 -->
@@ -1173,7 +1179,8 @@ onMounted(() => {
                 class="px-3 py-2 whitespace-nowrap text-n-slate-11"
                 :class="[
                   col.right ? 'font-mono text-right' : '',
-                  col.rowspan ? 'align-top' : '',
+                  col.rowspan ? 'align-middle' : '',
+                  ['supplier', 'outstanding'].includes(col.key) ? '!text-n-slate-12 font-medium' : '',
                   ledgerColStyle(col.key).width && 'truncate',
                 ]"
                 :style="ledgerColStyle(col.key)"
@@ -1273,7 +1280,7 @@ onMounted(() => {
 
       <!-- 付款记录 -->
       <table v-else-if="activeTab === 'payments'" class="w-full text-sm">
-        <thead>
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th class="px-3 py-3 font-medium whitespace-nowrap">
               <span class="inline-flex items-center gap-1">
@@ -1330,7 +1337,7 @@ onMounted(() => {
           <tr
             v-for="row in payments"
             :key="row.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="border-b border-n-weak hover:bg-n-alpha-1 [&_td]:border-b [&_td]:border-n-weak"
           >
             <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
               {{ row.payment_no }}
@@ -1416,6 +1423,8 @@ onMounted(() => {
       <ErpAgingTable
         v-else-if="activeTab === 'aging'"
         ref="agingRef"
+        compact
+        toolbar-target="#ap-aging-toolbar"
         title="应付账龄分析表"
         party-label="供应商"
         :fetcher="ErpPayableAPI.aging"
@@ -1426,7 +1435,7 @@ onMounted(() => {
         v-else-if="activeTab === 'reconcile'"
         class="w-full min-w-[900px] text-sm"
       >
-        <thead>
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th class="px-3 py-3 font-medium whitespace-nowrap">收货日期</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">采购单</th>
@@ -1496,8 +1505,8 @@ onMounted(() => {
       </table>
 
       <!-- 供应商对账 -->
-      <table v-else class="w-full max-w-3xl text-sm">
-        <thead>
+      <table v-else class="w-full text-sm">
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th class="px-3 py-3 font-medium whitespace-nowrap">
               <span class="inline-flex items-center gap-1">

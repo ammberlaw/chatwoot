@@ -25,6 +25,7 @@
 #  approved_by_id            :bigint
 #  checked_by_id             :bigint
 #  from_warehouse_id         :bigint
+#  outsource_order_id        :bigint
 #  owner_id                  :bigint
 #  production_order_id       :bigint
 #  purchase_order_id         :bigint
@@ -41,6 +42,7 @@
 #  index_mes_stock_entries_on_account_id_and_entry_no    (account_id,entry_no) UNIQUE
 #  index_mes_stock_entries_on_account_id_and_purpose     (account_id,purpose)
 #  index_mes_stock_entries_on_extra_purchase_order_ids   (extra_purchase_order_ids) USING gin
+#  index_mes_stock_entries_on_outsource_order_id         (outsource_order_id)
 #  index_mes_stock_entries_on_owner_id                   (owner_id)
 #  index_mes_stock_entries_on_production_order_id        (production_order_id)
 #  index_mes_stock_entries_on_purchase_order_id          (purchase_order_id)
@@ -74,9 +76,23 @@ class Mes::StockEntry < ApplicationRecord
   #
   # ⚠️ 不要复用 MATERIAL_RETURN：那个是**生产退料回库**（入库方向，成本侧 return_materials!
   # 建层、备注写「生产退料」）。只有 ERP 应付侧把它误当成采购退货——见下面 PAYABLE_VOUCHER_PURPOSES。
+  #
+  # 委外三张单（OUTSOURCE_*，见 Mes::OutsourceOrder）与上面那些不同的地方是**两个仓都动**：
+  # 料发给加工厂不是消失了，是从原料仓挪到了委外仓——料还是我们的。所以它们走
+  # TRANSFER_PURPOSES 这条支线，一行刷两个仓的结存、记两条流水。
   PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN PURCHASE_RETURN MANUFACTURE SCRAP SHIPMENT OPENING
-                CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL].freeze
-  IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
+                CONVERT_TO_PRODUCT CONVERT_TO_MATERIAL
+                OUTSOURCE_ISSUE OUTSOURCE_RECEIPT OUTSOURCE_RETURN].freeze
+  IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING OUTSOURCE_RECEIPT].freeze
+
+  # 仓到仓：from_warehouse_id 扣、to_warehouse_id 加，同一行刷两个仓。
+  # 委外发料＝原料仓→委外仓；委外退料＝委外仓→原料仓/不良品仓。
+  TRANSFER_PURPOSES = %w[OUTSOURCE_ISSUE OUTSOURCE_RETURN].freeze
+
+  # 委外产品入库一单两类行（同转换单的做法）：产出品行进成品仓(+)，
+  # 倒冲料行从委外仓扣(-)——加工厂把料做成了货，委外仓里那批料就该同步消掉，
+  # 不扣的话委外仓会一直虚增，和生产上现在「期初之后再没动过」是同一个毛病。
+  BACKFLUSH_PURPOSE = 'OUTSOURCE_RECEIPT'.freeze
 
   # ── 原料↔成品转换 ─────────────────────────────────────────────
   # 同一个编码在 MES 里有两本数量账（item_type=MATERIAL / PRODUCT）：采购入库永远落原料账，
@@ -104,6 +120,8 @@ class Mes::StockEntry < ApplicationRecord
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', optional: true
+  # 委外的发料/产品入库/退料三张单都挂回加工单（见 Mes::OutsourceOrder）。
+  belongs_to :outsource_order, class_name: 'Mes::OutsourceOrder', optional: true
 
   # 本单关联的全部采购单 id（主单 + 追加的）。同一家供应商同一天送来好几张单的料，
   # 仓管一次收完比开三张入库单省事（照采购单挂多张生产订单那套，见 Mes::PurchaseOrder）。
@@ -305,8 +323,7 @@ class Mes::StockEntry < ApplicationRecord
 
       ensure_purchase_orders_approved!
 
-      # 成品入库防超量在并发下失效——锁住生产订单，让「读累计→校验→写入」在同一临界区。
-      production_order&.lock! if purpose == 'MANUFACTURE'
+      lock_parent_for_over_receipt!
       ensure_no_fg_over_inbound!
       # 出库方向(领料/报废/出库)过账前校验结存充足，杜绝超领→负库存。
       ensure_stock_available_for_out!
@@ -353,7 +370,10 @@ class Mes::StockEntry < ApplicationRecord
       raise StandardError, '单据尚未过账，草稿可直接删除、无需作废' unless status == 'POSTED'
 
       ts = Time.current
-      stock_entry_items.each { |item| move_stock!(item, ts, -line_sign(item)) }
+      # 仓到仓的作废要把两个仓都冲回去（见 post_transfer_item），不能只冲一头。
+      stock_entry_items.each do |item|
+        transfer? ? post_transfer_item(item, ts, -1) : move_stock!(item, ts, -line_sign(item))
+      end
       apply_purchase_receipt(posting: false)
       revert_production_order_stage_on_void(ts)
       # 存货层回滚：入库撤层、出库还层。这里**不吞异常**——「已出库的入库单不许作废」是
@@ -432,9 +452,54 @@ class Mes::StockEntry < ApplicationRecord
     errors.add(:base, msg) if msg
   end
 
+  # 防超量在并发下失效——把「读累计→校验→写入」关进同一个临界区。
+  # 成品入库锁生产订单，委外产品入库锁委外加工单；不锁的话两个人同时过账，
+  # 各自读到的「已收」都是旧的，两张单都判定没超。
+  def lock_parent_for_over_receipt!
+    production_order&.lock! if purpose == 'MANUFACTURE'
+    outsource_order&.lock! if purpose == BACKFLUSH_PURPOSE
+  end
+
   def ensure_no_fg_over_inbound!
     msg = fg_over_inbound_error
     raise StandardError, msg if msg
+
+    msg = outsource_over_receipt_error
+    raise StandardError, msg if msg
+  end
+
+  # 委外产品入库超收（与上面成品入库那条同一个毛病，口径也照它）：
+  # build_receipt 只在**建单那一刻**比过「还差多少」，所以连开两张满额草稿都建得出来，
+  # 过账时各自看各自的，两张都能过——实测 120 的单收成了 240。
+  # 把闸放在过账这一步，按「本单之外已过账的量」重算。
+  def outsource_over_receipt_error
+    order = outsource_order_for_receipt_check
+    return nil if order.nil?
+
+    others = other_posted_receipt_qty
+    mine = stock_entry_items.select { |i| i.item_type == 'PRODUCT' }.sum { |i| i.qty.to_d }
+    return nil if others + mine <= order.qty.to_d
+
+    "委外加工单 #{order.order_no} 应收 #{fnum(order.qty)}，已收 #{fnum(others)}，" \
+      "本单再收 #{fnum(mine)} 就超了"
+  end
+
+  # 只有「委外产品入库 + 挂了加工单 + 加工单有应收数量」才需要查超收。
+  def outsource_order_for_receipt_check
+    return nil if purpose != BACKFLUSH_PURPOSE || outsource_order_id.blank?
+
+    order = outsource_order
+    order.nil? || order.qty.to_d <= 0 ? nil : order
+  end
+
+  # 本单之外、这张加工单上已过账的产出数量。
+  def other_posted_receipt_qty
+    account.mes_stock_entries.posted
+           .where(outsource_order_id: outsource_order_id, purpose: BACKFLUSH_PURPOSE)
+           .where.not(id: id)
+           .joins(:stock_entry_items)
+           .where(mes_stock_entry_items: { item_type: 'PRODUCT' })
+           .sum('mes_stock_entry_items.qty')
   end
 
   # 超量原因（无问题返回 nil）。建单校验与过账闸共用——
@@ -533,6 +598,8 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   def post_item(item, timestamp)
+    return post_transfer_item(item, timestamp, 1) if transfer?
+
     sign = line_sign(item)
     balance_after = move_stock!(item, timestamp, sign)
     # 出库兜底：持锁扣减后结存为负=超领/超发，抛错回滚整单(领料/报废/出库),杜绝负库存。
@@ -541,9 +608,23 @@ class Mes::StockEntry < ApplicationRecord
     raise StandardError, "#{item_display_name(item)} 库存不足（扣减后结存 #{fnum(balance_after)}），无法过账"
   end
 
+  # 仓到仓一行刷两个仓：发出仓扣、接收仓加。dir=1 过账，dir=-1 作废冲销。
+  # 扣的那一头要查负库存（料不够就发不出去），加的那一头不用。
+  def post_transfer_item(item, timestamp, dir)
+    out_wh = item.warehouse_id || from_warehouse_id
+    in_wh = to_warehouse_id
+    raise StandardError, "#{item_display_name(item)} 缺发出仓或接收仓" if out_wh.nil? || in_wh.nil?
+
+    balance_after = move_stock!(item, timestamp, -dir, warehouse_id: out_wh)
+    move_stock!(item, timestamp, dir, warehouse_id: in_wh)
+    return unless dir == 1 && balance_after.negative?
+
+    raise StandardError, "#{item_display_name(item)} 库存不足（扣减后结存 #{fnum(balance_after)}），无法过账"
+  end
+
   # 单条明细刷结存 + 记流水，返回扣减后结存。sign=direction_sign 为过账，-direction_sign 为作废冲销。
-  def move_stock!(item, timestamp, sign)
-    warehouse_id = item.warehouse_id || default_warehouse_id
+  def move_stock!(item, timestamp, sign, warehouse_id: nil)
+    warehouse_id ||= item.warehouse_id || default_warehouse_id
     raise StandardError, "明细缺仓库（#{item.item_type}）" if warehouse_id.nil?
 
     delta = sign * item.effective_qty
@@ -614,12 +695,16 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   # 转换单一单两行、方向相反，所以符号要按行算，不能按单算。其余 purpose 整单同向。
+  # 委外产品入库同理：产出品行进仓(+)，倒冲料行出仓(-)。
   def line_sign(item)
+    return item.item_type == 'PRODUCT' ? 1 : -1 if purpose == BACKFLUSH_PURPOSE
     return direction_sign unless CONVERT_PURPOSES.include?(purpose)
 
     gains = purpose == 'CONVERT_TO_PRODUCT' ? 'PRODUCT' : 'MATERIAL'
     item.item_type == gains ? 1 : -1
   end
+
+  def transfer? = TRANSFER_PURPOSES.include?(purpose)
 
   def default_warehouse_id
     IN_PURPOSES.include?(purpose) ? to_warehouse_id : from_warehouse_id

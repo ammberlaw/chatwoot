@@ -67,6 +67,8 @@ end
 # AI 预写的回复草稿 id（这封来信有没有被预写过）。列表靠它显示「已预写回复」角标，
 # 点一下直接跳到那份草稿——不标出来，草稿就只能等人自己翻草稿箱发现。
 json.ai_draft_id local_assigns[:ai_draft_id]
+# 这封来信回过没有（按主题线程判定，见 EmailsController#replied_ids_for）。
+json.replied local_assigns[:replied] || false
 # 这封本身是不是 AI 预写的草稿：草稿箱里 AI 写的和自己写了一半的必须分得出来。
 json.ai_drafted resource.ai_drafted_at.present?
 json.reply_to_email_id resource.reply_to_email_id

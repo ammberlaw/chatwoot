@@ -294,6 +294,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       next unless @customer.is_in_public_pool?
 
       @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil, assigned_by_id: nil)
+      # 商机跟着客户跑：认领客户＝连同名下商机一起接手。
+      @customer.sync_opportunity_owner!(current_user.id)
       claimed = true
     end
     return render json: { message: '该客户已被他人认领' }, status: :forbidden unless claimed

@@ -4,7 +4,6 @@ import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
-import { printElement } from 'dashboard/helper/printHelper';
 
 import ErpReceivableAPI from 'dashboard/api/erp/receivables';
 import ErpReceiptAPI from 'dashboard/api/erp/receiptRecords';
@@ -21,7 +20,6 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
-import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
@@ -237,6 +235,12 @@ const LEDGER_COLUMN_DEFS = [
     filterOptions: 'status',
   },
 ];
+const LEDGER_PRIMARY_KEYS = ['customer', 'no', 'total', 'received', 'outstanding', 'currency', 'status', 'orderNo', 'docDate', 'owner'];
+const ledgerDefaultColumns = [
+  ...LEDGER_PRIMARY_KEYS.map(key => LEDGER_COLUMN_DEFS.find(col => col.key === key)),
+  ...LEDGER_COLUMN_DEFS.filter(col => !LEDGER_PRIMARY_KEYS.includes(col.key)),
+];
+
 const {
   orderedColumns: ledgerCols,
   visibleColumns: ledgerVisibleCols,
@@ -251,7 +255,9 @@ const {
   isResizing: isLedgerColResizing,
   startResize: startLedgerColResize,
   autoFitColumn: autoFitLedgerCol,
-} = useOrderableColumns(LEDGER_COLUMN_DEFS, 'erp.arLedgerCols.v1');
+} = useOrderableColumns(ledgerDefaultColumns, 'erp.arLedgerCols.v1', {
+  defaultHidden: LEDGER_COLUMN_DEFS.filter(col => !LEDGER_PRIMARY_KEYS.includes(col.key)).map(col => col.key),
+});
 const hiddenLedgerCols = computed(
   () => LEDGER_COLUMN_DEFS.length - ledgerVisibleCols.value.length
 );
@@ -736,6 +742,7 @@ const receiptForm = reactive({
   method: 'TT',
   receivedAt: today(),
   referenceNo: '',
+  tradeAssuranceNo: '',
   remark: '',
 });
 const { isDirty: isReceiptDirty, markPristine: markReceiptPristine } =
@@ -791,6 +798,7 @@ const openReceipt = async (record = null) => {
     method: record?.method || 'TT',
     receivedAt: record?.received_at || today(),
     referenceNo: record?.reference_no || '',
+    tradeAssuranceNo: record?.trade_assurance_no || '',
     remark: record?.remark || '',
   });
   if (!ledgers.value.length) await loadLedgers();
@@ -821,6 +829,7 @@ const submitReceipt = async () => {
       method: receiptForm.method,
       received_at: receiptForm.receivedAt,
       reference_no: receiptForm.referenceNo,
+      trade_assurance_no: receiptForm.tradeAssuranceNo,
       remark: receiptForm.remark,
     },
     allocations: allocationRows.value
@@ -855,15 +864,6 @@ const voidReceipt = async record => {
   } catch (error) {
     useAlert(error?.response?.data?.error || '作废失败');
   }
-};
-
-/* ---------------- 打印 ---------------- */
-const printAreaRef = ref(null);
-const printSheets = ref([]);
-const printReceipt = async record => {
-  printSheets.value = [record];
-  await nextTick();
-  printElement(printAreaRef.value, `收款单 ${record.receipt_no}`);
 };
 
 // 台账先出，待建账数量同时拉一次——角标要在进页面就亮，不能等点进去才发现漏账。
@@ -984,6 +984,7 @@ const exportReceipts = async () => {
           { label: '未核销', key: 'unallocated_micros', money: true },
           { label: '收款方式', key: 'method_label' },
           { label: '水单号', key: 'reference_no' },
+          { label: '信保订单号', key: 'trade_assurance_no' },
           { label: '状态', key: 'status_label' },
           { label: '登记人', key: 'recorded_by_name' },
         ],
@@ -1104,44 +1105,56 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
-      class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center justify-between gap-2 px-6 py-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <div class="i-lucide-hand-coins size-5 text-n-iris-9" />
         <h1
-          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          class="text-heading-1 text-n-slate-12"
         >
           应收管理
         </h1>
-        <span v-if="activeTab === 'ledger'" class="text-sm text-n-slate-11">
-          应收 {{ money(ledgerMeta.total_micros) }} · 已收
-          {{ money(ledgerMeta.received_micros) }} · 未收
-          <span class="text-n-slate-12">{{
-            money(ledgerMeta.outstanding_micros)
-          }}</span>
-        </span>
+    <div v-if="activeTab === 'ledger'" class="ml-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <div class="flex items-baseline gap-2"><span class="text-label-small text-n-slate-11">应收总额</span><span class="text-label-small font-medium tabular-nums text-n-slate-12">{{ money(ledgerMeta.total_micros) }}</span></div>
+      <div class="flex items-baseline gap-2"><span class="text-label-small text-n-slate-11">已收金额</span><span class="text-label-small font-medium tabular-nums text-n-slate-12">{{ money(ledgerMeta.received_micros) }}</span></div>
+      <div class="flex items-baseline gap-2 rounded-md bg-[#fff9e8] px-2.5 py-1"><span class="text-label-small text-n-slate-11">未收金额</span><span class="text-label-small font-medium tabular-nums text-n-slate-12">{{ money(ledgerMeta.outstanding_micros) }}</span></div>
+    </div>
         <span
-          v-else-if="activeTab === 'receipts'"
+          v-if="activeTab === 'receipts'"
           class="text-sm text-n-slate-11"
         >
           本页收款合计 {{ money(receiptMeta.amount_micros) }}
         </span>
       </div>
       <div class="flex items-center gap-2">
-        <Input
-          v-if="isDocTab"
-          v-model="keyword"
+        <Button
+          v-if="canLedger && activeTab === 'ledger'"
+          label="从销售订单建账"
+          color="iris"
           size="sm"
-          :placeholder="
-            activeTab === 'pending'
-              ? '搜订单号 / PI 号 / 客户'
-              : '搜单号 / 客户'
-          "
-          custom-input-class="w-44"
-          @keyup.enter="reload"
+          @click="openBuild"
         />
+        <Button
+          v-if="canLedger && activeTab === 'pending'"
+          :label="`批量建账${selectedOrderIds.length ? ` (${selectedOrderIds.length})` : ''}`"
+          color="iris"
+          size="sm"
+          :disabled="!selectedOrderIds.length"
+          :is-loading="buildingBatch"
+          @click="bulkBuild"
+        />
+        <Button
+          v-if="canSettle && activeTab === 'receipts'"
+          label="登记收款"
+          color="iris"
+          size="sm"
+          @click="openReceipt()"
+        />
+        <details v-if="activeTab !== 'aging'" class="relative shrink-0">
+          <summary class="flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg border border-n-weak bg-white px-3 text-label-small text-n-slate-11 hover:bg-n-alpha-1">更多操作 <span class="i-lucide-chevron-down size-3.5" /></summary>
+          <div class="absolute right-0 top-full z-30 mt-2 flex w-64 flex-col items-stretch gap-2 rounded-xl border border-n-weak bg-white p-3 shadow-lg">
         <!-- 列序是本机记忆，拖乱了要有路回来。台账和待建账各记各的（列不一样）。 -->
         <Button
           v-if="activeTab === 'ledger'"
@@ -1204,41 +1217,15 @@ onMounted(() => {
           size="sm"
           @click="clearColFilters"
         />
-        <Button
-          v-if="isDocTab"
-          label="查询"
-          color="slate"
-          size="sm"
-          @click="reload"
-        />
-        <Button
-          v-if="canLedger && activeTab === 'ledger'"
-          label="从销售订单建账"
-          color="iris"
-          size="sm"
-          @click="openBuild"
-        />
-        <Button
-          v-if="canLedger && activeTab === 'pending'"
-          :label="`批量建账${selectedOrderIds.length ? ` (${selectedOrderIds.length})` : ''}`"
-          color="iris"
-          size="sm"
-          :disabled="!selectedOrderIds.length"
-          :is-loading="buildingBatch"
-          @click="bulkBuild"
-        />
-        <Button
-          v-if="canSettle && activeTab === 'receipts'"
-          label="登记收款"
-          color="iris"
-          size="sm"
-          @click="openReceipt()"
-        />
+          </div>
+        </details>
       </div>
     </div>
 
+
+
     <div
-      class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center gap-2 px-6 pb-2 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div
         class="flex items-center gap-2 [.theme-classic_&]:!my-0 [.theme-classic_&]:shrink-0"
@@ -1270,11 +1257,25 @@ onMounted(() => {
           </span>
         </button>
       </div>
+      <div v-if="activeTab === 'aging'" id="ar-aging-toolbar" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2" />
+
+        <Input
+          v-if="isDocTab"
+          v-model="keyword"
+          size="sm"
+          :placeholder="
+            activeTab === 'pending'
+              ? '搜订单号 / PI 号 / 客户'
+              : '搜单号 / 客户'
+          "
+          custom-input-class="!h-8 w-40"
+          @keyup.enter="reload"
+        />
       <SelectCard
         v-if="activeTab === 'ledger'"
         v-model="statusFilter"
         :options="STATUS_OPTIONS"
-        trigger-class="[.theme-classic_&]:!h-[38px]"
+        trigger-class="!h-8 !py-1 text-label-small"
         @update:model-value="loadLedgers"
       />
       <template v-else-if="activeTab === 'pending'">
@@ -1284,7 +1285,7 @@ onMounted(() => {
             { value: '', label: '全部业务员' },
             ...pendingOwners.map(o => ({ value: String(o.id), label: o.name })),
           ]"
-          trigger-class="[.theme-classic_&]:!h-[38px]"
+          trigger-class="!h-8 !py-1 text-label-small"
           @update:model-value="onPendingFilterChange"
         />
         <SelectCard
@@ -1296,7 +1297,7 @@ onMounted(() => {
               label,
             })),
           ]"
-          trigger-class="[.theme-classic_&]:!h-[38px]"
+          trigger-class="!h-8 !py-1 text-label-small"
           @update:model-value="onPendingFilterChange"
         />
       </template>
@@ -1306,17 +1307,24 @@ onMounted(() => {
         <DatePicker
           v-model="fromDate"
           :placeholder="`${DATE_LABEL[activeTab]}起`"
-          trigger-class="w-36"
+          trigger-class="w-32 !h-8 !py-1 text-label-small"
           @change="reload"
         />
         <span class="text-sm text-n-slate-10">至</span>
         <DatePicker
           v-model="toDate"
           :placeholder="`${DATE_LABEL[activeTab]}止`"
-          trigger-class="w-36"
+          trigger-class="w-32 !h-8 !py-1 text-label-small"
           @change="reload"
         />
       </template>
+        <Button
+          v-if="isDocTab"
+          label="查询"
+          color="slate"
+          size="sm"
+          @click="reload"
+        />
       <span
         v-if="activeTab === 'pending' && pendingFilteredCount !== pendingCount"
         class="text-sm text-n-slate-11"
@@ -1327,7 +1335,7 @@ onMounted(() => {
 
     <HScrollButtons />
     <div
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+      class="flex-1 min-h-0 px-6 pb-0 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -1339,9 +1347,9 @@ onMounted(() => {
            35 列全摆着谁都嫌长，各人核的东西还不一样。 -->
       <table
         v-else-if="activeTab === 'ledger'"
-        class="w-full text-sm min-w-max"
+        class="w-full text-sm min-w-max border-separate border-spacing-0"
       >
-        <thead>
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th
               v-for="col in ledgerVisibleCols"
@@ -1384,7 +1392,7 @@ onMounted(() => {
           <tr
             v-for="{ row, item, li, span, tax } in ledgerRows"
             :key="`${row.id}-${li}`"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="border-b border-n-weak hover:bg-n-alpha-1 [&_td]:border-b [&_td]:border-n-weak"
           >
             <!-- 台账级的列（col.rowspan）只在第一行出一次、跨完整笔；明细级一行货一行。
                  v-if 不能和 v-for 同元素，所以外面套一层 template。 -->
@@ -1395,7 +1403,8 @@ onMounted(() => {
                 class="px-3 py-2 whitespace-nowrap text-n-slate-11"
                 :class="[
                   col.right ? 'font-mono text-right' : '',
-                  col.rowspan ? 'align-top' : '',
+                  col.rowspan ? 'align-middle' : '',
+                  ['customer', 'outstanding'].includes(col.key) ? '!text-n-slate-12 font-medium' : '',
                   ledgerColStyle(col.key).width && 'truncate',
                 ]"
                 :style="ledgerColStyle(col.key)"
@@ -1599,8 +1608,8 @@ onMounted(() => {
         </div>
         <!-- 表头与应收台账同一套列（用户原话：待建账的表头内容要和应收台账一样）：
              一行一项货、台账级字段跨行，列序可拖、用不到的可收起。 -->
-        <table class="w-full text-sm min-w-max">
-          <thead>
+        <table class="w-full text-sm min-w-max border-separate border-spacing-0">
+          <thead class="sticky top-0 z-10 bg-white">
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="w-10 px-3 py-3 whitespace-nowrap">
                 <input
@@ -1654,7 +1663,7 @@ onMounted(() => {
             <tr
               v-for="{ row, item, li, span, tax } in pendingRows"
               :key="`${row.id}-${li}`"
-              class="border-b border-n-weak hover:bg-n-alpha-1"
+              class="border-b border-n-weak hover:bg-n-alpha-1 [&_td]:border-b [&_td]:border-n-weak"
             >
               <td v-if="li === 0" :rowspan="span" class="px-3 py-2 align-top">
                 <input
@@ -1833,14 +1842,16 @@ onMounted(() => {
       <ErpAgingTable
         v-else-if="activeTab === 'aging'"
         ref="agingRef"
+        toolbar-target="#ar-aging-toolbar"
+        compact
         title="应收账龄分析表"
         party-label="客户"
         :fetcher="ErpReceivableAPI.aging"
       />
 
       <!-- 收款记录 -->
-      <table v-else class="w-full text-sm">
-        <thead>
+      <table v-else class="w-full text-sm border-separate border-spacing-0">
+        <thead class="sticky top-0 z-10 bg-white">
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th class="px-3 py-3 font-medium whitespace-nowrap">
               <span class="inline-flex items-center gap-1">
@@ -1897,7 +1908,7 @@ onMounted(() => {
           <tr
             v-for="row in receipts"
             :key="row.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="border-b border-n-weak hover:bg-n-alpha-1 [&_td]:border-b [&_td]:border-n-weak"
           >
             <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
               {{ row.receipt_no }}
@@ -1912,6 +1923,9 @@ onMounted(() => {
             <td class="px-3 py-2 text-xs text-n-slate-11">
               {{ row.method_label }}
               <span v-if="row.reference_no">· {{ row.reference_no }}</span>
+              <span v-if="row.trade_assurance_no">
+                · 信保 {{ row.trade_assurance_no }}
+              </span>
             </td>
             <td class="px-3 py-2 text-xs">
               <span
@@ -1938,13 +1952,6 @@ onMounted(() => {
             </td>
             <td class="px-3 py-2">
               <div class="flex items-center justify-end gap-1">
-                <Button
-                  label="打印"
-                  color="slate"
-                  variant="ghost"
-                  size="xs"
-                  @click="printReceipt(row)"
-                />
                 <template v-if="canSettle && row.status !== 'VOID'">
                   <Button
                     label="编辑"
@@ -2179,6 +2186,14 @@ onMounted(() => {
               custom-input-class="!h-9"
             />
           </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">信保订单号</label>
+            <Input
+              v-model="receiptForm.tradeAssuranceNo"
+              size="sm"
+              custom-input-class="!h-9"
+            />
+          </div>
         </div>
 
         <ErpAllocationEditor
@@ -2203,16 +2218,5 @@ onMounted(() => {
          里面的生产订单号/出货单号可点，跳到 MES 对应页面定位 -->
     <ErpSalesOrderDetailDialog ref="orderDialogRef" />
 
-    <!-- 打印区：定位在外层，被克隆的是里层（printHelper 的坑，见凭证页注释） -->
-    <div class="fixed top-0 -left-[10000px] w-[794px]">
-      <div ref="printAreaRef">
-        <ErpSettlementPrintSheet
-          v-for="sheet in printSheets"
-          :key="sheet.id"
-          :record="sheet"
-          kind="receipt"
-        />
-      </div>
-    </div>
   </div>
 </template>

@@ -632,6 +632,39 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @last_opens = last_opens_for(emails)
     @distributions = distributions_for(emails)
     @ai_drafts = ai_drafts_for(emails)
+    @replied_ids = replied_ids_for(emails)
+  end
+
+  # 哪些来信已经回过了。列表上要有个标记——不然「这封我回没回」只能点进去翻，
+  # 一屏十几封全靠记（用户 2026-11-02 反馈）。
+  #
+  # ⚠️ 不走 reply_to_email_id：那个字段只有 AI 预写草稿在写，手工回复从来不记
+  # （生产库里 74 封已发邮件没有一封带它）。靠它判断等于存量全标不出来。
+  # 改按**主题线程**判断：同一线程里只要有一封比这封来信更晚发出的，就算回过了。
+  # 这样手工回、AI 回、甚至另起一封回，都认得出来。
+  def replied_ids_for(emails)
+    inbox = emails.select { |e| e.folder == 'INBOX' && e.email_date.present? }
+    return Set.new if inbox.empty?
+
+    latest_sent = latest_sent_per_thread(inbox)
+    inbox.filter_map { |e| e.id if replied?(e, latest_sent) }.to_set
+  end
+
+  def replied?(email, latest_sent)
+    sent_at = latest_sent[Crm::Email.normalize_thread(email.subject)]
+    sent_at.present? && sent_at > email.email_date
+  end
+
+  # 每个主题线程最后一次发出的时间。一次查完当前页涉及的范围，避免逐封 N+1。
+  def latest_sent_per_thread(inbox)
+    owner_ids = inbox.filter_map(&:owner_id).uniq
+    scope = Current.account.crm_emails.where(folder: 'SENT')
+                   .where('email_date > ?', inbox.map(&:email_date).min)
+    scope = scope.where(owner_id: owner_ids) if owner_ids.any?
+    scope.pluck(:subject, :email_date).each_with_object({}) do |(subject, date), acc|
+      key = Crm::Email.normalize_thread(subject)
+      acc[key] = date if acc[key].nil? || date > acc[key]
+    end
   end
 
   # 哪些来信已经被预写好回复草稿了（见 Crm::AutoDraftReplyJob）。

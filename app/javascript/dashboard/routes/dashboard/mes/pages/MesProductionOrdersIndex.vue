@@ -13,6 +13,8 @@ import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue
 import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
+import { fetchAllRows } from 'dashboard/helper/erpExcel';
+import { orderSearchText } from '../orderSearchText';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import MesOrderFeedbackAPI from 'dashboard/api/mes/orderFeedbacks';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -1148,6 +1150,72 @@ const setTemplate = t => {
   orderTemplate.value = t;
   orderSpec.value = blankSpec(t); // 换模板重置规格
 };
+// ── 从历史订单导入规格 ──
+//
+// 转单过来的单只带得到客户/国家/交期和一段备注（硬件规格那些 CRM 侧没有录入口），
+// 老客户返单时与其一项项重填，不如从他上一张同款单直接抄一份过来再改。
+//
+// ⚠️ **PI 编号不抄**：PI 是这一单独有的凭证号，抄过来就是张冠李戴——
+// 后面出库、应收、对账全靠它串，错了很难发现（用户 2026-11-02 点名）。
+// 同理不抄的还有数量和交期：返单的量和期一定是新的。
+const isSpecObject = v =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+const importDialogRef = ref(null);
+const importOptions = ref([]);
+const importSourceId = ref('');
+const importLoading = ref(false);
+
+const openImportSpec = async () => {
+  importSourceId.value = '';
+  importDialogRef.value?.open();
+  if (importOptions.value.length) return;
+  importLoading.value = true;
+  try {
+    const rows = await fetchAllRows(params =>
+      axios.get(`/api/v1/accounts/${accountId.value}/mes/production_orders`, {
+        params,
+      })
+    );
+    importOptions.value = (rows || [])
+      .map(o => camelcaseKeys(o, { deep: true }))
+      .filter(
+        o =>
+          o.id !== editingOrderId.value &&
+          // 必须是对象：早期的单 spec 存的是一段字符串（「10.4寸 / 1024×768」），
+          // 不挡住的话解构会把它拆成 {0:'1',1:'0',…} 一堆单字符灌进表单。
+          isSpecObject(o.spec) &&
+          // 同一套规格表单才能抄：平板的 spec 塞进商显表单全是对不上的 key
+          (o.spec.template || 'TABLET') === orderTemplate.value &&
+          Object.keys(o.spec).some(k => k !== 'template' && o.spec[k])
+      )
+      .map(o => ({
+        value: String(o.id),
+        label: `${o.orderNo} · ${o.productName || ''}`,
+        searchText: orderSearchText(o),
+        spec: o.spec,
+      }));
+  } catch (e) {
+    importOptions.value = [];
+    useAlert('历史订单加载失败，请重试');
+  } finally {
+    importLoading.value = false;
+  }
+};
+
+const applyImportSpec = () => {
+  const src = importOptions.value.find(o => o.value === importSourceId.value);
+  if (!src || !isSpecObject(src.spec)) return;
+  // 只覆盖规格，抬头（PI/数量/交期/成品）原样不动。
+  const { template: _ignored, ...incoming } = src.spec || {};
+  orderSpec.value = {
+    ...blankSpec(orderTemplate.value),
+    ...incoming,
+    template: orderTemplate.value,
+  };
+  importDialogRef.value?.close();
+  useAlert(`已从 ${src.label.split(' · ')[0]} 导入规格，PI 编号未改动`);
+};
+
 const orderDialogTitle = computed(() => {
   if (viewOnlyOrder.value) return '查看生产订单';
   return editingOrderId.value ? '编辑生产订单' : '新建生产订单';
@@ -1385,6 +1453,19 @@ const submitMarkOutsourced = async () => {
     fetchRecords();
   }
 };
+
+// —— 委外加工（只读展示）——
+//
+// 安排委外是工程/PMC 的排产决策（用户 2026-11-02 定）：选哪家厂、什么时候要回来，
+// 跟着生产任务单走，入口在生产任务单和委外加工页上。这一页是业务条线看订单进度的
+// 地方，只显示「在 XX 厂加工中、已收多少」，不放操作入口。
+const WW_STATUS_LABELS = {
+  DRAFT: '草稿',
+  CONFIRMED: '已确认',
+  CLOSED: '已关闭',
+  CANCELLED: '已取消',
+};
+const outsourceOrders = computed(() => selected.value?.outsourceOrders || []);
 
 // —— 关联已有 BOM（复用现成 BOM 直接挂到本单，不用重建；挂好即可下发采购）——
 const linkBomDialogRef = ref(null);
@@ -2033,13 +2114,13 @@ watch(currentPage, fetchRecords);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <!-- 头部 -->
     <div
       class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <h1
-        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        class="text-heading-1 text-n-slate-12"
       >
         销售订单
       </h1>
@@ -2122,7 +2203,6 @@ watch(currentPage, fetchRecords);
             variant="outline"
             color="slate"
             size="sm"
-            class="btn-ink"
             icon="i-lucide-columns-3"
             @click="showColumnPanel = !showColumnPanel"
           />
@@ -2156,13 +2236,13 @@ watch(currentPage, fetchRecords);
             </button>
           </div>
         </div>
+
         <Button
           v-if="mesCan('order')"
           label="从销售订单转入"
           variant="outline"
           color="slate"
           size="sm"
-          class="btn-ink"
           @click="openConvert"
         />
         <Button
@@ -2369,7 +2449,7 @@ watch(currentPage, fetchRecords);
             <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行。
                  收起过列就不再压这个最小宽——否则列都收完了表格还是 1240px 宽，照样要横着拖。 -->
             <table
-              class="hidden md:table w-full text-sm"
+              class="hidden md:table w-full text-sm border-separate border-spacing-0"
               :class="hiddenCols ? '' : 'md:min-w-[1240px]'"
             >
               <!-- 表头冻结在列表容器顶部：这张表十几列又长，往下翻就对不上「这一列是什么」了
@@ -2417,8 +2497,8 @@ watch(currentPage, fetchRecords);
                     </span>
                   </th>
                   <th
-                    class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
-                  />
+                    class="px-3 py-3 sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] w-[200px] whitespace-nowrap text-right font-medium"
+                  >操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -2550,7 +2630,7 @@ watch(currentPage, fetchRecords);
                           >
                             <span
                               v-if="si"
-                              class="w-2 h-px shrink-0"
+                              class="w-1 h-px shrink-0"
                               :class="
                                 !stageNotLive(po) && si <= stageIndexOf(po)
                                   ? 'bg-n-iris-9'
@@ -2559,7 +2639,7 @@ watch(currentPage, fetchRecords);
                             />
                             <span
                               v-tooltip.top="st.label"
-                              class="rounded-full cursor-help size-2 shrink-0"
+                              class="rounded-full cursor-help size-1.5 shrink-0"
                               :class="stageDotClass(po, si)"
                             />
                           </template>
@@ -2669,7 +2749,7 @@ watch(currentPage, fetchRecords);
                     </template>
                   </td>
                   <td
-                    class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                    class="px-3 py-3 text-right sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] w-[200px] whitespace-nowrap"
                     @click.stop
                   >
                     <div class="flex items-center justify-end gap-1">
@@ -3279,6 +3359,38 @@ watch(currentPage, fetchRecords);
           </div>
         </div>
 
+        <!-- 委外加工进度（只读）。
+             ⚠️ 这里**不给**「转委外加工」入口：安排委外是工程/PMC 的排产决策
+             （用户 2026-11-02 定），入口在生产任务单和委外加工页上。这一页是业务
+             条线看订单进度的地方，要的是「看得见这单在 XX 厂加工中」，不是在这儿安排外发。
+             加工费单价不显示——商务价不往业务条线摆。 -->
+        <div
+          v-if="outsourceOrders.length"
+          class="p-4 mt-4 border rounded-xl border-n-weak"
+        >
+          <div class="text-heading-3 text-n-slate-12">委外加工</div>
+          <div
+            v-for="ww in outsourceOrders"
+            :key="ww.id"
+            class="flex items-center gap-2 mt-2 text-xs"
+          >
+            <span class="font-mono shrink-0 text-n-slate-12">
+              {{ ww.orderNo }}
+            </span>
+            <span class="truncate text-n-slate-11">
+              {{ ww.supplierName }}
+            </span>
+            <span class="shrink-0 tabular-nums text-n-slate-11">
+              已收 {{ fmtQty(ww.receivedQty) }} / {{ fmtQty(ww.qty) }}
+            </span>
+            <span
+              class="px-1.5 py-0.5 rounded-full shrink-0 bg-n-slate-3 text-n-slate-11"
+            >
+              {{ WW_STATUS_LABELS[ww.status] || ww.status }}
+            </span>
+          </div>
+        </div>
+
         <!-- 外购标识 -->
         <div
           v-if="selected.isOutsourced"
@@ -3804,6 +3916,28 @@ watch(currentPage, fetchRecords);
 
     <!-- 新建 / 编辑定制生产订单 -->
     <Dialog
+      ref="importDialogRef"
+      :dismissible="false"
+      overflow-y-auto
+      width="lg"
+      confirm-button-color="iris"
+      title="从历史订单导入规格"
+      confirm-button-label="导入"
+      :disable-confirm-button="!importSourceId"
+      @confirm="applyImportSpec"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">历史订单</label>
+        <ComboBox
+          v-model="importSourceId"
+          :options="importOptions"
+          :is-loading="importLoading"
+          placeholder="选择历史订单"
+        />
+      </div>
+    </Dialog>
+
+    <Dialog
       ref="orderDialogRef"
       :dismissible="false"
       width="2xl"
@@ -3822,7 +3956,18 @@ watch(currentPage, fetchRecords);
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
-          <label class="text-heading-3 text-n-slate-12">产品线 / 模板</label>
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-heading-3 text-n-slate-12">产品线 / 模板</label>
+            <Button
+              v-if="!viewOnlyOrder"
+              label="从历史订单导入"
+              variant="outline"
+              color="slate"
+              size="sm"
+              class="shrink-0"
+              @click="openImportSpec"
+            />
+          </div>
           <SelectCard
             size="form"
             :model-value="orderTemplate"

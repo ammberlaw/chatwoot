@@ -485,14 +485,17 @@ const priceDelta = row => {
     row.lastPriceTaxIncluded !== null &&
     row.lastPriceTaxIncluded !== row.priceTaxIncluded
   ) {
-    return { text: '与上次税别不同，未作比较', cls: 'text-n-slate-10' };
+    return {
+      text: '系统提示：与上次税别不同，未作比较',
+      cls: 'text-n-slate-10',
+    };
   }
   const diff = now - last;
   if (Math.abs(diff) < 1e-6) return null;
   const pct = (diff / last) * 100;
   const up = diff > 0;
   return {
-    text: `${up ? '贵了' : '便宜了'} ¥${Math.abs(diff).toFixed(2)}（${up ? '+' : '-'}${Math.abs(pct).toFixed(1)}%）`,
+    text: `系统提示：${up ? '贵了' : '便宜了'} ¥${Math.abs(diff).toFixed(2)}（${up ? '+' : '-'}${Math.abs(pct).toFixed(1)}%）`,
     cls: up ? 'text-n-ruby-11' : 'text-n-teal-11',
   };
 };

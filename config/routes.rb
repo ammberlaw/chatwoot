@@ -602,6 +602,17 @@ Rails.application.routes.draw do
                 post :receive_back
               end
             end
+            # 委外加工单 + 它派生的三张库存单（发料 / 产品入库 / 退料）。
+            resources :outsource_orders do
+              member do
+                post :confirm
+                post :close
+                post :issue
+                post :receipt
+                post :return_materials
+                post :generate_fee
+              end
+            end
             resources :purchase_orders do
               collection do
                 get :requirement

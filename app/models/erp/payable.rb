@@ -4,31 +4,33 @@
 #
 # Table name: erp_payables
 #
-#  id                    :bigint           not null, primary key
-#  currency              :string           default("CNY"), not null
-#  due_date              :date
-#  exchange_rate         :decimal(12, 6)   default(1.0), not null
-#  incurred_on           :date
-#  paid_amount_micros    :bigint           default(0), not null
-#  payable_no            :string           not null
-#  remark                :text
-#  settle_type           :string           default("PUBLIC"), not null
-#  status                :string           default("UNPAID"), not null
-#  total_amount_micros   :bigint           default(0), not null
-#  created_at            :datetime         not null
-#  updated_at            :datetime         not null
-#  account_id            :bigint           not null
-#  mes_purchase_order_id :bigint
-#  mes_supplier_id       :bigint           not null
+#  id                     :bigint           not null, primary key
+#  currency               :string           default("CNY"), not null
+#  due_date               :date
+#  exchange_rate          :decimal(12, 6)   default(1.0), not null
+#  incurred_on            :date
+#  paid_amount_micros     :bigint           default(0), not null
+#  payable_no             :string           not null
+#  remark                 :text
+#  settle_type            :string           default("PUBLIC"), not null
+#  status                 :string           default("UNPAID"), not null
+#  total_amount_micros    :bigint           default(0), not null
+#  created_at             :datetime         not null
+#  updated_at             :datetime         not null
+#  account_id             :bigint           not null
+#  mes_outsource_order_id :bigint
+#  mes_purchase_order_id  :bigint
+#  mes_supplier_id        :bigint           not null
 #
 # Indexes
 #
-#  index_erp_payables_on_account_id                 (account_id)
-#  index_erp_payables_on_account_id_and_payable_no  (account_id,payable_no) UNIQUE
-#  index_erp_payables_on_account_id_and_status      (account_id,status)
-#  index_erp_payables_on_mes_purchase_order_id      (mes_purchase_order_id)
-#  index_erp_payables_on_mes_supplier_id            (mes_supplier_id)
-#  uniq_erp_payable_po_supplier                     (account_id,mes_purchase_order_id,mes_supplier_id) UNIQUE WHERE (mes_purchase_order_id IS NOT NULL)
+#  index_erp_payables_on_account_and_outsource_order  (account_id,mes_outsource_order_id)
+#  index_erp_payables_on_account_id                   (account_id)
+#  index_erp_payables_on_account_id_and_payable_no    (account_id,payable_no) UNIQUE
+#  index_erp_payables_on_account_id_and_status        (account_id,status)
+#  index_erp_payables_on_mes_purchase_order_id        (mes_purchase_order_id)
+#  index_erp_payables_on_mes_supplier_id              (mes_supplier_id)
+#  uniq_erp_payable_po_supplier                       (account_id,mes_purchase_order_id,mes_supplier_id) UNIQUE WHERE (mes_purchase_order_id IS NOT NULL)
 #
 class Erp::Payable < ApplicationRecord
   UNPAID = 'UNPAID'.freeze

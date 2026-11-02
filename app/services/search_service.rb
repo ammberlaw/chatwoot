@@ -104,10 +104,23 @@ class SearchService
               .per(15)
   end
 
+  # 传了 conversation_id ＝ 在这一张会话里翻聊天记录，不卡 3 个月：
+  # 要找的常常就是几个月前那句话，而范围已经被这张会话框死，不需要时间窗兜性能。
+  # 不传＝全局搜索，维持原来的 3 个月窗口（它要扫全账号，没窗口撑不住）。
+  # inbox 过滤两条路都保留——会话内搜索不能成为绕开 inbox 权限的口子。
   def message_base_query
-    query = current_account.messages.where('created_at >= ?', 3.months.ago)
+    query = current_account.messages
+    query = scoped_conversation_id ? query.where(conversation_id: scoped_conversation_id) : query.where('created_at >= ?', 3.months.ago)
     query = query.where(inbox_id: accessable_inbox_ids) unless should_skip_inbox_filtering?
     query
+  end
+
+  # 前端传的是 display_id（会话页上那个 #327），messages 表挂的是内部 id，要换一道。
+  def scoped_conversation_id
+    return @scoped_conversation_id if defined?(@scoped_conversation_id)
+
+    display_id = params[:conversation_id].presence
+    @scoped_conversation_id = display_id && current_account.conversations.find_by(display_id: display_id)&.id
   end
 
   def apply_message_filters(query)

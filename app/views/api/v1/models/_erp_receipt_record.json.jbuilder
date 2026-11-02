@@ -11,6 +11,7 @@ json.method resource[:method]
 json.method_label resource.method_label
 json.received_at resource.received_at
 json.reference_no resource.reference_no
+json.trade_assurance_no resource.trade_assurance_no
 json.status resource.status
 json.status_label resource.status == Erp::ReceiptRecord::VOID ? '已作废' : '正常'
 json.recorded_by_name resource.recorded_by&.finance_display_name

@@ -68,7 +68,7 @@ watch(
   <div class="mes-canvas flex flex-col w-full h-full">
     <div class="flex flex-col flex-1 min-w-0 min-h-0">
       <MesTabBar />
-      <div ref="pageContent" class="flex-1 min-w-0 min-h-0">
+      <div ref="pageContent" class="flex-1 min-w-0 min-h-0 [&_table]:!border-separate [&_table]:!border-spacing-0 [&_table>thead>tr>th]:!bg-white [&_table>thead>tr>th]:!text-n-slate-11 [&_table>thead>tr>th]:!font-medium [&_table>thead>tr>th]:!py-2.5 [&_table>thead>tr>th]:border-b [&_table>thead>tr>th]:border-n-weak [&_table>tbody>tr>td]:border-b [&_table>tbody>tr>td]:border-n-weak">
         <router-view v-slot="{ Component }">
           <keep-alive :max="12">
             <component :is="Component" :key="pageKey" />

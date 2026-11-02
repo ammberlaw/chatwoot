@@ -11,6 +11,7 @@ class Api::V1::Accounts::Mes::PurchaseRequisitionsController < Api::V1::Accounts
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = scope.where('req_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    scope = scoped_by_created_range(scope)
     @requisitions_count = scope.count
     @requisitions = scope.order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end

@@ -18,13 +18,40 @@ import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText'
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
 
 // 列表搜索：工单号 / 成品名 / 工序 / 备注。车间翻记录基本就靠这几样。
 const searchQuery = ref('');
-const fetchList = () => store.get({ q: searchQuery.value.trim() || undefined });
+// 表头逐列筛选（后端口径见 ProductionRecordsController::COLUMN_LIKE_FILTERS）。
+const colFilters = reactive({
+  col_mo: '',
+  col_owner: '',
+  col_operation: '',
+  col_operator: '',
+  recorded: { from: '', to: '' },
+});
+const FILTERABLE = {
+  mo: { type: 'text', key: 'col_mo', placeholder: '销售订单 / 成品' },
+  owner: { type: 'text', key: 'col_owner', placeholder: '归属人' },
+  operation: { type: 'text', key: 'col_operation', placeholder: '工序' },
+  operator: { type: 'text', key: 'col_operator', placeholder: '报工人' },
+  recorded: { type: 'date', key: 'recorded' },
+};
+const filterOf = key => FILTERABLE[key];
+const fetchList = () =>
+  store.get({
+    q: searchQuery.value.trim() || undefined,
+    col_mo: colFilters.col_mo.trim() || undefined,
+    col_owner: colFilters.col_owner.trim() || undefined,
+    col_operation: colFilters.col_operation.trim() || undefined,
+    col_operator: colFilters.col_operator.trim() || undefined,
+    from: colFilters.recorded.from || undefined,
+    to: colFilters.recorded.to || undefined,
+  });
 const onSearch = () => fetchList();
+const onColFilterChange = () => fetchList();
 const { mesCan } = useMesRole();
 const { isMyDoc } = useMesDocOwner();
 // 报工的制单人是报工人本人（operatorId），别人删不了。
@@ -281,15 +308,52 @@ onMounted(() => {
         <!-- 桌面表格 -->
         <table class="hidden w-full text-sm md:table">
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">工序</th>
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                销售订单
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('mo').key]"
+                  :placeholder="filterOf('mo').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                归属人
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('owner').key]"
+                  :placeholder="filterOf('owner').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                工序
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('operation').key]"
+                  :placeholder="filterOf('operation').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">完成</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">退料</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">清尾</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">报工人</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">时间</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                报工人
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('operator').key]"
+                  :placeholder="filterOf('operator').placeholder"
+                  @change="onColFilterChange"
+                />
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                时间
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('recorded').key]"
+                  type="date"
+                  @change="onColFilterChange"
+                />
+              </th>
               <th class="px-3 py-3" />
             </tr>
           </thead>

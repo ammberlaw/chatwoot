@@ -45,6 +45,15 @@ const { accountScopedRoute } = useAccount();
 // 所以标红让人一眼看见，不硬拦——真没建档的 BOM 也得能先存着。
 const unlinkedCode = b => Boolean(b.productCode) && !b.crmProductId;
 const router = useRouter();
+
+// 转委外加工：这张任务单的活交给加工厂做，料从我们仓里发过去。
+// 建单窗在委外加工页上（那儿是委外单的主场，建完接着能确认/发料），这里只把
+// 任务单带过去——一张任务单常被多张生产订单引用，具体转哪一张由人在那边选。
+const toOutsource = b =>
+  router.push({
+    name: 'mes_outsource_orders_index',
+    query: { bom_id: b.id },
+  });
 const route = useRoute();
 const rootStore = useStore();
 
@@ -730,13 +739,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 bg-white">
     <div
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
         <h1
-          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+          class="text-heading-1 text-n-slate-12"
         >
           工程/PMC 生产任务单
         </h1>
@@ -766,6 +775,7 @@ onMounted(async () => {
           size="sm"
           @click="activeResetCols"
         />
+
         <!-- 按单 / 按明细：查「哪几张单用了这颗料」要的是明细那一屏（同采购单、原料入库）。
              走全站页面级 Tab 的统一标记；并排在工具栏里得压到同样高度，
              全局 [data-tabbar] 规则特指度比 my-0 高，所以要带 !。 -->
@@ -785,7 +795,6 @@ onMounted(async () => {
           variant="outline"
           color="slate"
           size="sm"
-          class="btn-ink"
           @click="goProductPurchase"
         />
         <!-- 模版挑单：模版弹窗本身在建档页，这里带个参数过去直接把它弹出来，
@@ -796,7 +805,6 @@ onMounted(async () => {
           variant="outline"
           color="slate"
           size="sm"
-          class="btn-ink"
           @click="goCreate({ templates: 1 })"
         />
         <!-- 财务月度核算底稿：一次导全月，汇总页 + 用料明细页。
@@ -807,7 +815,6 @@ onMounted(async () => {
           variant="outline"
           color="slate"
           size="sm"
-          class="btn-ink"
           icon="i-lucide-file-spreadsheet"
           :is-loading="exportingCost"
           @click="exportCost"
@@ -906,6 +913,14 @@ onMounted(async () => {
                 @click.stop="release(b)"
               />
               <Button
+                v-if="mesCan('bom')"
+                label="转委外"
+                variant="ghost"
+                size="sm"
+                class="shrink-0"
+                @click.stop="toOutsource(b)"
+              />
+              <Button
                 v-if="canEditRow(b)"
                 label="编辑"
                 variant="ghost"
@@ -948,7 +963,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <table v-if="!isItemView" class="hidden w-full text-sm md:table">
+        <table v-if="!isItemView" class="hidden w-full text-sm md:table border-separate border-spacing-0">
           <thead>
             <tr
               class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
@@ -985,7 +1000,7 @@ onMounted(async () => {
                 </span>
               </th>
               <th
-                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="px-3 py-3 sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] whitespace-nowrap"
               />
             </tr>
           </thead>
@@ -1094,7 +1109,7 @@ onMounted(async () => {
                   </template>
                 </td>
                 <td
-                  class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                  class="px-3 py-3 text-right sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] whitespace-nowrap"
                 >
                   <div class="flex justify-end gap-1">
                     <Button
@@ -1110,6 +1125,13 @@ onMounted(async () => {
                       variant="ghost"
                       size="sm"
                       @click="openView(b)"
+                    />
+                    <Button
+                      v-if="mesCan('bom')"
+                      label="转委外"
+                      variant="ghost"
+                      size="sm"
+                      @click="toOutsource(b)"
                     />
                     <Button
                       v-if="canEditRow(b)"
@@ -1229,7 +1251,7 @@ onMounted(async () => {
 
         <!-- 按明细：一行一条料。数据来自当页任务单自带的用料明细，不额外请求；
              列同样可拖序、可拉宽，和按单各记各的。 -->
-        <table v-else class="hidden w-full text-sm md:table">
+        <table v-else class="hidden w-full text-sm md:table border-separate border-spacing-0">
           <thead>
             <tr
               class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
@@ -1268,7 +1290,7 @@ onMounted(async () => {
                 </span>
               </th>
               <th
-                class="px-3 py-2 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="px-3 py-2 sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] whitespace-nowrap"
               />
             </tr>
           </thead>
@@ -1369,7 +1391,7 @@ onMounted(async () => {
                 </template>
               </td>
               <td
-                class="px-3 py-2 text-right whitespace-nowrap sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                class="px-3 py-2 text-right whitespace-nowrap sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] whitespace-nowrap"
               >
                 <button
                   type="button"

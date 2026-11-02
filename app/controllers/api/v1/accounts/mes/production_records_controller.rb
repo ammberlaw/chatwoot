@@ -7,6 +7,7 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_production_records))
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     scope = apply_search(scope, params[:q])
+    scope = apply_column_filters(scope)
     @production_records_count = scope.count
     @production_records = scope.order(recorded_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
@@ -45,6 +46,29 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
     like = "%#{q}%"
     scope.where(production_order_id: searchable_order_ids(like))
          .or(scope.where('mes_production_records.operation_name ILIKE :q OR mes_production_records.remark ILIKE :q', q: like))
+  end
+
+  # 表头逐列筛选，命名与原料入库/质量检验一致（col_* + COLUMN_LIKE_FILTERS）。
+  COLUMN_LIKE_FILTERS = {
+    col_mo: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder
+                    .where('order_no ILIKE :q OR product_name ILIKE :q', q: "%#{v}%").select(:id))
+    },
+    col_owner: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder.joins(:owner)
+                                                           .where('users.name ILIKE ?', "%#{v}%").select(:id))
+    },
+    col_operation: ->(scope, v) { scope.where('mes_production_records.operation_name ILIKE ?', "%#{v}%") },
+    col_operator: ->(scope, v) { scope.where(operator_id: User.where('users.name ILIKE ?', "%#{v}%").select(:id)) }
+  }.freeze
+
+  def apply_column_filters(scope)
+    COLUMN_LIKE_FILTERS.each do |param, apply|
+      scope = apply.call(scope, params[param].to_s.strip) if params[param].present?
+    end
+    scope = scope.where(recorded_at: params[:from].to_date.beginning_of_day..) if params[:from].present?
+    scope = scope.where(recorded_at: ..params[:to].to_date.end_of_day) if params[:to].present?
+    scope
   end
 
   # 工单号/产品名在生产订单上，先查出订单 id 再按 id 过滤（跨表 OR 没法走索引）。
