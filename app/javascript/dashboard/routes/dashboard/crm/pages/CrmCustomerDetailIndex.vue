@@ -71,7 +71,8 @@ const TIMELINE_META = {
     label: '跟进',
     dot: 'bg-n-teal-9',
     chip: 'bg-n-teal-3 text-n-teal-11',
-    link: false,
+    // 跟进现在点开是就地弹窗（内容时间线已带齐），要给可点的提示
+    link: true,
   },
   email: {
     label: '邮件',
@@ -120,6 +121,11 @@ watch(data, () => {
   if (customerId.value) loadTimeline(customerId.value);
 });
 // 点条目跳到源头：邮件去邮件中心、会话去聊天、订单去销售订单。
+// 跟进详情弹窗：内容时间线里已带齐，点开就地展示，不跳走
+const noteDetail = ref(null);
+const orderDialogRef = ref(null);
+const openOrder = id => orderDialogRef.value?.open(id);
+
 const openTimelineItem = e => {
   const acc = route.params.accountId;
   if (e.type === 'email') {
@@ -134,12 +140,16 @@ const openTimelineItem = e => {
     router.push(`/app/accounts/${acc}/conversations/${e.link_id}`);
     return;
   }
+  // 订单与跟进就地弹窗，不跳走：正在翻这个客户的历史，一跳就离开本页，
+  // 看完还得退回来重新滚到原位置（用户 2026-11-03 反馈 UX 不好）。
+  // 邮件/会话仍跳转——正文长、带附件，且回复转发分发这些动作弹窗给不了。
   if (e.type === 'order') {
-    router.push({
-      name: 'crm_sales_orders_index',
-      params: { accountId: acc },
-      query: { focus: String(e.link_id) },
-    });
+    openOrder(e.link_id);
+    return;
+  }
+  if (e.type === 'note') {
+    // 跟进的全部内容时间线里已经带齐（见 Crm::CustomerTimeline#notes），不用再查接口
+    noteDetail.value = e;
   }
 };
 
@@ -220,6 +230,16 @@ const orders = computed(() => data.value?.orders || []);
 const pis = computed(() => data.value?.pis || []);
 const quotes = computed(() => data.value?.quotes || []);
 const productionOrders = computed(() => data.value?.production_orders || []);
+
+// QC 质检影像：按生产订单分组（后端只给图片和视频，不带质检结论/不良记录——
+// 这一页业务条线也看）。没有订单、或订单下一张图都没有时整块不渲染。
+const qcMedia = computed(() => data.value?.qc_media || []);
+const qcOpenId = ref(null);
+const toggleQc = id => {
+  qcOpenId.value = qcOpenId.value === id ? null : id;
+};
+const qcPreview = ref(null);
+
 // MES 生产订单 8 阶段 / 状态中文（与 MES 模块一致）。
 const MES_STAGE = {
   SALES_CONFIRMED: '待工程接单',
@@ -394,7 +414,6 @@ const goBack = () => router.push({ name: 'crm_customers_index' });
 const oppDialogRef = ref(null);
 const piDialogRef = ref(null);
 const quoteDialogRef = ref(null);
-const orderDialogRef = ref(null);
 const opportunitiesStore = useCrmOpportunitiesStore();
 const openingDocId = ref(null);
 
@@ -441,7 +460,6 @@ const editPiFromPreview = doc => {
   if (doc?.id) piFormRef.value?.open(doc);
 };
 const openQuote = id => quoteDialogRef.value?.open(id);
-const openOrder = id => orderDialogRef.value?.open(id);
 
 // 商机 / 销售订单的弹窗自己不落库，由本页调各自的 store 保存，存完刷新客户详情。
 const saveOpportunity = async payload => {
@@ -553,9 +571,14 @@ onMounted(() => {
       加载中…
     </div>
 
-    <div v-else class="w-full max-w-6xl px-4 py-4 mx-auto sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
+    <div
+      v-else
+      class="w-full max-w-6xl px-4 py-4 mx-auto sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
+    >
       <!-- Header -->
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
+      <div
+        class="flex flex-wrap items-center justify-between gap-2 mb-5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+      >
         <div class="flex items-center gap-3 min-w-0">
           <button
             class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1 shrink-0"
@@ -1176,8 +1199,105 @@ onMounted(() => {
               </div>
             </div>
           </section>
+
+          <!-- QC 质检影像：一单一行，点开才展开图（一张单可能几十张图，
+               全铺开这页就没法看了）。没有影像的订单不出现在这里。 -->
+          <section
+            v-if="qcMedia.length"
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
+            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">质检影像</h3>
+            <div
+              v-for="g in qcMedia"
+              :key="g.production_order_id"
+              class="py-3 border-b last:border-b-0 border-n-weak"
+            >
+              <button
+                type="button"
+                class="flex items-center justify-between w-full gap-2 px-2 -mx-2 rounded-lg hover:bg-n-alpha-1"
+                @click="toggleQc(g.production_order_id)"
+              >
+                <span class="min-w-0 text-left">
+                  <span class="text-sm font-medium text-n-iris-11">
+                    {{ g.order_no }}
+                  </span>
+                  <span class="ml-2 text-xs text-n-slate-10">
+                    {{ g.product_name }}
+                  </span>
+                </span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span class="text-xs text-n-slate-10">
+                    {{ g.photo_count }} 张图
+                    <template v-if="g.video_count">
+                      · {{ g.video_count }} 段视频
+                    </template>
+                  </span>
+                  <span
+                    class="size-4 text-n-slate-10"
+                    :class="
+                      qcOpenId === g.production_order_id
+                        ? 'i-lucide-chevron-up'
+                        : 'i-lucide-chevron-down'
+                    "
+                  />
+                </span>
+              </button>
+
+              <div
+                v-if="qcOpenId === g.production_order_id"
+                class="grid grid-cols-4 gap-2 mt-3 sm:grid-cols-6"
+              >
+                <button
+                  v-for="it in g.items"
+                  :key="it.kind + it.id"
+                  type="button"
+                  class="relative overflow-hidden border rounded-lg aspect-square border-n-weak hover:opacity-80"
+                  @click="qcPreview = it"
+                >
+                  <img
+                    v-if="it.kind === 'photo'"
+                    :src="it.url"
+                    :alt="it.filename"
+                    class="object-cover w-full h-full"
+                    loading="lazy"
+                  />
+                  <span
+                    v-else
+                    class="flex items-center justify-center w-full h-full bg-n-alpha-2"
+                  >
+                    <span class="i-lucide-play-circle size-7 text-n-slate-11" />
+                  </span>
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
+
+      <!-- 质检影像大图 / 视频预览。
+           ⚠️ 必须 Teleport 到 body：留在页面结构里会被祖先的层叠上下文困住，
+           z-50 也盖不住——DOM 里有、屏幕上看不见（2026-11-03 实测踩到）。 -->
+      <Teleport to="body">
+        <div
+          v-if="qcPreview"
+          class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-n-alpha-black2"
+          @click.self="qcPreview = null"
+        >
+          <video
+            v-if="qcPreview.kind === 'video'"
+            :src="qcPreview.url"
+            controls
+            autoplay
+            class="max-w-full rounded-lg max-h-full"
+          />
+          <img
+            v-else
+            :src="qcPreview.url"
+            :alt="qcPreview.filename"
+            class="object-contain max-w-full rounded-lg max-h-full"
+          />
+        </div>
+      </Teleport>
     </div>
 
     <CrmCustomerCreateDialog
@@ -1196,6 +1316,58 @@ onMounted(() => {
     <CrmPiFormDialog ref="piFormRef" @saved="load" />
     <CrmQuotePreviewDialog ref="quoteDialogRef" />
     <CrmSalesOrderViewDialog ref="orderDialogRef" />
+
+    <!-- 跟进详情：Teleport 到 body，否则会被祖先的层叠上下文困住（同质检影像那个坑） -->
+    <Teleport to="body">
+      <div
+        v-if="noteDetail"
+        class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-n-alpha-black2"
+        @click.self="noteDetail = null"
+      >
+        <div
+          class="w-full max-w-lg p-5 overflow-auto border shadow-xl rounded-2xl bg-n-solid-1 border-n-weak max-h-[80vh]"
+        >
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <h3 class="text-base font-semibold text-n-slate-12">
+              {{ noteDetail.title || '跟进记录' }}
+            </h3>
+            <button
+              type="button"
+              class="shrink-0 text-n-slate-10 hover:text-n-slate-12"
+              @click="noteDetail = null"
+            >
+              <span class="i-lucide-x size-4" />
+            </button>
+          </div>
+          <div
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-xs text-n-slate-10"
+          >
+            <span>{{ fmtDate(noteDetail.at) }}</span>
+            <span v-if="noteDetail.who">{{ noteDetail.who }}</span>
+            <span
+              v-if="noteDetail.tag"
+              class="px-1.5 py-0.5 rounded bg-n-alpha-2 text-n-slate-11"
+            >
+              {{ noteDetail.tag }}
+            </span>
+            <span v-if="noteDetail.source">来源 {{ noteDetail.source }}</span>
+          </div>
+          <p
+            v-if="noteDetail.body"
+            class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
+          >
+            {{ noteDetail.body }}
+          </p>
+          <p v-else class="text-sm text-n-slate-10">（没有填写正文）</p>
+          <div
+            v-if="noteDetail.result_tag"
+            class="pt-3 mt-4 text-xs border-t border-n-weak text-n-slate-11"
+          >
+            跟进结果：{{ noteDetail.result_tag }}
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 共享客户：勾选成员即把本客户共享给他们（可建单，单据归本客户） -->
     <Dialog

@@ -10,6 +10,7 @@
 #  data_source       :string           default("MANUAL"), not null
 #  dimension         :string
 #  name              :string           not null
+#  score_cap_pct     :integer
 #  sort_order        :integer          default(0)
 #  standard          :text
 #  target_value      :string

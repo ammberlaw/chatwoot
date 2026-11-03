@@ -49,6 +49,29 @@ json.quotes @quotes do |quote|
   json.status quote.status
 end
 
+# QC 质检影像，按生产订单分组（一单一行，点开才看图）。
+# ⚠️ 只给图片和视频：质检结论、不良记录、返工原因是生产内部的事，
+# 客户详情页业务条线也看得到，不往这儿带。
+json.qc_media(@production_orders.map do |po|
+  inspections = (@qc_media || {})[po.id] || []
+  photos = inspections.flat_map do |i|
+    i.photos.map do |f|
+      { id: f.id, kind: 'photo', filename: f.filename.to_s,
+        url: rails_blob_path(f, only_path: true), inspected_at: i.created_at }
+    end
+  end
+  videos = inspections.flat_map do |i|
+    i.videos.map do |f|
+      { id: f.id, kind: 'video', filename: f.filename.to_s,
+        url: rails_blob_path(f, only_path: true), inspected_at: i.created_at }
+    end
+  end
+  next if photos.empty? && videos.empty?
+
+  { production_order_id: po.id, order_no: po.order_no, product_name: po.product_name,
+    photo_count: photos.size, video_count: videos.size, items: photos + videos }
+end.compact)
+
 json.production_orders @production_orders do |po|
   json.id po.id
   json.order_no po.order_no

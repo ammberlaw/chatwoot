@@ -7,3 +7,5 @@ json.baseline_value resource.baseline_value
 json.target_value resource.target_value
 json.data_source resource.data_source
 json.sort_order resource.sort_order
+# 指标级计分上限（%）。留空＝沿用方案级，计分时回落。
+json.score_cap_pct resource.score_cap_pct

@@ -14,7 +14,11 @@ import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
-import { fmtYuan } from 'dashboard/helper/crmMoney';
+import {
+  DropdownBody,
+  DropdownContainer,
+  DropdownItem,
+} from 'dashboard/components-next/dropdown-menu/base';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
@@ -39,10 +43,8 @@ const returnReason = ref('');
 const reopening = ref(false);
 const reopenReason = ref('');
 
-const camel = async data =>
-  (await import('camelcase-keys')).default(data, { deep: true });
-
 // 只读考勤参考：拉考核对象在考核月的出勤/迟到/缺勤/请假/出勤率（后端按权限收口）。
+// 不参与计分、不自动扣款，只是主管打分时的旁证。
 const attendance = ref(null);
 const loadAttendance = async () => {
   attendance.value = null;
@@ -60,6 +62,22 @@ const loadAttendance = async () => {
     attendance.value = null;
   }
 };
+
+const camel = async data =>
+  (await import('camelcase-keys')).default(data, { deep: true });
+
+const goBack = () =>
+  router.push({
+    name: 'crm_kpi_sheets_index',
+    params: { accountId: accountId.value },
+  });
+
+const fmtMonth = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '');
 
 const load = async () => {
   loading.value = true;
@@ -158,23 +176,35 @@ const hasSuggestions = computed(() =>
   items.value.some(i => i.suggestedScore != null)
 );
 
-const goBack = () =>
-  router.push({
-    name: 'crm_kpi_sheets_index',
-    params: { accountId: accountId.value },
-  });
-
 // ── 转发到团队沟通：把本绩效表的摘要 + 回跳链接（可选表图）发到某个团队沟通会话 ──
 const forwardRef = ref(null);
 const captureRef = ref(null);
+// 屏幕上折叠长标准；打印和转发时仍包含完整规则。
+const withExpandedDetails = async action => {
+  const collapsed = Array.from(
+    captureRef.value.querySelectorAll('details:not([open])')
+  );
+  collapsed.forEach(detail => {
+    detail.open = true;
+  });
+  try {
+    return await action();
+  } finally {
+    collapsed.forEach(detail => {
+      detail.open = false;
+    });
+  }
+};
 // 现场把绩效表主体截成 PNG File 当附件。
 const makeSheetImage = async () => {
   if (!captureRef.value) return null;
-  const dataUrl = await toPng(captureRef.value, {
-    backgroundColor: '#ffffff',
-    pixelRatio: 2,
-    cacheBust: true,
-  });
+  const dataUrl = await withExpandedDetails(() =>
+    toPng(captureRef.value, {
+      backgroundColor: '#ffffff',
+      pixelRatio: 2,
+      cacheBust: true,
+    })
+  );
   const blob = await (await fetch(dataUrl)).blob();
   const name = `绩效表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}.png`;
   return new File([blob], name, { type: 'image/png' });
@@ -182,9 +212,11 @@ const makeSheetImage = async () => {
 // 直接打印：把考核表主体（步骤/指标/得分/签名）交给浏览器打印对话框，可出纸或另存 PDF。
 const printSheet = () => {
   if (!sheet.value) return;
-  printElement(
-    captureRef.value,
-    `绩效考核表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}`
+  withExpandedDetails(() =>
+    printElement(
+      captureRef.value,
+      `绩效考核表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}`
+    )
   );
 };
 const openForward = () => {
@@ -202,14 +234,6 @@ const openForward = () => {
   forwardRef.value?.open(text, { makeImage: makeSheetImage });
 };
 
-const yuan = m => (m == null ? '—' : `¥${fmtYuan(m)}`);
-const fmtMonth = v => {
-  if (!v) return '—';
-  const d = new Date(v);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-};
-const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '');
-
 // 保存完成值 / 得分（按当前可编辑列）。
 const save = async () => {
   busy.value = true;
@@ -225,7 +249,10 @@ const save = async () => {
         : {}),
     }));
     const { data } = await CrmKpiSheetAPI.update(sheetId, {
-      sheet: { sheet_items: rows },
+      sheet: {
+        sheet_items: rows,
+        ...(canScore.value ? { remark: remark.value } : {}),
+      },
     });
     sheet.value = await camel(data);
     items.value = sheet.value.sheetItems || [];
@@ -286,24 +313,6 @@ const adoptAll = () =>
     if (i.suggestedScore != null) adopt(i);
   });
 
-// 保存备注/补充条款（主管·管理员）。
-const saveRemark = async () => {
-  busy.value = true;
-  try {
-    const { data } = await CrmKpiSheetAPI.update(sheetId, {
-      sheet: { remark: remark.value },
-    });
-    sheet.value = await camel(data);
-    items.value = sheet.value.sheetItems || [];
-    remark.value = sheet.value.remark || '';
-    useAlert(t('CRM.KPI_SHEETS.REMARK_SAVED'));
-  } catch {
-    useAlert(t('CRM.KPI_SHEETS.SAVE_ERROR'));
-  } finally {
-    busy.value = false;
-  }
-};
-
 // 退回重填：填原因后退回到「待填报」。
 const submitReturn = async () => {
   if (!returnReason.value.trim()) {
@@ -357,211 +366,162 @@ const gmConfirm = () => runAction(CrmKpiSheetAPI.gmConfirm);
 
 onMounted(load);
 
+const hasScores = computed(() =>
+  items.value.some(item => item.score != null && item.score !== '')
+);
+const signatureRows = computed(() => [
+  {
+    key: 'employee',
+    label: t('CRM.KPI_SHEETS.UI.EMPLOYEE'),
+    url: sheet.value?.employeeSignatureUrl,
+    name: sheet.value?.ownerName,
+    date: sheet.value?.employeeSignedAt,
+  },
+  {
+    key: 'manager',
+    label: t('CRM.KPI_SHEETS.UI.MANAGER'),
+    url: sheet.value?.managerSignatureUrl,
+    name: sheet.value?.managerName,
+    date: sheet.value?.managerSignedAt,
+  },
+  {
+    key: 'hr',
+    label: t('CRM.KPI_SHEETS.UI.HR'),
+    url: sheet.value?.hrSignatureUrl,
+    name: sheet.value?.hrName,
+    date: sheet.value?.hrConfirmedAt,
+  },
+  {
+    key: 'gm',
+    label: t('CRM.KPI_SHEETS.UI.GM'),
+    url: sheet.value?.gmSignatureUrl,
+    name: sheet.value?.gmName,
+    date: sheet.value?.gmConfirmedAt,
+  },
+]);
 const inCls =
-  'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
+  'reset-base w-full h-10 px-3 text-label border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:border-n-slate-10 focus:ring-2 focus:ring-n-slate-3 disabled:opacity-50';
 </script>
 
 <template>
-  <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex h-full w-full flex-col overflow-y-auto rounded-3xl border border-n-weak bg-n-slate-2"
   >
-    <div
-      class="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_auto] flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:gap-3 [.theme-classic_&]:sm:!px-8"
+    <header
+      class="flex flex-wrap items-start justify-between gap-4 px-5 py-6 sm:px-8"
     >
-      <div class="flex items-center gap-3 min-w-0">
-        <Button
-          icon="i-lucide-arrow-left"
-          size="sm"
-          variant="ghost"
-          color="slate"
+      <div v-if="sheet" class="min-w-0">
+        <button
+          type="button"
+          class="mb-3 inline-flex items-center gap-1.5 text-label-small text-n-slate-11 hover:text-n-slate-12"
           @click="goBack"
-        />
-        <div v-if="sheet" class="min-w-0">
-          <h1 class="text-lg sm:text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        >
+          <span class="i-lucide-arrow-left size-3.5" />
+          {{ t('CRM.KPI_SHEETS.LIST_HEADER') }}
+        </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <h1 class="text-heading-1 text-n-slate-12">
             {{ t('CRM.KPI_SHEETS.TITLE', { name: sheet.ownerName || '—' }) }}
-            <span
-              class="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
-              >{{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}</span
-            >
           </h1>
-          <p class="mt-0.5 text-xs text-n-slate-11 truncate">
-            {{ fmtMonth(sheet.periodMonth) }} · {{ sheet.schemeName }}
-          </p>
-          <!-- 本月考勤只读参考（供打分/核薪时参考，不自动扣分扣款） -->
-          <div
-            v-if="attendance"
-            class="flex flex-wrap items-center mt-1.5 gap-x-3 gap-y-1 text-xs"
+          <span
+            class="rounded-md bg-n-amber-3 px-2.5 py-1 text-label-small text-n-slate-12"
+            >{{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}</span
           >
-            <span class="text-n-slate-10">本月考勤</span>
-            <span class="text-n-slate-11">
-              出勤
-              <b class="text-n-slate-12">{{ attendance.present }}</b>
-              /{{ attendance.expected }}
-            </span>
-            <span class="text-n-slate-11">
-              迟到
-              <b
-                :class="attendance.late ? 'text-n-amber-11' : 'text-n-slate-12'"
-              >
-                {{ attendance.late }}
-              </b>
-            </span>
-            <span class="text-n-slate-11">
-              缺勤
-              <b
-                :class="
-                  attendance.absent ? 'text-n-ruby-11' : 'text-n-slate-12'
-                "
-              >
-                {{ attendance.absent }}
-              </b>
-            </span>
-            <span class="text-n-slate-11">
-              请假 <b class="text-n-slate-12">{{ attendance.leave }}</b>
-            </span>
-            <span v-if="attendance.field" class="text-n-slate-11">
-              外勤 <b class="text-n-slate-12">{{ attendance.field }}</b>
-            </span>
-            <span v-if="attendance.rate != null" class="text-n-slate-11">
-              出勤率
-              <b class="text-n-teal-11">
-                {{ (attendance.rate * 100).toFixed(0) }}%
-              </b>
-            </span>
-          </div>
         </div>
+        <p class="mb-0 mt-1.5 text-label-small text-n-slate-11">
+          {{ fmtMonth(sheet.periodMonth) }} · {{ sheet.schemeName }}
+        </p>
       </div>
-      <div v-if="sheet" class="flex items-center justify-end flex-wrap gap-2 justify-self-end xl:self-start">
-        <Button
-          label="打印"
-          icon="i-lucide-printer"
-          size="sm"
-          variant="faded"
-          color="slate"
-          @click="printSheet"
-        />
-        <Button
-          label="转发到团队沟通"
-          icon="i-lucide-send"
-          size="sm"
-          variant="faded"
-          color="iris"
-          @click="openForward"
-        />
-        <Button
-          v-if="canScore"
-          :label="t('CRM.KPI_SHEETS.AI_SUGGEST')"
-          icon="i-ph-sparkle-fill"
-          size="sm"
-          variant="faded"
-          color="iris"
-          :is-loading="aiBusy"
-          :is-disabled="busy || aiBusy"
-          @click="aiSuggest"
-        />
-        <Button
-          v-if="canScore && hasSuggestions"
-          :label="t('CRM.KPI_SHEETS.AI_ADOPT_ALL')"
-          icon="i-lucide-check-check"
-          size="sm"
-          variant="ghost"
-          color="teal"
-          :is-disabled="busy || aiBusy"
-          @click="adoptAll"
-        />
+      <div v-if="sheet" class="flex items-center gap-2">
+        <DropdownContainer class="z-30 [&>div]:right-0">
+          <template #trigger="{ toggle, isOpen }">
+            <Button
+              :label="t('CRM.KPI_SHEETS.UI.MORE')"
+              icon="i-lucide-ellipsis"
+              variant="outline"
+              color="slate"
+              size="sm"
+              :aria-expanded="isOpen"
+              @click="toggle"
+            />
+          </template>
+          <DropdownBody class="right-0 top-0 w-56">
+            <DropdownItem
+              :label="t('CRM.KPI_SHEETS.UI.PRINT')"
+              icon="i-lucide-printer"
+              :click="printSheet"
+            />
+            <DropdownItem
+              :label="t('CRM.KPI_SHEETS.UI.FORWARD')"
+              icon="i-lucide-send"
+              :click="openForward"
+            />
+            <DropdownItem
+              v-if="canReopenScoring"
+              :label="t('CRM.KPI_SHEETS.REOPEN')"
+              icon="i-lucide-rotate-ccw"
+              :disabled="busy"
+              :click="() => (reopening = true)"
+            />
+          </DropdownBody>
+        </DropdownContainer>
         <Button
           v-if="canFillActual || canScore"
-          :label="t('CRM.KPI_SHEETS.SAVE')"
-          icon="i-lucide-save"
-          size="sm"
-          variant="faded"
+          :label="t('CRM.KPI_SHEETS.UI.SAVE_DRAFT')"
+          variant="outline"
           color="slate"
+          size="sm"
           :is-disabled="busy"
           @click="save"
         />
-        <Button
-          v-if="canReturn"
-          :label="t('CRM.KPI_SHEETS.RETURN')"
-          icon="i-lucide-undo-2"
-          size="sm"
-          variant="faded"
-          color="ruby"
-          :is-disabled="busy"
-          @click="returning = true"
-        />
-        <Button
-          v-if="canReopenScoring"
-          :label="t('CRM.KPI_SHEETS.REOPEN')"
-          icon="i-lucide-rotate-ccw"
-          size="sm"
-          variant="faded"
-          color="amber"
-          :is-disabled="busy"
-          @click="reopening = true"
-        />
-        <Button
-          v-if="isOwner && status === 'PENDING'"
-          :label="t('CRM.KPI_SHEETS.SUBMIT')"
-          icon="i-lucide-send"
-          color="iris"
-          :is-disabled="busy"
-          @click="submitSheet"
-        />
-        <Button
-          v-if="canScore"
-          :label="t('CRM.KPI_SHEETS.SCORE')"
-          icon="i-lucide-check"
-          color="teal"
-          :is-disabled="busy"
-          @click="scoreSheet"
-        />
       </div>
-    </div>
-
+    </header>
     <div
       v-if="loading"
-      class="flex items-center justify-center flex-1 text-n-slate-11"
+      class="flex flex-1 items-center justify-center text-n-slate-11"
     >
       {{ t('CRM.KPI_SHEETS.LOADING') }}
     </div>
-
     <div
       v-else-if="sheet"
       ref="captureRef"
-      class="flex flex-col gap-7 px-4 py-4 sm:px-6 sm:py-6 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-col gap-5 px-4 pb-8 sm:px-6 xl:px-8"
     >
-      <!-- 步骤条 -->
-      <div class="flex items-center flex-wrap gap-1 text-sm">
-        <template v-for="(st, i) in STEPS" :key="st">
-          <div
-            class="flex items-center gap-2"
+      <ol
+        :aria-label="t('CRM.KPI_SHEETS.UI.WORKFLOW')"
+        class="m-0 flex list-none items-center gap-2 overflow-x-auto px-1 py-2 text-label sm:gap-3 lg:justify-between"
+      >
+        <li
+          v-for="(st, i) in STEPS"
+          :key="st"
+          class="flex shrink-0 items-center gap-2.5"
+          :class="i === STEPS.length - 1 ? '' : 'grow'"
+          :aria-current="i === stepIndex ? 'step' : undefined"
+        >
+          <span
+            class="grid size-8 shrink-0 place-content-center rounded-full text-label"
             :class="
               i < stepIndex
-                ? 'text-n-teal-11 font-medium'
+                ? 'bg-n-slate-12 text-n-solid-1'
                 : i === stepIndex
-                  ? 'text-n-iris-11 font-medium'
-                  : 'text-n-slate-10'
+                  ? 'bg-n-amber-9 text-n-slate-12'
+                  : 'bg-n-slate-4 text-n-slate-10'
             "
+            >{{ i < stepIndex ? '✓' : i + 1 }}</span
           >
-            <span
-              class="grid w-6 h-6 text-xs font-bold rounded-full place-content-center"
-              :class="
-                i < stepIndex
-                  ? 'bg-n-teal-9 text-white'
-                  : i === stepIndex
-                    ? 'bg-n-iris-9 text-white'
-                    : 'bg-n-slate-3 text-n-slate-10'
-              "
-            >
-              {{ i < stepIndex ? '✓' : i + 1 }}
-            </span>
-            {{ t(`CRM.KPI_SHEETS.STEP.${st}`) }}
-          </div>
-          <span v-if="i < STEPS.length - 1" class="w-6 h-px mx-1 bg-n-weak" />
-        </template>
-      </div>
-
+          <span
+            class="whitespace-nowrap"
+            :class="
+              i <= stepIndex ? 'font-medium text-n-slate-12' : 'text-n-slate-10'
+            "
+            >{{ t(`CRM.KPI_SHEETS.STEP.${st}`) }}</span
+          >
+          <span
+            v-if="i < STEPS.length - 1"
+            class="mx-1 h-px min-w-5 flex-1 bg-n-weak lg:mx-3"
+          />
+        </li>
+      </ol>
       <!-- 退回原因输入面板 -->
       <div
         v-if="returning"
@@ -638,10 +598,12 @@ const inCls =
           <span class="font-medium text-n-ruby-11">{{
             t('CRM.KPI_SHEETS.RETURNED_BANNER')
           }}</span>
-          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
-            >（{{ sheet.returnedByName }} ·
-            {{ fmtDate(sheet.returnedAt) }}）</span
-          >
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10">{{
+            t('CRM.KPI_SHEETS.UI.ACTOR_DATE', {
+              name: sheet.returnedByName,
+              date: fmtDate(sheet.returnedAt),
+            })
+          }}</span>
           <div class="mt-1">{{ returnedNotice }}</div>
         </div>
       </div>
@@ -658,10 +620,12 @@ const inCls =
           <span class="font-medium text-n-amber-11">{{
             t('CRM.KPI_SHEETS.REOPEN_BANNER')
           }}</span>
-          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
-            >（{{ sheet.returnedByName }} ·
-            {{ fmtDate(sheet.returnedAt) }}）</span
-          >
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10">{{
+            t('CRM.KPI_SHEETS.UI.ACTOR_DATE', {
+              name: sheet.returnedByName,
+              date: fmtDate(sheet.returnedAt),
+            })
+          }}</span>
           <div class="mt-1">{{ reopenNotice }}</div>
         </div>
       </div>
@@ -675,390 +639,452 @@ const inCls =
         {{ t('CRM.KPI_SHEETS.DEADLINE_HINT', { date: deadlineText }) }}
       </div>
 
-      <!-- 备注 / 补充条款 -->
-      <section v-if="canManage || remark" class="flex flex-col gap-2">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          {{ t('CRM.KPI_SHEETS.REMARK') }}
+      <div
+        class="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_340px]"
+      >
+        <div class="flex min-w-0 flex-col gap-4">
+          <section
+            class="min-w-0 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+          >
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-baseline gap-3">
+                <h2 class="text-heading-2 text-n-slate-12">
+                  {{ t('CRM.KPI_SHEETS.UI.DETAIL') }}
+                </h2>
+                <span class="text-label-small text-n-slate-11">{{
+                  t('CRM.KPI_SHEETS.UI.DETAIL_HINT')
+                }}</span>
+              </div>
+              <div v-if="canScore" class="flex items-center gap-2">
+                <Button
+                  :label="t('CRM.KPI_SHEETS.AI_SUGGEST')"
+                  icon="i-ph-sparkle-fill"
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  :is-loading="aiBusy"
+                  :is-disabled="busy || aiBusy"
+                  @click="aiSuggest"
+                />
+                <Button
+                  v-if="hasSuggestions"
+                  :label="t('CRM.KPI_SHEETS.AI_ADOPT_ALL')"
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  :is-disabled="busy || aiBusy"
+                  @click="adoptAll"
+                />
+              </div>
+            </div>
+            <HScrollButtons />
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[760px] border-collapse text-label">
+                <thead class="bg-n-slate-3 text-n-slate-11">
+                  <tr>
+                    <th
+                      class="w-24 rounded-l-lg px-3 py-2.5 text-left font-medium"
+                    >
+                      {{ t('CRM.KPI_SCHEMES.ITEMS.DIMENSION') }}
+                    </th>
+                    <th class="min-w-[220px] px-3 py-2.5 text-left font-medium">
+                      {{ t('CRM.KPI_SHEETS.UI.INDICATOR') }}
+                    </th>
+                    <th class="w-16 px-3 py-2.5 text-right font-medium">
+                      {{ t('CRM.KPI_SCHEMES.ITEMS.WEIGHT') }}
+                    </th>
+                    <th class="w-28 px-3 py-2.5 text-right font-medium">
+                      {{ t('CRM.KPI_SHEETS.UI.EMPLOYEE_ACTUAL') }}
+                    </th>
+                    <th class="w-36 px-3 py-2.5 text-left font-medium">
+                      {{ t('CRM.KPI_SHEETS.CHECKED') }}
+                    </th>
+                    <th
+                      class="w-40 rounded-r-lg px-3 py-2.5 text-left font-medium"
+                    >
+                      {{ t('CRM.KPI_SHEETS.SCORE_COL') }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="item in items"
+                    :key="item.id"
+                    class="border-b border-n-weak align-top"
+                  >
+                    <td class="px-3 py-4">
+                      <span
+                        class="inline-block rounded-md bg-n-slate-3 px-2 py-1 text-label-small text-n-slate-11"
+                        >{{ item.dimension || '—' }}</span
+                      >
+                    </td>
+                    <td class="px-3 py-4">
+                      <p class="mb-2 font-medium text-n-slate-12">
+                        {{ item.name }}
+                      </p>
+                      <details class="text-label-small text-n-slate-11">
+                        <summary class="cursor-pointer hover:text-n-slate-12">
+                          {{ t('CRM.KPI_SHEETS.UI.VIEW_STANDARD') }}
+                        </summary>
+                        <p
+                          class="mb-2 mt-2 whitespace-pre-wrap leading-relaxed"
+                        >
+                          {{ item.standard || '—' }}
+                        </p>
+                        <dl
+                          class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1"
+                        >
+                          <dt>{{ t('CRM.KPI_SCHEMES.ITEMS.BASELINE') }}</dt>
+                          <dd class="m-0">{{ item.baselineValue || '—' }}</dd>
+                          <dt>{{ t('CRM.KPI_SCHEMES.ITEMS.TARGET') }}</dt>
+                          <dd class="m-0">{{ item.targetValue || '—' }}</dd>
+                        </dl>
+                      </details>
+                    </td>
+                    <td class="px-3 py-4 text-right tabular-nums">
+                      {{ item.weight ?? '—' }}
+                    </td>
+                    <td class="px-3 py-4 text-right tabular-nums">
+                      <input
+                        v-if="canFillActual"
+                        v-model="item.actualValue"
+                        :aria-label="`${item.name} · ${t('CRM.KPI_SHEETS.ACTUAL')}`"
+                        :class="inCls"
+                        :disabled="busy"
+                      />
+                      <span v-else>{{ item.actualValue || '—' }}</span>
+                    </td>
+                    <td class="px-3 py-4">
+                      <input
+                        v-if="canScore"
+                        v-model="item.checkedValue"
+                        :class="inCls"
+                        :aria-label="`${item.name} · ${t('CRM.KPI_SHEETS.CHECKED')}`"
+                        :placeholder="item.actualValue || ''"
+                        :disabled="busy"
+                      />
+                      <span v-else>{{
+                        item.checkedValue || item.actualValue || '—'
+                      }}</span>
+                    </td>
+                    <td class="px-3 py-4">
+                      <template v-if="canScore">
+                        <input
+                          v-model="item.score"
+                          type="number"
+                          :class="inCls"
+                          :aria-label="`${item.name} · ${t('CRM.KPI_SHEETS.SCORE_COL')}`"
+                          :placeholder="
+                            t('CRM.KPI_SHEETS.UI.SCORE_PLACEHOLDER')
+                          "
+                          :disabled="busy"
+                        />
+                        <button
+                          v-if="item.suggestedScore != null"
+                          type="button"
+                          class="mt-2 inline-flex items-center gap-1 rounded-md bg-n-amber-2 px-2 py-1 text-label-small text-n-slate-12 hover:bg-n-amber-3 disabled:opacity-50"
+                          :disabled="busy || aiBusy"
+                          @click="adopt(item)"
+                        >
+                          <span class="i-ph-sparkle-fill size-3 shrink-0" />{{
+                            t('CRM.KPI_SHEETS.AI_HINT', {
+                              score: item.suggestedScore,
+                            })
+                          }}
+                        </button>
+                        <p
+                          v-if="item.suggestedReason"
+                          class="mb-0 mt-1 text-label-small leading-relaxed text-n-slate-11"
+                        >
+                          {{ item.suggestedReason }}
+                        </p>
+                      </template>
+                      <span v-else class="font-medium">{{
+                        item.score ?? '—'
+                      }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div
+              class="mt-4 flex flex-wrap items-center justify-between gap-2 text-label-small text-n-slate-11"
+            >
+              <span>{{
+                hasScores
+                  ? t('CRM.KPI_SHEETS.UI.SCORED_COUNT', {
+                      count: items.filter(
+                        item => item.score != null && item.score !== ''
+                      ).length,
+                      total: items.length,
+                    })
+                  : t('CRM.KPI_SHEETS.UI.NOT_SCORED')
+              }}</span>
+              <span class="text-label text-n-slate-12"
+                >{{ t('CRM.KPI_SHEETS.TOTAL') }}
+                <strong class="ml-2 tabular-nums">{{
+                  t('CRM.KPI_SHEETS.UI.TOTAL_VALUE', {
+                    score: hasScores ? totalScore : '—',
+                  })
+                }}</strong></span
+              >
+            </div>
+          </section>
+          <section
+            v-if="canScore || remark"
+            class="rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+          >
+            <h2 class="mb-3 text-heading-2 text-n-slate-12">
+              <label for="kpi-remark">{{ t('CRM.KPI_SHEETS.REMARK') }}</label>
+            </h2>
+            <textarea
+              v-if="canScore"
+              id="kpi-remark"
+              v-model="remark"
+              rows="3"
+              :placeholder="t('CRM.KPI_SHEETS.REMARK_PLACEHOLDER')"
+              class="reset-base w-full resize-y rounded-xl border border-n-weak bg-n-solid-1 p-3 text-label text-n-slate-12 outline-none focus:border-n-slate-10"
+              :disabled="busy"
+            />
+            <p
+              v-else
+              class="mb-0 whitespace-pre-wrap text-label text-n-slate-11"
+            >
+              {{ remark }}
+            </p>
+          </section>
+          <section
+            v-if="sheet.payoutNote || sheet.resultNote"
+            class="rounded-2xl border border-n-weak bg-n-solid-1 px-4 lg:px-5"
+          >
+            <details v-if="sheet.payoutNote" class="group py-4">
+              <summary
+                class="flex cursor-pointer list-none items-center justify-between gap-3 text-heading-3 text-n-slate-12"
+              >
+                <span>{{ t('CRM.KPI_SHEETS.UI.RULES') }}</span
+                ><span
+                  class="i-lucide-chevron-down size-4 transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <p
+                class="mb-0 mt-4 whitespace-pre-wrap text-label leading-relaxed text-n-slate-11"
+              >
+                {{ sheet.payoutNote }}
+              </p>
+            </details>
+            <details
+              v-if="sheet.resultNote"
+              class="group border-t border-n-weak py-4 first:border-0"
+            >
+              <summary
+                class="flex cursor-pointer list-none items-center justify-between gap-3 text-heading-3 text-n-slate-12"
+              >
+                <span>{{ t('CRM.KPI_SHEETS.SECTION_RESULT') }}</span
+                ><span
+                  class="i-lucide-chevron-down size-4 transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <p
+                class="mb-0 mt-4 whitespace-pre-wrap text-label leading-relaxed text-n-slate-11"
+              >
+                {{ sheet.resultNote }}
+              </p>
+            </details>
+          </section>
+          <section
+            class="rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+          >
+            <h2 class="mb-3 text-heading-2 text-n-slate-12">
+              {{ t('CRM.KPI_SHEETS.SIGN') }}
+            </h2>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+              <div
+                v-for="signer in signatureRows"
+                :key="signer.key"
+                class="min-w-0 rounded-xl border border-n-weak p-3"
+              >
+                <div class="flex items-center justify-between gap-2 text-label">
+                  <span class="text-n-slate-12">{{ signer.label }}</span>
+                  <span
+                    class="rounded px-1.5 py-0.5 text-label-small"
+                    :class="
+                      signer.url
+                        ? 'bg-n-slate-3 text-n-slate-12'
+                        : 'bg-n-amber-2 text-n-slate-12'
+                    "
+                    >{{
+                      signer.url
+                        ? t('CRM.KPI_SHEETS.UI.SIGNED')
+                        : t('CRM.KPI_SHEETS.NOT_SIGNED')
+                    }}</span
+                  >
+                </div>
+                <img
+                  v-if="signer.url"
+                  :src="signer.url"
+                  :alt="signer.label"
+                  class="mt-2 h-10 w-full rounded object-contain bg-white"
+                />
+                <p class="mb-0 mt-2 truncate text-label-small text-n-slate-10">
+                  {{
+                    signer.date
+                      ? `${signer.name || ''} · ${fmtDate(signer.date)}`
+                      : '—'
+                  }}
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
-        <template v-if="canManage">
-          <textarea
-            v-model="remark"
-            rows="2"
-            :placeholder="t('CRM.KPI_SHEETS.REMARK_PLACEHOLDER')"
-            class="reset-base w-full p-2 text-sm border rounded-lg outline-none resize-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:border-n-brand"
-          />
-          <div>
+        <aside
+          class="rounded-2xl border border-n-weak bg-n-solid-1 p-5 xl:sticky xl:top-4"
+        >
+          <h2 class="mb-1 text-heading-2 text-n-slate-12">
+            {{ t('CRM.KPI_SHEETS.UI.REVIEW') }}
+          </h2>
+          <p class="mb-5 text-label-small text-n-slate-11">
+            {{ t('CRM.KPI_SHEETS.UI.CURRENT_STEP') }} ·
+            {{ t(`CRM.KPI_SHEETS.STEP.${STEPS[stepIndex]}`) }}
+          </p>
+          <p class="mb-2 text-heading-1 text-n-slate-12">
+            {{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}
+          </p>
+          <p class="mb-5 text-label-small text-n-slate-11">
+            {{
+              hasScores
+                ? t('CRM.KPI_SHEETS.UI.SCORED_COUNT', {
+                    count: items.filter(
+                      item => item.score != null && item.score !== ''
+                    ).length,
+                    total: items.length,
+                  })
+                : t('CRM.KPI_SHEETS.UI.NOT_SCORED')
+            }}
+          </p>
+          <!-- 本月考勤只读参考：不计分、不扣款，供打分时旁证 -->
+          <dl
+            v-if="attendance"
+            class="mb-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-n-weak pt-5"
+          >
+            <div class="col-span-2 text-label-small text-n-slate-11">
+              {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.TITLE') }}
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.PRESENT') }}
+              </dt>
+              <dd class="text-label text-n-slate-12">
+                {{ attendance.present }}/{{ attendance.expected }}
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.LATE') }}
+              </dt>
+              <dd
+                class="text-label"
+                :class="attendance.late ? 'text-n-amber-11' : 'text-n-slate-12'"
+              >
+                {{ attendance.late }}
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.ABSENT') }}
+              </dt>
+              <dd
+                class="text-label"
+                :class="
+                  attendance.absent ? 'text-n-ruby-11' : 'text-n-slate-12'
+                "
+              >
+                {{ attendance.absent }}
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-2">
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.LEAVE') }}
+              </dt>
+              <dd class="text-label text-n-slate-12">
+                {{ attendance.leave }}
+              </dd>
+            </div>
+            <div
+              v-if="attendance.field"
+              class="flex items-baseline justify-between gap-2"
+            >
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.FIELD') }}
+              </dt>
+              <dd class="text-label text-n-slate-12">
+                {{ attendance.field }}
+              </dd>
+            </div>
+            <div
+              v-if="attendance.rate != null"
+              class="flex items-baseline justify-between gap-2"
+            >
+              <dt class="text-label-small text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.RATE') }}
+              </dt>
+              <dd class="text-label text-n-teal-11">
+                {{ (attendance.rate * 100).toFixed(0) }}%
+              </dd>
+            </div>
+          </dl>
+          <div
+            v-if="
+              canFillActual ||
+              canScore ||
+              (status === 'SCORED' && isHr) ||
+              (status === 'HR_CONFIRMED' && isGm) ||
+              canReturn
+            "
+            class="flex flex-col gap-3 border-t border-n-weak pt-5"
+          >
             <Button
-              :label="t('CRM.KPI_SHEETS.REMARK_SAVE')"
-              icon="i-lucide-save"
-              size="sm"
-              variant="faded"
+              v-if="canFillActual"
+              class="!bg-n-slate-12 !text-n-solid-1 hover:enabled:!bg-n-slate-11"
+              :label="t('CRM.KPI_SHEETS.SUBMIT')"
               color="slate"
               :is-disabled="busy"
-              @click="saveRemark"
+              @click="submitSheet"
+            />
+            <Button
+              v-if="canScore"
+              class="!bg-n-slate-12 !text-n-solid-1 hover:enabled:!bg-n-slate-11"
+              :label="t('CRM.KPI_SHEETS.SCORE')"
+              color="slate"
+              :is-disabled="busy"
+              @click="scoreSheet"
+            />
+            <Button
+              v-if="status === 'SCORED' && isHr"
+              class="!bg-n-slate-12 !text-n-solid-1 hover:enabled:!bg-n-slate-11"
+              :label="t('CRM.KPI_SHEETS.HR_CONFIRM')"
+              color="slate"
+              :is-disabled="busy"
+              @click="hrConfirm"
+            />
+            <Button
+              v-if="status === 'HR_CONFIRMED' && isGm"
+              class="!bg-n-slate-12 !text-n-solid-1 hover:enabled:!bg-n-slate-11"
+              :label="t('CRM.KPI_SHEETS.GM_CONFIRM')"
+              color="slate"
+              :is-disabled="busy"
+              @click="gmConfirm"
+            />
+            <Button
+              v-if="canReturn"
+              :label="t('CRM.KPI_SHEETS.RETURN')"
+              variant="ghost"
+              color="slate"
+              :is-disabled="busy"
+              @click="returning = true"
             />
           </div>
-        </template>
-        <p
-          v-else
-          class="p-3 text-sm border rounded-lg whitespace-pre-line border-n-weak bg-n-alpha-1 text-n-slate-12"
-        >
-          {{ remark }}
-        </p>
-      </section>
-
-      <!-- 指标表 -->
-      <section class="flex flex-col gap-2">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          {{ t('CRM.KPI_SHEETS.DETAIL') }}
-        </div>
-        <HScrollButtons />
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm border-collapse min-w-[960px]">
-            <thead class="text-n-slate-11">
-              <tr class="border-b border-n-weak">
-                <th class="px-2 py-1.5 font-medium text-left w-24">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.DIMENSION') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-32">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.NAME') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.STANDARD') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-14">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.WEIGHT') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.BASELINE') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">
-                  {{ t('CRM.KPI_SCHEMES.ITEMS.TARGET') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-32">
-                  {{ t('CRM.KPI_SHEETS.ACTUAL') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-32">
-                  {{ t('CRM.KPI_SHEETS.CHECKED') }}
-                </th>
-                <th class="px-2 py-1.5 font-medium text-left w-44">
-                  {{ t('CRM.KPI_SHEETS.SCORE_COL') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="item in items"
-                :key="item.id"
-                class="border-b border-n-weak align-top"
-              >
-                <td class="px-2 py-2">
-                  <span
-                    class="inline-block px-2 py-0.5 rounded text-xs bg-n-iris-3 text-n-iris-11"
-                    >{{ item.dimension || '—' }}</span
-                  >
-                </td>
-                <td class="px-2 py-2 font-medium text-n-slate-12">
-                  {{ item.name }}
-                </td>
-                <td class="px-2 py-2 text-xs leading-relaxed text-n-slate-11">
-                  {{ item.standard || '—' }}
-                </td>
-                <td class="px-2 py-2 text-center">{{ item.weight ?? '—' }}</td>
-                <td class="px-2 py-2 text-n-slate-11">
-                  {{ item.baselineValue || '—' }}
-                </td>
-                <td class="px-2 py-2 text-n-slate-11">
-                  {{ item.targetValue || '—' }}
-                </td>
-                <td class="px-1 py-1">
-                  <input
-                    v-if="canFillActual"
-                    v-model="item.actualValue"
-                    :class="inCls"
-                    class="!border-n-iris-8"
-                  />
-                  <span v-else class="text-n-slate-12">{{
-                    item.actualValue || '—'
-                  }}</span>
-                </td>
-                <td class="px-1 py-1">
-                  <input
-                    v-if="canScore"
-                    v-model="item.checkedValue"
-                    :class="inCls"
-                    class="!border-n-teal-8"
-                    :placeholder="item.actualValue || ''"
-                  />
-                  <span v-else class="text-n-slate-12">{{
-                    item.checkedValue || item.actualValue || '—'
-                  }}</span>
-                </td>
-                <td class="px-1 py-1">
-                  <template v-if="canScore">
-                    <input
-                      v-model="item.score"
-                      type="number"
-                      :class="inCls"
-                      class="!border-n-amber-8 text-center font-medium"
-                    />
-                    <button
-                      v-if="item.suggestedScore != null"
-                      type="button"
-                      class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-n-iris-11 hover:underline"
-                      @click="adopt(item)"
-                    >
-                      <span class="i-ph-sparkle-fill size-3 shrink-0" />{{
-                        t('CRM.KPI_SHEETS.AI_HINT', {
-                          score: item.suggestedScore,
-                        })
-                      }}
-                    </button>
-                    <p
-                      v-if="item.suggestedReason"
-                      class="mt-0.5 text-[11px] leading-snug text-n-slate-10"
-                    >
-                      {{ item.suggestedReason }}
-                    </p>
-                  </template>
-                  <span v-else class="font-medium text-n-slate-12">{{
-                    item.score ?? '—'
-                  }}</span>
-                </td>
-              </tr>
-              <tr class="bg-n-iris-3/40">
-                <td colspan="8" class="px-2 py-2 font-medium text-right">
-                  {{ t('CRM.KPI_SHEETS.TOTAL') }}
-                </td>
-                <td class="px-2 py-2 font-bold text-center text-n-iris-11">
-                  {{ totalScore }} / 100
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 评分与发放规则 / 考核结果应用（下发时从方案快照）-->
-      <section
-        v-if="sheet.payoutNote || sheet.resultNote"
-        class="grid grid-cols-1 gap-4 lg:grid-cols-2"
-      >
-        <div
-          v-if="sheet.payoutNote"
-          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
-        >
-          <span class="text-sm font-medium text-n-slate-12">
-            {{ t('CRM.KPI_SHEETS.SECTION_RULES') }}
-          </span>
-          <p
-            class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-11"
-          >
-            {{ sheet.payoutNote }}
-          </p>
-        </div>
-        <div
-          v-if="sheet.resultNote"
-          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
-        >
-          <span class="text-sm font-medium text-n-slate-12">
-            {{ t('CRM.KPI_SHEETS.SECTION_RESULT') }}
-          </span>
-          <p
-            class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-11"
-          >
-            {{ sheet.resultNote }}
-          </p>
-        </div>
-      </section>
-
-      <!-- 绩效核算 -->
-      <section class="flex flex-col gap-2">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          {{ t('CRM.KPI_SHEETS.PAYOUT.TITLE') }}
-        </div>
-        <div
-          v-if="sheet.probation"
-          class="p-4 rounded-2xl border border-n-amber-6 bg-n-amber-3/40 text-sm text-n-slate-12"
-        >
-          {{ t('CRM.KPI_SHEETS.PROBATION_NOTE') }}
-        </div>
-        <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div class="p-4 rounded-2xl border border-n-weak bg-n-solid-1/60">
-            <div class="text-xs text-n-slate-10">
-              {{ t('CRM.KPI_SHEETS.BASE') }}（{{
-                yuan(sheet.monthlySalaryMicros)
-              }}
-              × {{ sheet.performanceRatio ?? '—' }}%）
-            </div>
-            <div class="mt-1 text-lg font-bold text-n-iris-11">
-              {{ yuan(sheet.performanceBaseMicros) }}
-            </div>
-          </div>
-          <div class="p-4 rounded-2xl border border-n-weak bg-n-solid-1/60">
-            <div class="text-xs text-n-slate-10">
-              {{ t('CRM.KPI_SHEETS.COEFFICIENT') }}（{{
-                t('CRM.KPI_SHEETS.SCORE_COL')
-              }}
-              {{ sheet.totalScore ?? totalScore }}）
-            </div>
-            <div class="mt-1 text-lg font-bold text-n-iris-11">
-              {{ sheet.payoutCoefficient ?? '—' }}
-            </div>
-          </div>
-          <div
-            class="p-4 rounded-2xl border border-n-iris-6 bg-gradient-to-br from-n-iris-3/60 to-n-iris-4/40 sm:col-span-2"
-          >
-            <div class="text-xs text-n-slate-10">
-              {{ t('CRM.KPI_SHEETS.ACTUAL_PAYOUT') }}
-            </div>
-            <div class="mt-1 text-2xl font-bold text-n-iris-11">
-              {{ yuan(sheet.actualPayoutMicros) }}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 4 方电子签 -->
-      <section class="flex flex-col gap-2">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          {{ t('CRM.KPI_SHEETS.SIGN') }}
-        </div>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <!-- 员工 -->
-          <div
-            class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40"
-          >
-            <h4 class="text-sm font-medium text-n-slate-12">
-              ① {{ t('CRM.KPI_SHEETS.SIGN_EMPLOYEE') }}
-            </h4>
-            <img
-              v-if="sheet.employeeSignatureUrl"
-              :src="sheet.employeeSignatureUrl"
-              class="object-contain w-full h-20 bg-white rounded-lg"
-            />
-            <div
-              v-else
-              class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg"
-            >
-              {{ t('CRM.KPI_SHEETS.NOT_SIGNED') }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{
-                sheet.employeeSignedAt
-                  ? t('CRM.KPI_SHEETS.SIGNED_AT', {
-                      date: fmtDate(sheet.employeeSignedAt),
-                    })
-                  : '—'
-              }}
-            </div>
-          </div>
-          <!-- 主管 -->
-          <div
-            class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40"
-          >
-            <h4 class="text-sm font-medium text-n-slate-12">
-              ② {{ t('CRM.KPI_SHEETS.SIGN_MANAGER') }}
-            </h4>
-            <img
-              v-if="sheet.managerSignatureUrl"
-              :src="sheet.managerSignatureUrl"
-              class="object-contain w-full h-20 bg-white rounded-lg"
-            />
-            <div
-              v-else
-              class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg"
-            >
-              {{ t('CRM.KPI_SHEETS.NOT_SIGNED') }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{
-                sheet.managerName
-                  ? `${sheet.managerName} · ${fmtDate(sheet.managerSignedAt)}`
-                  : '—'
-              }}
-            </div>
-          </div>
-          <!-- 人事 -->
-          <div
-            class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40"
-          >
-            <h4 class="text-sm font-medium text-n-slate-12">
-              ③ {{ t('CRM.KPI_SHEETS.SIGN_HR') }}
-            </h4>
-            <img
-              v-if="sheet.hrSignatureUrl"
-              :src="sheet.hrSignatureUrl"
-              class="object-contain w-full h-20 bg-white rounded-lg"
-            />
-            <template v-else-if="status === 'SCORED' && isHr">
-              <Button
-                :label="t('CRM.KPI_SHEETS.HR_CONFIRM')"
-                size="sm"
-                color="iris"
-                :is-disabled="busy"
-                @click="hrConfirm"
-              />
-            </template>
-            <div
-              v-else
-              class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg"
-            >
-              {{ t('CRM.KPI_SHEETS.WAIT_PREV') }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{
-                sheet.hrName
-                  ? `${sheet.hrName} · ${fmtDate(sheet.hrConfirmedAt)}`
-                  : '—'
-              }}
-            </div>
-          </div>
-          <!-- 总经理 -->
-          <div
-            class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40"
-          >
-            <h4 class="text-sm font-medium text-n-slate-12">
-              ④ {{ t('CRM.KPI_SHEETS.SIGN_GM') }}
-            </h4>
-            <img
-              v-if="sheet.gmSignatureUrl"
-              :src="sheet.gmSignatureUrl"
-              class="object-contain w-full h-20 bg-white rounded-lg"
-            />
-            <template v-else-if="status === 'HR_CONFIRMED' && isGm">
-              <Button
-                :label="t('CRM.KPI_SHEETS.GM_CONFIRM')"
-                size="sm"
-                color="iris"
-                :is-disabled="busy"
-                @click="gmConfirm"
-              />
-            </template>
-            <div
-              v-else
-              class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg"
-            >
-              {{ t('CRM.KPI_SHEETS.WAIT_PREV') }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{
-                sheet.gmName
-                  ? `${sheet.gmName} · ${fmtDate(sheet.gmConfirmedAt)}`
-                  : '—'
-              }}
-            </div>
-          </div>
-        </div>
-      </section>
+        </aside>
+      </div>
     </div>
     <MySignatureDialog ref="signatureDialogRef" />
     <CrmForwardToTeamChatDialog ref="forwardRef" />

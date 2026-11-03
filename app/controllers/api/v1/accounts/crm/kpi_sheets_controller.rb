@@ -256,11 +256,11 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     end
   end
 
-  # 业绩建议分：完成 ÷ 保底 × 权重，按单项上限封顶（未设上限则允许溢出）。完成值未填按 0 分。
+  # 业绩建议分：完成 ÷ 保底 × 权重，按上限封顶（未设上限则允许溢出）。完成值未填按 0 分。
   def formula_perf_suggestion(item, idx)
     baseline_yuan = perf_baseline_micros.to_f / 1_000_000
     weight = item.weight.to_f
-    cap = @sheet.item_score_cap_pct ? (@sheet.item_score_cap_pct.to_f / 100) : Float::INFINITY
+    cap = score_cap_ratio(item)
     actual_yuan = parse_amount_yuan(item.effective_value)
 
     if actual_yuan.nil?
@@ -271,6 +271,17 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     score = [ratio * weight, weight * cap].min.round(1)
     { 'i' => idx, 'score' => score,
       'reason' => "完成 #{fmt_wan(actual_yuan)} ÷ 保底 #{fmt_wan(baseline_yuan)} = #{(ratio * 100).round}%，×权重 #{weight.round(1)} = #{score} 分" }
+  end
+
+  # 这一项的计分上限（倍数）。**指标级优先，留空才回落考核表/方案级**。
+  #
+  # 业务规则（用户 2026-11-03 定）：业绩那一项可以溢出——做到保底的 2 倍就该拿 2 倍的分；
+  # 其余各项封顶 100%，不然「询盘转化率做到 10%」这种也会超额计分。
+  # 原先上限只有方案级一个开关，两种规则只能二选一，于是 11 月业务方案自相矛盾：
+  # 方案级封 100%，而「业绩目标达成」的标准里写着上限 120%。
+  def score_cap_ratio(item)
+    pct = item.score_cap_pct || @sheet.item_score_cap_pct
+    pct ? pct.to_f / 100 : Float::INFINITY
   end
 
   # 保底目标（micros）：优先考核表下发时的快照，为空则回退读该业务员当前薪资配置（治「配置晚于下发」的空值）。

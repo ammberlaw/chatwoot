@@ -458,7 +458,13 @@ const groupManagerApi = {
             </a>
             <div v-if="entry.note" class="flex gap-2 text-xs">
               <span class="w-10 shrink-0 text-n-slate-10">备注</span>
-              <span class="whitespace-pre-wrap text-n-slate-11">
+              <!-- min-w-0 + break-all：备注里常贴 vless:// 这种没有空格的长串，
+                   只有 whitespace-pre-wrap 断不开（它只在词边界换行），整行会把
+                   表格撑破、右侧被截掉（用户 2026-11-03 反馈）。flex 子项还要
+                   min-w-0 才肯收缩，否则 break-all 也没地方断。 -->
+              <span
+                class="min-w-0 break-all whitespace-pre-wrap text-n-slate-11"
+              >
                 {{ entry.note }}
               </span>
             </div>
@@ -550,8 +556,11 @@ const groupManagerApi = {
               </div>
               <span v-else class="text-n-slate-10">—</span>
             </td>
+            <!-- break-all：备注里常贴 vless:// 这种没有空格的长串，只有
+                 whitespace-pre-wrap 断不开（它只在词边界换行），max-w-xs 限了宽
+                 就直接被右边界截掉，后半截看不见（用户 2026-11-03 反馈）。 -->
             <td
-              class="py-2.5 pr-4 align-top text-xs text-n-slate-11 max-w-xs whitespace-pre-wrap"
+              class="py-2.5 pr-4 align-top text-xs break-all text-n-slate-11 max-w-xs whitespace-pre-wrap"
             >
               {{ entry.note || '—' }}
             </td>

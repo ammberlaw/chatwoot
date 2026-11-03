@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_31_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_03_120100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1598,6 +1598,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_31_210000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "checked_value"
+    t.integer "score_cap_pct"
     t.index ["account_id"], name: "index_crm_kpi_sheet_items_on_account_id"
     t.index ["crm_kpi_sheet_id"], name: "index_crm_kpi_sheet_items_on_crm_kpi_sheet_id"
   end
@@ -2228,6 +2229,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_31_210000) do
     t.integer "sort_order", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "score_cap_pct"
     t.index ["account_id"], name: "index_crm_scheme_items_on_account_id"
     t.index ["crm_kpi_scheme_id"], name: "index_crm_scheme_items_on_crm_kpi_scheme_id"
   end

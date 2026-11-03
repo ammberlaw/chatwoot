@@ -11,3 +11,5 @@ json.checked_value resource.checked_value
 json.score resource.score
 json.suggested_score resource.suggested_score
 json.sort_order resource.sort_order
+# 指标级计分上限（%）。留空＝沿用方案级，计分时回落。
+json.score_cap_pct resource.score_cap_pct

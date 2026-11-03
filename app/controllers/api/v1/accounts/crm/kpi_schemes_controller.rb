@@ -93,7 +93,9 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
       sheet.sheet_items.create!(
         name: it.name, dimension: it.dimension, standard: it.standard, weight: it.weight,
         baseline_value: it.baseline_value, target_value: it.target_value,
-        data_source: it.data_source, sort_order: it.sort_order
+        data_source: it.data_source, sort_order: it.sort_order,
+        # 指标级上限随方案一起拍快照；留空则计分时回落方案级（见 KpiSheetsController#score_cap_ratio）
+        score_cap_pct: it.score_cap_pct
       )
     end
     sheet
@@ -133,7 +135,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
   def build_items
     Array(params[:scheme][:scheme_items]).map do |raw|
       Crm::SchemeItem.new(raw.permit(:name, :dimension, :standard, :weight, :baseline_value,
-                                     :target_value, :data_source, :sort_order))
+                                     :target_value, :data_source, :sort_order, :score_cap_pct))
     end
   end
 

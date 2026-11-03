@@ -30,6 +30,7 @@ import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
@@ -3375,8 +3376,15 @@ v-if="d.note" class="text-n-slate-9"
           <span
             v-for="m in distMembers.filter(x => distributeIds.includes(x.id))"
             :key="m.id"
-            class="inline-flex items-center gap-1 py-1 pl-2.5 pr-1.5 text-xs text-white rounded-full bg-n-iris-9"
+            class="inline-flex items-center gap-1 py-1 pl-1 pr-1.5 text-xs text-white rounded-full bg-n-iris-9"
           >
+            <Avatar
+              :name="m.name"
+              :src="m.thumbnail"
+              :size="18"
+              rounded-full
+              class="shrink-0"
+            />
             {{ m.name }}
             <button
               type="button"
@@ -3403,7 +3411,16 @@ v-if="d.note" class="text-n-slate-9"
             class="flex items-center justify-between px-3 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-2"
             @click="toggleDistId(m.id)"
           >
-            <span class="truncate">{{ m.name }}</span>
+            <span class="flex items-center min-w-0 gap-2">
+              <Avatar
+                :name="m.name"
+                :src="m.thumbnail"
+                :size="24"
+                rounded-full
+                class="shrink-0"
+              />
+              <span class="truncate">{{ m.name }}</span>
+            </span>
             <Icon
               v-if="distributeIds.includes(m.id)"
               icon="i-lucide-check"

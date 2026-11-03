@@ -391,11 +391,26 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     # 该客户的 MES 生产订单（不看创建人：助理在共享客户上建的生产单，老板也在此看到）。
     @production_orders = Current.account.mes_production_orders
                                 .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(20)
+    # 这些生产订单下的 QC 质检影像（只取图片和视频，不带质检结论/不良记录——
+    # 客户详情页业务条线也看，那些是生产内部的事）。按生产订单分组，一单一行。
+    @qc_media = qc_media_by_order(@production_orders)
     @notes = Current.account.crm_follow_up_notes
                     .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(30)
     @tasks = Current.account.crm_follow_up_tasks
                     .where(crm_customer_id: @customer.id)
                     .order(Arel.sql('due_at IS NULL, due_at ASC')).limit(30)
+  end
+
+  # 按生产订单归集质检影像。一次把附件都 includes 出来，避免逐单逐张查。
+  def qc_media_by_order(production_orders)
+    ids = production_orders.map(&:id)
+    return {} if ids.empty?
+
+    Current.account.mes_inspections
+           .where(production_order_id: ids)
+           .with_attached_photos.with_attached_videos
+           .order(created_at: :desc)
+           .group_by(&:production_order_id)
   end
 
   # 会话右侧的客户卡片：业务员在聊天里就能看到这个客户的 CRM 全貌，不用切页面。

@@ -11,6 +11,7 @@
 #  dimension        :string
 #  name             :string           not null
 #  score            :decimal(7, 2)
+#  score_cap_pct    :integer
 #  sort_order       :integer          default(0)
 #  standard         :text
 #  suggested_score  :decimal(7, 2)
