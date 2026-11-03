@@ -1,5 +1,4 @@
 <script setup>
-/* global axios */
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toPng } from 'html-to-image';
@@ -43,26 +42,6 @@ const returnReason = ref('');
 const reopening = ref(false);
 const reopenReason = ref('');
 
-// 只读考勤参考：拉考核对象在考核月的出勤/迟到/缺勤/请假/出勤率（后端按权限收口）。
-// 不参与计分、不自动扣款，只是主管打分时的旁证。
-const attendance = ref(null);
-const loadAttendance = async () => {
-  attendance.value = null;
-  const pm = sheet.value?.periodMonth;
-  if (!sheet.value?.ownerId || !pm) return;
-  const d = new Date(pm);
-  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/crm/attendances/user_summary`,
-      { params: { user_id: sheet.value.ownerId, month } }
-    );
-    attendance.value = data;
-  } catch {
-    attendance.value = null;
-  }
-};
-
 const camel = async data =>
   (await import('camelcase-keys')).default(data, { deep: true });
 
@@ -86,7 +65,6 @@ const load = async () => {
     sheet.value = await camel(data);
     items.value = sheet.value.sheetItems || [];
     remark.value = sheet.value.remark || '';
-    loadAttendance();
     try {
       const s = await CrmPerfSettingsAPI.get();
       setting.value = await camel(s.data);
@@ -961,77 +939,6 @@ const inCls =
                 : t('CRM.KPI_SHEETS.UI.NOT_SCORED')
             }}
           </p>
-          <!-- 本月考勤只读参考：不计分、不扣款，供打分时旁证 -->
-          <dl
-            v-if="attendance"
-            class="mb-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-n-weak pt-5"
-          >
-            <div class="col-span-2 text-label-small text-n-slate-11">
-              {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.TITLE') }}
-            </div>
-            <div class="flex items-baseline justify-between gap-2">
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.PRESENT') }}
-              </dt>
-              <dd class="text-label text-n-slate-12">
-                {{ attendance.present }}/{{ attendance.expected }}
-              </dd>
-            </div>
-            <div class="flex items-baseline justify-between gap-2">
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.LATE') }}
-              </dt>
-              <dd
-                class="text-label"
-                :class="attendance.late ? 'text-n-amber-11' : 'text-n-slate-12'"
-              >
-                {{ attendance.late }}
-              </dd>
-            </div>
-            <div class="flex items-baseline justify-between gap-2">
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.ABSENT') }}
-              </dt>
-              <dd
-                class="text-label"
-                :class="
-                  attendance.absent ? 'text-n-ruby-11' : 'text-n-slate-12'
-                "
-              >
-                {{ attendance.absent }}
-              </dd>
-            </div>
-            <div class="flex items-baseline justify-between gap-2">
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.LEAVE') }}
-              </dt>
-              <dd class="text-label text-n-slate-12">
-                {{ attendance.leave }}
-              </dd>
-            </div>
-            <div
-              v-if="attendance.field"
-              class="flex items-baseline justify-between gap-2"
-            >
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.FIELD') }}
-              </dt>
-              <dd class="text-label text-n-slate-12">
-                {{ attendance.field }}
-              </dd>
-            </div>
-            <div
-              v-if="attendance.rate != null"
-              class="flex items-baseline justify-between gap-2"
-            >
-              <dt class="text-label-small text-n-slate-11">
-                {{ t('CRM.KPI_SHEETS.UI.ATTENDANCE.RATE') }}
-              </dt>
-              <dd class="text-label text-n-teal-11">
-                {{ (attendance.rate * 100).toFixed(0) }}%
-              </dd>
-            </div>
-          </dl>
           <div
             v-if="
               canFillActual ||

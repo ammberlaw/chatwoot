@@ -909,16 +909,7 @@
         "GM": "总经理",
         "SIGNED": "已签署",
         "REVIEW": "本次考核",
-        "CURRENT_STEP": "当前环节",
-        "ATTENDANCE": {
-          "TITLE": "本月考勤",
-          "PRESENT": "出勤",
-          "LATE": "迟到",
-          "ABSENT": "缺勤",
-          "LEAVE": "请假",
-          "FIELD": "外勤",
-          "RATE": "出勤率"
-        }
+        "CURRENT_STEP": "当前环节"
       },
       "LIST_HEADER": "考核表",
       "LIST_SUBTITLE": "下发后每位员工一张，走填报→打分→人事→总经理审批",
