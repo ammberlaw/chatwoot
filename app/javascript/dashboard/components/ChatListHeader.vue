@@ -7,6 +7,7 @@ import wootConstants from 'dashboard/constants/globals';
 import ConversationBasicFilter from './widgets/conversation/ConversationBasicFilter.vue';
 import SwitchLayout from 'dashboard/routes/dashboard/conversation/search/SwitchLayout.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import CrmWhatsappStartChat from 'dashboard/components-next/CRM/CrmWhatsappStartChat.vue';
 
 const props = defineProps({
   pageTitle: { type: String, required: true },
@@ -93,6 +94,22 @@ const toggleConversationLayout = () => {
       -->
     </div>
     <div class="flex items-center gap-1">
+      <!-- WhatsApp 开聊：输客户手机号直接起一通对话。这个能力原先只长在
+           「邮箱 / WhatsApp 绑定」设置页里，业务员要主动联系新客户得先跑去
+           设置页，或先在手机上发一条——聊天记录就断在系统外面了
+           （用户 2026-11-03 提）。 -->
+      <CrmWhatsappStartChat>
+        <template #trigger="{ open }">
+          <NextButton
+            v-tooltip.top-end="'WhatsApp 开聊'"
+            icon="i-ri-whatsapp-line"
+            slate
+            xs
+            faded
+            @click="open"
+          />
+        </template>
+      </CrmWhatsappStartChat>
       <template v-if="hasAppliedFilters && !hasActiveFolders">
         <div class="relative">
           <NextButton

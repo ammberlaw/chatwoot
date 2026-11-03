@@ -139,9 +139,12 @@ class Crm::SalesOrderTraceService
       items: shipment.shipment_items.map { |i| shipment_item_json(i) } }
   end
 
-  # 「这张单到底出了什么货、各多少」——只给品名/编码/数量，不带价（出库单本来就没有价）。
+  # 「这张单到底出了什么货、各多少」——不带价（出库单本来就没有价，价也不该漏给销售端）。
+  # 规格与颜色跟 MES 出库单查看弹窗同一套列：同一张出货单，财务在 ERP 看到的
+  # 不该比仓管在 MES 看到的少（2026-11-03 用户核对两边明细时发现差三列）。
   def shipment_item_json(item)
     { product_name: item.crm_product&.name, product_sku: item.crm_product&.sku,
+      specification: item.crm_product&.specification, color: item.color,
       qty: item.qty.to_f, unit: item.unit, remark: item.remark }
   end
 end

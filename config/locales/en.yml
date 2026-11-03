@@ -302,6 +302,12 @@ en:
         added: '%{user_name} set the priority to %{new_priority}'
         updated: '%{user_name} changed the priority from %{old_priority} to %{new_priority}'
         removed: '%{user_name} removed the priority'
+        # 优先级的值原先直接把库里的枚举塞进句子（urgent/high/...），中文句子里夹英文。
+        levels:
+          urgent: 'urgent'
+          high: 'high'
+          medium: 'medium'
+          low: 'low'
       assignee:
         self_assigned: '%{user_name} self-assigned this conversation'
         assigned: 'Assigned to %{assignee_name} by %{user_name}'

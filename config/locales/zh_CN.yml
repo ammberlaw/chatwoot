@@ -272,6 +272,11 @@ zh_CN:
         added: '%{user_name} 将优先级设置为 %{new_priority}'
         updated: '%{user_name} 将优先级从 %{old_priority} 更改为 %{new_priority}'
         removed: '%{user_name} 取消了优先级'
+        levels:
+          urgent: '紧急'
+          high: '高'
+          medium: '中'
+          low: '低'
       assignee:
         self_assigned: '%{user_name} 自行分配这次会话'
         assigned: '由 %{user_name} 分配给 %{assignee_name}'
@@ -498,8 +503,8 @@ zh_CN:
     seconds:
       other: '%{count} 秒'
   auto_assignment:
-    default_policy_name: 'Default Policy'
-    policy_actor: 'Automation System via %{policy_name}'
+    default_policy_name: '默认分配规则'
+    policy_actor: '自动化系统（经 %{policy_name}）'
   automation:
     system_name: '自动化系统'
   crm:

@@ -351,8 +351,12 @@ const drillTitle = computed(() => {
           class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-weak"
         >
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-mono text-sm text-n-slate-12">{{ po.po_no }}</span>
-            <span class="text-xs text-n-slate-10">{{ po.suppliers.join('、') || '—' }}</span>
+            <span class="font-mono text-sm text-n-slate-12">{{
+              po.po_no
+            }}</span>
+            <span class="text-xs text-n-slate-10">{{
+              po.suppliers.join('、') || '—'
+            }}</span>
             <span class="font-mono text-sm text-n-slate-12">
               {{ money(po.total_amount_micros) }}
             </span>
@@ -371,9 +375,9 @@ const drillTitle = computed(() => {
             :key="`${po.po_no}-${i}`"
             class="text-xs text-n-slate-11"
           >
-            {{ it.code || '—' }} {{ it.name }} ×{{ it.qty }}{{ it.unit || '' }}
-            · 单价 {{ money(it.rate_micros) }}
-            · {{ money(it.amount_micros) }}
+            {{ it.code || '—' }} {{ it.name }} ×{{ it.qty
+            }}{{ it.unit || '' }} · 单价 {{ money(it.rate_micros) }} ·
+            {{ money(it.amount_micros) }}
             <span v-if="it.supplier_name" class="text-n-slate-10">
               · {{ it.supplier_name }}
             </span>
@@ -414,13 +418,70 @@ const drillTitle = computed(() => {
                     {{ lp.rate_micros ? money(lp.rate_micros) : '首次采购' }}
                   </td>
                   <td class="px-2 py-1 text-n-slate-10">
-                    {{ lp.rate_micros ? `${lp.supplier_name || '—'} / ${lp.po_no || '—'}` : '—' }}
+                    {{
+                      lp.rate_micros
+                        ? `${lp.supplier_name || '—'} / ${lp.po_no || '—'}`
+                        : '—'
+                    }}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </template>
+      </div>
+
+      <!-- 关联 MES：采购单 —— 为这单买了什么、跟谁买、花了多少。
+           数据来自 Erp::OrderPurchaseTrace（后端早已下发，这里原先没渲染）。
+           ⚠️ 该服务只给 ERP 调，不进 CRM 侧的追溯——采购价和供应商不漏给业务员。 -->
+      <div class="flex flex-col gap-2">
+        <span class="text-heading-3 text-n-slate-12">
+          关联采购单（{{
+            (orderDetail.purchase?.purchase_orders || []).length
+          }}）
+        </span>
+        <div
+          v-for="pu in orderDetail.purchase?.purchase_orders || []"
+          :key="pu.id"
+          class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-weak"
+        >
+          <div class="flex flex-wrap items-center gap-x-3 text-sm">
+            <span class="font-mono text-n-slate-12">{{ pu.po_no }}</span>
+            <span v-if="pu.suppliers" class="text-n-slate-11">
+              {{ pu.suppliers }}
+            </span>
+            <span class="tabular-nums text-n-slate-12">
+              {{ money(pu.total_amount_micros) }}
+            </span>
+            <span v-if="pu.ordered_at" class="text-xs text-n-slate-11">
+              {{ (pu.ordered_at || '').slice(0, 10) }}
+            </span>
+            <!-- 合并采购：这张采购单还挂着别的生产订单，金额不全属于本单，
+                 不标出来财务会把别单的钱算进本单成本。 -->
+            <span
+              v-if="pu.shared_with_others"
+              class="px-1.5 py-0.5 rounded text-[11px] bg-n-amber-3 text-n-amber-11"
+            >
+              合并采购 · 金额含其他订单
+            </span>
+          </div>
+          <div
+            v-for="(item, i) in pu.items || []"
+            :key="i"
+            class="flex flex-wrap gap-x-4 text-xs text-n-slate-11"
+          >
+            <span class="text-n-slate-12">{{ item.name }}</span>
+            <span v-if="item.code" class="font-mono">{{ item.code }}</span>
+            <span>{{ item.qty }} {{ item.unit || '' }}</span>
+            <span class="tabular-nums">{{ money(item.amount_micros) }}</span>
+          </div>
+        </div>
+        <p
+          v-if="!(orderDetail.purchase?.purchase_orders || []).length"
+          class="text-sm text-n-slate-10"
+        >
+          还没有采购单。
+        </p>
       </div>
 
       <!-- 关联 MES：出货单 —— 实际出了什么货 -->
@@ -716,6 +777,10 @@ const drillTitle = computed(() => {
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
                   <th class="px-2 py-1 font-medium whitespace-nowrap">编码</th>
                   <th class="px-2 py-1 font-medium">品名</th>
+                  <!-- 规格与颜色：与 MES 出库单查看弹窗同一套列，同一张出货单
+                       财务看到的不该比仓管少（2026-11-03 用户核对两边时发现差三列）。 -->
+                  <th class="px-2 py-1 font-medium">规格型号</th>
+                  <th class="px-2 py-1 font-medium whitespace-nowrap">颜色</th>
                   <th
                     class="px-2 py-1 font-medium text-right whitespace-nowrap"
                   >
@@ -736,6 +801,12 @@ const drillTitle = computed(() => {
                   </td>
                   <td class="px-2 py-1 text-n-slate-12">
                     {{ it.product_name || '—' }}
+                  </td>
+                  <td class="px-2 py-1 text-n-slate-11">
+                    {{ it.specification || '—' }}
+                  </td>
+                  <td class="px-2 py-1 text-n-slate-11">
+                    {{ it.color || '—' }}
                   </td>
                   <td class="px-2 py-1 font-mono text-right text-n-slate-12">
                     {{ it.qty }}

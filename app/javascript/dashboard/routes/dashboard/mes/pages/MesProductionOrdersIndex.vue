@@ -1158,8 +1158,7 @@ const setTemplate = t => {
 // ⚠️ **PI 编号不抄**：PI 是这一单独有的凭证号，抄过来就是张冠李戴——
 // 后面出库、应收、对账全靠它串，错了很难发现（用户 2026-11-02 点名）。
 // 同理不抄的还有数量和交期：返单的量和期一定是新的。
-const isSpecObject = v =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
+const isSpecObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const importDialogRef = ref(null);
 const importOptions = ref([]);
 const importSourceId = ref('');
@@ -1176,7 +1175,7 @@ const openImportSpec = async () => {
         params,
       })
     );
-    importOptions.value = (rows || [])
+    const usable = (rows || [])
       .map(o => camelcaseKeys(o, { deep: true }))
       .filter(
         o =>
@@ -1187,13 +1186,22 @@ const openImportSpec = async () => {
           // 同一套规格表单才能抄：平板的 spec 塞进商显表单全是对不上的 key
           (o.spec.template || 'TABLET') === orderTemplate.value &&
           Object.keys(o.spec).some(k => k !== 'template' && o.spec[k])
-      )
-      .map(o => ({
-        value: String(o.id),
-        label: `${o.orderNo} · ${o.productName || ''}`,
-        searchText: orderSearchText(o),
-        spec: o.spec,
-      }));
+      );
+    // 只列**自己名下**的历史单（用户 2026-11-02 定）：返单要抄的是自己跟过的那一单，
+    // 翻全公司的既难找又容易抄错家。名下一张合用的都没有时才回落全部——
+    // 工程/PMC 本来就不是订单归属人，给他们一个空下拉等于这功能不存在。
+    const mine = usable.filter(
+      o => String(o.ownerId) === String(currentUserId.value)
+    );
+    importOptions.value = (mine.length ? mine : usable).map(o => ({
+      value: String(o.id),
+      // 回落到全部时标出归属人，免得抄了别人家客户的规格还不自知
+      label: [o.orderNo, o.productName, o.ownerName]
+        .filter(Boolean)
+        .join(' · '),
+      searchText: orderSearchText(o),
+      spec: o.spec,
+    }));
   } catch (e) {
     importOptions.value = [];
     useAlert('历史订单加载失败，请重试');
@@ -2119,11 +2127,7 @@ watch(currentPage, fetchRecords);
     <div
       class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1
-        class="text-heading-1 text-n-slate-12"
-      >
-        销售订单
-      </h1>
+      <h1 class="text-heading-1 text-n-slate-12">销售订单</h1>
     </div>
 
     <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我确认（前后两个仅 CRM 业务身份显示）。
@@ -2498,7 +2502,9 @@ watch(currentPage, fetchRecords);
                   </th>
                   <th
                     class="px-3 py-3 sticky right-0 z-10 !bg-white border-l border-n-weak min-w-[200px] w-[200px] whitespace-nowrap text-right font-medium"
-                  >操作</th>
+                  >
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>
