@@ -60,6 +60,7 @@ const form = reactive({
   month: currentMonth(),
   passScore: '70',
   itemScoreCapPct: '120',
+  totalScoreCap: '',
   status: 'DRAFT',
   payoutNote: '',
   resultNote: '',
@@ -130,6 +131,8 @@ const hydrate = scheme => {
   form.passScore = scheme.passScore != null ? String(scheme.passScore) : '';
   form.itemScoreCapPct =
     scheme.itemScoreCapPct != null ? String(scheme.itemScoreCapPct) : '';
+  form.totalScoreCap =
+    scheme.totalScoreCap != null ? String(scheme.totalScoreCap) : '';
   form.status = scheme.status || 'DRAFT';
   form.payoutNote = scheme.payoutNote || '';
   form.resultNote = scheme.resultNote || '';
@@ -183,6 +186,7 @@ const submit = async () => {
     schemeMonth: `${form.month}-01`,
     passScore: num(form.passScore),
     itemScoreCapPct: num(form.itemScoreCapPct),
+    totalScoreCap: num(form.totalScoreCap),
     status: form.status,
     payoutNote: form.payoutNote.trim() || null,
     resultNote: form.resultNote.trim() || null,
@@ -256,19 +260,18 @@ onMounted(async () => {
 });
 
 const inputCls =
-  'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
+  'reset-base w-full h-10 px-3 text-label !border !border-solid rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:border-n-slate-10 focus:ring-2 focus:ring-n-slate-3';
 const fieldCls =
-  'h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
+  'reset-base w-full h-10 px-3 text-label !border !border-solid rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:border-n-slate-10 focus:ring-2 focus:ring-n-slate-3';
 </script>
 
 <template>
-  <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex h-full w-full flex-col overflow-y-auto rounded-3xl border border-n-weak bg-n-slate-2"
   >
     <!-- 顶栏 -->
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+      class="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-n-weak bg-n-slate-2 px-5 py-4 sm:px-8 sm:py-5"
     >
       <div class="flex items-center gap-3 min-w-0">
         <Button
@@ -279,7 +282,7 @@ const fieldCls =
           @click="goBack"
         />
         <div class="min-w-0">
-          <h1 class="text-xl font-medium text-n-slate-12 truncate [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+          <h1 class="text-heading-1 text-n-slate-12">
             {{
               isEdit
                 ? t('CRM.KPI_SCHEMES.EDIT.TITLE')
@@ -292,8 +295,8 @@ const fieldCls =
         <Button
           :label="t('CRM.KPI_SCHEMES.EDITOR.DISTRIBUTE')"
           icon="i-lucide-send"
-          color="amber"
-          variant="faded"
+          color="slate"
+          variant="outline"
           @click="openDistribute"
         />
         <Button
@@ -303,7 +306,8 @@ const fieldCls =
               : t('CRM.KPI_SCHEMES.EDITOR.SAVE')
           "
           icon="i-lucide-check"
-          color="iris"
+          color="slate"
+          class="!bg-n-slate-12 !text-n-solid-1 hover:enabled:!bg-n-slate-11"
           :is-disabled="isFormInvalid || submitting"
           @click="submit"
         />
@@ -317,43 +321,53 @@ const fieldCls =
       {{ t('CRM.KPI_SCHEMES.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-col w-full gap-8 px-4 py-4 sm:px-6 sm:py-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      v-else
+      class="flex w-full min-w-0 flex-col gap-4 px-4 py-5 sm:px-6 xl:px-8"
+    >
       <!-- 方案基本信息 -->
-      <section class="flex flex-col gap-3">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
+      <section
+        class="flex min-w-0 flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+      >
+        <h2 class="text-heading-2 text-n-slate-12">
           {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_BASIC') }}
-        </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">
+        </h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-12">
+          <label
+            class="flex min-w-0 flex-col gap-2 sm:col-span-2 xl:col-span-6"
+          >
+            <span class="text-label text-n-slate-11">
               {{ t('CRM.KPI_SCHEMES.FORM.NAME') }}
               <span class="text-n-ruby-11">*</span>
             </span>
             <input v-model="form.name" :class="fieldCls" />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-3">
+            <span class="text-label text-n-slate-11">
               {{ t('CRM.KPI_SCHEMES.FORM.MONTH') }}
               <span class="text-n-ruby-11">*</span>
             </span>
             <MonthPicker v-model="form.month" block />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-3">
+            <span class="text-label text-n-slate-11">{{
               t('CRM.KPI_SCHEMES.FORM.STATUS')
             }}</span>
-            <SelectCard v-model="form.status" :options="statusOptions" block />
+            <SelectCard
+              v-model="form.status"
+              :options="statusOptions"
+              trigger-class="!h-10 !text-label"
+              block
+            />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-4">
+            <span class="text-label text-n-slate-11">{{
               t('CRM.KPI_SCHEMES.FORM.PASS_SCORE')
             }}</span>
             <input v-model="form.passScore" type="number" :class="fieldCls" />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-4">
+            <span class="text-label text-n-slate-11">{{
               t('CRM.KPI_SCHEMES.FORM.CAP_PCT')
             }}</span>
             <input
@@ -362,8 +376,18 @@ const fieldCls =
               :class="fieldCls"
             />
           </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-4">
+            <span class="text-label text-n-slate-11">{{
+              t('CRM.KPI_SCHEMES.FORM.TOTAL_CAP')
+            }}</span>
+            <input
+              v-model="form.totalScoreCap"
+              type="number"
+              :class="fieldCls"
+            />
+          </label>
+          <label class="flex min-w-0 flex-col gap-2 xl:col-span-4">
+            <span class="text-label text-n-slate-11">{{
               t('CRM.KPI_SCHEMES.EDITOR.TOTAL_SCORE')
             }}</span>
             <input
@@ -377,13 +401,13 @@ const fieldCls =
       </section>
 
       <!-- 考核指标 -->
-      <section class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div
-            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
+      <section
+        class="flex min-w-0 flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-heading-2 text-n-slate-12">
             {{ t('CRM.KPI_SCHEMES.ITEMS.TITLE', { total: totalWeight }) }}
-          </div>
+          </h2>
           <Button
             :label="t('CRM.KPI_SCHEMES.ITEMS.ADD')"
             icon="i-lucide-plus"
@@ -398,28 +422,30 @@ const fieldCls =
         </datalist>
         <HScrollButtons />
         <div class="overflow-x-auto">
-          <table class="w-full text-sm border-collapse min-w-[880px]">
-            <thead class="text-n-slate-11">
+          <table
+            class="w-full min-w-[1120px] table-fixed border-collapse text-label"
+          >
+            <thead class="bg-n-slate-3 text-n-slate-11">
               <tr class="border-b border-n-weak">
-                <th class="px-2 py-1.5 font-medium text-left w-28">
+                <th class="px-2 py-3 text-left font-medium w-28">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.DIMENSION') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left w-32">
+                <th class="px-2 py-3 text-left font-medium w-44">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.NAME') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left">
+                <th class="px-2 py-3 text-left font-medium">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.STANDARD') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left w-16">
+                <th class="px-2 py-3 text-left font-medium w-[88px]">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.WEIGHT') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">
+                <th class="px-2 py-3 text-left font-medium w-28">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.BASELINE') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">
+                <th class="px-2 py-3 text-left font-medium w-32">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.TARGET') }}
                 </th>
-                <th class="px-2 py-1.5 font-medium text-left w-28">
+                <th class="px-2 py-3 text-left font-medium w-40">
                   {{ t('CRM.KPI_SCHEMES.ITEMS.SOURCE') }}
                 </th>
                 <th class="w-10" />
@@ -431,27 +457,33 @@ const fieldCls =
                 :key="`item-${i}`"
                 class="border-b border-n-weak align-top"
               >
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <input
                     v-model="item.dimension"
                     list="kpi-dims"
                     :placeholder="t('CRM.KPI_SCHEMES.EDITOR.DIM_PLACEHOLDER')"
                     :class="inputCls"
-                    class="!text-n-iris-11 !bg-n-iris-3/40 font-medium"
+                    class="font-medium"
                   />
                 </td>
-                <td class="px-1 py-1">
-                  <input v-model="item.name" :class="inputCls" />
+                <td class="px-2 py-4">
+                  <textarea
+                    v-model="item.name"
+                    rows="2"
+                    :aria-label="t('CRM.KPI_SCHEMES.ITEMS.NAME')"
+                    :class="inputCls"
+                    class="!h-auto min-h-[68px] resize-y py-2 leading-relaxed"
+                  />
                 </td>
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <textarea
                     v-model="item.standard"
                     rows="2"
                     :class="inputCls"
-                    class="min-h-[52px] leading-relaxed py-1.5"
+                    class="!h-auto min-h-[88px] resize-y py-2 leading-relaxed"
                   />
                 </td>
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <input
                     v-model="item.weight"
                     type="number"
@@ -460,20 +492,21 @@ const fieldCls =
                     class="text-center font-medium"
                   />
                 </td>
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <input v-model="item.baselineValue" :class="inputCls" />
                 </td>
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <input v-model="item.targetValue" :class="inputCls" />
                 </td>
-                <td class="px-1 py-1">
+                <td class="px-2 py-4">
                   <SelectCard
                     v-model="item.dataSource"
                     :options="dataSourceOptions"
+                    trigger-class="!h-10 !text-label"
                     block
                   />
                 </td>
-                <td class="px-1 py-1 text-center">
+                <td class="px-2 py-4 text-center">
                   <Button
                     icon="i-lucide-trash-2"
                     size="sm"
@@ -489,13 +522,13 @@ const fieldCls =
       </section>
 
       <!-- 平台数据明细表（参考）：运营方案的明细表A/B、三平台询盘明细等 -->
-      <section class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div
-            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
+      <section
+        class="flex min-w-0 flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-heading-2 text-n-slate-12">
             {{ t('CRM.KPI_SCHEMES.TABLES.TITLE') }}
-          </div>
+          </h2>
           <Button
             :label="t('CRM.KPI_SCHEMES.TABLES.ADD')"
             icon="i-lucide-plus"
@@ -508,7 +541,7 @@ const fieldCls =
         <div
           v-for="(tbl, ti) in form.detailTables"
           :key="ti"
-          class="flex flex-col gap-2 p-3 rounded-xl border border-n-weak bg-n-solid-1/60"
+          class="flex flex-col gap-2 p-3 rounded-xl border border-n-weak bg-n-solid-1"
         >
           <div class="flex items-center gap-2">
             <input
@@ -535,7 +568,7 @@ const fieldCls =
           </div>
           <HScrollButtons />
           <div class="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-            <table class="w-full text-sm border-collapse min-w-[480px]">
+            <table class="w-full text-label border-collapse min-w-[480px]">
               <thead>
                 <tr class="border-b border-n-weak">
                   <th
@@ -597,28 +630,34 @@ const fieldCls =
             />
           </div>
         </div>
-        <p v-if="!form.detailTables.length" class="text-xs text-n-slate-10">
+        <p
+          v-if="!form.detailTables.length"
+          class="text-label-small text-n-slate-10"
+        >
           {{ t('CRM.KPI_SCHEMES.TABLES.EMPTY') }}
         </p>
       </section>
 
       <!-- 月度数据统计（参考，不计分）：仅业务考核（含 CRM 数据源指标）显示 -->
-      <section v-if="showStats" class="flex flex-col gap-3">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
+      <section
+        v-if="showStats"
+        class="flex min-w-0 flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+      >
+        <h2 class="text-heading-2 text-n-slate-12">
           {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_STATS') }}
-        </div>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        </h2>
+        <div
+          class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7"
+        >
           <div
             v-for="[k, src] in STAT_KEYS"
             :key="k"
-            class="p-3 rounded-xl border border-n-weak bg-n-solid-1/60"
+            class="p-3 rounded-xl border border-n-weak bg-n-solid-1"
           >
-            <div class="text-xs text-n-slate-10">
+            <div class="text-label-small text-n-slate-10">
               {{ t(`CRM.KPI_SCHEMES.STATS.${k}`) }}
             </div>
-            <div class="mt-1 text-sm font-medium text-n-slate-11">
+            <div class="mt-1 text-label text-n-slate-11">
               {{ t(`CRM.KPI_SCHEMES.STATS.${src}`) }}
             </div>
           </div>
@@ -626,13 +665,13 @@ const fieldCls =
       </section>
 
       <!-- 发放系数档 -->
-      <section class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div
-            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
+      <section
+        class="flex min-w-0 flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-heading-2 text-n-slate-12">
             {{ t('CRM.KPI_SCHEMES.TIERS.TITLE') }}
-          </div>
+          </h2>
           <Button
             :label="t('CRM.KPI_SCHEMES.TIERS.ADD')"
             icon="i-lucide-plus"
@@ -644,7 +683,7 @@ const fieldCls =
         </div>
         <HScrollButtons />
         <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <table class="w-full text-sm border-collapse min-w-[640px]">
+          <table class="w-full text-label border-collapse min-w-[640px]">
             <thead class="text-n-slate-11">
               <tr class="border-b border-n-weak">
                 <th class="px-2 py-1.5 font-medium text-left">
@@ -717,29 +756,29 @@ const fieldCls =
       <!-- 规则 & 结果应用 -->
       <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <label
-          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+          class="flex min-w-0 flex-col gap-3 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
         >
-          <span class="text-sm font-medium text-n-slate-12">{{
+          <span class="text-label text-n-slate-12">{{
             t('CRM.KPI_SCHEMES.EDITOR.SECTION_RULES')
           }}</span>
           <textarea
             v-model="form.payoutNote"
             rows="5"
             :class="fieldCls"
-            class="!h-auto py-2 leading-relaxed"
+            class="!h-auto resize-y py-3 leading-relaxed"
           />
         </label>
         <label
-          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+          class="flex min-w-0 flex-col gap-3 rounded-2xl border border-n-weak bg-n-solid-1 p-4 lg:p-5"
         >
-          <span class="text-sm font-medium text-n-slate-12">{{
+          <span class="text-label text-n-slate-12">{{
             t('CRM.KPI_SCHEMES.EDITOR.SECTION_RESULT')
           }}</span>
           <textarea
             v-model="form.resultNote"
             rows="5"
             :class="fieldCls"
-            class="!h-auto py-2 leading-relaxed"
+            class="!h-auto resize-y py-3 leading-relaxed"
           />
         </label>
       </section>

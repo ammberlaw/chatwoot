@@ -281,6 +281,15 @@ const firstDeptId = () =>
 // 按月筛 + 翻页。后端一页 20 条，而库里已经 100 张单——原来前端固定传 page:1
 // 又没有翻页器，「抄送我的 54」实际只看得见最新 20 条，九月那 49 张一张都翻不到。
 const monthFilter = ref('');
+const statusFilter = ref('');
+// 复用 STATUS_META 的文案，列表角标和筛选器永远一个说法。
+const STATUS_OPTIONS = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(STATUS_META).map(([value, m]) => ({
+    value,
+    label: m.label,
+  })),
+];
 const page = ref(1);
 const total = ref(0);
 const PER_PAGE = 20;
@@ -290,6 +299,7 @@ const fetchRequests = async () => {
     filter: activeTab.value,
     page: page.value,
     ...(monthFilter.value ? { month: monthFilter.value } : {}),
+    ...(statusFilter.value ? { status: statusFilter.value } : {}),
   });
   requests.value = data.payload || [];
   total.value = data.meta?.count || 0;
@@ -297,6 +307,12 @@ const fetchRequests = async () => {
 
 // 换月份/换页签都要回到第 1 页：留在第 3 页筛十月，很可能直接落到空列表上。
 const onMonthChange = () => {
+  page.value = 1;
+  selected.value = null;
+  fetchRequests();
+};
+
+const onStatusChange = () => {
   page.value = 1;
   selected.value = null;
   fetchRequests();
@@ -592,7 +608,9 @@ const openFocusedRequest = async () => {
   try {
     await openRequest({ id });
   } catch (e) {
-    useAlert(e?.response?.data?.error || '无法打开审批单，请确认是否有查看权限');
+    useAlert(
+      e?.response?.data?.error || '无法打开审批单，请确认是否有查看权限'
+    );
   }
 };
 watch(() => route.query.focus, openFocusedRequest);
@@ -639,7 +657,9 @@ onMounted(async () => {
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <h1
+        class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
         {{ L.header }}
       </h1>
       <Button
@@ -656,10 +676,11 @@ onMounted(async () => {
         class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[420px] border-n-weak bg-n-solid-1"
         :class="selected ? 'hidden' : 'flex'"
       >
-        <!-- 四个 tab 要塞进左栏：带角标时原来会被压到「待我审 / 批」两行。
-             故一律不换行 + 不被压缩，栏宽放到 420px；真放不下（窄屏/更多 tab）就横向滚，不再折行。 -->
+        <!-- 四个 tab 平分整行（page-block = 槽满宽 + 按钮 flex:1），别让灰槽只包住左边一截。
+             420px 栏宽下每个 tab 约 100px，带角标的「待我审批 4」刚好放得下；
+             一律不换行，真放不下（窄屏/更多 tab）就横向滚，不折行。 -->
         <div class="px-2 overflow-x-auto border-b border-n-weak">
-          <div data-tabbar="page" class="whitespace-nowrap">
+          <div data-tabbar="page-block" class="whitespace-nowrap">
             <button
               v-for="tab in TABS"
               :key="tab.key"
@@ -683,9 +704,17 @@ onMounted(async () => {
         >
           <MonthPicker
             v-model="monthFilter"
+            tone="slate"
             trigger-class="w-36 h-8"
             placeholder="全部月份"
             @change="onMonthChange"
+          />
+          <SelectCard
+            v-model="statusFilter"
+            :options="STATUS_OPTIONS"
+            trigger-class="w-28 !h-8"
+            placeholder="全部状态"
+            @update:model-value="onStatusChange"
           />
           <span v-if="total" class="text-label-small text-n-slate-11">
             共 {{ total }} 条
@@ -696,7 +725,7 @@ onMounted(async () => {
             v-if="!requests.length"
             class="p-8 text-sm text-center text-n-slate-10"
           >
-            {{ monthFilter ? `${monthFilter} 没有审批单` : L.empty }}
+            {{ monthFilter || statusFilter ? '没有符合条件的审批单' : L.empty }}
           </div>
           <button
             v-for="row in requests"

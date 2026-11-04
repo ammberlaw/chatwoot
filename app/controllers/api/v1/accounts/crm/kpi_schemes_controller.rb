@@ -48,7 +48,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
   # 复制方案：整份拷贝（含指标/发放档/明细表），名字加「(副本)」，状态回草稿、创建人=当前用户。
   def duplicate
     copy = Current.account.crm_kpi_schemes.new(
-      @scheme.attributes.slice('scheme_month', 'pass_score', 'item_score_cap_pct',
+      @scheme.attributes.slice('scheme_month', 'pass_score', 'item_score_cap_pct', 'total_score_cap',
                                'payout_note', 'result_note', 'detail_tables')
     )
     copy.name = "#{@scheme.name} (副本)"
@@ -85,6 +85,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
       crm_kpi_scheme_id: @scheme.id, owner_id: owner_id, scheme_name: @scheme.name,
       period_month: month, status: 'PENDING', pass_score: @scheme.pass_score,
       item_score_cap_pct: @scheme.item_score_cap_pct,
+      total_score_cap: @scheme.total_score_cap,
       payout_note: @scheme.payout_note, result_note: @scheme.result_note,
       monthly_salary_micros: comp&.monthly_salary_micros, performance_ratio: comp&.performance_ratio,
       baseline_target_micros: comp&.baseline_target_micros
@@ -110,7 +111,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
   end
 
   def scalar_params
-    params.require(:scheme).permit(:name, :scheme_month, :pass_score, :item_score_cap_pct, :payout_note, :result_note, :status)
+    params.require(:scheme).permit(:name, :scheme_month, :pass_score, :item_score_cap_pct, :total_score_cap, :payout_note, :result_note, :status)
   end
 
   # 明细表结构自由（JSONB），逐层收敛成 title/columns/rows 纯字符串结构。

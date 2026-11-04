@@ -147,9 +147,16 @@ const deadlineText = computed(() => {
   return `${deadline.getMonth() + 1}月${deadline.getDate()}号`;
 });
 
-const totalScore = computed(() =>
-  items.value.reduce((s, i) => s + (Number(i.score) || 0), 0)
-);
+// 分母：设了总分上限就按它显示，否则是权重合计 100。
+// 上限 150 的方案显示「120 / 100」会让人以为算错了。
+const scoreDenominator = computed(() => sheet.value?.totalScoreCap || 100);
+
+// 总分上限：各项相加后整体截断，与后端 KpiSheet#recompute_payout! 同口径。
+const totalScore = computed(() => {
+  const raw = items.value.reduce((s, i) => s + (Number(i.score) || 0), 0);
+  const cap = sheet.value?.totalScoreCap;
+  return cap ? Math.min(raw, cap) : raw;
+});
 const hasSuggestions = computed(() =>
   items.value.some(i => i.suggestedScore != null)
 );
@@ -803,6 +810,7 @@ const inCls =
                 <strong class="ml-2 tabular-nums">{{
                   t('CRM.KPI_SHEETS.UI.TOTAL_VALUE', {
                     score: hasScores ? totalScore : '—',
+                    total: scoreDenominator,
                   })
                 }}</strong></span
               >

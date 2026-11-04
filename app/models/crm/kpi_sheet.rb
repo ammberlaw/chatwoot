@@ -29,6 +29,7 @@
 #  scheme_name             :string
 #  status                  :string           default("PENDING"), not null
 #  total_score             :decimal(7, 2)
+#  total_score_cap         :integer
 #  created_at              :datetime         not null
 #  updated_at              :datetime         not null
 #  account_id              :bigint           not null
@@ -82,7 +83,10 @@ class Crm::KpiSheet < ApplicationRecord
   # 重算总分与绩效发放（打分后调用）。金额整数微分，系数保留 3 位。
   # 试用期员工只算考核得分、不发绩效薪资：基数/系数/实发一律清空。
   def recompute_payout!
-    self.total_score = sheet_items.sum { |i| i.score || 0 }
+    # 总分上限：各项相加后整体截断（留空=不封顶）。单项上限管不住这件事——
+    # 其余项没拿满的人，可以靠业绩超额把总分顶上来，整体仍不超过这个数。
+    raw = sheet_items.sum { |i| i.score || 0 }
+    self.total_score = total_score_cap ? [raw, total_score_cap].min : raw
     return clear_payout! if probation?
 
     base = ((monthly_salary_micros || 0) * (performance_ratio || 0) / 100.0).round

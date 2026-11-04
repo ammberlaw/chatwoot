@@ -193,7 +193,16 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
             when 'cc' then cc_scope
             else Current.account.oa_approval_requests.applied_by(current_user.id)
             end
-    by_month(scope)
+    by_status(by_month(scope))
+  end
+
+  # 按状态筛。只认已知的四个值，别的（含空串）一律当没筛——
+  # 前端传个拼错的状态不该静默返回空列表。
+  def by_status(scope)
+    status = params[:status].to_s.strip
+    return scope unless Oa::ApprovalRequest::STATUSES.include?(status)
+
+    scope.where(status: status)
   end
 
   # 按月筛（YYYY-MM）。一页 20 条、库里已经 100 张单，不按月筛就只能看见最新那 20 条——

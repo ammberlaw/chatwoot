@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_120100) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_03_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1576,6 +1576,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_120100) do
     t.text "result_note"
     t.bigint "created_by_id"
     t.jsonb "detail_tables", default: [], null: false
+    t.integer "total_score_cap"
     t.index ["account_id", "scheme_month"], name: "index_crm_kpi_schemes_on_account_id_and_scheme_month"
     t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
     t.index ["created_by_id"], name: "index_crm_kpi_schemes_on_created_by_id"
@@ -1636,6 +1637,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_120100) do
     t.bigint "paid_by_id"
     t.text "payout_note"
     t.text "result_note"
+    t.integer "total_score_cap"
     t.index ["account_id", "period_month"], name: "index_crm_kpi_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_kpi_sheets_on_account_id"
     t.index ["crm_kpi_scheme_id", "owner_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id_and_owner_id"

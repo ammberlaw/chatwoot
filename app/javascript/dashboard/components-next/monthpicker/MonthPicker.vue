@@ -12,8 +12,22 @@ const props = defineProps({
   triggerClass: { type: String, default: 'w-40 h-10' },
   block: { type: Boolean, default: false }, // true=触发器占满父容器宽（表单用）
   clearable: { type: Boolean, default: true }, // 必填场景（看板/目标）关掉「清除」
+  // 'iris'=紫玻璃（默认，全站现状）；'slate'=黑白灰，给去彩色的页面用。
+  tone: { type: String, default: 'iris' },
 });
 const emit = defineEmits(['update:modelValue', 'change']);
+
+const isSlate = computed(() => props.tone === 'slate');
+const selectedCls = computed(() =>
+  isSlate.value
+    ? 'bg-n-slate-12 text-n-solid-1 font-medium shadow-sm shadow-n-slate-12/25'
+    : 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+);
+const currentCls = computed(() =>
+  isSlate.value
+    ? 'text-n-slate-12 bg-n-slate-3 hover:bg-n-slate-4'
+    : 'text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4'
+);
 
 const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']; // prettier-ignore
 const POP_W = 240; // 弹层宽度 w-60 = 15rem
@@ -174,9 +188,9 @@ const isCurrent = month => viewYear.value === curYear && curMonth === month;
               class="h-9 text-sm rounded-lg transition-colors tabular-nums"
               :class="
                 isSelected(i + 1)
-                  ? 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+                  ? selectedCls
                   : isCurrent(i + 1)
-                    ? 'text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4'
+                    ? currentCls
                     : 'text-n-slate-12 hover:bg-n-alpha-2'
               "
               @click="pick(i + 1)"

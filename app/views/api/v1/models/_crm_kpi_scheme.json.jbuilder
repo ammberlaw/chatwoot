@@ -3,6 +3,7 @@ json.name resource.name
 json.scheme_month resource.scheme_month
 json.pass_score resource.pass_score
 json.item_score_cap_pct resource.item_score_cap_pct
+json.total_score_cap resource.total_score_cap
 json.payout_note resource.payout_note
 json.result_note resource.result_note
 json.status resource.status

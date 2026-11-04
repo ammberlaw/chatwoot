@@ -737,6 +737,7 @@
       }
     },
     "KPI_SCHEMES": {
+      "DUPLICATE": "复制方案",
       "HEADER": "考核方案",
       "NEW": "新建方案",
       "LOADING": "加载中…",
@@ -766,6 +767,7 @@
         "MONTH": "考核月份",
         "PASS_SCORE": "及格分",
         "CAP_PCT": "单项计分上限(%)",
+        "TOTAL_CAP": "考核总分上限",
         "STATUS": "状态",
         "PAYOUT_NOTE": "发放说明"
       },
@@ -888,7 +890,7 @@
     "KPI_SHEETS": {
       "UI": {
         "ACTOR_DATE": "（{name} · {date}）",
-        "TOTAL_VALUE": "{score} / 100",
+        "TOTAL_VALUE": "{score} / {total}",
         "MORE": "更多",
         "PRINT": "打印",
         "FORWARD": "转发到团队沟通",

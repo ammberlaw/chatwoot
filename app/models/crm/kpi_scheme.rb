@@ -6,14 +6,15 @@
 # Table name: crm_kpi_schemes
 #
 #  id                 :bigint           not null, primary key
+#  detail_tables      :jsonb            not null
 #  item_score_cap_pct :integer          default(120)
 #  name               :string           not null
 #  pass_score         :integer          default(70)
 #  payout_note        :text
 #  result_note        :text
-#  detail_tables      :jsonb            not null
 #  scheme_month       :datetime         not null
 #  status             :string           default("DRAFT"), not null
+#  total_score_cap    :integer
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
 #  account_id         :bigint           not null
