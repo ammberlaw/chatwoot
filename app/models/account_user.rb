@@ -180,7 +180,7 @@ class AccountUser < ApplicationRecord
   after_create_commit :notify_creation, :create_notification_setting
   # 新同事进来自动拉进公司总群（见 Chat::CompanyGroupSync）——原先靠人记得手工拉。
   after_create_commit :join_company_groups
-  after_destroy :notify_deletion, :remove_user_from_account, :discard_personal_crm_docs
+  after_destroy :notify_deletion, :remove_user_from_account, :cleanup_personal_crm_data
   after_save :update_presence_in_redis, if: :saved_change_to_availability?
 
   validates :user_id, uniqueness: { scope: :account_id }
@@ -215,6 +215,12 @@ class AccountUser < ApplicationRecord
   # 能否查看 TikTok 利润表（含成本/毛利/净利）：管理层/财务，或 TK 部门负责人；普通成员不可见。
   def can_view_tiktok_profit?
     Tiktok::AccessScope.new(account, self).can_view_profit?
+  end
+
+  # 能否新增 TikTok 店铺：管理层，或 TK 部门负责人（他建的店自动挂自己部门）。
+  # 只管「增」——改名/删除/改部门归属仍只有管理层能做。
+  def can_create_tiktok_shop?
+    Tiktok::AccessScope.new(account, self).can_create_shop?
   end
 
   # 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。
@@ -303,10 +309,11 @@ class AccountUser < ApplicationRecord
   end
 
   # 成员被移除（离职删号）后，其个人文档自动进入文档回收站，避免变成谁也看不到的孤儿数据。
-  def discard_personal_crm_docs
-    account.crm_knowledge_docs.kept.where(scope: 'PERSONAL', owner_id: user_id).find_each do |doc|
-      doc.discard!(user_id)
-    end
+  # 人移出公司时的个人数据收尾：个人文档进回收站、名下邮箱停止收信。
+  def cleanup_personal_crm_data
+    account.crm_knowledge_docs.kept.where(scope: 'PERSONAL', owner_id: user_id)
+           .find_each { |doc| doc.discard!(user_id) }
+    Crm::MailAccount.deactivate_owned_by(account, user_id)
   end
 
   def permissions

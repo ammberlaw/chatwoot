@@ -1,6 +1,7 @@
 # TikTok 店铺：录入下拉数据源。列表按可见范围收口；增删改+部门归属仅管理员/副管理员。
 class Api::V1::Accounts::Tiktok::ShopsController < Api::V1::Accounts::Tiktok::BaseController
-  before_action :ensure_manage, only: %i[create update destroy]
+  before_action :ensure_create_shop, only: %i[create]
+  before_action :ensure_manage, only: %i[update destroy]
   before_action :fetch_shop, only: %i[update destroy]
 
   def index
@@ -12,7 +13,12 @@ class Api::V1::Accounts::Tiktok::ShopsController < Api::V1::Accounts::Tiktok::Ba
   end
 
   def create
-    @shop = Current.account.tiktok_shops.create!(shop_params.merge(position: next_position))
+    attrs = shop_params.merge(position: next_position)
+    # 部门负责人建的店铺强制挂自己部门：既免得建完还要管理员去挂，
+    # 也堵住「把店铺建到别人部门底下」。管理员不受限。
+    forced = tiktok_scope.default_shop_department_id
+    attrs[:department_id] = forced if forced
+    @shop = Current.account.tiktok_shops.create!(attrs)
     render :show
   end
 
@@ -32,6 +38,12 @@ class Api::V1::Accounts::Tiktok::ShopsController < Api::V1::Accounts::Tiktok::Ba
   end
 
   private
+
+  def ensure_create_shop
+    return if tiktok_scope.can_create_shop?
+
+    render json: { error: '仅管理员/副管理员/部门负责人可新增店铺' }, status: :forbidden
+  end
 
   def fetch_shop
     @shop = Current.account.tiktok_shops.find(params[:id])

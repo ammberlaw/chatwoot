@@ -41,7 +41,10 @@ const expanded = ref(null);
 const materials = ref({ items: [] });
 const materialsLoading = ref(false);
 const materialTotal = computed(() =>
-  materials.value.items.reduce((sum, m) => sum + Number(m.amount_micros || 0), 0)
+  materials.value.items.reduce(
+    (sum, m) => sum + Number(m.amount_micros || 0),
+    0
+  )
 );
 
 const toggleMaterials = async row => {
@@ -55,7 +58,8 @@ const toggleMaterials = async row => {
   try {
     const { data } = await ErpBomCostAPI.materials(row.id);
     // 拉回来时用户可能已经点开别行了，丢弃过期响应
-    if (expanded.value === row.id) materials.value = data.payload || { items: [] };
+    if (expanded.value === row.id)
+      materials.value = data.payload || { items: [] };
   } catch {
     if (expanded.value === row.id) materials.value = { items: [] };
   } finally {
@@ -116,9 +120,13 @@ const exportList = async () => {
           { label: '商品编码', key: 'sku' },
           { label: '产品名称', key: 'product_name' },
           { label: '规格型号', key: 'specification' },
+          { label: '材料成本', key: 'material_cost_micros', money: true },
           { label: '人工费', key: 'process_fee_micros', money: true },
           { label: '制造费用', key: 'overhead_fee_micros', money: true },
+          { label: '包装成本', key: 'packaging_cost_micros', money: true },
           { label: '合计单价', key: 'unit_cost_micros', money: true },
+          { label: '成本来源', key: 'cost_source_label' },
+          { label: '成本基准日', key: 'cost_as_of' },
           { label: '备注', key: 'remark' },
           { label: '最近修改', key: 'updated_by_name' },
         ],
@@ -139,8 +147,10 @@ const editingId = ref(null);
 const saving = ref(false);
 const blankForm = () => ({
   crmProductId: '',
+  materialCost: '',
   processFee: '',
   overheadFee: '',
+  packagingCost: '',
   remark: '',
 });
 const form = reactive(blankForm());
@@ -175,8 +185,10 @@ const openEdit = row => {
   editingId.value = row.id;
   Object.assign(form, {
     crmProductId: String(row.crm_product_id),
+    materialCost: toYuan(row.material_cost_micros),
     processFee: toYuan(row.process_fee_micros),
     overheadFee: toYuan(row.overhead_fee_micros),
+    packagingCost: toYuan(row.packaging_cost_micros),
     remark: row.remark || '',
   });
   productOptions.value = [
@@ -197,8 +209,10 @@ const submit = async () => {
   const payload = {
     bom_cost: {
       crm_product_id: Number(form.crmProductId),
+      material_cost_micros: toMicros(form.materialCost),
       process_fee_micros: toMicros(form.processFee),
       overhead_fee_micros: toMicros(form.overheadFee),
+      packaging_cost_micros: toMicros(form.packagingCost),
       remark: form.remark,
     },
   };
@@ -413,10 +427,16 @@ onMounted(load);
             <th class="px-3 py-2 font-medium whitespace-nowrap">产品名称</th>
             <th class="px-3 py-2 font-medium whitespace-nowrap">规格型号</th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+              材料成本
+            </th>
+            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
               人工费
             </th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
               制造费用
+            </th>
+            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+              包装成本
             </th>
             <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
               合计单价
@@ -428,98 +448,139 @@ onMounted(load);
         </thead>
         <tbody>
           <template v-for="row in rows" :key="row.id">
-          <tr
-            class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-            @click="toggleMaterials(row)"
-          >
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              <span
-                class="inline-block mr-1 size-3 align-middle text-n-slate-10"
-                :class="expanded === row.id ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
-              />{{ row.sku }}</td>
-            <td class="px-3 py-2 text-n-slate-12">{{ row.product_name }}</td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ row.specification || '—' }}
-            </td>
-            <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
-              {{ money(row.process_fee_micros) }}
-            </td>
-            <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
-              {{ money(row.overhead_fee_micros) }}
-            </td>
-            <td
-              class="px-3 py-2 font-medium text-right tabular-nums text-n-slate-12"
+            <tr
+              class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+              @click="toggleMaterials(row)"
             >
-              {{ money(row.unit_cost_micros) }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">{{ row.remark || '—' }}</td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ row.updated_by_name || '—' }}
-            </td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">
-              <template v-if="canWrite">
-                <Button
-                  label="编辑"
-                  variant="ghost"
-                  size="sm"
-                  @click="openEdit(row)"
-                />
-                <Button
-                  label="删除"
-                  variant="ghost"
-                  color="ruby"
-                  size="sm"
-                  @click="remove(row)"
-                />
-              </template>
-            </td>
-          </tr>
-          <!-- 展开：这个成品编码下的物料与料价。
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                <span
+                  class="inline-block mr-1 size-3 align-middle text-n-slate-10"
+                  :class="
+                    expanded === row.id
+                      ? 'i-lucide-chevron-down'
+                      : 'i-lucide-chevron-right'
+                  "
+                />{{ row.sku }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-12">{{ row.product_name }}</td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ row.specification || '—' }}
+              </td>
+              <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
+                {{ money(row.material_cost_micros) }}
+              </td>
+              <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
+                {{ money(row.process_fee_micros) }}
+              </td>
+              <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
+                {{ money(row.overhead_fee_micros) }}
+              </td>
+              <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
+                {{ money(row.packaging_cost_micros) }}
+              </td>
+              <td
+                class="px-3 py-2 font-medium text-right tabular-nums text-n-slate-12"
+              >
+                {{ money(row.unit_cost_micros) }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">{{ row.remark || '—' }}</td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ row.updated_by_name || '—' }}
+              </td>
+              <td class="px-3 py-2 text-right whitespace-nowrap">
+                <template v-if="canWrite">
+                  <Button
+                    label="编辑"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEdit(row)"
+                  />
+                  <Button
+                    label="删除"
+                    variant="ghost"
+                    color="ruby"
+                    size="sm"
+                    @click="remove(row)"
+                  />
+                </template>
+              </td>
+            </tr>
+            <!-- 展开：这个成品编码下的物料与料价。
                生产上 161 个编码里只有 18 个真做过 BOM，所以没有的要明说
                「还没做 BOM」，摆一片空白会让人以为是没加载出来。 -->
-          <tr v-if="expanded === row.id">
-            <td colspan="9" class="px-3 py-2 bg-n-alpha-1">
-              <div v-if="materialsLoading" class="text-xs text-n-slate-11">
-                加载中…
-              </div>
-              <div v-else-if="!materials.items.length" class="text-xs text-n-slate-11">
-                这个商品编码还没做过 BOM，所以没有物料清单。做了生产任务单之后这里就有了。
-              </div>
-              <template v-else>
-                <div class="mb-1 text-xs text-n-slate-10">
-                  来自 {{ materials.bom_no || 'BOM' }}
-                  <span v-if="materials.base_qty">（基准用量 {{ materials.base_qty }}）</span>
-                  <span v-if="!materials.is_default">· 非默认 BOM，仅供参考</span>
+            <tr v-if="expanded === row.id">
+              <td colspan="9" class="px-3 py-2 bg-n-alpha-1">
+                <div v-if="materialsLoading" class="text-xs text-n-slate-11">
+                  加载中…
                 </div>
-                <table class="w-full text-xs">
-                  <thead>
-                    <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                      <th class="px-2 py-1 font-medium">物料编码</th>
-                      <th class="px-2 py-1 font-medium">物料名称</th>
-                      <th class="px-2 py-1 font-medium">规格</th>
-                      <th class="px-2 py-1 font-medium text-right">用量</th>
-                      <th class="px-2 py-1 font-medium text-right">单价</th>
-                      <th class="px-2 py-1 font-medium text-right">金额</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(m, i) in materials.items" :key="`m-${i}`" class="border-b border-n-weak">
-                      <td class="px-2 py-1 font-mono text-n-slate-12">{{ m.material_no || '—' }}</td>
-                      <td class="px-2 py-1 text-n-slate-12">{{ m.material_name || '—' }}</td>
-                      <td class="px-2 py-1 text-n-slate-11">{{ m.specification || '—' }}</td>
-                      <td class="px-2 py-1 text-right tabular-nums">{{ m.qty }}{{ m.unit || '' }}</td>
-                      <td class="px-2 py-1 text-right tabular-nums">{{ money(m.rate_micros) }}</td>
-                      <td class="px-2 py-1 text-right tabular-nums text-n-slate-12">{{ money(m.amount_micros) }}</td>
-                    </tr>
-                    <tr class="font-medium">
-                      <td class="px-2 py-1" colspan="5">材料合计</td>
-                      <td class="px-2 py-1 text-right tabular-nums">{{ money(materialTotal) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </template>
-            </td>
-          </tr>
+                <div
+                  v-else-if="!materials.items.length"
+                  class="text-xs text-n-slate-11"
+                >
+                  这个商品编码还没做过
+                  BOM，所以没有物料清单。做了生产任务单之后这里就有了。
+                </div>
+                <template v-else>
+                  <div class="mb-1 text-xs text-n-slate-10">
+                    来自 {{ materials.bom_no || 'BOM' }}
+                    <span v-if="materials.base_qty"
+                      >（基准用量 {{ materials.base_qty }}）</span
+                    >
+                    <span v-if="!materials.is_default"
+                      >· 非默认 BOM，仅供参考</span
+                    >
+                  </div>
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr
+                        class="text-left border-b text-n-slate-11 border-n-weak"
+                      >
+                        <th class="px-2 py-1 font-medium">物料编码</th>
+                        <th class="px-2 py-1 font-medium">物料名称</th>
+                        <th class="px-2 py-1 font-medium">规格</th>
+                        <th class="px-2 py-1 font-medium text-right">用量</th>
+                        <th class="px-2 py-1 font-medium text-right">单价</th>
+                        <th class="px-2 py-1 font-medium text-right">金额</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(m, i) in materials.items"
+                        :key="`m-${i}`"
+                        class="border-b border-n-weak"
+                      >
+                        <td class="px-2 py-1 font-mono text-n-slate-12">
+                          {{ m.material_no || '—' }}
+                        </td>
+                        <td class="px-2 py-1 text-n-slate-12">
+                          {{ m.material_name || '—' }}
+                        </td>
+                        <td class="px-2 py-1 text-n-slate-11">
+                          {{ m.specification || '—' }}
+                        </td>
+                        <td class="px-2 py-1 text-right tabular-nums">
+                          {{ m.qty }}{{ m.unit || '' }}
+                        </td>
+                        <td class="px-2 py-1 text-right tabular-nums">
+                          {{ money(m.rate_micros) }}
+                        </td>
+                        <td
+                          class="px-2 py-1 text-right tabular-nums text-n-slate-12"
+                        >
+                          {{ money(m.amount_micros) }}
+                        </td>
+                      </tr>
+                      <tr class="font-medium">
+                        <td class="px-2 py-1" colspan="5">材料合计</td>
+                        <td class="px-2 py-1 text-right tabular-nums">
+                          {{ money(materialTotal) }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </template>
+              </td>
+            </tr>
           </template>
           <tr v-if="!rows.length && !loading">
             <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
@@ -573,12 +634,20 @@ onMounted(load);
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">材料成本（元/个）</label>
+            <Input v-model="form.materialCost" type="number" placeholder="0" />
+          </div>
+          <div class="flex flex-col gap-1">
             <label class="text-label text-n-slate-12">人工费（元/个）</label>
             <Input v-model="form.processFee" type="number" placeholder="0" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-label text-n-slate-12">制造费用（元/个）</label>
             <Input v-model="form.overheadFee" type="number" placeholder="0" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-label text-n-slate-12">包装成本（元/个）</label>
+            <Input v-model="form.packagingCost" type="number" placeholder="0" />
           </div>
         </div>
         <div class="flex flex-col gap-1">
@@ -642,7 +711,11 @@ onMounted(load);
         </div>
 
         <div
-          v-if="ohResult && ohResult.finished_qty && !Number(ohResult.overhead_micros)"
+          v-if="
+            ohResult &&
+            ohResult.finished_qty &&
+            !Number(ohResult.overhead_micros)
+          "
           class="p-3 text-sm border rounded-lg border-n-amber-8 bg-n-amber-3 text-n-amber-11"
         >
           {{ ohPeriod }} 没有已过账的 5101 制造费用凭证
@@ -664,14 +737,10 @@ onMounted(load);
               >
                 <th class="px-3 py-2 font-medium whitespace-nowrap">订单号</th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">产品</th>
-                <th
-                  class="px-3 py-2 font-medium text-right whitespace-nowrap"
-                >
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
                   完工入库
                 </th>
-                <th
-                  class="px-3 py-2 font-medium text-right whitespace-nowrap"
-                >
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
                   分摊金额
                 </th>
               </tr>
@@ -682,10 +751,15 @@ onMounted(load);
                 :key="r.production_order_id"
                 class="border-b border-n-weak"
               >
-                <td class="px-3 py-2 font-medium whitespace-nowrap text-n-slate-12">
+                <td
+                  class="px-3 py-2 font-medium whitespace-nowrap text-n-slate-12"
+                >
                   {{ r.order_no || '—' }}
                 </td>
-                <td class="px-3 py-2 truncate max-w-[16rem]" :title="r.product_name">
+                <td
+                  class="px-3 py-2 truncate max-w-[16rem]"
+                  :title="r.product_name"
+                >
                   {{ r.product_name || '—' }}
                 </td>
                 <td class="px-3 py-2 text-right tabular-nums whitespace-nowrap">

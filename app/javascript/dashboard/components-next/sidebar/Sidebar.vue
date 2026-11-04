@@ -88,6 +88,10 @@ const canAccessTiktok = computed(
 const tiktokCanManage = computed(
   () => currentUser.value?.tiktok_can_manage === true
 );
+// TK 店铺设置：管理层 + 部门负责人（负责人只能新增，改名/删除后端仍拦）。
+const tiktokCanCreateShop = computed(
+  () => currentUser.value?.tiktok_can_create_shop === true
+);
 // TK 利润表（含成本/毛利/净利）仅部门负责人与财务/管理层可见（后端 403 兜底）。
 const tiktokCanViewProfit = computed(
   () => currentUser.value?.tiktok_can_view_profit === true
@@ -1167,7 +1171,7 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
-          ...(tiktokCanManage.value
+          ...(tiktokCanCreateShop.value
             ? [
                 {
                   name: 'TikTok Shop Settings',
@@ -1175,6 +1179,10 @@ const menuItems = computed(() => {
                   to: accountScopedRoute('tiktok_shop_settings_index'),
                   activeOn: ['tiktok_shop_settings_index'],
                 },
+              ]
+            : []),
+          ...(tiktokCanManage.value
+            ? [
                 {
                   name: 'TikTok Departments',
                   label: t('SIDEBAR.TIKTOK_DEPARTMENTS'),

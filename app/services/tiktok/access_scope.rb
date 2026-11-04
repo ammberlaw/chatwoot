@@ -23,6 +23,21 @@ class Tiktok::AccessScope
     @au&.administrator? || @au&.crm_deputy_admin? || false
   end
 
+  # 能否新增店铺：管理员/副管，或任一 TK 部门的负责人（用户 2026-11-04 要求放开）。
+  # 注意只放开「增」——改名/删除/改部门归属仍只有管理员能做（见 ShopsController）。
+  def can_create_shop?
+    can_manage? || led_department_ids.any?
+  end
+
+  # 新店铺默认落到哪个部门：管理员不限（nil＝由入参决定），
+  # 部门负责人一律落到自己负责的部门，不给他把店铺建到别人部门底下的机会。
+  # 实际没有人同时负责两个部门，取第一个即可。
+  def default_shop_department_id
+    return nil if can_manage?
+
+    led_department_ids.first
+  end
+
   # 读范围：:all 或可见 shop_id 数组。
   def visible_shop_ids
     return :all if all_access?

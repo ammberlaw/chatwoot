@@ -76,6 +76,14 @@ class Crm::MailAccount < ApplicationRecord
   # 可收件账户：启用 + 已开收件 + 有密码（收件复用 smtp_password 认证）。含 IMAP 与 POP3 两种协议。
   scope :imap_active, -> { active.where(imap_enabled: true).where.not(smtp_password: [nil, '']) }
 
+  # 成员被移出公司时停掉他名下的邮箱（见 AccountUser#cleanup_personal_crm_data）。
+  # 人走了邮箱密码通常也停了，留着 active 只会让 Sidekiq 每轮去连、每轮认证失败刷满日志。
+  # 只停不删：历史邮件要留着查，界面上可以改回来。
+  def self.deactivate_owned_by(account, user_id)
+    account.crm_mail_accounts.where(owner_id: user_id, is_active: true)
+           .update_all(is_active: false, imap_enabled: false, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
+
   # 同事邮箱 → 本人。公司业务邮箱（sales98@wintouchcn.com）跟登录邮箱（huwenyu@wintouchgroup.com）
   # 多半不是同一个，只按 users.email 认人会把同事认成「陌生人」。这里按各人在系统里配的收发邮箱补认一层。
   # 返回 { 小写邮箱地址 => 显示名 }，供邮箱身份识别与列表头像着色共用一套口径。

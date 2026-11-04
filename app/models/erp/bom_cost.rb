@@ -13,15 +13,19 @@
 #
 # Table name: erp_bom_costs
 #
-#  id                  :bigint           not null, primary key
-#  overhead_fee_micros :bigint           default(0), not null
-#  process_fee_micros  :bigint           default(0), not null
-#  remark              :text
-#  created_at          :datetime         not null
-#  updated_at          :datetime         not null
-#  account_id          :bigint           not null
-#  crm_product_id      :bigint           not null
-#  updated_by_id       :bigint
+#  id                    :bigint           not null, primary key
+#  cost_as_of            :date
+#  cost_source           :string
+#  material_cost_micros  :bigint           default(0), not null
+#  overhead_fee_micros   :bigint           default(0), not null
+#  packaging_cost_micros :bigint           default(0), not null
+#  process_fee_micros    :bigint           default(0), not null
+#  remark                :text
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  account_id            :bigint           not null
+#  crm_product_id        :bigint           not null
+#  updated_by_id         :bigint
 #
 # Indexes
 #
@@ -37,6 +41,9 @@
 #  fk_rails_...  (updated_by_id => users.id) ON DELETE => nullify
 #
 class Erp::BomCost < ApplicationRecord
+  # 常量必须在 validates 之前定义——类体是顺序执行的，写在后面会 NameError。
+  COST_SOURCES = { 'MANUAL' => '人工维护', 'PURCHASE' => '采购单同步' }.freeze
+
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product'
   belongs_to :updated_by, class_name: 'User', optional: true
@@ -46,11 +53,23 @@ class Erp::BomCost < ApplicationRecord
   # rubocop:disable Rails/I18nLocaleTexts
   validates :crm_product_id, uniqueness: { scope: :account_id, message: '这个商品编码已经有一条了，直接改那条' }
   # rubocop:enable Rails/I18nLocaleTexts
+  validates :material_cost_micros, :packaging_cost_micros,
+            numericality: { greater_than_or_equal_to: 0 }
+  validates :cost_source, inclusion: { in: COST_SOURCES.keys }, allow_nil: true
   validates :process_fee_micros, :overhead_fee_micros,
             numericality: { greater_than_or_equal_to: 0 }
 
   scope :for_products, ->(ids) { where(crm_product_id: ids) }
 
   # 单位加工成本合计（人工 + 制造费用）。
-  def unit_cost_micros = process_fee_micros.to_i + overhead_fee_micros.to_i
+  # 合计单价＝材料＋加工＋制费＋包装。
+  # ⚠️ 加工费是独立一项，别把它重复算进材料里：导入的 Excel 「裸机合计」已含加工费
+  # （实测 85 行全部满足 裸机合计 = 物料17项 + 加工费），所以材料只取物料那 17 项。
+  def unit_cost_micros
+    material_cost_micros.to_i + process_fee_micros.to_i +
+      overhead_fee_micros.to_i + packaging_cost_micros.to_i
+  end
+
+
+  def cost_source_label = COST_SOURCES[cost_source]
 end

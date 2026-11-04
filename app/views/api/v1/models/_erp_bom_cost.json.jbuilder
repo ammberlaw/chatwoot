@@ -5,9 +5,14 @@ json.sku resource.crm_product&.sku
 json.product_name resource.crm_product&.name
 json.specification resource.crm_product&.specification
 json.unit resource.crm_product&.unit
+json.material_cost_micros resource.material_cost_micros
 json.process_fee_micros resource.process_fee_micros
 json.overhead_fee_micros resource.overhead_fee_micros
+json.packaging_cost_micros resource.packaging_cost_micros
 json.unit_cost_micros resource.unit_cost_micros
+json.cost_source resource.cost_source
+json.cost_source_label resource.cost_source_label
+json.cost_as_of resource.cost_as_of
 json.remark resource.remark
 json.updated_by_name resource.updated_by&.name
 json.updated_at resource.updated_at

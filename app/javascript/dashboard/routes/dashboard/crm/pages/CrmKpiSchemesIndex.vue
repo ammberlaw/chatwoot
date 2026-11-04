@@ -125,7 +125,7 @@ const fmtMonth = value => {
 <template>
   <HScrollButtons />
   <div
-    class="flex h-full w-full flex-col overflow-y-auto rounded-3xl border border-n-weak bg-n-slate-2"
+    class="flex h-full w-full flex-col overflow-y-auto rounded-3xl border border-n-weak bg-n-solid-1"
   >
     <div
       class="flex items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
@@ -146,7 +146,7 @@ const fmtMonth = value => {
     </div>
 
     <div
-      class="mx-4 my-5 min-w-0 flex-1 rounded-2xl border border-n-weak bg-n-solid-1 p-4 sm:mx-6 lg:p-5 xl:mx-8"
+      class="min-w-0 px-4 py-5 sm:px-6 xl:px-8"
     >
       <!-- 年份 / 月份归档筛选 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -253,7 +253,7 @@ const fmtMonth = value => {
         <table
           class="hidden md:table w-full text-label text-left border-collapse"
         >
-          <thead class="bg-n-slate-3 text-n-slate-11">
+          <thead class="text-n-slate-11">
             <tr class="border-b border-n-weak">
               <th class="px-3 py-2 font-medium">
                 {{ t('CRM.KPI_SCHEMES.TABLE.NAME') }}

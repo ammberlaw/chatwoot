@@ -119,6 +119,8 @@ class Api::V1::Accounts::Erp::BomCostsController < Api::V1::Accounts::Erp::BaseC
   end
 
   def bom_cost_params
-    params.require(:bom_cost).permit(:crm_product_id, :process_fee_micros, :overhead_fee_micros, :remark)
+    params.require(:bom_cost).permit(:crm_product_id, :material_cost_micros, :process_fee_micros,
+                                    :overhead_fee_micros, :packaging_cost_micros,
+                                    :cost_source, :cost_as_of, :remark)
   end
 end

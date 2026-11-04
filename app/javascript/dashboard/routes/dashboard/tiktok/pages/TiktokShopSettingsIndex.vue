@@ -1,12 +1,18 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import { useTiktokDepartmentsStore } from 'dashboard/stores/tiktok/departments';
 import Button from 'dashboard/components-next/button/Button.vue';
 
 // TikTok 店铺设置：录入下拉的店铺主数据（新增 / 改名 / 停用 / 删除 / 归属部门）。
-// 页面与侧栏入口按管理员/副管理员限定；写操作后端再校验。
+// 部门负责人也能进，但只能「新增」——他建的店后端自动挂到他自己部门。
+// 改名/停用/删除/改归属仍限管理层，这里按权限藏掉按钮，
+// 不然负责人看得见点不动，每点一次吃一个 403。
+const currentUser = useMapGetter('getCurrentUser');
+const canManage = computed(() => currentUser.value?.tiktok_can_manage === true);
+
 const shopsStore = useTiktokShopsStore();
 const departmentsStore = useTiktokDepartmentsStore();
 const shops = ref([]);
@@ -99,7 +105,11 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="w-full max-w-3xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
-      <h1 class="mb-1 text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">店铺设置</h1>
+      <h1
+        class="mb-1 text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        店铺设置
+      </h1>
       <p class="mb-5 text-sm text-n-slate-11">
         维护 TikTok
         店铺（录入日报时的店铺下拉来源）。停用后不再出现在下拉，但保留历史数据。
@@ -166,6 +176,7 @@ onMounted(() => {
               </span>
               <span class="hidden flex-1 md:block" />
               <select
+                v-if="canManage"
                 :value="shop.departmentId || ''"
                 class="flex-1 h-8 pl-2 !pr-7 text-xs rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-11 md:flex-none md:w-40 md:shrink-0"
                 title="归属部门"
@@ -176,7 +187,17 @@ onMounted(() => {
                   {{ d.name }}
                 </option>
               </select>
+              <span
+                v-else
+                class="flex-1 text-xs text-n-slate-11 md:flex-none md:w-40 md:shrink-0"
+              >
+                {{
+                  departments.find(d => d.id === shop.departmentId)?.name ||
+                  '未分配部门'
+                }}
+              </span>
               <Button
+                v-if="canManage"
                 variant="ghost"
                 color="slate"
                 size="xs"
@@ -184,6 +205,7 @@ onMounted(() => {
                 @click="startEdit(shop)"
               />
               <Button
+                v-if="canManage"
                 variant="ghost"
                 color="slate"
                 size="xs"
@@ -191,6 +213,7 @@ onMounted(() => {
                 @click="toggleActive(shop)"
               />
               <Button
+                v-if="canManage"
                 variant="ghost"
                 color="ruby"
                 size="xs"

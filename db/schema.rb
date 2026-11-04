@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_03_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_04_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2371,6 +2371,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_03_160000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "material_cost_micros", default: 0, null: false
+    t.bigint "packaging_cost_micros", default: 0, null: false
+    t.string "cost_source"
+    t.date "cost_as_of"
     t.index ["account_id", "crm_product_id"], name: "idx_erp_bom_costs_on_account_product", unique: true
     t.index ["account_id"], name: "index_erp_bom_costs_on_account_id"
     t.index ["crm_product_id"], name: "index_erp_bom_costs_on_crm_product_id"

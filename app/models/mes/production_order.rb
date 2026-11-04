@@ -115,6 +115,17 @@ class Mes::ProductionOrder < ApplicationRecord
   # 跳过＝不要他接单、不进他待办、不算他超时，单子照常往下走。
   SKIPPED_ACK_ROLES = { 'REPEAT' => 'engineer', 'SAMPLE' => 'pmc' }.freeze
 
+  # 岗位跳过后谁顶上。返单的建单段不经工程，但「挂 BOM」这件事不会凭空消失——
+  # 本来就是 PMC 的活，直接归 PMC。不顶的话这张单 ack_skipped? 为真、
+  # 被 TodoList#stage_owner_of? 一刀挡掉，谁的待办都不进，只能等人想起来手工挂
+  # （2026-11-04：WT-20261102-03 就这么卡了两天，PMC 完全不知道有这张单）。
+  ACK_ROLE_FALLBACK = { %w[REPEAT SALES_CONFIRMED] => 'pmc' }.freeze
+
+  # 没有 PMC 编制的产线：PMC 该做的事由工程一并做（用户 2026-11-04 定：「商显的就直接工程」）。
+  # 只换「谁来接」，不改「要不要接」——跳过与否仍按换之前的岗位算，
+  # 否则商显的样机单（本就不经 PMC）会被判成「工程要再接一次」。
+  LINES_WITHOUT_PMC = %w[COMMERCIAL_DISPLAY].freeze
+
   # 订单性质：CUSTOMER 按单生产（归属业务员收敛，只归属自己可见）；
   # STOCK 外贸备货生产（建公司共享库存，全业务可见；owner 复用为「责任人」不做收敛）。
   ORDER_KINDS = %w[CUSTOMER STOCK].freeze
@@ -915,12 +926,19 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 本阶段该哪个岗位接单（只有开头两段分工程/PMC，其余阶段 nil＝按板块负责人走老口径）。
-  def ack_role = STAGE_ACK_ROLES[stage]
+  # 本阶段的岗位（未套产线规则）。跳过判定用它，别用 ack_role。
+  def base_ack_role = ACK_ROLE_FALLBACK[[intake_kind, stage]] || STAGE_ACK_ROLES[stage]
+
+  # 实际该谁接单：商显无 PMC，PMC 的活落到工程头上。
+  def ack_role
+    role = base_ack_role
+    role == 'pmc' && LINES_WITHOUT_PMC.include?(product_line) ? 'engineer' : role
+  end
 
   def ack_role_label = ack_role && AccountUser::MES_ROLE_LABELS[ack_role]
 
   # 这张单这一阶段整段跳过接单：返单不经工程，样机不经 PMC。
-  def ack_skipped? = ack_role.present? && SKIPPED_ACK_ROLES[intake_kind] == ack_role
+  def ack_skipped? = base_ack_role.present? && SKIPPED_ACK_ROLES[intake_kind] == base_ack_role
 
   def awaiting_ack?
     ack_required? && stage_ack_at.nil?
