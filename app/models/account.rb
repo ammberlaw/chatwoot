@@ -114,6 +114,8 @@ class Account < ApplicationRecord
   has_many :crm_scheme_items, class_name: 'Crm::SchemeItem', dependent: :destroy_async
   has_many :crm_payout_tiers, class_name: 'Crm::PayoutTier', dependent: :destroy_async
   has_many :crm_employee_comps, class_name: 'Crm::EmployeeComp', dependent: :destroy_async
+  has_many :crm_payroll_sheets, class_name: 'Crm::PayrollSheet', dependent: :destroy_async
+  has_many :crm_payroll_items, class_name: 'Crm::PayrollItem', dependent: :destroy_async
   has_many :crm_employees, class_name: 'Crm::Employee', dependent: :destroy_async
   has_many :crm_access_logs, class_name: 'Crm::AccessLog', dependent: :destroy_async
   has_many :crm_attendance_records, class_name: 'Crm::AttendanceRecord', dependent: :destroy_async

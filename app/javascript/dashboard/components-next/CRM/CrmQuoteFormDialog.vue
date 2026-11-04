@@ -4,10 +4,12 @@ import { computed, reactive, ref } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import QuotesAPI from 'dashboard/api/crm/quotes';
+import KnowledgeDocAPI from 'dashboard/api/crm/knowledgeDocs';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import CrmKnowledgeImagePicker from './CrmKnowledgeImagePicker.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
@@ -39,6 +41,7 @@ const blankLineItem = () => ({
   unitPrice: '',
   picturePreview: '',
   pictureFile: null,
+  pictureSignedId: '', // 从知识库选的图：后端已复制好一份，提交时直接给 signed_id
 });
 
 // 编辑态被删除的既有明细 id（提交时带 _destroy 通知后端删除）。
@@ -127,11 +130,37 @@ const onLinePic = (event, index) => {
   event.target.value = '';
   if (!file) return;
   form.lineItems[index].pictureFile = file;
+  form.lineItems[index].pictureSignedId = '';
   form.lineItems[index].picturePreview = URL.createObjectURL(file);
 };
 const clearLinePic = index => {
   form.lineItems[index].pictureFile = null;
+  form.lineItems[index].pictureSignedId = '';
   form.lineItems[index].picturePreview = '';
+};
+
+// 从知识库选图：后端把原图复制成独立一份再给 signed_id，
+// 知识库原件之后被换掉或删掉，已发出去的报价单不受影响（见 Crm::KnowledgeDocSnapshot）。
+const pickerRow = ref(null);
+const pickerRef = ref(null);
+const openPicker = index => {
+  pickerRow.value = index;
+  pickerRef.value?.open();
+};
+const onPickFromLibrary = async img => {
+  const index = pickerRow.value;
+  if (index == null) return;
+  try {
+    const { data } = await KnowledgeDocAPI.snapshotFiles([img.attachment_id]);
+    const snap = data.payload?.[0];
+    if (!snap) throw new Error('empty');
+    const row = form.lineItems[index];
+    row.pictureFile = null;
+    row.pictureSignedId = snap.signed_id;
+    row.picturePreview = img.url;
+  } catch {
+    useAlert('这张图取用失败，换一张或改用本地上传');
+  }
 };
 
 const isFormInvalid = computed(
@@ -249,6 +278,7 @@ const open = record => {
                 : '',
             picturePreview: li.pictureUrl || '',
             pictureFile: null,
+            pictureSignedId: '',
           }))
         : [blankLineItem()];
   }
@@ -280,7 +310,11 @@ const buildFormData = () => {
     fd.append(`${p}[spec_snapshot]`, (li.spec || '').trim());
     fd.append(`${p}[quantity]`, li.quantity || 0);
     fd.append(`${p}[unit_price_micros]`, toMicros(li.unitPrice));
-    if (li.pictureFile) fd.append(`${p}[picture]`, li.pictureFile);
+    if (li.pictureFile) {
+      fd.append(`${p}[picture]`, li.pictureFile);
+    } else if (li.pictureSignedId) {
+      fd.append(`${p}[picture]`, li.pictureSignedId);
+    }
   });
 
   // 删除的既有行：索引接着保留行往后排，避免撞键。
@@ -452,15 +486,24 @@ defineExpose({ dialogRef, open });
                   <span class="i-lucide-x size-3" />
                 </button>
               </template>
-              <button
-                v-else
-                type="button"
-                class="flex items-center justify-center gap-0.5 text-[11px] border border-dashed rounded-md size-10 border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
-                title="上传图片"
-                @click="triggerLinePic(index)"
-              >
-                <span class="i-lucide-image-plus size-4" />
-              </button>
+              <div v-else class="flex flex-col w-10 gap-0.5">
+                <button
+                  type="button"
+                  class="flex items-center justify-center border border-dashed rounded-t-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
+                  title="从电脑上传"
+                  @click="triggerLinePic(index)"
+                >
+                  <span class="i-lucide-image-plus size-3.5 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  class="flex items-center justify-center border border-dashed rounded-b-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
+                  title="从知识库选图"
+                  @click="openPicker(index)"
+                >
+                  <span class="i-lucide-library size-3.5 shrink-0" />
+                </button>
+              </div>
               <input
                 :ref="el => (linePicInputs[index] = el)"
                 type="file"
@@ -516,4 +559,8 @@ defineExpose({ dialogRef, open });
       </div>
     </div>
   </Dialog>
+
+  <!-- 选图弹窗挂在表单 Dialog 之外：放在明细行里会随 v-if 分支一起消失，
+       而恰恰是「还没有图」的时候才需要它。 -->
+  <CrmKnowledgeImagePicker ref="pickerRef" @pick="onPickFromLibrary" />
 </template>

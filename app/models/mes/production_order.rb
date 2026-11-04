@@ -971,6 +971,22 @@ class Mes::ProductionOrder < ApplicationRecord
     rows.find { |r| r.product_line.blank? }&.manager_ids || []
   end
 
+  # 这张单当前「该接单的人」。在板块负责人之上再过一道岗位：
+  # 建单两段分工程/PMC，板块负责人里岗位对不上的那几位不该为这张单背责任
+  # （商显的单该工程管，群发给 PMC 等于没人认领——2026-11-04 一张商显返单
+  # 因此卡了 16 天没人知道）。岗位没配的老数据保持原样全给，宁可多发不漏发。
+  def ack_owner_ids
+    ids = current_stage_owner_ids
+    role = ack_role
+    return ids if role.blank? || ids.blank?
+
+    matched = account.account_users.where(user_id: ids).select do |au|
+      roles = au.effective_mes_roles
+      roles.blank? || !roles.intersect?(STAGE_ACK_ROLES.values) || roles.include?(role)
+    end.map(&:user_id)
+    matched.presence || ids
+  end
+
   # 当前阶段负责人的 user_id（取该阶段板块负责人）。
   def current_stage_owner_ids
     key = STAGE_BOARD_KEYS[stage]

@@ -1754,6 +1754,7 @@ const menuItems = computed(() => {
               icon: 'i-lucide-settings',
               activeOn: [
                 'crm_customer_settings_index',
+                'crm_dashboard_settings_index',
                 'crm_public_pool_settings_index',
                 'crm_quote_request_templates_index',
                 'crm_ai_settings_index',
@@ -1765,6 +1766,12 @@ const menuItems = computed(() => {
                   label: t('SIDEBAR.CRM_CUSTOMER_SETTINGS'),
                   to: accountScopedRoute('crm_customer_settings_index'),
                   activeOn: ['crm_customer_settings_index'],
+                },
+                {
+                  name: 'CRM Dashboard Settings',
+                  label: t('SIDEBAR.CRM_DASHBOARD_SETTINGS'),
+                  to: accountScopedRoute('crm_dashboard_settings_index'),
+                  activeOn: ['crm_dashboard_settings_index'],
                 },
                 {
                   name: 'CRM Pool Settings',
@@ -1978,6 +1985,21 @@ const menuItems = computed(() => {
               icon: 'i-lucide-wallet',
               to: accountScopedRoute('crm_employee_comps_index'),
               activeOn: ['crm_employee_comps_index'],
+            },
+          ]
+        : []),
+      // 工资表：核算是财务的活，所以比上面那组多放行财务。
+      ...(isAdminLike.value || isCrmHr.value || isFinanceViewer.value
+        ? [
+            {
+              name: 'CRM Payroll',
+              label: t('SIDEBAR.CRM_PAYROLL'),
+              icon: 'i-lucide-banknote',
+              to: accountScopedRoute('crm_payroll_sheets_index'),
+              activeOn: [
+                'crm_payroll_sheets_index',
+                'crm_payroll_sheet_detail',
+              ],
             },
           ]
         : []),
@@ -2347,6 +2369,7 @@ const ITEM_MODULE = {
   'CRM Attendance': 'hr',
   'CRM Employees': 'hr',
   'CRM Employee Comps': 'hr',
+  'CRM Payroll': 'hr',
   'CRM Doc Center': 'doc',
   'CRM Schedule': 'schedule',
   'MES Production': 'mes',
@@ -2397,6 +2420,8 @@ const ROUTE_MODULE = {
   crm_commission_sheet_detail: 'hr',
   crm_performance_settings_index: 'hr',
   crm_employee_comps_index: 'hr',
+  crm_payroll_sheets_index: 'hr',
+  crm_payroll_sheet_detail: 'hr',
   crm_attendance_index: 'hr',
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',

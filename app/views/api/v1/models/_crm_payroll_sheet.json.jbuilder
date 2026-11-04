@@ -1,0 +1,16 @@
+json.id resource.id
+json.period_month resource.period_month
+json.template resource.template
+json.template_label resource.template_label
+json.title resource.title
+json.status resource.status
+json.status_label resource.status_label
+json.editable resource.editable?
+json.item_count resource.items.size
+json.total_gross_micros resource.total_gross_micros
+json.total_net_micros resource.total_net_micros
+json.created_by_name resource.created_by&.name
+json.confirmed_by_name resource.confirmed_by&.name
+json.confirmed_at resource.confirmed_at
+json.remark resource.remark
+json.updated_at resource.updated_at

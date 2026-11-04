@@ -18,6 +18,27 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   def show; end
 
+  # 图库：给报价单/PI 的明细行挑产品图用。
+  # 只回图片类附件，走和列表同一套 filtered_docs——权限口径必须一致，
+  # 否则这个接口会成为绕过分区可见性的后门。
+  def image_library
+    docs = filtered_docs.includes(files_attachments: :blob)
+    rows = []
+    docs.find_each do |doc|
+      doc.files.each do |f|
+        next unless f.blob.content_type.to_s.start_with?('image/')
+
+        rows << { doc_id: doc.id, attachment_id: f.id, blob_id: f.blob.id, signed_id: f.signed_id,
+                  name: doc.name, category: doc.category,
+                  section_name: doc.section&.name, byte_size: f.blob.byte_size,
+                  url: rails_blob_path(f, only_path: true) }
+      end
+    end
+    render json: { payload: rows.first(400), count: rows.size,
+                   categories: rows.map { |r| r[:category] }.compact.uniq.sort,
+                   sections: rows.map { |r| r[:section_name] }.compact.uniq.sort }
+  end
+
   # 个人文档任何人可建（归属自己）；公司文档需相应创建权（见 company_docs_creatable?）。
   def create
     attrs = doc_params

@@ -48,6 +48,47 @@ const toggle = uid => {
   selected.value = s;
 };
 
+// 按部门分组：40 来号人平铺着找人太费劲（2026-11-04 用户反馈）。
+// 只认主部门，每人只出现一次——兼着几个部门的人要是每组都列一遍，比平铺还难找。
+// departments 由后端按 is_primary 倒序给出，取第一个即主部门。
+// 没挂部门的归到末尾「未分配部门」，不能让他们消失。
+const groups = computed(() => {
+  const map = new Map();
+  members.value.forEach(m => {
+    const key = m.departments?.[0] || '';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(m);
+  });
+  const named = [...map.entries()]
+    .filter(([k]) => k)
+    .sort(([a], [b]) => a.localeCompare(b, 'zh'));
+  const rest = map.get('') || [];
+  return [
+    ...named.map(([name, list]) => ({ name, list })),
+    ...(rest.length
+      ? [{ name: t('CRM.KPI_SHEETS.NO_DEPARTMENT'), list: rest }]
+      : []),
+  ];
+});
+
+// 整组勾选：一个部门十来号人，一个个点太慢。
+const BOX_CLS = {
+  all: 'bg-n-slate-12 border-n-slate-12',
+  some: 'border-n-slate-12',
+  none: 'border-n-weak',
+};
+const groupState = g => {
+  const picked = g.list.filter(m => selected.value.has(m.user_id)).length;
+  if (picked === 0) return 'none';
+  return picked === g.list.length ? 'all' : 'some';
+};
+const toggleGroup = g => {
+  const s = new Set(selected.value);
+  const turnOn = groupState(g) !== 'all';
+  g.list.forEach(m => (turnOn ? s.add(m.user_id) : s.delete(m.user_id)));
+  selected.value = s;
+};
+
 const count = computed(() => selected.value.size);
 
 const confirm = async () => {
@@ -96,22 +137,47 @@ defineExpose({ open });
       >
         {{ t('CRM.KPI_SHEETS.NO_SALES') }}
       </div>
-      <div v-else class="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
-        <label
-          v-for="m in members"
-          :key="m.user_id"
-          class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
-        >
-          <input
-            type="checkbox"
-            :checked="selected.has(m.user_id)"
-            @change="toggle(m.user_id)"
-          />
-          <span class="font-medium text-n-slate-12">{{ m.name }}</span>
-          <span class="ml-auto text-xs text-n-slate-10">{{
-            roleLabel(m)
-          }}</span>
-        </label>
+      <div v-else class="flex flex-col gap-4 max-h-[55vh] overflow-y-auto">
+        <div v-for="g in groups" :key="g.name" class="flex flex-col gap-1.5">
+          <button
+            type="button"
+            class="flex items-center gap-2 px-1 text-left"
+            @click="toggleGroup(g)"
+          >
+            <span
+              class="size-4 shrink-0 rounded border flex items-center justify-center"
+              :class="BOX_CLS[groupState(g)]"
+            >
+              <span
+                v-if="groupState(g) === 'all'"
+                class="i-lucide-check size-3 shrink-0 text-n-solid-1"
+              />
+              <span
+                v-else-if="groupState(g) === 'some'"
+                class="size-2 shrink-0 rounded-sm bg-n-slate-12"
+              />
+            </span>
+            <span class="text-heading-3 text-n-slate-12">{{ g.name }}</span>
+            <span class="text-label-small text-n-slate-10">{{
+              g.list.length
+            }}</span>
+          </button>
+          <label
+            v-for="m in g.list"
+            :key="m.user_id"
+            class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+          >
+            <input
+              type="checkbox"
+              :checked="selected.has(m.user_id)"
+              @change="toggle(m.user_id)"
+            />
+            <span class="font-medium text-n-slate-12">{{ m.name }}</span>
+            <span class="ml-auto text-xs text-n-slate-10">{{
+              roleLabel(m)
+            }}</span>
+          </label>
+        </div>
       </div>
     </div>
   </Dialog>

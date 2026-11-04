@@ -32,6 +32,19 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     # 把他们摆进名单只是让人在四十来个名字里找人更费劲（2026-10-27 用户反馈）。
     # 在 Ruby 里筛而不是 SQL：判定含 module_enabled? 这类非列条件，拆进 SQL 会分叉成两套口径。
     @members = @members.select(&:can_access_crm?) if params[:crm].to_s == 'true'
+    @departments_by_user = departments_by_user(@members.map(&:user_id))
+  end
+
+  # 每人的部门名（选人弹窗按部门分组用）。一次查完，别在 jbuilder 里逐行查。
+  # 一个人可能挂多个部门，主部门（is_primary）排在前面。
+  def departments_by_user(user_ids)
+    return {} if user_ids.blank?
+
+    Current.account.org_memberships
+           .where(user_id: user_ids).includes(:department)
+           .order(is_primary: :desc)
+           .group_by(&:user_id)
+           .transform_values { |ms| ms.filter_map { |m| m.department&.name }.uniq }
   end
 
   # 直接新建成员（免邀请链接）：建号即生效，跳过邮箱确认。仅超管/管理员。
@@ -64,6 +77,10 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     updates[:erp_role] = params[:member][:erp_role].presence if params[:member].key?(:erp_role)
     if params[:member].key?(:crm_finance)
       updates[:crm_finance] = ActiveModel::Type::Boolean.new.cast(params[:member][:crm_finance])
+    end
+    # 计入业绩排行：勾了的人即使这个月零成交也留在榜上（见 StatsController#with_zero_owners）。
+    if params[:member].key?(:in_sales_rank)
+      updates[:in_sales_rank] = ActiveModel::Type::Boolean.new.cast(params[:member][:in_sales_rank])
     end
     @member.update!(updates)
     apply_user_updates

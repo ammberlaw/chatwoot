@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_04_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_04_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -61,6 +61,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_110000) do
     t.boolean "crm_finance", default: false, null: false
     t.bigint "tiktok_department_id"
     t.datetime "deactivated_at"
+    t.boolean "in_sales_rank", default: false, null: false
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
@@ -1764,6 +1765,67 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_04_110000) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_crm_payout_tiers_on_account_id"
     t.index ["crm_kpi_scheme_id"], name: "index_crm_payout_tiers_on_crm_kpi_scheme_id"
+  end
+
+  create_table "crm_payroll_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_payroll_sheet_id", null: false
+    t.bigint "user_id"
+    t.string "employee_name", null: false
+    t.string "position"
+    t.string "employment_status"
+    t.date "hire_date"
+    t.integer "sort_order", default: 0, null: false
+    t.bigint "base_total_micros", default: 0, null: false
+    t.bigint "basic_salary_micros", default: 0, null: false
+    t.bigint "position_allowance_micros", default: 0, null: false
+    t.bigint "seniority_allowance_micros", default: 0, null: false
+    t.bigint "meal_allowance_micros", default: 0, null: false
+    t.bigint "lodging_allowance_micros", default: 0, null: false
+    t.bigint "attendance_bonus_micros", default: 0, null: false
+    t.bigint "excellent_bonus_micros", default: 0, null: false
+    t.bigint "performance_salary_micros", default: 0, null: false
+    t.bigint "commission_salary_micros", default: 0, null: false
+    t.decimal "weekday_ot_hours", precision: 8, scale: 2, default: "0.0", null: false
+    t.bigint "weekday_ot_rate_micros", default: 0, null: false
+    t.bigint "weekday_ot_pay_micros", default: 0, null: false
+    t.decimal "weekend_ot_hours", precision: 8, scale: 2, default: "0.0", null: false
+    t.bigint "weekend_ot_rate_micros", default: 0, null: false
+    t.bigint "weekend_ot_pay_micros", default: 0, null: false
+    t.decimal "actual_days", precision: 6, scale: 2, default: "0.0", null: false
+    t.decimal "expected_days", precision: 6, scale: 2, default: "0.0", null: false
+    t.decimal "leave_days", precision: 6, scale: 2, default: "0.0", null: false
+    t.bigint "attendance_pay_micros", default: 0, null: false
+    t.bigint "late_deduction_micros", default: 0, null: false
+    t.bigint "absence_deduction_micros", default: 0, null: false
+    t.bigint "social_insurance_micros", default: 0, null: false
+    t.bigint "income_tax_micros", default: 0, null: false
+    t.bigint "gross_pay_micros", default: 0, null: false
+    t.bigint "net_pay_micros", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "adjustment_micros", default: 0, null: false
+    t.string "adjustment_reason"
+    t.index ["account_id"], name: "index_crm_payroll_items_on_account_id"
+    t.index ["crm_payroll_sheet_id"], name: "idx_payroll_items_on_sheet"
+    t.index ["user_id"], name: "index_crm_payroll_items_on_user_id"
+  end
+
+  create_table "crm_payroll_sheets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.date "period_month", null: false
+    t.string "template", null: false
+    t.string "title"
+    t.string "status", default: "DRAFT", null: false
+    t.bigint "created_by_id"
+    t.bigint "confirmed_by_id"
+    t.datetime "confirmed_at"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period_month", "template"], name: "idx_on_account_id_period_month_template_f436d8ba50"
+    t.index ["account_id"], name: "index_crm_payroll_sheets_on_account_id"
   end
 
   create_table "crm_performance_settings", force: :cascade do |t|

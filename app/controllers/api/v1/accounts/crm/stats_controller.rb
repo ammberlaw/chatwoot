@@ -229,7 +229,20 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     trunc = Arel.sql("DATE_TRUNC('month', order_date)")
     raw = year_orders.joins(:owner).group('users.name', trunc)
                      .sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
-    spread_by_month(raw)
+    with_zero_owners(spread_by_month(raw))
+  end
+
+  # 把勾了「计入业绩排行」但这个月没出单的人也补成全 0 的一行。
+  # group 只聚合得出「有单的人」，没开张的直接从榜上消失——而那几位恰恰最该被看见。
+  # 谁上榜由人事在成员管理里勾（account_users.in_sales_rank），不靠系统猜：
+  # 规则再细也有例外——副管兼跑业务要算、挂 manager 的生产主管不算、空号不算。
+  def with_zero_owners(rows)
+    Current.account.account_users.active_members.where(in_sales_rank: true)
+           .includes(:user).each do |au|
+      name = au.user&.name
+      rows[name] ||= Array.new(12, 0) if name.present?
+    end
+    rows
   end
 
   # { 姓名 => [1..12月的数] }：按月份计数，缺的月份补 0。

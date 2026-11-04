@@ -45,8 +45,11 @@ import CrmKpiSheetDetailIndex from './pages/CrmKpiSheetDetailIndex.vue';
 import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue';
 import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
 import CrmCustomerSettingsIndex from './pages/CrmCustomerSettingsIndex.vue';
+import CrmDashboardSettingsIndex from './pages/CrmDashboardSettingsIndex.vue';
 import CrmCustomerDetailIndex from './pages/CrmCustomerDetailIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
+import CrmPayrollSheetsIndex from './pages/CrmPayrollSheetsIndex.vue';
+import CrmPayrollSheetDetailIndex from './pages/CrmPayrollSheetDetailIndex.vue';
 import CrmEmployeesIndex from './pages/CrmEmployeesIndex.vue';
 import CrmAttendanceIndex from './pages/CrmAttendanceIndex.vue';
 import CrmScheduleIndex from './pages/CrmScheduleIndex.vue';
@@ -199,6 +202,16 @@ const crmPages = [
     'employee-comps',
     'crm_employee_comps_index',
     CrmEmployeeCompsIndex,
+    SHARED
+  ),
+  // 工资表：财务/人事核算。门禁走后端 policy（管理层 + 财务 + 人事）＋二次验证。
+  crmPage('payroll', 'crm_payroll_sheets_index', CrmPayrollSheetsIndex, SHARED),
+  // 看板设置：目前管「谁计入成交排行」。归在 CRM 设置分组下。
+  crmPage('dashboard-settings', 'crm_dashboard_settings_index', CrmDashboardSettingsIndex),
+  crmPage(
+    'payroll/detail',
+    'crm_payroll_sheet_detail',
+    CrmPayrollSheetDetailIndex,
     SHARED
   ),
   // 员工档案（员工主数据）：含身份证/薪酬等敏感信息，仅管理员。

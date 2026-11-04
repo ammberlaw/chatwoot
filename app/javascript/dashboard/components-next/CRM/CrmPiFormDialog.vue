@@ -3,6 +3,7 @@
 import { computed, nextTick, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import KnowledgeDocAPI from 'dashboard/api/crm/knowledgeDocs';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import PisAPI from 'dashboard/api/crm/pis';
@@ -17,6 +18,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import CrmKnowledgeImagePicker from './CrmKnowledgeImagePicker.vue';
 
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
@@ -163,6 +165,9 @@ const applyParsedPi = data => {
         unitPrice: li.unit_price ?? '',
         pictureUrl: null,
         pictureFile: null,
+        pictureSignedId: '',
+        pictureSignedId: '',
+        pictureSignedId: '',
       }))
     : [];
 
@@ -248,6 +253,7 @@ const addItem = () =>
     unitPrice: '',
     pictureUrl: null,
     pictureFile: null,
+    pictureSignedId: '',
   });
 const removeItem = i => form.items.splice(i, 1);
 
@@ -258,7 +264,31 @@ const onItemPic = (event, i) => {
   event.target.value = '';
   if (!file) return;
   form.items[i].pictureFile = file;
+  form.items[i].pictureSignedId = '';
   form.items[i].pictureUrl = URL.createObjectURL(file);
+};
+
+// 从知识库选图：后端把原图复制成独立一份再给 signed_id，
+// 知识库原件之后换掉或删掉，已发出去的 PI 不受影响（见 Crm::KnowledgeDocSnapshot）。
+const pickerRow = ref(null);
+const pickerRef = ref(null);
+const openPicker = i => {
+  pickerRow.value = i;
+  pickerRef.value?.open();
+};
+const onPickFromLibrary = async img => {
+  const i = pickerRow.value;
+  if (i == null) return;
+  try {
+    const { data } = await KnowledgeDocAPI.snapshotFiles([img.attachment_id]);
+    const snap = data.payload?.[0];
+    if (!snap) throw new Error('empty');
+    form.items[i].pictureFile = null;
+    form.items[i].pictureSignedId = snap.signed_id;
+    form.items[i].pictureUrl = img.url;
+  } catch {
+    useAlert('这张图取用失败，换一张或改用本地上传');
+  }
 };
 
 const reset = () => {
@@ -330,6 +360,8 @@ const open = record => {
         it.unitPriceMicros != null ? it.unitPriceMicros / 1_000_000 : '',
       pictureUrl: it.pictureUrl || null,
       pictureFile: null,
+      pictureSignedId: '',
+      pictureSignedId: '',
     }));
   } else {
     loadSellerDefaults();
@@ -381,7 +413,11 @@ const buildFormData = () => {
     fd.append(`${p}[description]`, it.description || '');
     fd.append(`${p}[quantity]`, num(it.quantity) ?? '');
     fd.append(`${p}[unit_price_micros]`, toMicros(it.unitPrice));
-    if (it.pictureFile) fd.append(`${p}[picture]`, it.pictureFile);
+    if (it.pictureFile) {
+      fd.append(`${p}[picture]`, it.pictureFile);
+    } else if (it.pictureSignedId) {
+      fd.append(`${p}[picture]`, it.pictureSignedId);
+    }
   });
   return fd;
 };
@@ -788,6 +824,15 @@ defineExpose({ open, markPaid });
               />
               <span v-else class="i-lucide-image-plus size-5" />
             </button>
+            <button
+              type="button"
+              class="flex items-center gap-0.5 text-[11px] text-n-slate-10 hover:text-n-slate-12"
+              title="从知识库选图"
+              @click="openPicker(i)"
+            >
+              <span class="i-lucide-library size-3 shrink-0" />
+              知识库
+            </button>
             <input
               :ref="el => (itemPicInputs[i] = el)"
               type="file"
@@ -1005,4 +1050,5 @@ defineExpose({ open, markPaid });
       </div>
     </div>
   </Dialog>
+  <CrmKnowledgeImagePicker ref="pickerRef" @pick="onPickFromLibrary" />
 </template>

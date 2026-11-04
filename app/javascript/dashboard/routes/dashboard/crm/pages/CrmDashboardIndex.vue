@@ -481,9 +481,11 @@ const periodMonths = computed(() => {
 const ownerRank = computed(() => {
   const by = stats.value?.team?.by_owner_monthly || {};
   const months = periodMonths.value;
+  // 业绩为 0 的业务员照样列出来（2026-11-04 用户要求）：排行榜的用处之一就是看谁
+  // 这个月还没开张，把 0 的人藏掉等于把最该关注的那几位从榜上抹了。
+  // 排序按金额倒序，0 的自然落在末尾。
   const rows = Object.entries(by)
     .map(([name, arr]) => [name, months.reduce((s, i) => s + (arr[i] || 0), 0)])
-    .filter(([, v]) => v)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 50);
   return {

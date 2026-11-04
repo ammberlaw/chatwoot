@@ -284,6 +284,7 @@ Rails.application.routes.draw do
             resources :follow_up_tasks
             resources :knowledge_docs do
               collection do
+                get :image_library
                 get :recycle_bin
                 post :purge_all
                 post :snapshot_files
@@ -366,6 +367,13 @@ Rails.application.routes.draw do
               end
             end
             resources :employee_comps
+            resources :payroll_sheets do
+              collection { post :import }
+              member do
+                post :confirm
+                post :reopen
+              end
+            end
             resources :employees do
               member do
                 get :audits

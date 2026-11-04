@@ -3,6 +3,11 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  # 图库（给报价单/PI 挑产品图）：和列表同一道门槛，底层也走同一套可见性过滤。
+  def image_library?
+    index?
+  end
+
   def show?
     true
   end

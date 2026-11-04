@@ -11,13 +11,53 @@ class Mes::DailyAlertJob < ApplicationJob
   }.freeze
   ALL_KEYS = %i[overdue due_soon stalled shortages].freeze
 
+  # 「超时未接单」不按角色群发，单独定向到每张单当前该接的人（见 #notify_unacked）。
+  # 按角色群发的毛病：商显的单该工程接，群发给 PMC 等于通知了一屋子不相干的人，
+  # 真正该动的那位反而不在收件人里（2026-11-04 一张商显返单卡 16 天没人知道）。
+
   def perform
     Account.joins(:mes_production_orders).distinct.find_each do |account|
       alerts = Mes::AlertScannerService.new(account).call
       next if alerts.values.all?(&:blank?)
 
       notify_account(account, alerts)
+      notify_unacked(account, alerts[:unacked])
     end
+  end
+
+  # 超时未接单：按「这张单该谁接」分组，各人只收到自己该接的那几张。
+  # 同时抄送管理层——没人接单这件事本身就该让管理层看见。
+  def notify_unacked(account, rows)
+    return if rows.blank?
+
+    by_user = Hash.new { |h, k| h[k] = [] }
+    account.mes_production_orders.where(id: rows.filter_map { |r| r[:id] }).find_each do |po|
+      po.ack_owner_ids.each { |uid| by_user[uid] << po }
+    end
+    admin_ids = account.account_users.select { |au| au.administrator? || au.crm_deputy_admin? }.map(&:user_id)
+    (admin_ids - by_user.keys).each do |uid|
+      by_user[uid] = account.mes_production_orders.where(id: rows.filter_map { |r| r[:id] }).to_a
+    end
+
+    by_user.each do |uid, orders|
+      next if orders.blank?
+
+      Mes::Notifier.notify(
+        account: account, recipients: uid, kind: 'unacked_orders',
+        title: "有 #{orders.size} 张生产订单超时没人接单",
+        body: orders.first(8).map { |po|
+          "#{po.order_no}｜#{Mes::ProductionOrder::STAGE_LABELS[po.stage]}｜等了 #{stall_days(po)} 天"
+        }.join("\n")
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[MesDailyAlert] 未接单通知失败 user=#{uid}: #{e.message}")
+    end
+  end
+
+  def stall_days(po)
+    return 0 if po.stage_entered_at.blank?
+
+    ((Time.current - po.stage_entered_at) / 1.day).floor
   end
 
   private

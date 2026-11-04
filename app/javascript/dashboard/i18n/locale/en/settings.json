@@ -261,6 +261,7 @@
     "USER_GUIDE": "User guide",
     "USER_GUIDE_CRM": "CRM User Guide",
     "USER_GUIDE_MES": "MES User Guide",
+    "PALETTE_PORCELAIN": "瓷白",
     "MY_SIGNATURE": "我的签名",
     "LOGOUT": "Log out"
   },
@@ -455,6 +456,7 @@
     "CRM_CHURN_RISK": "流失预警",
     "CRM_POOL_SETTINGS": "公海设置",
     "CRM_CUSTOMER_SETTINGS": "客户设置",
+    "CRM_DASHBOARD_SETTINGS": "看板设置",
     "CRM_G_SALES_FLOW": "销售流程",
     "CRM_FUNNEL": "商机看板",
     "CRM_ORDERS_NO_CUSTOMER": "未关联客户的订单",
@@ -539,6 +541,7 @@
     "CRM_ATTENDANCE": "考勤",
     "CRM_EMPLOYEES": "员工档案",
     "CRM_EMPLOYEE_COMPS": "员工薪资配置",
+    "CRM_PAYROLL": "工资表",
     "CRM_PERF_SETTINGS": "绩效设置",
     "CRM_G_OA": "协同办公",
     "CRM_APPROVALS": "我的审批",

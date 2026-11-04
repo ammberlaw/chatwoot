@@ -10,6 +10,7 @@
 #  crm_role                 :string
 #  deactivated_at           :datetime
 #  erp_role                 :string
+#  in_sales_rank            :boolean          default(FALSE), not null
 #  mes_roles                :string           default([]), not null, is an Array
 #  module_access            :text             default(["crm", "erp", "mes"]), not null, is an Array
 #  role                     :integer          default("agent")
