@@ -11,3 +11,6 @@ elif [ "$branch" = "develop" ]; then
   echo "You can't push directly to develop branch"
   exit 1
 fi
+
+# 跨文件契约体检：路由/权限/文案漏改不会报错、只会静默失效，推之前查一遍。
+sh "$(dirname "$0")/check_contracts" || exit 1

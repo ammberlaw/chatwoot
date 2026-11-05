@@ -350,6 +350,7 @@
         "SELLER_EMAIL": "邮箱 Email",
         "REMARK": "备注（内部）",
         "SAVED": "PI 已保存",
+        "SAVED_CONVERTED": "已保存，并自动生成销售订单 {no}",
         "SAVE_ERROR": "保存失败"
       },
       "SELLER_PROFILE": {

@@ -1,0 +1,27 @@
+#!/bin/sh
+# 跨文件契约体检（见 lib/tasks/wintouch_contracts.rake）。
+#
+# 挂在 pre-push 上，但刻意做成「跑不了就跳过」：
+# 容器没起、不在这个 worktree、或显式 SKIP_CONTRACT_CHECK=1 时直接放行——
+# 这是道提醒，不该成为推代码的路障。
+[ -n "$SKIP_CONTRACT_CHECK" ] && exit 0
+
+PROJ=wintouch-crm
+COMPOSE=docker-compose.crm.yaml
+[ -f "$COMPOSE" ] || exit 0
+
+CID=$(docker compose -p "$PROJ" -f "$COMPOSE" ps -q rails 2>/dev/null)
+[ -z "$CID" ] && exit 0
+docker inspect -f '{{.State.Running}}' "$CID" 2>/dev/null | grep -q true || exit 0
+
+echo "→ 契约体检（路由/权限/文案）…"
+OUT=$(docker compose -p "$PROJ" -f "$COMPOSE" exec -T rails bundle exec rake wintouch:check 2>&1 \
+      | grep -vE "warning|fiddle|reline|contact the author|Sidekiq|deprecated|migration guide")
+if echo "$OUT" | grep -q '✅'; then
+  echo "  ✅ 通过"
+  exit 0
+fi
+echo "$OUT"
+echo
+echo "改完再推；确实要跳过：SKIP_CONTRACT_CHECK=1 git push"
+exit 1
