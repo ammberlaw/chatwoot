@@ -95,6 +95,13 @@ crm_expire_quotes_job:
   queue: scheduled_jobs
 
 # CRM：工作月报，每月 1 号推上月经营数据给业务员/主管/管理员（北京时间 08:00 = UTC 00:00）
+# 孤儿审计：每月 1 号把「没人管的东西」推给管理层（站内通知）。
+# 排在月报（0:00）之后半小时，两条前后脚到，管理层一次看完。
+crm_orphan_audit_job:
+  cron: '30 0 1 * *'
+  class: 'Crm::OrphanAuditJob'
+  queue: scheduled_jobs
+
 crm_monthly_report_job:
   cron: '0 0 1 * *'
   class: 'Crm::MonthlyReportJob'
