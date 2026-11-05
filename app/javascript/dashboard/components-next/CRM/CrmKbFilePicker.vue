@@ -4,6 +4,9 @@
 // 组件只负责「挑」，挑完的东西交给调用方去发——邮件走 attach_kb，
 // 会话走 snapshot_files 换成 signed_id 挂进消息附件。
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 import camelcaseKeys from 'camelcase-keys';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 import Icon from 'next/icon/Icon.vue';
@@ -16,6 +19,7 @@ const props = defineProps({
   footTip: { type: String, default: '' },
 });
 const emit = defineEmits(['update:open', 'update:picked']);
+const { t } = useI18n();
 
 const L = {
   kbTitle: '从知识库选择附件',
@@ -30,6 +34,8 @@ const L = {
 };
 
 const kbDocs = ref([]);
+const loading = ref(false);
+const loadFailed = ref(false);
 const kbSearch = ref('');
 const kbCategory = ref('');
 const kbScope = ref('');
@@ -42,6 +48,11 @@ const kbScopeChips = [
 ];
 const kbCategories = computed(() => [
   ...new Set(kbDocs.value.map(d => d.category).filter(Boolean)),
+]);
+
+const categoryOptions = computed(() => [
+  { value: '', label: L.kbAllCategories },
+  ...kbCategories.value.map(category => ({ value: category, label: category })),
 ]);
 
 const kbKey = item => `${item.docId}:${item.fileId}`;
@@ -122,148 +133,189 @@ watch(
     kbSearch.value = '';
     kbCategory.value = '';
     kbScope.value = '';
-    await loadKbDocs();
+    loading.value = true;
+    loadFailed.value = false;
+    try {
+      await loadKbDocs();
+    } catch {
+      loadFailed.value = true;
+    } finally {
+      loading.value = false;
+    }
   }
 );
 </script>
 
 <template>
-  <!-- 知识库选择器 -->
   <div
     v-if="open"
-    class="fixed inset-0 z-10 flex items-center justify-center bg-black/40"
+    class="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4"
     @click.self="emit('update:open', false)"
+    @keydown.esc.stop="emit('update:open', false)"
   >
-    <div
-      class="w-[780px] max-w-[94vw] h-[560px] max-h-[88vh] flex flex-col overflow-hidden border rounded-xl border-n-weak bg-n-solid-1"
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kb-file-picker-title"
+      class="flex h-[600px] max-h-[88dvh] w-[900px] max-w-full flex-col overflow-hidden rounded-2xl border border-n-weak bg-n-solid-1 shadow-xl"
     >
-      <div
-        class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
+      <header
+        class="flex shrink-0 items-center justify-between gap-4 border-b border-n-weak px-5 py-4"
       >
-        <strong class="text-n-slate-12">{{ L.kbTitle }}</strong>
-        <button
-          class="text-sm text-n-iris-11"
-          @click="emit('update:open', false)"
+        <h2
+          id="kb-file-picker-title"
+          class="m-0 text-heading-2 text-n-slate-12"
         >
-          {{ L.kbDone
-          }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
-        </button>
-      </div>
-
-      <!-- 过滤 -->
-      <div class="px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak">
-        <input
-          v-model="kbSearch"
-          class="w-full h-9 px-3 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-          :placeholder="L.kbSearchPlaceholder"
+          {{ L.kbTitle }}
+        </h2>
+        <Button
+          icon="i-lucide-x"
+          :aria-label="t('CRM.KB_PICKER.CLOSE')"
+          variant="ghost"
+          color="slate"
+          @click="emit('update:open', false)"
         />
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button
-            v-for="chip in kbScopeChips"
-            :key="chip.value"
-            class="px-2.5 py-1 text-xs border rounded-full"
-            :class="
-              kbScope === chip.value
-                ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                : 'border-n-weak text-n-slate-11'
-            "
-            @click="kbScope = chip.value"
-          >
-            {{ chip.label }}
-          </button>
-          <span class="w-px h-4 mx-1 bg-n-weak" />
-          <button
-            class="px-2.5 py-1 text-xs border rounded-full"
-            :class="
-              kbCategory === ''
-                ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                : 'border-n-weak text-n-slate-11'
-            "
-            @click="kbCategory = ''"
-          >
-            {{ L.kbAllCategories }}
-          </button>
-          <button
-            v-for="cat in kbCategories"
-            :key="cat"
-            class="px-2.5 py-1 text-xs border rounded-full"
-            :class="
-              kbCategory === cat
-                ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                : 'border-n-weak text-n-slate-11'
-            "
-            @click="kbCategory = cat"
-          >
-            {{ cat }}
-          </button>
+      </header>
+
+      <div
+        class="flex shrink-0 flex-col gap-3 border-b border-n-weak px-5 py-4"
+      >
+        <div class="relative">
+          <Icon
+            icon="i-lucide-search"
+            class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
+          />
+          <input
+            v-model="kbSearch"
+            :aria-label="L.kbSearchPlaceholder"
+            :placeholder="L.kbSearchPlaceholder"
+            class="reset-base m-0 h-10 w-full rounded-lg border border-n-weak bg-n-alpha-1 py-0 pl-9 pr-3 text-label !font-normal text-n-slate-12 placeholder:text-n-slate-10 focus-visible:ring-1 focus-visible:ring-n-iris-9"
+          />
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-1 rounded-lg bg-n-alpha-1 p-1">
+            <button
+              v-for="chip in kbScopeChips"
+              :key="chip.value"
+              type="button"
+              :aria-pressed="kbScope === chip.value"
+              class="h-8 rounded-md px-4 text-label-small transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
+              :class="
+                kbScope === chip.value
+                  ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+                  : 'text-n-slate-11 hover:text-n-slate-12'
+              "
+              @click="kbScope = chip.value"
+            >
+              {{ chip.label }}
+            </button>
+          </div>
+          <SelectCard
+            v-model="kbCategory"
+            :options="categoryOptions"
+            searchable
+            :search-placeholder="t('CRM.KB_PICKER.SEARCH_CATEGORY')"
+            trigger-class="w-52 max-w-full"
+          />
         </div>
       </div>
 
-      <!-- 文档列表 + 文件面板 -->
-      <div class="flex flex-1 min-h-0">
-        <div class="w-[280px] shrink-0 overflow-y-auto border-r border-n-weak">
+      <div
+        v-if="loading || loadFailed"
+        role="status"
+        class="flex flex-1 items-center justify-center p-6 text-label text-n-slate-11"
+      >
+        {{ t(loading ? 'CRM.KB_PICKER.LOADING' : 'CRM.KB_PICKER.LOAD_ERROR') }}
+      </div>
+      <div v-else class="flex min-h-0 flex-1">
+        <div
+          class="flex w-2/5 min-w-0 shrink-0 flex-col border-r border-n-weak bg-n-alpha-1 sm:w-[300px]"
+        >
           <div
-            v-if="!kbFilteredDocs.length"
-            class="p-3 text-xs text-n-slate-10"
+            class="flex shrink-0 items-center justify-between px-4 py-3 text-label-small text-n-slate-11"
           >
-            {{ kbDocs.length ? L.kbEmptyNoMatch : L.kbEmptyNoFiles }}
+            <span>{{ t('CRM.KB_PICKER.DOCUMENTS') }}</span>
+            <span class="tabular-nums">{{ kbFilteredDocs.length }}</span>
           </div>
-          <button
-            v-for="doc in kbFilteredDocs"
-            :key="doc.id"
-            class="block w-full px-3.5 py-2.5 text-left border-b border-n-weak"
-            :class="
-              kbOpenDoc?.id === doc.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
-            "
-            @click="kbOpenDocId = doc.id"
-          >
-            <div class="flex items-center gap-1.5 text-[13px] text-n-slate-12">
-              <Icon
-                :icon="
-                  doc.scope === 'COMPANY'
-                    ? 'i-lucide-building-2'
-                    : 'i-lucide-user'
-                "
-                class="size-3.5 text-n-slate-10"
-              />
-              <span class="truncate">{{ doc.name }}</span>
-              <span
-                v-if="kbPicksForDoc(doc.id)"
-                class="ml-auto min-w-4 h-4 px-1 text-[11px] text-white rounded-full bg-n-iris-9 inline-flex items-center justify-center"
+          <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+            <p
+              v-if="!kbFilteredDocs.length"
+              class="p-3 text-label-small text-n-slate-11"
+            >
+              {{ kbDocs.length ? L.kbEmptyNoMatch : L.kbEmptyNoFiles }}
+            </p>
+            <button
+              v-for="doc in kbFilteredDocs"
+              :key="doc.id"
+              type="button"
+              :aria-pressed="kbOpenDoc?.id === doc.id"
+              :title="doc.name"
+              class="mb-1 block w-full rounded-lg border px-3 py-3 text-left transition-colors"
+              :class="
+                kbOpenDoc?.id === doc.id
+                  ? 'border-n-weak bg-n-solid-1'
+                  : 'border-transparent hover:bg-n-alpha-2'
+              "
+              @click="kbOpenDocId = doc.id"
+            >
+              <div
+                class="flex items-start gap-2 text-label !font-normal text-n-slate-12"
               >
-                {{ kbPicksForDoc(doc.id) }}
-              </span>
-            </div>
-            <div class="mt-0.5 text-[11px] text-n-slate-10">
-              {{ `${doc.category || '未分类'} · ${doc.files.length} 个文件` }}
-            </div>
-          </button>
+                <Icon
+                  :icon="
+                    doc.scope === 'COMPANY'
+                      ? 'i-lucide-building-2'
+                      : 'i-lucide-user'
+                  "
+                  class="mt-0.5 size-4 shrink-0 text-n-slate-10"
+                />
+                <span class="min-w-0 flex-1 break-words line-clamp-2">{{
+                  doc.name
+                }}</span>
+                <span
+                  v-if="kbPicksForDoc(doc.id)"
+                  class="shrink-0 rounded-md bg-n-iris-3 px-1.5 text-label-small tabular-nums text-n-iris-11"
+                  >{{ kbPicksForDoc(doc.id) }}</span
+                >
+              </div>
+              <p
+                class="mb-0 mt-2 truncate pl-6 text-label-small text-n-slate-11"
+              >
+                {{ `${doc.category || '未分类'} · ${doc.files.length} 个文件` }}
+              </p>
+            </button>
+          </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
-          <div v-if="!kbOpenDoc" class="p-3 text-xs text-n-slate-10">
+        <div class="flex min-w-0 flex-1 flex-col">
+          <p v-if="!kbOpenDoc" class="p-5 text-label text-n-slate-11">
             {{ L.kbPickFilePrompt }}
-          </div>
+          </p>
           <template v-else>
-            <div
-              class="px-3.5 py-2.5 border-b border-n-weak text-[13px] text-n-slate-11"
-            >
-              {{ kbOpenDoc.name }}
-              <div
+            <div class="shrink-0 border-b border-n-weak px-5 py-4">
+              <h3 class="m-0 break-words text-heading-3 text-n-slate-12">
+                {{ kbOpenDoc.name }}
+              </h3>
+              <p
                 v-if="kbOpenDoc.summary"
-                class="mt-1 text-[11px] leading-relaxed text-n-slate-10"
+                class="mb-0 mt-2 max-h-20 overflow-y-auto text-label-small !font-normal leading-relaxed text-n-slate-11"
               >
                 {{ kbOpenDoc.summary }}
-              </div>
+              </p>
+              <p class="mb-0 mt-2 text-label-small text-n-slate-10">
+                {{ t('CRM.KB_PICKER.SELECT_FILES') }}
+              </p>
             </div>
-            <div class="flex flex-col gap-1.5 p-3">
+            <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
               <button
                 v-for="file in kbOpenDoc.files"
                 :key="file.fileId"
-                class="flex items-center gap-2 px-3 py-2 text-[13px] border rounded-lg"
+                type="button"
+                :aria-pressed="isKbPicked(kbOpenDoc.id, file.fileId)"
+                class="flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
                 :class="
                   isKbPicked(kbOpenDoc.id, file.fileId)
-                    ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-2'
+                    ? 'border-n-iris-8 bg-n-iris-2 text-n-slate-12'
                     : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
                 "
                 @click="toggleKbFile(kbOpenDoc, file)"
@@ -274,27 +326,43 @@ watch(
                       ? 'i-lucide-check-square'
                       : 'i-lucide-square'
                   "
-                  class="size-4"
+                  class="mt-0.5 size-4 shrink-0"
+                  :class="
+                    isKbPicked(kbOpenDoc.id, file.fileId)
+                      ? 'text-n-iris-11'
+                      : 'text-n-slate-10'
+                  "
                 />
-                <Icon icon="i-lucide-file-text" class="size-4" />
-                {{ file.filename }}
+                <Icon
+                  icon="i-lucide-file-text"
+                  class="mt-0.5 hidden size-4 shrink-0 text-n-slate-10 sm:block"
+                />
+                <span
+                  class="min-w-0 break-all text-label !font-normal leading-relaxed"
+                  >{{ file.filename }}</span
+                >
               </button>
             </div>
           </template>
         </div>
       </div>
 
-      <div
-        class="flex items-center gap-2 px-4 py-2.5 border-t bg-n-alpha-1 border-n-weak"
+      <footer
+        class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-n-weak px-5 py-4"
       >
-        <span class="flex-1 text-xs text-n-slate-10">{{ footTip }}</span>
-        <button
-          class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
-          @click="emit('update:open', false)"
-        >
-          {{ L.kbDone }}
-        </button>
-      </div>
-    </div>
+        <div class="min-w-0 flex-1">
+          <p class="m-0 text-label text-n-slate-12">
+            {{ t('CRM.KB_PICKER.PICKED', { count: kbPicked.length }) }}
+          </p>
+          <p
+            v-if="footTip"
+            class="mb-0 mt-1 text-label-small !font-normal text-n-slate-11"
+          >
+            {{ footTip }}
+          </p>
+        </div>
+        <Button :label="L.kbDone" @click="emit('update:open', false)" />
+      </footer>
+    </section>
   </div>
 </template>

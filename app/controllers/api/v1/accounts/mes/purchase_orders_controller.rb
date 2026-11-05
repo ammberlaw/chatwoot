@@ -250,7 +250,8 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
       extra_production_order_ids: [],
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
-        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :aux_attribute_name, :remark, :_destroy,
+        :qty, :unit, :rate_micros, :price_tax_included, :tax_rate, :received_qty,
+        :aux_attribute_name, :remark, :_destroy,
         # 行内附图：传 signed_id 数组，整组替换（前端每次给这一行完整的列表）
         { images: [] }
       ]

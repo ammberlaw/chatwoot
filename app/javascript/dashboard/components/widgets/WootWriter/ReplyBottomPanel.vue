@@ -316,7 +316,7 @@ export default {
       <NextButton
         v-if="showAttachButton"
         v-tooltip.top-end="'从知识库选择附件'"
-        icon="i-lucide-book-open"
+        icon="i-lucide-folder-open"
         slate
         faded
         sm

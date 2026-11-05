@@ -12,6 +12,7 @@ import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import CrmOpportunityDetailDrawer from 'dashboard/components-next/CRM/CrmOpportunityDetailDrawer.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmOpportunitiesIndex from 'dashboard/routes/dashboard/crm/pages/CrmOpportunitiesIndex.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
@@ -81,6 +82,8 @@ const managerOwnerOptions = computed(() => {
 });
 
 const createDialogRef = ref(null);
+const detailDrawerRef = ref(null);
+const openDetail = record => detailDrawerRef.value?.open(record);
 const refreshBoard = () =>
   store.get({
     page: 1,
@@ -160,7 +163,7 @@ const createRecord = async payload => {
   }
 };
 
-// 点卡片直接编辑（与商机列表点行一致），保存后刷新看板。
+// 详情抽屉和编辑弹窗使用独立入口。
 const openEditDialog = record => {
   createDialogRef.value?.open(record);
 };
@@ -431,31 +434,69 @@ onMounted(() => {
             ]"
             :draggable="isBoardView"
             @dragstart="dragId = item.id"
-            @click="openEditDialog(item)"
+            @click="openDetail(item)"
           >
             <!-- 商机名称与金额为第一层，客户信息和备注为次层。 -->
             <div class="flex items-start gap-2">
-              <span class="mt-1.5 size-1.5 shrink-0 rounded-full" :class="col.color" />
-              <div class="min-w-0 flex-1 text-heading-3 !font-semibold leading-snug line-clamp-2 text-n-slate-12" :title="item.name">
-                <span v-if="item.important" class="inline-block i-ri-star-fill size-3.5 text-[#ffc53d] me-1 align-[-2px]" :title="t('CRM.OPPORTUNITIES.IMPORTANT')" />
+              <span
+                class="mt-1.5 size-1.5 shrink-0 rounded-full"
+                :class="col.color"
+              />
+              <div
+                class="min-w-0 flex-1 text-heading-3 !font-semibold leading-snug line-clamp-2 text-n-slate-12"
+                :title="item.name"
+              >
+                <span
+                  v-if="item.important"
+                  class="inline-block i-ri-star-fill size-3.5 text-[#ffc53d] me-1 align-[-2px]"
+                  :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
+                />
                 {{ item.name }}
               </div>
             </div>
             <div class="mt-2 flex items-baseline justify-between gap-2 pl-3.5">
-              <span v-if="item.amountMicros" class="text-heading-1 !font-semibold tabular-nums text-n-slate-12">{{ cardAmount(item.amountMicros, item.currency) }}</span>
-              <span v-else class="text-label-small !font-normal text-n-slate-10">金额待补充</span>
-              <span v-if="item.probability != null" class="shrink-0 text-label-small tabular-nums text-n-slate-10">{{ item.probability }}%</span>
+              <span
+                v-if="item.amountMicros"
+                class="text-heading-1 !font-semibold tabular-nums text-n-slate-12"
+                >{{ cardAmount(item.amountMicros, item.currency) }}</span
+              >
+              <span v-else class="text-label-small !font-normal text-n-slate-10"
+                >金额待补充</span
+              >
+              <span
+                v-if="item.probability != null"
+                class="shrink-0 text-label-small tabular-nums text-n-slate-10"
+                >{{ item.probability }}%</span
+              >
             </div>
             <div class="mt-3 space-y-1.5 pl-3.5">
-              <div class="flex items-center gap-1.5 text-label-small !font-normal text-n-slate-10">
+              <div
+                class="flex items-center gap-1.5 text-label-small !font-normal text-n-slate-10"
+              >
                 <span class="i-lucide-building-2 size-3 shrink-0" />
-                <span class="truncate" :title="item.customerName">{{ item.customerName || '未关联客户' }}</span>
+                <span class="truncate" :title="item.customerName">{{
+                  item.customerName || '未关联客户'
+                }}</span>
               </div>
-              <div v-if="item.ownerName" class="flex items-center gap-1.5 text-label-small !font-normal text-n-slate-10">
-                <Avatar :name="item.ownerName" :src="item.ownerAvatarUrl || ''" :size="16" rounded-full />
+              <div
+                v-if="item.ownerName"
+                class="flex items-center gap-1.5 text-label-small !font-normal text-n-slate-10"
+              >
+                <Avatar
+                  :name="item.ownerName"
+                  :src="item.ownerAvatarUrl || ''"
+                  :size="16"
+                  rounded-full
+                />
                 <span class="truncate">{{ item.ownerName }}</span>
               </div>
-              <p v-if="item.opportunityRemark" class="m-0 pt-1 text-label-small !font-normal !leading-relaxed text-n-slate-10 line-clamp-2" :title="item.opportunityRemark">{{ item.opportunityRemark }}</p>
+              <p
+                v-if="item.opportunityRemark"
+                class="m-0 pt-1 text-label-small !font-normal !leading-relaxed text-n-slate-10 line-clamp-2"
+                :title="item.opportunityRemark"
+              >
+                {{ item.opportunityRemark }}
+              </p>
             </div>
           </div>
 
@@ -468,6 +509,8 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <CrmOpportunityDetailDrawer ref="detailDrawerRef" @edit="openEditDialog" />
 
     <CrmOpportunityCreateDialog
       ref="createDialogRef"

@@ -13,6 +13,7 @@
 #  received_qty       :decimal(14, 3)   default(0.0), not null
 #  remark             :text
 #  supplier_seq       :integer
+#  tax_rate           :decimal(5, 2)
 #  unit               :string
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
@@ -61,24 +62,38 @@ class Mes::PurchaseItem < ApplicationRecord
   validates :item_type, inclusion: { in: ITEM_TYPES }
   validates :qty, presence: true, numericality: { greater_than: 0 }
 
-  # 供应商税率（百分数，如 13 表示 13%），在供应商档案设置、采购单自动带出。
-  # 用于含税/未税单价换算与对供应商导出抬头口径。
-  def supplier_tax_rate = mes_supplier&.tax_rate.to_d
+  # 这一行实际适用的税率（百分数，13 表示 13%）。
+  # **行上填了就以行上为准，留空才回落供应商档案**——同一家供应商不同料的税点可能不同，
+  # 也有本来就不开票的单（2026-11-05 皓显那单：档案配 5%，实际不含税结算）。
+  # 方法名保留 supplier_tax_rate：换算/导出/前端都在用，改名要动一片，而语义仍是
+  # 「对这家供应商这一行按几个点算」。
+  def supplier_tax_rate
+    return tax_rate.to_d if tax_rate.present?
+
+    mes_supplier&.tax_rate.to_d
+  end
 
   # 未税单价（micros）：录入价按未税存则直接返回，按含税存则反算 rate ÷ (1 + 税率%)。
   def untaxed_rate_micros
     r = rate_micros.to_d
     return r unless price_tax_included && supplier_tax_rate.positive?
 
-    (r / (1 + supplier_tax_rate / 100)).round
+    (r / (1 + (supplier_tax_rate / 100))).round
   end
 
-  # 含税单价（micros）：录入价按含税存则直接返回，按未税存则加税 rate × (1 + 税率%)。
+  # 含税单价（micros）。
+  #
+  # ⚠️ 未税录入的行返回 nil，不做换算——2026-11-05 采购反馈：
+  # 「皓显这家我下单是未税的，点开怎么还有含税价」。供应商档案里配了 5% 税率，
+  # 于是未税 680 被换算出一个「含税 714」摆在旁边，看着像系统自作主张加了税。
+  # 实际跟这家是不含税结算，那个 714 既不是下单价也不是要付的钱，凭空出现只会误导。
+  # 「不含税就是不含税」——录的是哪种口径就只显示哪种，另一种留空。
   def taxed_rate_micros
-    r = rate_micros.to_d
-    return r if price_tax_included || !supplier_tax_rate.positive?
+    return rate_micros.to_d.round if price_tax_included
+    return nil if supplier_tax_rate.positive?
 
-    (r * (1 + supplier_tax_rate / 100)).round
+    # 税率为 0：含税＝未税，两列同值不会产生歧义，照常给出来。
+    rate_micros.to_d.round
   end
 
   # 未税 / 含税合计（micros）：单价各按各的口径乘数量。
@@ -86,7 +101,11 @@ class Mes::PurchaseItem < ApplicationRecord
   # 分不清是哪种，对账时就对不上——所以两个都摆出来。
   def untaxed_amount_micros = (qty.to_d * untaxed_rate_micros).round
 
-  def taxed_amount_micros = (qty.to_d * taxed_rate_micros).round
+  # 含税单价为 nil（未税录入 + 有税率）时合计也为 nil，同上。
+  def taxed_amount_micros
+    r = taxed_rate_micros
+    r && (qty.to_d * r).round
+  end
 
   private
 

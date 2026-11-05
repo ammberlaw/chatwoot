@@ -173,6 +173,9 @@ const blankRow = () => ({
   orderedQty: 0, // 本单这个料已经下出去的量（算料时带出，用来只铺剩余量）
   requiredQty: null, // 算料出来的原需求量（＝余量 + 已下量），只读提示用
   priceTaxIncluded: false,
+  // 增值税税率（%）。留空＝按供应商档案上登记的税率算；填了就以这一行为准——
+  // 同一家供应商不同料走不同税点、或这单就是按未税谈的，都不用去改档案。
+  taxRate: '',
   suggestedQty: null, // 工程建议采购量（生产任务单算料带出，只读参考）
   auxAttributeName: '', // 辅助属性（算料时从任务单那行带出；导出给供应商的单子要印）
   remark: '',
@@ -719,6 +722,8 @@ const openEdit = po => {
         ? String(Number(((it.rateMicros / 1e6) * Number(it.qty)).toFixed(2)))
         : '',
       priceTaxIncluded: !!it.priceTaxIncluded,
+      // decimal 回来是 '13.0' 这种字符串，直接回填框里会显示 13.0；过一道 Number 去掉尾零
+      taxRate: it.taxRate == null ? '' : String(Number(it.taxRate)),
       auxAttributeName: it.auxAttributeName || '',
       remark: it.remark || '',
       images: (it.images || []).map(img => ({
@@ -838,6 +843,8 @@ const submit = async () => {
       qty: Number(r.qty),
       rateMicros: r.rate ? Math.round(Number(r.rate) * 1e6) : null,
       priceTaxIncluded: r.priceTaxIncluded,
+      // 空字符串要送 null（＝回落供应商档案），不能 Number('')=0 当成「免税」
+      taxRate: r.taxRate === '' || r.taxRate == null ? null : Number(r.taxRate),
       auxAttributeName: r.auxAttributeName || null,
       remark: r.remark || '',
       // 整组替换：每次给这一行当前应有的完整列表，删掉的不在列表里就没了
@@ -1281,7 +1288,7 @@ onBeforeRouteLeave((to, from, next) => {
             <!-- 主控件行：序号 / 类型 / 物料 / 供应商 / 数量 / 单价 / 删除
                  序号：一个供应商常要下好几行料，没有行号对不上纸质单。 -->
             <div
-              class="grid items-center grid-cols-1 gap-2 md:grid-cols-[28px_1.6fr_3fr_2fr_1.2fr_1.6fr_1.6fr_24px]"
+              class="grid items-center grid-cols-1 gap-2 md:grid-cols-[28px_1.6fr_3fr_2fr_1.2fr_1.6fr_1.6fr_1fr_24px]"
             >
               <span
                 class="text-xs tabular-nums text-n-slate-10 md:text-center"
@@ -1381,6 +1388,18 @@ onBeforeRouteLeave((to, from, next) => {
                 title="填金额会按数量反推单价"
                 @update:model-value="v => setRowAmount(row, v)"
               />
+              <!-- 增值税税率：跟单价/金额摆一排（对账看的就是这三个数）。
+                   留空时 placeholder 显示这家供应商档案上的税率，即「不填就按这个算」。 -->
+              <Input
+                v-model="row.taxRate"
+                type="number"
+                :placeholder="
+                  supplierTaxRate(row.mesSupplierId)
+                    ? `税率 ${Number(supplierTaxRate(row.mesSupplierId))}%`
+                    : '税率 %'
+                "
+                title="增值税税率（%）。留空＝按供应商档案上的税率算"
+              />
               <button
                 type="button"
                 class="justify-self-end text-n-slate-10 hover:text-n-ruby-11"
@@ -1403,17 +1422,10 @@ onBeforeRouteLeave((to, from, next) => {
                  给它让位。以前图标躲在行尾 24px 里、缩略图另起一排在左下，一行拆成两处看。 -->
             <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
               <label
-                class="flex items-center gap-1.5 text-xs text-n-slate-11"
-                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-3'"
+                class="flex items-center gap-1.5 text-xs md:col-span-2 text-n-slate-11"
               >
                 <input v-model="row.priceTaxIncluded" type="checkbox" />
                 <span class="shrink-0">单价含税</span>
-                <span
-                  v-if="row.mesSupplierId && supplierTaxRate(row.mesSupplierId)"
-                  class="text-n-slate-10"
-                >
-                  （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
-                </span>
               </label>
               <div class="flex items-center gap-2 md:col-span-3">
                 <label class="text-heading-3 shrink-0 text-n-slate-12"
@@ -1443,7 +1455,7 @@ onBeforeRouteLeave((to, from, next) => {
               <Input
                 v-model="row.remark"
                 placeholder="备注"
-                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-3'"
+                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-4'"
               />
               <!-- 行内附图（只对内）：缩略图 + 加图按钮，一起靠右。
                    不会出现在发给供应商的采购订单/预览页上（那两处只渲染固定几列）。 -->

@@ -501,7 +501,7 @@ defineExpose({ dialogRef, open });
                   title="从知识库选图"
                   @click="openPicker(index)"
                 >
-                  <span class="i-lucide-library size-3.5 shrink-0" />
+                  <span class="i-lucide-folder-open size-3.5 shrink-0" />
                 </button>
               </div>
               <input

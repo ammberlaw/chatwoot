@@ -10,6 +10,7 @@ import DepartmentsAPI from 'dashboard/api/org/departments';
 import MembershipsAPI from 'dashboard/api/org/memberships';
 import CustomerAPI from 'dashboard/api/crm/customers';
 import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import BomAPI from 'dashboard/api/mes/boms';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -80,12 +81,14 @@ const L = {
   removed: '已移除该成员',
   mentionMe: '@我',
   kindCustomer: '客户',
-  kindOrder: '订单',
+  kindOrder: '销售订单',
+  kindBom: '生产任务单',
   refColon: '：',
-  sendCard: '发送客户 / 订单卡片',
+  sendCard: '发送客户 / 订单 / 生产任务单卡片',
   pickRefTitle: '选择业务对象',
   searchCustomer: '搜索客户名称',
   searchOrder: '搜索订单号',
+  searchBom: '搜索任务单号 / 单据号',
   loadingText: '加载中…',
   noResult: '无匹配结果',
   reply: '引用回复',
@@ -480,10 +483,26 @@ const pickMention = member => {
 };
 
 // ── 业务对象进群（客户 / 订单卡片）────────────────────────
-const REF_TYPE_LABEL = { customer: '客户', sales_order: '订单' };
+const REF_TYPE_LABEL = {
+  customer: '客户',
+  sales_order: '销售订单',
+  mes_bom: '生产任务单',
+};
 const pendingRef = ref(null); // { ref_type, ref_id, snapshot:{title,subtitle,code} }
 const refDialog = ref(null);
 const refKind = ref('customer');
+// 三个 tab 用查表而不是三元，再加类型时只动这里。
+const REF_KINDS = ['customer', 'sales_order', 'mes_bom'];
+const REF_KIND_LABEL = {
+  customer: L.kindCustomer,
+  sales_order: L.kindOrder,
+  mes_bom: L.kindBom,
+};
+const REF_KIND_PLACEHOLDER = {
+  customer: L.searchCustomer,
+  sales_order: L.searchOrder,
+  mes_bom: L.searchBom,
+};
 const refQuery = ref('');
 const refResults = ref([]);
 const refLoading = ref(false);
@@ -500,6 +519,18 @@ const searchRef = async () => {
         ref_type: 'customer',
         ref_id: c.id,
         snapshot: { title: c.name, subtitle: '', code: '' },
+      }));
+    } else if (refKind.value === 'mes_bom') {
+      // 生产任务单＝Mes::Bom。后端按 bom_no / doc_no 搜。
+      const { data } = await BomAPI.get({ q: refQuery.value, per_page: 50 });
+      refResults.value = (data.payload || []).map(b => ({
+        ref_type: 'mes_bom',
+        ref_id: b.id,
+        snapshot: {
+          title: b.bom_no || b.doc_no,
+          subtitle: [b.model, b.customer_name].filter(Boolean).join(' · '),
+          code: b.bom_no || b.doc_no,
+        },
       }));
     } else {
       const { data } = await SalesOrderAPI.get({
@@ -554,6 +585,12 @@ const REF_ROUTES = {
     params: { accountId: accountId.value },
     query: { focus: String(t.id) },
   }),
+  // 生产任务单：BOM 列表页用 ?focus=<id> 展开那一张。
+  mes_bom: t => ({
+    name: 'mes_boms_index',
+    params: { accountId: accountId.value },
+    query: { focus: String(t.id) },
+  }),
   kpi_sheet: t => ({
     name: 'crm_kpi_sheet_detail',
     params: { accountId: accountId.value },
@@ -590,9 +627,12 @@ const REF_ROUTES = {
       : { name: 'crm_emails_index', params: { accountId: accountId.value } },
 };
 
+// 一张表管两处：聊天记录里已发出的卡片、输入框上方待发送的卡片。
+// 原先两边各一张，加类型容易只改一张。
 const REF_ICONS = {
   customer: 'i-lucide-building-2',
   sales_order: 'i-lucide-file-text',
+  mes_bom: 'i-lucide-clipboard-list',
   kpi_sheet: 'i-lucide-clipboard-check',
   commission_sheet: 'i-lucide-badge-percent',
   quote_request: 'i-lucide-calculator',
@@ -603,7 +643,7 @@ const REF_ICONS = {
 const refIcon = t => REF_ICONS[t?.type] || 'i-lucide-file-text';
 // 卡片上那行小字：后端挂 ref 时给的 label 优先，老消息（只有客户/订单两种）回落到原文案。
 const refLabel = t =>
-  t?.snapshot?.label || (t?.type === 'customer' ? L.kindCustomer : L.kindOrder);
+  t?.snapshot?.label || REF_TYPE_LABEL[t?.type] || L.kindOrder;
 const canOpenRef = t => !!REF_ROUTES[t?.type];
 
 const openRef = target => {
@@ -1543,18 +1583,11 @@ onBeforeUnmount(() => {
               class="flex items-center gap-2 py-1.5 pl-2.5 pr-1.5 max-w-max text-xs rounded-lg bg-n-teal-3 ring-1 ring-inset ring-n-teal-6 text-n-teal-11"
             >
               <Icon
-                :icon="
-                  pendingRef.ref_type === 'customer'
-                    ? 'i-lucide-building-2'
-                    : 'i-lucide-file-text'
-                "
+                :icon="REF_ICONS[pendingRef.ref_type] || 'i-lucide-file-text'"
                 class="size-3.5 shrink-0"
               />
               <span class="max-w-[200px] truncate">
-                {{
-                  pendingRef.ref_type === 'customer'
-                    ? L.kindCustomer
-                    : L.kindOrder
+                {{ REF_TYPE_LABEL[pendingRef.ref_type] || L.kindOrder
                 }}{{ L.refColon }}{{ pendingRef.snapshot?.title }}
               </span>
               <button
@@ -2068,7 +2101,7 @@ onBeforeUnmount(() => {
       <div class="flex flex-col gap-3">
         <div class="flex gap-1 p-0.5 rounded-lg bg-n-alpha-1 max-w-max">
           <button
-            v-for="k in ['customer', 'sales_order']"
+            v-for="k in REF_KINDS"
             :key="k"
             type="button"
             class="px-3 py-1 text-sm rounded-md transition-colors"
@@ -2082,14 +2115,12 @@ onBeforeUnmount(() => {
               searchRef();
             "
           >
-            {{ k === 'customer' ? L.kindCustomer : L.kindOrder }}
+            {{ REF_KIND_LABEL[k] }}
           </button>
         </div>
         <Input
           v-model="refQuery"
-          :placeholder="
-            refKind === 'customer' ? L.searchCustomer : L.searchOrder
-          "
+          :placeholder="REF_KIND_PLACEHOLDER[refKind]"
           class="reset-base"
           @keyup.enter="searchRef"
         />

@@ -181,7 +181,7 @@ watch([hasActiveChild, storageKey], expandSubGroupOnActiveChild, {
         <div
           v-if="isScrollable && isExpanded"
           v-show="!scrollEnd"
-          class="absolute bg-gradient-to-t from-n-background w-full h-12 to-transparent -bottom-1 pointer-events-none flex items-end justify-end px-2 animate-fade-in-up"
+          class="absolute bottom-1 end-2 pointer-events-none flex items-center justify-end"
         >
           <Icon
             icon="i-woot-chevrons-down"

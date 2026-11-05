@@ -79,7 +79,7 @@ watch(() => [props.kind, props.enabled, props.approverView], async (_, __, onCle
         break;
       case 'team':
         response = await ChatAPI.list();
-        map = r => ({ id: r.id, title: r.name, detail: r.last_message?.content || '暂无消息', badge: r.unread_count ? `${r.unread_count} 未读` : '', avatar: r.peer_avatar_url || r.avatar_url });
+        map = r => ({ id: r.id, title: r.name, detail: r.last_message?.content || '暂无消息', badge: r.unread_count ? `${r.unread_count} 未读` : '', unread: Number(r.unread_count) > 0, unreadCount: Number(r.unread_count) || 0, avatar: r.peer_avatar_url || r.avatar_url });
         break;
       case 'erp':
         response = await VouchersAPI.get({ page: 1, per_page: 3 });
@@ -154,8 +154,24 @@ watch(() => [props.kind, props.enabled, props.approverView], async (_, __, onCle
       </div>
     </template>
     <template v-else>
-      <div v-if="kind === 'team'" class="mb-3 flex -space-x-2">
-        <span v-for="row in rows" :key="row.id" class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-[#edf0e8] text-label text-[#59654f]" :title="row.title"><img v-if="row.avatar" :src="row.avatar" alt="" class="h-full w-full object-cover" /><span v-else>{{ row.title?.slice(0, 1) }}</span></span>
+      <div v-if="kind === 'team'" class="mb-3 flex gap-2">
+        <span
+          v-for="row in rows"
+          :key="row.id"
+          class="relative grid size-9 shrink-0 place-items-center"
+          :title="row.unread ? `${row.title} · ${row.badge}` : row.title"
+        >
+          <span class="grid h-full w-full place-items-center overflow-hidden rounded-full border-2 border-white bg-[#edf0e8] text-label text-[#59654f]">
+            <img v-if="row.avatar" :src="row.avatar" alt="" class="h-full w-full object-cover" />
+            <span v-else>{{ row.title?.slice(0, 1) }}</span>
+          </span>
+          <span
+            v-if="row.unread"
+            class="absolute -right-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-[#e33e46] px-1 text-label-small !text-[10px] !font-semibold leading-none text-white tabular-nums"
+            aria-hidden="true"
+          >{{ row.unreadCount > 99 ? '99+' : row.unreadCount }}</span>
+          <span v-if="row.unread" class="sr-only">{{ row.badge }}</span>
+        </span>
       </div>
       <template v-if="kind !== 'team'">
       <div v-for="(row, i) in rows.slice(0, kind === 'oa' ? 2 : 1)" :key="row.id" class="flex items-center gap-3" :class="kind === 'team' ? 'border-t border-black/5 py-3' : 'rounded-xl border border-black/5 bg-[#fafbfc] px-3 py-3.5'">

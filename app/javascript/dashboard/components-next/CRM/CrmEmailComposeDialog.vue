@@ -148,12 +148,12 @@ const L = {
   aiButton: 'AI 写信',
   aiTitle: 'AI 写信 / 回信',
   aiPlaceholder:
-    '用中文描述要写什么，例如：催客户确认 PI，语气客气点；报 500 台 10.1 寸平板的价格，交期 30 天…',
+    '描述邮件主题、要点、语气及语言要求…',
   aiHint:
-    '默认写英文（可在描述里指定其他语言）；生成内容会插到正文最上方，可再修改。',
+    '默认使用英文，可指定其他语言。生成内容将插入正文顶部，发送前可编辑。',
   aiGenerate: '生成',
   aiGenerating: '生成中…（约 10 秒）',
-  aiNeedIntent: '请先描述这封邮件要写什么',
+  aiNeedIntent: '请先输入邮件内容要求',
   aiFailed: 'AI 生成失败，请稍后再试',
 };
 
@@ -2026,7 +2026,7 @@ defineExpose({ open, close });
             class="relative flex-shrink-0"
           >
             <button
-              class="crm-ai inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
+              class="crm-ai crm-ai-solid inline-flex items-center flex-shrink-0 gap-1.5 px-3 h-8 text-sm font-medium border rounded-lg border-n-amber-9 bg-n-amber-9 text-white hover:bg-n-amber-10 disabled:opacity-60"
               :disabled="sending"
               :title="L.aiTitle"
               @click="aiOpen = !aiOpen"
@@ -2082,7 +2082,7 @@ defineExpose({ open, close });
             :title="L.kbTip"
             @click="openKbPicker"
           >
-            <Icon icon="i-lucide-book-open" class="size-4" />
+            <Icon icon="i-lucide-folder-open" class="size-4" />
             {{ L.kbSelect
             }}{{ kbPicked.length ? `（${kbPicked.length}）` : '' }}
           </button>

@@ -10,6 +10,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import CrmOpportunityDetailDrawer from 'dashboard/components-next/CRM/CrmOpportunityDetailDrawer.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
@@ -24,6 +25,8 @@ const route = useRoute();
 const store = useCrmOpportunitiesStore();
 
 const createDialogRef = ref(null);
+const detailDrawerRef = ref(null);
+const openDetail = record => detailDrawerRef.value?.open(record);
 const { isCrmSales } = useCrmRole();
 // 普通业务只看个人商机：无「全部」视图，默认落在「我的」。
 const normalizeFilter = value =>
@@ -121,7 +124,7 @@ watch(
     if (props.embedded || focusOpened.value || !route.query.focus) return;
     const rec = list.find(r => String(r.id) === String(route.query.focus));
     if (rec) {
-      openEditDialog(rec);
+      openDetail(rec);
       focusOpened.value = true;
     }
   },
@@ -148,7 +151,9 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       v-if="!embedded"
       class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <h1
+        class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
         {{ t('CRM.OPPORTUNITIES.HEADER') }}
       </h1>
     </div>
@@ -193,7 +198,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             v-for="record in records"
             :key="record.id"
             class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-            @click="openEditDialog(record)"
+            @click="openDetail(record)"
           >
             <div class="flex items-center gap-2">
               <span
@@ -300,7 +305,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
               v-for="record in records"
               :key="record.id"
               class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-              @click="openEditDialog(record)"
+              @click="openDetail(record)"
             >
               <td
                 class="px-3 py-2 font-medium text-n-slate-12 whitespace-nowrap"
@@ -358,6 +363,20 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
                 <span v-else class="text-n-slate-10">—</span>
               </td>
               <td class="px-3 py-2 text-right whitespace-nowrap">
+                <Button
+                  :label="t('CRM.OPPORTUNITIES.VIEW')"
+                  sm
+                  variant="ghost"
+                  color="slate"
+                  @click.stop="openDetail(record)"
+                />
+                <Button
+                  :label="t('CRM.OPPORTUNITIES.DETAIL.EDIT')"
+                  sm
+                  variant="ghost"
+                  color="slate"
+                  @click.stop="openEditDialog(record)"
+                />
                 <button
                   type="button"
                   :title="t('CRM.OPPORTUNITIES.DELETE.LABEL')"
@@ -372,6 +391,8 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
         </table>
       </template>
     </div>
+
+    <CrmOpportunityDetailDrawer ref="detailDrawerRef" @edit="openEditDialog" />
 
     <CrmOpportunityCreateDialog
       ref="createDialogRef"

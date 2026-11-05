@@ -320,12 +320,12 @@ const SEND_STATUSES = {
   DRAFT: { label: '草稿', class: STATUS_TONE.idle },
   SCHEDULED: { label: '定时发送', class: STATUS_TONE.busy },
   PENDING: { label: '发送中', class: STATUS_TONE.flow },
-  SENT: { label: '已发送', class: STATUS_TONE.done },
+  SENT: { label: '已发送', class: 'bg-n-slate-3 text-n-slate-11' },
   FAILED: { label: '发送失败', class: STATUS_TONE.fail },
 };
 
 // 发送状态角标只对「我们发出去的」有意义：收到的邮件入库时 send_status 也写成 SENT，
-// 挂个绿色「已发送」会让人以为这封是自己发的，进而到收到的邮件上去找只有发出邮件才有的阅读追踪。
+// 挂个「已发送」会让人以为这封是自己发的，进而到收到的邮件上去找只有发出邮件才有的阅读追踪。
 const RECEIVED_FOLDERS = ['INBOX', 'SPAM'];
 const showSendBadge = email => !RECEIVED_FOLDERS.includes(email.folder);
 
@@ -2537,7 +2537,7 @@ watch(
                         record.openCount &&
                         activeFolder !== 'tracking'
                       "
-                      class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11 flex-shrink-0"
+                      class="inline-flex items-center gap-0.5 text-[11px] text-n-slate-11 flex-shrink-0"
                     >
                       <Icon icon="i-lucide-eye" class="size-3" />
                       {{ record.openCount }}
@@ -2550,7 +2550,7 @@ watch(
                   >
                     <span
                       v-if="record.openCount"
-                      class="inline-flex items-center gap-1 flex-shrink-0 text-n-teal-11"
+                      class="inline-flex items-center gap-1 flex-shrink-0 text-n-slate-11"
                     >
                       <Icon icon="i-lucide-eye" class="size-3" />
                       打开 {{ record.openCount }} 次
@@ -2998,14 +2998,14 @@ watch(
                   class="size-4"
                   :class="
                     selectedEmail.openCount
-                      ? 'text-n-teal-11'
+                      ? 'text-n-slate-11'
                       : 'text-n-slate-10'
                   "
                 />
                 <span
                   :class="
                     selectedEmail.openCount
-                      ? 'text-n-teal-11'
+                      ? 'text-n-slate-11'
                       : 'text-n-slate-10'
                   "
                 >

@@ -1721,7 +1721,7 @@ const menuItems = computed(() => {
       {
         name: 'CRM Knowledge',
         label: t('SIDEBAR.CRM_G_KNOWLEDGE'),
-        icon: 'i-lucide-book-open',
+        icon: 'i-lucide-folder-open',
         activeOn: ['crm_knowledge_docs_index'],
         children: [
           {
@@ -1805,7 +1805,7 @@ const menuItems = computed(() => {
       {
         name: 'CRM Doc Center',
         label: t('SIDEBAR.CRM_G_DOC_CENTER'),
-        icon: 'i-lucide-library',
+        icon: 'i-lucide-folder-open',
         activeOn: ['crm_doc_center_index'],
         children: [
           {
@@ -2622,9 +2622,6 @@ const filteredMenuItems = computed(() =>
       data-sidebar-region="footer"
       class="flex relative flex-col flex-shrink-0 gap-1 justify-between items-center"
     >
-      <div
-        class="pointer-events-none absolute inset-x-0 -top-[1.938rem] h-8 bg-gradient-to-t from-n-background to-transparent"
-      />
       <SidebarChangelogCard
         v-if="
           isOnChatwootCloud &&

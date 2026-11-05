@@ -4,14 +4,13 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmBlackSalesTrend from 'dashboard/components-next/CRM/charts/CrmBlackSalesTrend.vue';
-import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
+import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import { usesClassicContentColors } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
-import CrmSentEmailRankChart from 'dashboard/components-next/CRM/CrmSentEmailRankChart.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
@@ -106,24 +105,13 @@ const totals = computed(() => {
   };
 });
 
-// 长春花紫色系柔和渐变（跨卡 紫→靛→蓝，无绿）。完整字面量供 Tailwind 收录。
-const CARD_GRADIENTS = [
-  'from-n-iris-3 to-n-iris-5',
-  'from-n-iris-4 to-n-blue-4',
-  'from-n-blue-3 to-n-iris-5',
-];
-
-// ── 经典灰：带环比和走势的 KPI 卡；其余主题保持原来的渐变卡不动 ──
 const themeSignal = useThemeSignal();
-const isClassicKpi = computed(() => {
-  void themeSignal.value;
-  return usesClassicContentColors();
-});
-
+const isClassicKpi = computed(
+  () => themeSignal.value >= 0 && usesClassicContentColors()
+);
 const isClassicBlack = computed(
   () =>
-    themeSignal.value >= 0 &&
-    document.body.classList.contains('theme-classic')
+    themeSignal.value >= 0 && document.body.classList.contains('theme-classic')
 );
 const blackTeamPct = computed(() =>
   totals.value.targetAmount > 0
@@ -172,11 +160,15 @@ const makeDelta = (key, { money: isMoney = false, fmt = v => v } = {}) => {
   return { text, dir: cur > was ? 'up' : 'down', vs: `较上月 ${fmt(was)}` };
 };
 
-// 本月/上月的团队合计完成率，用来给「目标完成率」那张卡算 pt 差
+// 保留各主题原有的完成率口径：经典黑取成员合计，其余取月度汇总。
 const ratio = row => {
   const target = Number(row.target_amount_micros || 0);
   return target > 0 ? (Number(row.amount_micros || 0) / target) * 100 : null;
 };
+const gaugePct = computed(() => ratio(monthRow(selectedMonth.value)));
+const completionPct = computed(() =>
+  isClassicBlack.value ? blackTeamPct.value : gaugePct.value
+);
 
 // 组员按完成率分三档：达标 ≥80%、进行中 50–79%、其余落后（没设目标的不计）
 const memberBuckets = computed(() => {
@@ -192,18 +184,6 @@ const memberBuckets = computed(() => {
     crit: pcts.filter(x => x < 50).length,
   };
 });
-
-// 完成率那张卡不套 KPI 卡的骨架：大弧包着数字，底下挂实绩/目标
-const GAUGE_PATH = 'M12,80 A68,68 0 0 1 148,80';
-const GAUGE_LEN = Math.PI * 68;
-const gaugePct = computed(() => ratio(monthRow(selectedMonth.value)));
-const gaugeDash = computed(() => {
-  const done = Math.min(100, Math.max(0, gaugePct.value || 0));
-  return `${((done / 100) * GAUGE_LEN).toFixed(2)} ${GAUGE_LEN.toFixed(2)}`;
-});
-const gaugeText = computed(() =>
-  gaugePct.value === null ? '—' : `${Math.round(gaugePct.value)}%`
-);
 
 const classicKpis = computed(() => {
   const cur = monthRow(selectedMonth.value);
@@ -395,10 +375,17 @@ const kpiCards = computed(() => [
     icon: 'i-lucide-users',
   },
 ]);
-const blackTeamSummary = computed(() => [
+const overviewCards = computed(() => [
+  { ...kpiCards.value[0], delta: classicKpis.value[0].delta },
   kpiCards.value[1],
   { ...classicKpis.value[2], sub: classicKpis.value[2].unit },
-  kpiCards.value[2],
+]);
+const overviewTones = ['bg-n-iris-3', 'bg-n-iris-4', 'bg-n-blue-3'];
+const memberHeaders = computed(() => [
+  '组员',
+  '目标',
+  '完成率',
+  t('CRM.TEAM_DASHBOARD.ROW_DELTA'),
 ]);
 </script>
 
@@ -411,9 +398,13 @@ const blackTeamSummary = computed(() => [
       '!gap-6 !bg-white !border-[#e9eae6] !shadow-none !backdrop-blur-none !p-6'
     "
   >
-    <div class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+    >
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1
+          class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           {{ t('CRM.TEAM_DASHBOARD.HEADER') }}
         </h1>
       </div>
@@ -445,176 +436,195 @@ const blackTeamSummary = computed(() => [
       {{ t('CRM.TEAM_DASHBOARD.EMPTY') }}
     </div>
 
-    <template v-else-if="team && isClassicBlack">
-      <div
-        class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
-      >
-        <section class="min-w-0 rounded-3xl bg-[#f5f6f2] p-6 sm:p-7">
-          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
-            {{ kpiCards[0].label }}
-          </h2>
-          <div
-            class="mt-4 font-interDisplay text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-none tracking-tight tabular-nums text-[#191b1b]"
-          >
-            {{ kpiCards[0].value }}
+    <template v-else-if="team">
+      <div class="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <section
+          v-for="(kpi, index) in overviewCards"
+          :key="kpi.label"
+          class="min-w-0 rounded-2xl border border-n-weak p-5"
+          :class="
+            isClassicBlack
+              ? 'bg-[#f5f6f2] [.theme-porcelain_&]:bg-n-solid-1'
+              : isClassicKpi
+                ? 'bg-n-solid-1'
+                : overviewTones[index]
+          "
+        >
+          <h2 class="text-heading-3 text-n-slate-11">{{ kpi.label }}</h2>
+          <div class="mt-3 flex flex-wrap items-baseline gap-2">
+            <strong
+              class="text-3xl font-semibold tabular-nums text-n-slate-12"
+              >{{ kpi.value }}</strong
+            >
+            <span v-if="kpi.unit" class="text-label-small text-n-slate-11">{{
+              kpi.unit
+            }}</span>
           </div>
           <div
-            class="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-label-small text-[#85887f]"
+            class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-label-small text-n-slate-11"
           >
             <strong
-              v-if="classicKpis[0].delta"
+              v-if="kpi.delta"
               :class="
-                classicKpis[0].delta.dir === 'up'
-                  ? 'text-[#278161]'
-                  : classicKpis[0].delta.dir === 'down'
-                    ? 'text-[#be4638]'
+                kpi.delta.dir === 'up'
+                  ? 'text-n-teal-11'
+                  : kpi.delta.dir === 'down'
+                    ? 'text-n-ruby-11'
                     : ''
               "
-              >{{ classicKpis[0].delta.text }}</strong
+              >{{ kpi.delta.text }}</strong
             >
-            <span>{{ kpiCards[0].sub }}</span>
-          </div>
-          <div
-            class="mt-6 grid grid-cols-3 divide-x divide-[#e2e4dc] border-t border-[#e2e4dc] pt-5"
-          >
-            <div
-              v-for="(kpi, index) in blackTeamSummary"
-              :key="kpi.label"
-              :class="index && 'pl-5'"
-            >
-              <h3 class="text-heading-3 font-semibold text-[#191b1b]">
-                {{ kpi.label }}
-              </h3>
-              <strong class="mt-2 block text-2xl tabular-nums text-[#191b1b]">{{
-                kpi.value
-              }}</strong>
-              <p class="mt-1 text-label-small text-[#85887f]">{{ kpi.sub }}</p>
-            </div>
+            <span>{{
+              kpi.delta?.vs ||
+              (!kpi.unit ? kpi.sub : kpiCards[2].value + ' ' + kpiCards[2].sub)
+            }}</span>
           </div>
         </section>
         <section
-          class="flex flex-col justify-between rounded-3xl bg-[#ffd052] p-6 sm:p-7 text-[#191b1b]"
+          class="min-w-0 rounded-2xl border p-5"
+          :class="
+            isClassicBlack
+              ? 'border-transparent bg-[#ffd052] text-[#191b1b] [.theme-porcelain_&]:border-n-weak [.theme-porcelain_&]:bg-n-solid-1'
+              : 'border-n-iris-5 bg-n-iris-3 text-n-slate-12'
+          "
         >
-          <h2 class="text-heading-2 font-semibold">
+          <h2 class="text-heading-3">
             {{ t('CRM.DASHBOARD.DESIGN.ACHIEVED') }}
           </h2>
-          <div
-            class="mt-5 text-[56px] font-semibold leading-none tracking-tight tabular-nums"
-          >
-            {{
-              blackTeamPct == null
-                ? t('CRM.DASHBOARD.DESIGN.UNSET')
-                : Math.round(blackTeamPct) + '%'
-            }}
-          </div>
+          <strong class="mt-3 block text-3xl font-semibold tabular-nums">{{
+            completionPct === null ? '—' : `${Math.round(completionPct)}%`
+          }}</strong>
           <svg
-            class="mt-4 h-2 w-full"
-            viewBox="0 0 100 8"
+            class="my-3 h-1.5 w-full"
+            viewBox="0 0 100 6"
             preserveAspectRatio="none"
             aria-hidden="true"
           >
-            <rect width="100" height="8" rx="4" fill="#fff0b8" />
             <rect
-              :width="Math.max(0, Math.min(100, blackTeamPct || 0))"
-              height="8"
-              rx="4"
-              fill="#191b1b"
+              width="100"
+              height="6"
+              rx="3"
+              class="fill-current opacity-10"
+            />
+            <rect
+              :width="Math.min(100, Math.max(0, completionPct || 0))"
+              height="6"
+              rx="3"
+              class="fill-current"
             />
           </svg>
-          <div class="mt-5 border-t border-black/15 pt-4">
-            <p class="text-label-small">
-              {{ t('CRM.DASHBOARD.DESIGN.TARGET_AMOUNT') }}
-            </p>
-            <strong class="mt-2 block text-heading-1 tabular-nums">{{
-              money(totals.targetAmount)
-            }}</strong>
-          </div>
+          <p class="text-label-small">
+            {{
+              t('CRM.TEAM_DASHBOARD.ROW_TARGET', {
+                target: money(totals.targetAmount),
+              })
+            }}
+          </p>
         </section>
       </div>
-      <div class="grid items-start gap-6 xl:grid-cols-2">
+
+      <div class="grid items-start gap-4 xl:grid-cols-2">
         <section
           v-for="table in memberTables"
           :key="table.key"
-          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+          class="min-w-0 overflow-hidden rounded-2xl border border-n-weak bg-n-solid-1"
         >
-          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
-            {{ table.title }}
-          </h2>
-          <p v-if="!table.rows.length" class="py-10 text-label text-[#85887f]">
+          <div class="flex items-baseline justify-between gap-3 p-5 pb-4">
+            <h2 class="text-heading-2 font-semibold text-n-slate-12">
+              {{ table.title }}
+            </h2>
+            <span class="text-label-small text-n-slate-11"
+              >{{ totals.memberCount }} {{ kpiCards[2].sub }}</span
+            >
+          </div>
+          <p
+            v-if="!table.rows.length"
+            class="px-5 pb-5 text-label text-n-slate-11"
+          >
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
           </p>
-          <ol v-else class="mt-5 list-none divide-y divide-[#eceee6]">
-            <li
-              v-for="(row, index) in table.rows"
-              :key="row.id"
-              class="py-4 first:pt-0 last:pb-0"
-            >
-              <div class="flex items-center gap-3">
-                <span
-                  class="grid size-8 shrink-0 place-items-center rounded-xl text-label-small font-semibold"
-                  :class="
-                    index === 0
-                      ? 'bg-[#ffd052] text-[#191b1b]'
-                      : 'bg-[#f3f4f0] text-[#85887f]'
-                  "
-                  >{{ String(index + 1).padStart(2, '0') }}</span
-                >
-                <span
-                  class="min-w-0 flex-1 truncate text-heading-3 font-semibold text-[#191b1b]"
-                  :title="row.name"
-                  >{{ row.name }}</span
-                >
-                <strong
-                  class="shrink-0 text-heading-2 tabular-nums text-[#191b1b]"
-                  >{{ row.actual }}</strong
-                >
-              </div>
-              <div class="mt-3 flex items-center gap-3">
-                <svg
-                  class="h-2 min-w-0 flex-1"
-                  viewBox="0 0 100 8"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <rect width="100" height="8" rx="4" fill="#f3f4f0" />
-                  <rect
-                    :width="Math.max(0, Math.min(100, row.pct || 0))"
-                    height="8"
-                    rx="4"
-                    :fill="index === 0 ? '#ffd052' : '#191b1b'"
-                  />
-                </svg>
-                <strong
-                  class="w-12 text-right text-label-small tabular-nums text-[#191b1b]"
-                  >{{ row.pctText }}</strong
-                >
-              </div>
-              <div
-                class="mt-2 flex flex-wrap justify-between gap-2 text-label-small text-[#85887f]"
+          <div v-else class="max-h-96 overflow-auto">
+            <table class="w-full min-w-[32rem] text-label-small tabular-nums">
+              <thead
+                class="sticky top-0 border-y border-n-weak bg-n-slate-2 text-n-slate-11"
               >
-                <span>{{
-                  t('CRM.TEAM_DASHBOARD.ROW_TARGET', { target: row.target })
-                }}</span>
-                <span
-                  >{{ t('CRM.TEAM_DASHBOARD.ROW_DELTA') }}
-                  <strong :class="deltaTone(row.deltaPt)">{{
-                    deltaText(row.deltaPt)
-                  }}</strong></span
+                <tr>
+                  <th class="px-5 py-2 text-left font-medium">
+                    {{ memberHeaders[0] }}
+                  </th>
+                  <th class="px-3 py-2 text-right font-medium">
+                    {{ table.valueHead }}
+                  </th>
+                  <th class="px-3 py-2 text-right font-medium">
+                    {{ memberHeaders[1] }}
+                  </th>
+                  <th class="px-3 py-2 text-right font-medium">
+                    {{ memberHeaders[2] }}
+                  </th>
+                  <th class="px-5 py-2 text-right font-medium">
+                    {{ memberHeaders[3] }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-n-weak">
+                <tr
+                  v-for="(row, index) in table.rows"
+                  :key="row.id"
+                  class="text-n-slate-12 hover:bg-n-slate-2"
                 >
-              </div>
-            </li>
-          </ol>
+                  <td class="px-5 py-3">
+                    <div class="flex items-center gap-3">
+                      <span class="w-4 shrink-0 text-n-slate-10">{{
+                        String(index + 1).padStart(2, '0')
+                      }}</span>
+                      <span
+                        class="max-w-40 truncate text-label"
+                        :title="row.name"
+                        >{{ row.name }}</span
+                      >
+                    </div>
+                  </td>
+                  <td
+                    class="whitespace-nowrap px-3 py-3 text-right font-semibold"
+                  >
+                    {{ row.actual }}
+                  </td>
+                  <td
+                    class="whitespace-nowrap px-3 py-3 text-right text-n-slate-11"
+                  >
+                    {{ row.target }}
+                  </td>
+                  <td class="px-3 py-3 text-right">
+                    <span
+                      class="inline-flex rounded-md px-2 py-1"
+                      :class="row.status?.pill || 'text-n-slate-11'"
+                      >{{ row.pctText }}</span
+                    >
+                  </td>
+                  <td
+                    class="whitespace-nowrap px-5 py-3 text-right"
+                    :class="deltaTone(row.deltaPt)"
+                  >
+                    {{ deltaText(row.deltaPt) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
-      <div class="grid items-stretch gap-6 xl:grid-cols-2">
+
+      <div
+        class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+      >
         <section
-          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+          class="min-w-0 rounded-2xl border border-n-weak bg-n-solid-1 p-5"
         >
-          <h2 class="mb-5 text-heading-2 font-semibold text-[#191b1b]">
+          <h2 class="mb-4 text-heading-2 font-semibold text-n-slate-12">
             {{ t('CRM.DASHBOARD.DESIGN.TREND') }}
           </h2>
           <CrmBlackSalesTrend
-            v-if="monthly.length"
+            v-if="monthly.length && isClassicKpi"
             :labels="
               monthly
                 .slice(0, selectedMonth)
@@ -625,258 +635,81 @@ const blackTeamSummary = computed(() => [
             :data="series('amount_micros').map(value => value / 1000000)"
             :value-format="value => compactMoney(value * 1000000)"
           />
-          <p v-else class="py-10 text-label text-[#85887f]">
+          <div v-else-if="monthly.length" class="h-60">
+            <CrmAreaChart
+              :labels="
+                monthly
+                  .slice(0, selectedMonth)
+                  .map((row, index) =>
+                    t('CRM.TEAM_DASHBOARD.MONTH', { month: index + 1 })
+                  )
+              "
+              :data="series('amount_micros')"
+              :value-format="compactMoney"
+            />
+          </div>
+          <p v-else class="py-12 text-center text-label text-n-slate-11">
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
           </p>
         </section>
         <section
-          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+          class="min-w-0 rounded-2xl border border-n-weak bg-n-solid-1 p-5"
         >
-          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
-          </h2>
-          <p class="mt-1 text-label-small text-[#85887f]">
-            {{ t('CRM.TEAM_DASHBOARD.ALL_COMPANY') }}
-          </p>
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-heading-2 font-semibold text-n-slate-12">
+              {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
+            </h2>
+            <span class="text-label-small text-n-slate-11">{{
+              t('CRM.TEAM_DASHBOARD.ALL_COMPANY')
+            }}</span>
+          </div>
           <p
             v-if="!blackEmailBars.length"
-            class="py-10 text-label text-[#85887f]"
+            class="py-8 text-label text-n-slate-11"
           >
             {{ t('CRM.DASHBOARD.DESIGN.NO_SENT_EMAIL') }}
           </p>
-          <ol v-else class="mt-5 list-none space-y-4">
+          <ol
+            v-else
+            class="mt-4 max-h-80 list-none overflow-y-auto divide-y divide-n-weak"
+          >
             <li
               v-for="(row, index) in blackEmailBars"
               :key="row.id || row.name"
+              class="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
             >
-              <div
-                class="mb-2 flex justify-between gap-3 text-label-small text-[#191b1b]"
+              <span
+                class="w-5 shrink-0 text-label-small tabular-nums text-n-slate-10"
+                >{{ String(index + 1).padStart(2, '0') }}</span
               >
-                <span class="truncate">{{ row.name }}</span
-                ><strong class="shrink-0 tabular-nums">{{
-                  t('CRM.DASHBOARD.DESIGN.EMAIL_COUNT', { count: row.count })
-                }}</strong>
+              <div class="min-w-0 flex-1">
+                <div
+                  class="flex justify-between gap-3 text-label text-n-slate-12"
+                >
+                  <span class="truncate" :title="row.name">{{ row.name }}</span>
+                  <strong class="shrink-0 tabular-nums">{{
+                    t('CRM.DASHBOARD.DESIGN.EMAIL_COUNT', { count: row.count })
+                  }}</strong>
+                </div>
+                <svg
+                  class="mt-2 h-1 w-full"
+                  viewBox="0 0 100 4"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <rect width="100" height="4" rx="2" class="fill-n-slate-3" />
+                  <rect
+                    :width="row.pct"
+                    height="4"
+                    rx="2"
+                    :class="isClassicKpi ? 'fill-[#ffd052]' : 'fill-n-iris-9'"
+                  />
+                </svg>
               </div>
-              <svg
-                class="h-5 w-full"
-                viewBox="0 0 100 20"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <rect width="100" height="20" rx="10" fill="#f3f4f0" />
-                <rect
-                  :width="row.pct"
-                  height="20"
-                  rx="10"
-                  :fill="index === 0 ? '#ffd052' : '#191b1b'"
-                />
-              </svg>
             </li>
           </ol>
         </section>
       </div>
-    </template>
-
-    <template v-else-if="team">
-      <!-- KPI -->
-      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <!-- 经典灰：带环比和走势的卡（见 CrmKpiCard） -->
-        <template v-if="isClassicKpi">
-          <CrmKpiCard
-            v-for="kpi in classicKpis"
-            :key="`c-${kpi.label}`"
-            :label="kpi.label"
-            :value="kpi.value"
-            :unit="kpi.unit"
-            :icon="kpi.icon"
-            :delta="kpi.delta"
-            :viz="kpi.viz"
-          />
-          <div
-            class="flex flex-col p-4 sm:p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
-          >
-            <h3 class="text-heading-3 text-n-slate-12">目标完成率</h3>
-            <div class="flex flex-col items-center justify-center flex-1 mt-2">
-              <div class="relative">
-                <svg
-                  width="160"
-                  height="92"
-                  viewBox="0 0 160 92"
-                  class="block max-w-full"
-                  aria-hidden="true"
-                >
-                  <path
-                    :d="GAUGE_PATH"
-                    fill="none"
-                    stroke-width="16"
-                    stroke-linecap="round"
-                    class="stroke-n-slate-4"
-                  />
-                  <path
-                    :d="GAUGE_PATH"
-                    fill="none"
-                    stroke-width="16"
-                    stroke-linecap="round"
-                    :stroke-dasharray="gaugeDash"
-                    class="stroke-n-amber-9"
-                  />
-                </svg>
-                <div
-                  class="absolute inset-x-0 text-2xl font-bold text-center bottom-5 tabular-nums text-n-slate-12"
-                >
-                  {{ gaugeText }}
-                </div>
-              </div>
-              <div class="mt-1 text-label-small text-n-slate-10">
-                <span class="font-semibold text-n-slate-12">
-                  {{ money(totals.actualAmount) }}
-                </span>
-                / {{ money(totals.targetAmount) }}
-              </div>
-            </div>
-          </div>
-        </template>
-        <!-- 其余主题：暖橙浅渐变卡 -->
-        <template v-else>
-          <div
-            v-for="(kpi, i) in kpiCards"
-            :key="kpi.label"
-            class="flex flex-col justify-between p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[8rem]"
-            :class="CARD_GRADIENTS[i]"
-          >
-            <div
-              class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-iris-11"
-            >
-              <span class="size-5" :class="[kpi.icon]" />
-            </div>
-            <div>
-              <div class="mt-4 text-sm font-medium text-n-slate-11">
-                {{ kpi.label }}
-              </div>
-              <div class="mt-1 text-2xl font-bold text-n-slate-12">
-                {{ kpi.value }}
-              </div>
-              <div class="mt-1 text-xs text-n-slate-10">{{ kpi.sub }}</div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- 组员完成率：成交额 / 新客各一张表 -->
-      <div
-        v-if="!team.members.length"
-        class="p-5 text-sm border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 text-n-slate-11"
-      >
-        该团队暂无组员。可在「组织架构 → CRM 团队」分配组员。
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div
-          v-for="table in memberTables"
-          :key="table.key"
-          class="overflow-hidden border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
-        >
-          <div class="p-5 pb-4">
-            <h2 class="text-heading-2 text-n-slate-12">{{ table.title }}</h2>
-          </div>
-          <HScrollButtons />
-          <div class="overflow-x-auto">
-            <table class="w-full min-w-[32rem]">
-              <thead>
-                <tr class="border-y border-n-weak bg-n-alpha-1">
-                  <th
-                    class="px-5 py-2 text-left text-label-small text-n-slate-10 whitespace-nowrap"
-                  >
-                    组员
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-label-small text-n-slate-10 whitespace-nowrap"
-                  >
-                    {{ table.valueHead }}
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-label-small text-n-slate-10 whitespace-nowrap"
-                  >
-                    目标
-                  </th>
-                  <th
-                    class="px-3 py-2 text-left text-label-small text-n-slate-10 whitespace-nowrap"
-                  >
-                    完成率
-                  </th>
-                  <th
-                    class="px-5 py-2 text-right text-label-small text-n-slate-10 whitespace-nowrap"
-                  >
-                    较上月
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in table.rows"
-                  :key="row.id"
-                  class="border-b border-n-weak last:border-b-0"
-                >
-                  <td class="px-5 py-3">
-                    <div class="flex items-center gap-2.5">
-                      <span
-                        class="grid border rounded-full size-7 shrink-0 place-items-center text-label-small border-n-weak bg-n-alpha-1 text-n-slate-11"
-                      >
-                        {{ row.initials }}
-                      </span>
-                      <span class="text-sm truncate text-n-slate-12">
-                        {{ row.name }}
-                      </span>
-                    </div>
-                  </td>
-                  <td
-                    class="px-3 py-3 text-sm text-right whitespace-nowrap tabular-nums text-n-slate-12"
-                  >
-                    {{ row.actual }}
-                  </td>
-                  <td
-                    class="px-3 py-3 text-sm text-right whitespace-nowrap tabular-nums text-n-slate-11"
-                  >
-                    {{ row.target }}
-                  </td>
-                  <td class="px-3 py-3">
-                    <div class="flex items-center gap-2.5 min-w-[7.5rem]">
-                      <span
-                        class="flex-1 h-1.5 overflow-hidden rounded-full bg-n-slate-4"
-                      >
-                        <span
-                          class="block h-full rounded-full"
-                          :class="row.status?.bar || 'bg-n-slate-6'"
-                          :style="{ width: row.barWidth }"
-                        />
-                      </span>
-                      <span
-                        class="w-9 text-sm font-semibold text-right tabular-nums text-n-slate-12"
-                      >
-                        {{ row.pctText }}
-                      </span>
-                    </div>
-                  </td>
-                  <td class="px-5 py-3 text-right whitespace-nowrap">
-                    <span
-                      class="font-semibold text-label-small tabular-nums"
-                      :class="deltaTone(row.deltaPt)"
-                    >
-                      {{ deltaText(row.deltaPt) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 发信排行：全公司口径，和团队下拉无关，所以放在团队块外面单独一张 -->
-      <CrmSentEmailRankChart
-        :rows="sentEmailRanking"
-        :period-label="`${data?.month_label || ''} · 全公司`"
-        empty-text="本月还没有发出去的邮件"
-      />
     </template>
   </div>
 </template>

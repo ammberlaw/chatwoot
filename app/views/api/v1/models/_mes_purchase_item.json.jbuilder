@@ -22,7 +22,10 @@ json.unit resource.unit
 can_view_amount = local_assigns.fetch(:can_view_amount, true)
 json.rate_micros can_view_amount ? resource.rate_micros : nil
 json.price_tax_included resource.price_tax_included
+# supplier_tax_rate＝这行实际适用的税率（行上填了用行上的，否则用供应商档案的）。
+# tax_rate＝行上自己填的那个，为空说明是跟着档案走——前端据此显示占位符。
 json.supplier_tax_rate resource.supplier_tax_rate
+json.tax_rate resource.tax_rate
 json.amount_micros can_view_amount ? resource.amount_micros : nil
 # 未税 / 含税各摆一列：录入口径按行不同（price_tax_included），只给一个「单价」
 # 分不清是哪种，跟供应商对账就对不上。

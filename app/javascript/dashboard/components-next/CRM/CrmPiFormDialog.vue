@@ -639,7 +639,6 @@ defineExpose({ open, markPaid });
           class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
         >
           <div class="flex items-center gap-2 text-sm text-n-slate-11">
-            <span class="i-ph-sparkle-fill size-4 text-n-iris-9" />
             {{ t('CRM.PI.PI.HINT') }}
           </div>
           <button
@@ -830,7 +829,7 @@ defineExpose({ open, markPaid });
               title="从知识库选图"
               @click="openPicker(i)"
             >
-              <span class="i-lucide-library size-3 shrink-0" />
+              <span class="i-lucide-folder-open size-3 shrink-0" />
               知识库
             </button>
             <input

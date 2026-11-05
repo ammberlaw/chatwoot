@@ -14,7 +14,9 @@ class Api::V1::Accounts::Chat::MessagesController < Api::V1::Accounts::BaseContr
     mark_read
   end
 
-  REF_TYPES = %w[customer sales_order opportunity].freeze
+  # mes_bom＝生产任务单（界面叫法；mes_production_orders 在 MES 界面上叫「销售订单」，
+  # 两者别混，见 Mes::Bom 与 Mes::ProductionOrder）。
+  REF_TYPES = %w[customer sales_order opportunity mes_bom].freeze
 
   def create
     @message = @conversation.messages.new(
