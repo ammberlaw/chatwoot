@@ -8,6 +8,8 @@
 # · 只写**用户说过的内容**，模型不许自己补结论（提示词里管着）；
 # · 记录建完会自动刷新客户的「上次跟进时间」（模型 after_create 干的，别在这儿重复写）。
 class Crm::Agent::Tools::LogFollowUp < Crm::Agent::Tools::Base
+  writes_data
+
   description '把这次跟进记进客户的跟进记录里（电话/微信/会面聊完让我记一下就用这个），可以同时定下次跟进时间、建一条待办。只记用户真说过的内容，不要自己编客户说了什么。'
   param :customer_id, type: 'integer', desc: '客户ID'
   param :title, desc: '一句话标题，例如「电话回访：确认样机测试结果」'

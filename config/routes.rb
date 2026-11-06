@@ -126,7 +126,8 @@ Rails.application.routes.draw do
             resources :pis do
               collection do
                 get :prefill
-                get :company_headers
+                # 新建/编辑时右侧实时预览用（单据还没落库，拿不到 id）
+                get :preview_meta
                 get :summary
                 post :parse_pi
               end
@@ -269,6 +270,8 @@ Rails.application.routes.draw do
               collection do
                 get :prefill
                 get :summary
+                # 新建/编辑时右侧实时预览用（单据还没落库，拿不到 id）
+                get :preview_meta
               end
               member do
                 get :xlsx
@@ -318,6 +321,8 @@ Rails.application.routes.draw do
               # 助手记住的事：列出来、删掉不要的（记忆只能靠对话删，没人知道）。
               resources :agent_memories, only: [:index, :destroy]
             end
+            # AI 助手里报上来的问题单：列清单、标处理进度（超管/副管）。
+            resources :issue_reports, only: [:index, :update]
             resources :doc_sections, only: [:index, :create, :update, :destroy]
             resources :credentials, only: [:index, :create, :update, :destroy] do
               member { post :reveal }

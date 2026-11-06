@@ -579,20 +579,74 @@ const removeRow = i => {
 // 被拦下的待确认料（后端 requirement 接口的 blocked）：不进明细，但顶部要挂出来。
 const blockedRows = ref([]);
 
+// 合并键：同一颗料要算同一行，但**辅助属性不同就不是同一颗**——供应商按
+// 「料号 + 辅助属性」才认得出要哪一种（黑壳和白壳合成一行就发错货）。
+// 对不上产品档案的料用料号兜底；连料号都没有的不合并（没有可靠的身份）。
+const mergeKeyOf = (row, index) => {
+  const id = row.crm_product_id || row.material_no;
+  if (!id) return `x${index}`;
+  return [id, row.aux_attribute_name || '', row.unit || ''].join('|');
+};
+
+// 几张生产订单共用一次采购时，同一颗料会按订单各出一行，采购得自己把数量加起来
+// （2026-11-04 何双双反馈）。这里按料合并、数量相加；已下量、建议采购量同样相加。
+// 供应商/规格这些取第一条非空的——同一颗料不同单上的档案值本来就是同一个。
+const mergeRequirementRows = rows => {
+  const merged = new Map();
+  rows.forEach((row, index) => {
+    const key = mergeKeyOf(row, index);
+    const prev = merged.get(key);
+    if (!prev) {
+      merged.set(key, { ...row });
+      return;
+    }
+    prev.qty = Number(prev.qty || 0) + Number(row.qty || 0);
+    prev.ordered_qty =
+      Number(prev.ordered_qty || 0) + Number(row.ordered_qty || 0);
+    if (row.suggested_purchase_qty != null) {
+      prev.suggested_purchase_qty =
+        Number(prev.suggested_purchase_qty || 0) +
+        Number(row.suggested_purchase_qty);
+    }
+    prev.mes_supplier_id = prev.mes_supplier_id || row.mes_supplier_id;
+    prev.specification = prev.specification || row.specification;
+    prev.purchase_note = prev.purchase_note || row.purchase_note;
+  });
+  return [...merged.values()];
+};
+
+// 主订单 + 追加的订单一起算。追加订单原来只用来写备注和看采购注意事项，
+// 料还得采购自己照着另一张单手敲——而「同款物料多张生产订单共用一次采购」
+// 本来就是这个字段存在的理由。
+const linkedOrderIds = () =>
+  [form.productionOrderId, ...form.extraProductionOrderIds].filter(Boolean);
+
+// 算完说清楚三件事：铺了几行、合并掉几行、因为下满而没列的几行。
+// 合并是这一屏最容易让人以为「少了料」的地方，不说一句采购会回头对单。
+const explodeSummary = ({ count, mergedAway, hidden }) => {
+  const parts = [`已铺 ${count} 项`];
+  if (mergedAway > 0) parts.push(`同料合并 ${mergedAway} 行`);
+  if (hidden > 0) parts.push(`已下满的 ${hidden} 项未列出`);
+  return parts.join('，');
+};
+
 const explode = async (category = '') => {
   if (!form.productionOrderId) {
     useAlert('请先选生产任务单');
     return;
   }
   try {
-    const { data } = await MesPurchaseOrderAPI.requirement(
-      form.productionOrderId,
-      category
+    const results = await Promise.all(
+      linkedOrderIds().map(id =>
+        MesPurchaseOrderAPI.requirement(id, category).then(({ data }) => data)
+      )
     );
-    const all = data?.payload || [];
+    const raw = results.flatMap(d => d?.payload || []);
+    const all = mergeRequirementRows(raw);
+    const mergedAway = raw.length - all.length;
     // 工程/业务还没确认的料后端不带进来（下给供应商就是下错单），但必须让采购知道
     // 「这单还差几项没定」——少了几行却不说，采购会以为料就这些、下完就不管了。
-    blockedRows.value = data?.blocked || [];
+    blockedRows.value = results.flatMap(d => d?.blocked || []);
     if (!all.length) {
       const emptyHint = category
         ? '该类别（整机物料/包装物料）无用料'
@@ -604,14 +658,14 @@ const explode = async (category = '') => {
       );
       return;
     }
-    // 这张生产订单已经下满量的料默认不再铺出来——否则每次重进都是整屏物料，
-    // 看不出到底哪些还没下单。勾上「含已下单物料」可以把它们调回来。
+    // 已经下满量的料默认不再铺出来——否则每次重进都是整屏物料，看不出到底
+    // 哪些还没下单。勾上「含已下单物料」可以把它们调回来。
     const reqs = includeOrdered.value
       ? all
       : all.filter(r => Number(r.ordered_qty || 0) < Number(r.qty || 0));
     const hidden = all.length - reqs.length;
     if (!reqs.length) {
-      useAlert(`这张生产订单的料都已经下过采购单了（${all.length} 项）`);
+      useAlert(`关联订单的料都已经下过采购单了（${all.length} 项）`);
       return;
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
@@ -658,7 +712,11 @@ const explode = async (category = '') => {
       }
       syncAmount(r);
     });
-    if (hidden > 0) useAlert(`已下满的 ${hidden} 项没有列出`);
+    // 算料铺出来的行原来只有料和数量，单价得采购逐行去翻历史单或物料单价表
+    // （2026-11-04 何双双反馈）。这里逐行补查上次那张已审核单：供应商没带出来的填上、
+    // 单价照填（applyLastPrice 对已填的只提示不覆盖），并挂出「上次 ¥x · 供应商 · 单号」。
+    form.rows.forEach(r => fetchLastPrice(r));
+    useAlert(explodeSummary({ count: reqs.length, mergedAway, hidden }));
   } catch {
     useAlert('算料失败');
   }

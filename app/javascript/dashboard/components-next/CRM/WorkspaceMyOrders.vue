@@ -75,9 +75,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="w-full min-w-0 cursor-pointer self-stretch rounded-[22px] border border-white/70 bg-white/95 p-4 shadow-sm" role="link" tabindex="0" :aria-label="showOverview ? '打开生产看板' : '打开我的订单'" @click="!$event.target.closest('a, button') && (showOverview ? emit('overview') : emit('open'))" @keydown.enter.self="showOverview ? emit('overview') : emit('open')">
-    <div class="flex items-center justify-between gap-3">
-      <h2 class="m-0 flex items-center gap-2 text-heading-3 text-[#20241f]"><Icon icon="i-lucide-factory" class="size-5 shrink-0" />{{ showOverview ? 'MES 生产制造' : '我的订单' }}</h2>
+  <section class="flex w-full min-w-0 flex-col cursor-pointer self-stretch rounded-[22px] border border-white/70 bg-white/95 p-4 shadow-sm" role="link" tabindex="0" :aria-label="showOverview ? '打开生产看板' : '打开我的订单'" @click="!$event.target.closest('a, button') && (showOverview ? emit('overview') : emit('open'))" @keydown.enter.self="showOverview ? emit('overview') : emit('open')">
+    <div class="flex shrink-0 items-center justify-between gap-3">
+      <h2 class="m-0 flex min-w-0 items-center gap-2 whitespace-nowrap text-heading-3 text-[#20241f]"><Icon icon="i-lucide-factory" class="size-5 shrink-0" />{{ showOverview ? 'MES 生产制造' : '我的订单' }}</h2>
       <div v-if="orders.length" class="flex shrink-0 items-center gap-2">
         <span class="text-label-small tabular-nums text-[#73796f]">{{ activeIndex + 1 }} / {{ orders.length }}</span>
         <button type="button" aria-label="上一笔订单" :disabled="activeIndex === 0" class="grid size-7 place-items-center rounded-full border border-black/10 text-[#30382c] hover:bg-black/5 disabled:cursor-default disabled:opacity-30" @click="activeIndex -= 1"><Icon icon="i-lucide-chevron-left" class="size-4" /></button>
@@ -98,23 +98,23 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    <div v-else class="mt-3" aria-live="polite" aria-atomic="true">
-      <button :key="order.id" type="button" class="block w-full rounded-lg py-1 text-left hover:bg-black/[0.025]" @click="emit('open', order.order_no)">
-        <div class="flex items-center justify-between gap-3"><span class="truncate text-heading-3 text-[#20241f]">{{ order.order_no }}</span><span class="shrink-0 rounded-full bg-[#eff6dc] px-2 py-0.5 text-label-small text-[#526333]">{{ stageLabel(order) }}</span></div>
-        <div class="mt-1 truncate text-label-small text-[#8a9086]">{{ order.product_name }}</div>
-        <div class="my-3 flex items-center gap-3" :aria-label="`订单阶段：${progressText}`">
+    <div v-else class="mt-3 min-h-0" aria-live="polite" aria-atomic="true">
+      <button :key="order.id" type="button" class="flex w-full min-w-0 flex-col gap-2 rounded-lg py-1 text-left hover:bg-black/[0.025]" @click="emit('open', order.order_no)">
+        <div class="flex min-w-0 items-center justify-between gap-2"><span class="min-w-0 truncate text-heading-3 text-[#20241f]">{{ order.order_no }}</span><span class="shrink-0 rounded-full bg-[#eff6dc] px-2 py-0.5 text-label-small text-[#526333]">{{ stageLabel(order) }}</span></div>
+        <div class="truncate text-label-small text-[#8a9086]">{{ order.product_name }}</div>
+        <div class="my-1 flex items-center gap-2" :aria-label="`订单阶段：${progressText}`">
           <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full" role="progressbar" aria-label="订单阶段进度" :aria-valuenow="notLive || currentStage < 0 ? 0 : currentStage + 1" :aria-valuemax="flow.length" aria-valuemin="0">
             <rect width="100" height="8" rx="4" fill="#eff0f1" />
             <rect :width="notLive || currentStage < 0 ? 0 : (currentStage + 1) / flow.length * 100" height="8" rx="4" fill="#c4f246" />
           </svg>
-          <span class="text-label-small tabular-nums text-[#858995]">{{ notLive ? '未开始' : currentStage < 0 ? '待确认' : `${currentStage + 1} / ${flow.length}` }}</span>
+          <span class="shrink-0 whitespace-nowrap text-label-small tabular-nums text-[#858995]">{{ notLive ? '未开始' : currentStage < 0 ? '待确认' : `${currentStage + 1} / ${flow.length}` }}</span>
         </div>
-        <div class="flex items-center justify-between gap-3 text-label-small text-[#8a9086]">
-          <span>{{ order.delivery_date ? `交期 ${order.delivery_date.slice(0, 10)}` : '交期待定' }}</span>
-          <span v-if="stageNotice" class="truncate" :title="`${stageNotice.text}${stalledDays > 0 ? ` · 停留 ${stalledDays} 天` : ''}`">{{ stageNotice.text.split(' · ')[0] }}<template v-if="stalledDays > 0"> · {{ stalledDays }} 天</template></span>
+        <div class="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-label-small text-[#8a9086]">
+          <span class="whitespace-nowrap tabular-nums">{{ order.delivery_date ? `交期 ${order.delivery_date.slice(0, 10)}` : '交期待定' }}</span>
+          <span v-if="stageNotice" class="min-w-0 truncate text-right" :title="`${stageNotice.text}${stalledDays > 0 ? ` · 停留 ${stalledDays} 天` : ''}`">{{ stageNotice.text.split(' · ')[0] }}<template v-if="stalledDays > 0"> · {{ stalledDays }} 天</template></span>
         </div>
       </button>
     </div>
-    <button v-if="!showOverview" type="button" class="mt-2 flex items-center gap-1 text-label-small text-[#687064] hover:text-black" @click="emit('open')">全部订单<Icon icon="i-lucide-arrow-up-right" class="size-3.5" /></button>
+    <button v-if="!showOverview" type="button" class="mt-auto flex shrink-0 items-center gap-1 pt-3 text-label-small text-[#687064] hover:text-black" @click="emit('open')">全部订单<Icon icon="i-lucide-arrow-up-right" class="size-3.5" /></button>
   </section>
 </template>

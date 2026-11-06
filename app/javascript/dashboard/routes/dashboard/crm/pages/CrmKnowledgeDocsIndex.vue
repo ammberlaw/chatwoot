@@ -163,6 +163,16 @@ const isFileDoc = doc => {
     (doc.body && doc.body.trim()) || (doc.summary && doc.summary.trim());
   return !hasText; // 单附件 + 没写正文/摘要 = 文件（改名后仍是文件）
 };
+// 图片文件在宫格里直接出缩略图——一屏几十个随机文件名（c475031b…），
+// 光看一模一样的蓝色图片图标认不出是哪张。缩略图由后端出变体链接（files[].thumbUrl）。
+// 多附件的条目不走缩略图：那是「文档」，不是单张图。
+const thumbBroken = reactive({});
+const docThumb = doc => {
+  const files = doc.files || [];
+  if (files.length !== 1 || thumbBroken[doc.id]) return '';
+  return files[0].thumbUrl || '';
+};
+
 // 文件列表用的是 CrmFileIcon（折角纸页）；这里只剩预览弹窗标题那处的小号线性图标。
 const FILE_ICONS = [
   { ext: ['pdf'], icon: 'i-lucide-file-text' },
@@ -1540,7 +1550,20 @@ watch(
                 >
                   <!-- 多附件条目取第一个附件的类型出图标，右下角挂附件数角标 -->
                   <span class="relative size-[72px] shrink-0">
+                    <span
+                      v-if="docThumb(doc)"
+                      class="grid size-full place-items-center"
+                    >
+                      <img
+                        :src="docThumb(doc)"
+                        :alt="doc.name"
+                        loading="lazy"
+                        class="object-cover rounded-lg shadow-sm size-[78%] ring-1 ring-n-slate-4 bg-n-alpha-1"
+                        @error="thumbBroken[doc.id] = true"
+                      />
+                    </span>
                     <CrmFileIcon
+                      v-else
                       class="size-full"
                       :filename="(doc.files || [])[0]?.filename || doc.name"
                     />

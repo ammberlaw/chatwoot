@@ -150,7 +150,7 @@ class Crm::Agent::Runner
     Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::DormantCustomers, Crm::Agent::Tools::CompanyLookup,
     Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftReply, Crm::Agent::Tools::DraftPi,
     Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes,
-    Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::Shipments,
+    Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::SalesRanking, Crm::Agent::Tools::Shipments,
     Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
     Crm::Agent::Tools::CreateCustomer, Crm::Agent::Tools::DraftQuote,
     Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment,
@@ -222,7 +222,7 @@ class Crm::Agent::Runner
     'company_lookup' => '做客户背调',
     'draft_email' => '写邮件草稿', 'draft_pi' => '建 PI 草稿',
     'follow_up_notes' => '翻跟进记录', 'quotes' => '查报价单状态',
-    'my_targets' => '算目标与提成', 'shipments' => '查出货情况',
+    'my_targets' => '算目标与提成', 'sales_ranking' => '排业务员成交榜', 'shipments' => '查出货情况',
     'product_docs' => '翻产品资料', 'log_follow_up' => '记跟进记录',
     'create_customer' => '建客户档案', 'draft_quote' => '建报价单草稿',
     'create_opportunity' => '建商机', 'read_attachment' => '读邮件附件',
@@ -262,9 +262,9 @@ class Crm::Agent::Runner
   # 半路挂了也把已经吐出来的那半截留着：模型常常先写完有用的部分才超时，
   # 整条抹掉换一句「失败了」反而更糟。
   def fail_with(message)
+    Crm::Agent::StepRecorder.close_dangling(conversation)
     partial = @partial&.content.to_s.strip
-    text = partial.present? ? "#{partial}\n\n（#{message}）" : message
-    write_answer(text)
+    write_answer(partial.present? ? "#{partial}\n\n（#{message}）" : message)
     conversation.update!(status: 'FAILED', last_error: message)
     message
   end

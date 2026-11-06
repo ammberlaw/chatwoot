@@ -11,6 +11,8 @@
 # 引用格式和界面上人工点「回复」完全一致（CrmEmailsIndex 的 quotedBody），
 # 这样草稿在邮件撰写框里打开时看不出是 AI 建的还是人建的。
 class Crm::Agent::Tools::DraftReply < Crm::Agent::Tools::Base
+  writes_data
+
   description '回复某一封往来邮件：存成草稿（不会发送）。收件人、Re: 主题、原文引用都由工具填好，' \
               '你只写回复正文。不需要先知道是哪个客户——客户、收件人都由这封信自己带出来。' \
               '⚠️ **但必须先读过这封信**：先 customer_emails(email_id: 这封的ID) 看客户问了什么，' \

@@ -5,6 +5,8 @@
 #
 # 和 draft_pi 一样只出草稿（DRAFT），业务员自己去核价格和条款，确认再发。
 class Crm::Agent::Tools::DraftQuote < Crm::Agent::Tools::Base
+  writes_data
+
   description '建一张报价单草稿（状态草稿，不会发给客户）。客户只是问价、还没到开 PI 那一步时用这个。做完提醒用户去「报价单」里核对后发出。'
   param :customer_id, type: 'integer', desc: '客户ID'
   # 明细格式和 draft_pi 刻意保持一致：竖线分隔的纯文本。

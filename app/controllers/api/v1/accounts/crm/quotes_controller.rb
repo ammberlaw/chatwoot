@@ -96,7 +96,7 @@ def preview
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
-  # 选客户后带出买方信息（业务仍可改）。
+  # 选客户后带出买方信息（业务仍可改）。国家/网址是预览抬头里的两格，顺带给上。
   def prefill
     customer = Current.account.crm_customers.find(params[:customer_id])
     render json: {
@@ -104,7 +104,22 @@ def preview
       contact_name: customer.primary_contact_name,
       contact_email: customer.contact_email,
       contact_phone: customer.contact_phone,
+      trade_country: customer.trade_country,
+      website: customer.website,
       quote_currency: customer.currency_preference.presence || 'USD'
+    }
+  end
+
+  # 新建/编辑时右侧实时预览要的「单据之外」那部分：模板固定文案 + 卖方两行 + 落款。
+  # 单据还没落库拿不到 id，所以走 collection；取数与 preview 走同一处，
+  # 在线预览、实时预览、导出的 Excel 三者不会各说各话。
+  def preview_meta
+    owner_id = params[:owner_id].presence || current_user.id
+    contact_line, email_line = Crm::QuoteTemplateFiller.seller_lines_for_owner(Current.account.id, owner_id)
+    render json: {
+      template: Crm::QuoteTemplateFiller.static_text,
+      seller: { contact_line: contact_line, email_line: email_line },
+      issued_by: Crm::QuoteTemplateFiller.issuer_name_for_owner(Current.account.id, owner_id)
     }
   end
 

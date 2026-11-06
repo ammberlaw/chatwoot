@@ -16,6 +16,15 @@ class Crm::Agent::StepRecorder
   # 一条都挑不出来就不摆副标题——少一行，好过摆个看不懂的东西。
   SUBJECT_KEYS = %w[doc_no order_no keyword name title task_title to_address subject website].freeze
 
+  # 这一轮崩了：工具跑到一半抛异常时 after_tool_result 不回调，那条步骤会永远停在
+  # 「正在查…」。翻历史时一个转圈的图标看着像还在跑（生产 2026-11-03 背调崩在
+  # steliau.fr 的那条就是），所以收尾时统一落成 failed，前端渲染成普通的一步。
+  def self.close_dangling(conversation)
+    conversation.messages.where(role: 'tool').where("meta->>'status' = 'running'").find_each do |step|
+      step.update!(meta: step.meta.merge('status' => 'failed', 'ended_at' => Time.current.iso8601(3)))
+    end
+  end
+
   def initialize(conversation:, label:)
     @conversation = conversation
     @label = label # ->(call) { '查客户' }

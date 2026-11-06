@@ -3,13 +3,14 @@
 // 只填「原始项」——基本工资、补贴、出勤天数、加班、扣款、社保；
 // 出勤工资 / 应发 / 实发由后端按模板公式算，这里只读，改完保存就重算。
 // 已确认的表整页只读（后端也挡着）。
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import PayrollAPI from 'dashboard/api/crm/payrollSheets';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
+import CrmSensitiveGate from 'dashboard/components-next/CRM/CrmSensitiveGate.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -145,7 +146,8 @@ const reopen = async () => {
 
 const goBack = () => router.push({ name: 'crm_payroll_sheets_index' });
 
-onMounted(load);
+// 解锁前不拉数据：后端每个动作都挂着 ensure_sensitive_session（见 CrmSensitiveGate）。
+const onUnlocked = () => load();
 </script>
 
 <template>
@@ -217,89 +219,91 @@ onMounted(load);
       </div>
     </header>
 
-    <p v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
-      加载中…
-    </p>
+    <CrmSensitiveGate subject="工资表" @unlocked="onUnlocked">
+      <p v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
+        加载中…
+      </p>
 
-    <div v-else class="flex-1 px-5 overflow-auto sm:px-8">
-      <table class="w-max min-w-full text-sm">
-        <thead class="sticky top-0 bg-n-solid-1">
-          <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-2 py-2 font-medium whitespace-nowrap">姓名</th>
-            <th class="px-2 py-2 font-medium whitespace-nowrap">职位</th>
-            <th
-              v-for="c in COLS"
-              :key="c.k"
-              class="px-2 py-2 font-medium text-right whitespace-nowrap"
-            >
-              {{ c.label }}
-            </th>
-            <th
-              class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
-            >
-              出勤工资
-            </th>
-            <th
-              class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
-            >
-              应发
-            </th>
-            <th
-              class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
-            >
-              实发
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in items"
-            :key="item.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
-          >
-            <td
-              class="px-2 py-1.5 font-medium whitespace-nowrap text-n-slate-12"
-            >
-              {{ item.employeeName }}
-              <span
-                v-if="!item.hasAccount"
-                class="ml-1 text-label-small text-n-slate-10"
-                title="系统里没有这个人的账号，工资条发不出去"
+      <div v-else class="flex-1 px-5 overflow-auto sm:px-8">
+        <table class="w-max min-w-full text-sm">
+          <thead class="sticky top-0 bg-n-solid-1">
+            <tr class="text-left border-b text-n-slate-11 border-n-weak">
+              <th class="px-2 py-2 font-medium whitespace-nowrap">姓名</th>
+              <th class="px-2 py-2 font-medium whitespace-nowrap">职位</th>
+              <th
+                v-for="c in COLS"
+                :key="c.k"
+                class="px-2 py-2 font-medium text-right whitespace-nowrap"
               >
-                无账号
-              </span>
-            </td>
-            <td class="px-2 py-1.5 whitespace-nowrap text-n-slate-11">
-              {{ item.position || '—' }}
-            </td>
-            <td v-for="c in COLS" :key="c.k" class="px-1 py-1 text-right">
-              <input
-                :value="cellValue(item, c)"
-                type="number"
-                step="0.01"
-                :disabled="!editable"
-                class="reset-base mb-0 h-8 w-24 rounded-md border border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums text-n-slate-12 hover:border-n-weak focus:border-n-brand disabled:text-n-slate-11"
-                @change="onEdit(item, c, $event.target.value)"
-              />
-            </td>
-            <td
-              class="px-2 py-1.5 text-right tabular-nums text-n-slate-11 bg-n-alpha-1"
+                {{ c.label }}
+              </th>
+              <th
+                class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
+              >
+                出勤工资
+              </th>
+              <th
+                class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
+              >
+                应发
+              </th>
+              <th
+                class="px-2 py-2 font-medium text-right whitespace-nowrap bg-n-alpha-1"
+              >
+                实发
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in items"
+              :key="item.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
             >
-              {{ fmtYuan(item.attendancePayMicros) }}
-            </td>
-            <td
-              class="px-2 py-1.5 text-right tabular-nums text-n-slate-12 bg-n-alpha-1"
-            >
-              {{ fmtYuan(item.grossPayMicros) }}
-            </td>
-            <td
-              class="px-2 py-1.5 font-medium text-right tabular-nums text-n-slate-12 bg-n-alpha-1"
-            >
-              {{ fmtYuan(item.netPayMicros) }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              <td
+                class="px-2 py-1.5 font-medium whitespace-nowrap text-n-slate-12"
+              >
+                {{ item.employeeName }}
+                <span
+                  v-if="!item.hasAccount"
+                  class="ml-1 text-label-small text-n-slate-10"
+                  title="系统里没有这个人的账号，工资条发不出去"
+                >
+                  无账号
+                </span>
+              </td>
+              <td class="px-2 py-1.5 whitespace-nowrap text-n-slate-11">
+                {{ item.position || '—' }}
+              </td>
+              <td v-for="c in COLS" :key="c.k" class="px-1 py-1 text-right">
+                <input
+                  :value="cellValue(item, c)"
+                  type="number"
+                  step="0.01"
+                  :disabled="!editable"
+                  class="reset-base mb-0 h-8 w-24 rounded-md border border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums text-n-slate-12 hover:border-n-weak focus:border-n-brand disabled:text-n-slate-11"
+                  @change="onEdit(item, c, $event.target.value)"
+                />
+              </td>
+              <td
+                class="px-2 py-1.5 text-right tabular-nums text-n-slate-11 bg-n-alpha-1"
+              >
+                {{ fmtYuan(item.attendancePayMicros) }}
+              </td>
+              <td
+                class="px-2 py-1.5 text-right tabular-nums text-n-slate-12 bg-n-alpha-1"
+              >
+                {{ fmtYuan(item.grossPayMicros) }}
+              </td>
+              <td
+                class="px-2 py-1.5 font-medium text-right tabular-nums text-n-slate-12 bg-n-alpha-1"
+              >
+                {{ fmtYuan(item.netPayMicros) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </CrmSensitiveGate>
   </div>
 </template>

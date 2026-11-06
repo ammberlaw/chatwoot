@@ -1759,6 +1759,7 @@ const menuItems = computed(() => {
                 'crm_quote_request_templates_index',
                 'crm_ai_settings_index',
                 'crm_inbox_collaborators_index',
+                'crm_issue_reports_index',
               ],
               children: [
                 {
@@ -1797,6 +1798,13 @@ const menuItems = computed(() => {
                   label: '业务分配',
                   to: accountScopedRoute('crm_inbox_collaborators_index'),
                   activeOn: ['crm_inbox_collaborators_index'],
+                },
+                {
+                  // AI 助手里报上来的 bug / 需求，带提交当时的现场。
+                  name: 'CRM Issue Reports',
+                  label: '问题反馈',
+                  to: accountScopedRoute('crm_issue_reports_index'),
+                  activeOn: ['crm_issue_reports_index'],
                 },
               ],
             },

@@ -23,7 +23,8 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
-  def company_headers?
+  # 新建/编辑时右侧实时预览要的抬头块，和 preview 同口径（只读、不含单据数据）。
+  def preview_meta?
     true
   end
 

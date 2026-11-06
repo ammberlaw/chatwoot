@@ -82,11 +82,28 @@ class Crm::QuoteTemplateFiller
 
   # 卖方「我的卖方信息」两行（没预录则回落模板默认），与导出同口径。
   def self.seller_lines_for(quote)
-    sp = new(quote).send(:seller_profile)
+    seller_lines_for_owner(quote.account_id, quote.owner_id || quote.handled_by_id)
+  end
+
+  # 下面两个按业务员取，不经过单据——新建时单据还没落库，右侧实时预览照样要这几行。
+  def self.seller_lines_for_owner(account_id, owner_id)
+    sp = profile_for(account_id, owner_id)
     return [static_text[:seller_contact], static_text[:seller_email]] unless sp
 
     ["Contact: #{sp.contact_name}   |   Mobile: #{sp.mobile}",
      "Email: #{sp.email}   |   #{SELLER_WEB}"]
+  end
+
+  def self.issuer_name_for_owner(account_id, owner_id)
+    sp = profile_for(account_id, owner_id)
+    return sp.contact_name if sp
+
+    user = User.find_by(id: owner_id)
+    (user&.crm_name.presence || user&.name).to_s
+  end
+
+  def self.profile_for(account_id, owner_id)
+    owner_id && Crm::PiSellerProfile.find_by(account_id: account_id, owner_id: owner_id)
   end
 
   def initialize(quote)

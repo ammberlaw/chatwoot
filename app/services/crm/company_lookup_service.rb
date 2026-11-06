@@ -187,14 +187,20 @@ class Crm::CompanyLookupService
   end
 
   # 按优先级抓子页，超出时间预算就停——拿到几页算几页，不报错。
+  #
+  # ⚠️ 必须 each + 累加，不能写成 filter_map：filter_map 里 break 出来整个表达式是 nil，
+  # 不是已经抓到的那几页，上游 `[首页] + nil` 直接崩（生产 2026-11-03 背调 steliau.fr
+  # 报 no implicit conversion of nil into Array，就是慢站吃满预算触发的）。
   def sub_page_blocks(home)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FETCH_BUDGET
-    pick_sub_pages(home[:html], home[:url]).filter_map do |label, url|
+    blocks = []
+    pick_sub_pages(home[:html], home[:url]).each do |label, url|
       break if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
 
       text = extract_text(fetch_html(url, SUB_PAGE_TIMEOUT), MAX_SUB_PAGE_TEXT)
-      "【#{label}】#{url}\n#{text}" if text.present?
+      blocks << "【#{label}】#{url}\n#{text}" if text.present?
     end
+    blocks
   end
 
   # 只认首页上真实存在的同站链接，每类取第一个命中的，最多 MAX_SUB_PAGES 个。

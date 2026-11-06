@@ -3,6 +3,8 @@
 # 用户定的规矩：agent 只出草稿。建成 DRAFT 状态放在 PI 模块里，
 # 业务员自己去核对价格、交期、条款，确认无误再导出发客户。
 class Crm::Agent::Tools::DraftPi < Crm::Agent::Tools::Base
+  writes_data
+
   description '建一张 PI（形式发票/报价单）草稿，状态为草稿、不会发给客户。做完提醒用户去「PI 形式发票」里核对后导出。'
   param :customer_id, type: 'integer', desc: '客户ID'
   # 明细刻意用「一行一项的文本」而不是对象数组：DeepSeek 的 function calling 吐嵌套

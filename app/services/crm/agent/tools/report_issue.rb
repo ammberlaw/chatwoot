@@ -9,6 +9,8 @@
 # 让 AI 先判一道，等于给「其实是真 bug」的那些加一层掩盖
 # （2026-10-23/24 查实：报上来的六个问题，六个都是真 bug）。
 class Crm::Agent::Tools::ReportIssue < Crm::Agent::Tools::Base
+  writes_data
+
   description '把用户反映的系统问题提交给管理员。用户说「这是不是 bug」「系统有问题」' \
               '「帮我报一下」「报给管理员」时**一律直接调这个**，不要先自己判断算不算 bug、' \
               '也不要求他先提供单号或截图——判断真伪是看报告的人的事。' \
@@ -104,48 +106,29 @@ class Crm::Agent::Tools::ReportIssue < Crm::Agent::Tools::Base
   # issue_report 不在里面——卡片不会渲染，管理员能看到的就只有这段文字。
   # 光写一句用户原话等于把考古工作留给看的人，所以把「哪张单、什么状态、
   # 第一条阻碍、在等谁」一并写进去，打开通知就知道该不该动手。
+  # 现场摘要取 Crm::IssueReport#diagnosis_summary——「问题反馈」页用的是同一份，
+  # 管理员在通知里看到的和点进去看到的必须一致。
   def notify_text(report)
-    diag = report.context['diagnosis']
+    sum = report.diagnosis_summary
     lines = ["【问题反馈】#{scope.user&.name} 提交：#{clip(report.body, 120)}"]
-    lines << doc_line(report, diag) if report.subject_no.present?
-    lines.concat(diagnosis_lines(diag))
+    lines << doc_line(report, sum) if report.subject_no.present?
+    lines << "当前：#{sum[:status_label]}" if sum[:status_label]
+    lines << "卡在：#{sum[:blocker]}" if sum[:blocker]
+    lines << waiting_line(sum[:waiting]) if sum[:waiting]
     lines.join("\n")
   end
 
   # 单据类型取诊断给的那个，不取用户原话里的——模型转述时会把出库单写成销售订单，
   # 看报告的人照着去错板块里找。
-  def doc_line(report, diag)
-    kind = diag.is_a?(Hash) ? diag['doc_type'].presence : nil
+  def doc_line(report, sum)
     want = report.action_type.presence ? "（想做：#{report.action_type}）" : ''
-    "单据：#{kind}#{report.subject_no}#{want}"
+    "单据：#{[sum[:doc_type], report.subject_no].compact_blank.join(' ')}#{want}"
   end
 
-  def diagnosis_lines(diag)
-    return [] if diag.blank?
-
-    [status_line(diag), blocker_line(diag), waiting_line(diag)].compact
-  end
-
-  def status_line(diag) = diag['status_label'].presence && "当前：#{diag['status_label']}"
-
-  # 出库诊断返回单个动作（blockers 在顶层），其余三类返回动作数组——两种都认。
-  def blocker_line(diag)
-    rows = Array(diag['blockers']).presence || Array(diag['actions']).flat_map { |a| Array(a['blockers']) }
-    text = rows.first.is_a?(Hash) ? rows.first['text'] : nil
-    text.presence && "卡在：#{text}"
-  end
-
-  def waiting_line(diag)
-    diag['waiting_on'].presence && "等：#{waiting_text(diag['waiting_on'])}"
-  end
-
-  def waiting_text(waiting)
-    names = Array(waiting['names']).join('、')
-    base = names.presence ? "#{waiting['label']}（#{names}）" : "#{waiting['label']}（系统里没查到该负责这一步的人）"
-    notified = waiting['notified']
-    return base if notified.blank? || !notified['supported']
-
-    notified['count'].to_i.positive? ? base : "#{base}⚠️ 系统没给他们发过通知"
+  def waiting_line(waiting)
+    who = waiting[:names].join('、').presence || '系统里没查到该负责这一步的人'
+    base = "等：#{waiting[:label]}（#{who}）"
+    waiting[:notified] == false ? "#{base}⚠️ 系统没给他们发过通知" : base
   end
 
   def ref_for(report, rec)

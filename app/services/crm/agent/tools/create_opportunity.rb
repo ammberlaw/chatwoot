@@ -6,6 +6,8 @@
 # 商机不是草稿态单据（没有 DRAFT），所以建完明确告诉用户建了什么、在哪看，
 # 建错了随手能删。
 class Crm::Agent::Tools::CreateOpportunity < Crm::Agent::Tools::Base
+  writes_data
+
   description '为某个客户建一个在谈商机（客户表露意向、开始谈具体项目时用）。建完它会进漏斗和团队看板。'
   param :customer_id, type: 'integer', desc: '客户ID'
   param :name, desc: '商机名称，例如「德国教育局 1200 台教育平板」'

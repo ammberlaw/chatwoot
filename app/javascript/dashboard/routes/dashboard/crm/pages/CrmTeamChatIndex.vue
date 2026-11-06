@@ -11,6 +11,7 @@ import MembershipsAPI from 'dashboard/api/org/memberships';
 import CustomerAPI from 'dashboard/api/crm/customers';
 import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
 import BomAPI from 'dashboard/api/mes/boms';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -87,7 +88,8 @@ const L = {
   sendCard: '发送客户 / 订单 / 生产任务单卡片',
   pickRefTitle: '选择业务对象',
   searchCustomer: '搜索客户名称',
-  searchOrder: '搜索订单号',
+  searchOrder: '搜索订单号 / 名称 / 客户',
+  emptyValue: '—',
   searchBom: '搜索任务单号 / 单据号',
   loadingText: '加载中…',
   noResult: '无匹配结果',
@@ -507,6 +509,17 @@ const refQuery = ref('');
 const refResults = ref([]);
 const refLoading = ref(false);
 
+const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
+const fmtDay = value => String(value || '').slice(0, 10);
+// 没收录符号的小币种退回币种码——只出一串数字分不清是美金还是人民币。
+const orderAmount = order => {
+  if (order.order_amount_micros == null) return '';
+  const symbol = CURRENCY_SYMBOL[order.order_currency];
+  return symbol
+    ? `${symbol}${fmtYuan(order.order_amount_micros)}`
+    : `${order.order_currency || ''} ${fmtYuan(order.order_amount_micros)}`.trim();
+};
+
 const searchRef = async () => {
   refLoading.value = true;
   try {
@@ -518,6 +531,7 @@ const searchRef = async () => {
       refResults.value = (data.payload || []).map(c => ({
         ref_type: 'customer',
         ref_id: c.id,
+        lines: [],
         snapshot: { title: c.name, subtitle: '', code: '' },
       }));
     } else if (refKind.value === 'mes_bom') {
@@ -526,6 +540,7 @@ const searchRef = async () => {
       refResults.value = (data.payload || []).map(b => ({
         ref_type: 'mes_bom',
         ref_id: b.id,
+        lines: [[b.model, b.customer_name].filter(Boolean).join(' · ')],
         snapshot: {
           title: b.bom_no || b.doc_no,
           subtitle: [b.model, b.customer_name].filter(Boolean).join(' · '),
@@ -537,15 +552,25 @@ const searchRef = async () => {
         q: refQuery.value,
         per_page: 50,
       });
-      refResults.value = (data.payload || []).map(o => ({
-        ref_type: 'sales_order',
-        ref_id: o.id,
-        snapshot: {
-          title: o.order_no,
-          subtitle: o.customer_name || '',
-          code: o.order_no,
-        },
-      }));
+      // SO-20261105-01 这种单号光看认不出是哪张单（名称也有重的，生产上 608 张单只有
+      // 471 个不同的名称），所以标题按销售订单列表那个排法用订单名称，再补两行：
+      // 客户单独一行（最认人的放最上），单号 / 日期 / 金额合一行。
+      // 没客户的单用「—」占位，不然这一屏行高参差不齐。
+      refResults.value = (data.payload || []).map(o => {
+        const meta = [o.order_no, fmtDay(o.order_date), orderAmount(o)]
+          .filter(Boolean)
+          .join(' · ');
+        return {
+          ref_type: 'sales_order',
+          ref_id: o.id,
+          lines: [o.customer_name || L.emptyValue, meta],
+          snapshot: {
+            title: o.name || o.order_no,
+            subtitle: [o.customer_name, meta].filter(Boolean).join(' · '),
+            code: o.order_no,
+          },
+        };
+      });
     }
   } catch {
     refResults.value = [];
@@ -2157,11 +2182,14 @@ onBeforeUnmount(() => {
               <span class="block text-sm font-medium truncate text-n-slate-12">
                 {{ item.snapshot.title }}
               </span>
+              <!-- 副行按 lines 分行摆（订单＝客户一行、单号/日期/金额一行），
+                   每行各自截断，行数固定，这一屏的行高才齐 -->
               <span
-                v-if="item.snapshot.subtitle"
+                v-for="(line, i) in item.lines"
+                :key="i"
                 class="block text-xs truncate text-n-slate-10"
               >
-                {{ item.snapshot.subtitle }}
+                {{ line }}
               </span>
             </span>
           </button>

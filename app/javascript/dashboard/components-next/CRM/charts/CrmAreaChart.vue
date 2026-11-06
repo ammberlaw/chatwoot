@@ -17,6 +17,8 @@ const props = defineProps({
   labels: { type: Array, default: () => [] },
   data: { type: Array, default: () => [] },
   activeIndex: { type: Number, default: -1 },
+  tension: { type: Number, default: 0.4 },
+  pointRadius: { type: Number, default: 0 },
   valueFormat: { type: Function, default: v => v },
 });
 
@@ -42,7 +44,7 @@ const collection = computed(() => {
         data: props.data,
         borderColor: c.brand,
         borderWidth: 2.5,
-        tension: 0.4,
+        tension: props.tension,
         fill: true,
         backgroundColor: ctx => {
           const { chart } = ctx;
@@ -59,7 +61,7 @@ const collection = computed(() => {
           return grad;
         },
         pointRadius: props.data.map((_, i) =>
-          i === props.activeIndex ? 5 : 0
+          i === props.activeIndex ? 5 : props.pointRadius
         ),
         pointBackgroundColor: c.brand,
         pointBorderColor: '#fff',

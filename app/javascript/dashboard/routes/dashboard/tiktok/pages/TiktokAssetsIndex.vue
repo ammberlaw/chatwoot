@@ -240,9 +240,6 @@ onMounted(async () => {
       <div class="flex flex-wrap items-center gap-3 mb-6">
         <div class="flex-1 min-w-0">
           <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">固定资产登记</h1>
-          <p class="mt-1 text-sm text-n-slate-11">
-            设备/电脑/手机等资产的登记台账：谁在用、放在哪、什么状态。
-          </p>
         </div>
         <SelectCard
           v-model="filters.departmentId"

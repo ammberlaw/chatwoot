@@ -6,6 +6,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import QuotesAPI from 'dashboard/api/crm/quotes';
 import KnowledgeDocAPI from 'dashboard/api/crm/knowledgeDocs';
 
+import camelcaseKeys from 'camelcase-keys';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -13,6 +14,7 @@ import CrmKnowledgeImagePicker from './CrmKnowledgeImagePicker.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import CrmQuoteDocument from './CrmQuoteDocument.vue';
 
 defineProps({
   isLoading: { type: Boolean, default: false },
@@ -167,6 +169,82 @@ const isFormInvalid = computed(
   () => !form.name.trim() || !form.lineItems.some(li => (li.name || '').trim())
 );
 
+// ── 右侧实时预览 ──
+// 预览渲染的是 CrmQuoteDocument，和「报价单预览」弹窗、导出的 Excel 同一套排版。
+// 单据本身的内容直接读 form（所以是即时的），单据之外的两块要问后端：
+//   · previewMeta = 模板里固定的抬头/条款/页脚 + 卖方落款两行（随登录人，一次取够）
+//   · buyer       = 买方抬头六格，来自所选客户档案（换客户才重取）
+const previewMeta = ref(null);
+const buyer = reactive({
+  contactName: '',
+  company: '',
+  country: '',
+  email: '',
+  tel: '',
+  website: '',
+});
+const BLANK_BUYER = { ...buyer };
+
+// ownerId：编辑别人的单时，落款和卖方那两行要按**这张单的业务员**取，
+// 不是按当前登录人——不然预览里署的是我、存完导出来署的是他。
+const loadPreviewMeta = async ownerId => {
+  try {
+    const { data } = await QuotesAPI.previewMeta(accountId.value, ownerId);
+    previewMeta.value = camelcaseKeys(data, { deep: true });
+  } catch {
+    previewMeta.value = null;
+  }
+};
+
+// 换客户后重取买方抬头；顺便把带出币种/预填名称要用的字段一并返回，省一次请求。
+const fetchBuyer = async customerId => {
+  if (!customerId) {
+    Object.assign(buyer, BLANK_BUYER);
+    return null;
+  }
+  try {
+    const { data } = await QuotesAPI.prefill(accountId.value, customerId);
+    Object.assign(buyer, {
+      contactName: data.contact_name || '',
+      company: data.customer_name || '',
+      country: data.trade_country || '',
+      email: data.contact_email || '',
+      tel: data.contact_phone || '',
+      website: data.website || '',
+    });
+    return data;
+  } catch {
+    Object.assign(buyer, BLANK_BUYER);
+    return null;
+  }
+};
+
+// 没名字的明细行保存时会被丢掉（见 buildFormData），预览里也不该出现——
+// 否则人看着预览里有这一行，存完却没了。
+const previewDoc = computed(() => ({
+  quoteNo: quoteNo.value,
+  quoteDate: form.quoteDate,
+  quoteCurrency: form.quoteCurrency,
+  buyer,
+  seller: previewMeta.value?.seller,
+  issuedBy: previewMeta.value?.issuedBy,
+  template: previewMeta.value?.template || {},
+  lineItems: form.lineItems
+    .filter(li => (li.name || '').trim())
+    .map((li, i) => ({
+      id: li.id || `row-${i}`,
+      name: li.name,
+      specSnapshot: li.spec,
+      pictureUrl: li.picturePreview,
+      quantity: li.quantity === '' ? null : num(li.quantity),
+      unitPriceMicros: li.unitPrice === '' ? null : toMicros(li.unitPrice),
+      amountMicros: toMicros(lineAmount(li)),
+    })),
+  subtotalMicros: toMicros(subtotal.value),
+  freightMicros: toMicros(total.value - subtotal.value),
+  totalAmountMicros: toMicros(total.value),
+}));
+
 const resetForm = () => {
   editingId.value = null;
   quoteNo.value = '';
@@ -183,6 +261,7 @@ const resetForm = () => {
   form.remark = '';
   form.lineItems = [blankLineItem()];
   removedIds.value = [];
+  Object.assign(buyer, BLANK_BUYER);
 };
 
 // ⚠️ 固定取 200 条等于「最近更新的 200 个」（后端默认 updated_at desc）。
@@ -218,24 +297,18 @@ const onCustomerSearch = keyword => {
   customerSearchTimer = setTimeout(() => loadCustomers(keyword.trim()), 300);
 };
 
-// 选中客户后带出币种，并在名称为空时预填「报价单-客户名」。
+// 选中客户后带出币种、刷新右侧预览的买方抬头，并在名称为空时预填「报价单-客户名」。
 const onCustomerChange = async () => {
-  if (!form.crmCustomerId) return;
-  try {
-    const { data } = await QuotesAPI.prefill(
-      accountId.value,
-      form.crmCustomerId
+  const data = await fetchBuyer(form.crmCustomerId);
+  if (!data) return;
+
+  if (data.quote_currency) form.quoteCurrency = data.quote_currency;
+  if (!form.name.trim()) {
+    const picked = customers.value.find(
+      c => String(c.id) === String(form.crmCustomerId)
     );
-    if (data.quote_currency) form.quoteCurrency = data.quote_currency;
-    if (!form.name.trim()) {
-      const picked = customers.value.find(
-        c => String(c.id) === String(form.crmCustomerId)
-      );
-      const custName = data.customer_name || picked?.name || '';
-      if (custName) form.name = `报价单-${custName}`;
-    }
-  } catch {
-    // 带出失败不阻塞录入。
+    const custName = data.customer_name || picked?.name || '';
+    if (custName) form.name = `报价单-${custName}`;
   }
 };
 
@@ -283,6 +356,8 @@ const open = record => {
         : [blankLineItem()];
   }
   loadCustomers();
+  loadPreviewMeta(record?.ownerId || record?.handledById);
+  if (form.crmCustomerId) fetchBuyer(form.crmCustomerId);
   dialogRef.value?.open();
 };
 
@@ -357,7 +432,7 @@ defineExpose({ dialogRef, open });
 <template>
   <Dialog
     ref="dialogRef"
-    width="3xl"
+    width="full"
     overflow-y-auto
     confirm-button-color="iris"
     :title="isEditing ? '编辑报价' : '新建报价'"
@@ -366,197 +441,223 @@ defineExpose({ dialogRef, open });
     @confirm="handleConfirm"
     @close="resetForm"
   >
-    <div class="flex flex-col gap-4">
-      <!-- 基本信息 -->
-      <div
-        class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
-      >
-        <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
-        基本信息
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            报价名称
-            <span class="text-n-ruby-11">*</span>
-          </label>
-          <Input v-model="form.name" autofocus />
+    <!-- 左边填、右边同步看发出去长什么样。窄屏（<1280）排不下两栏就上下叠，
+         预览落到表单下面，仍然能看，只是要往下滚。 -->
+    <div class="flex flex-col gap-6 xl:flex-row xl:items-start">
+      <div class="flex flex-col flex-1 min-w-0 gap-4">
+        <!-- 基本信息 -->
+        <div
+          class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+        >
+          <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+          基本信息
         </div>
-        <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            报价单号
-          </label>
-          <div
-            class="flex items-center h-10 px-3 text-sm rounded-lg bg-n-slate-3 text-n-slate-11"
-          >
-            {{ quoteNo }}
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              报价名称
+              <span class="text-n-ruby-11">*</span>
+            </label>
+            <Input v-model="form.name" autofocus />
           </div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            关联客户
-          </label>
-          <ComboBox
-            v-model="form.crmCustomerId"
-            :options="customerOptions"
-            :display-label="customerDisplayLabel"
-            :placeholder="loadingCustomers ? '加载中…' : '选择客户'"
-            search-placeholder="搜索客户"
-            empty-state="无匹配客户"
-            @search="onCustomerSearch"
-            @update:model-value="onCustomerChange"
-          />
-        </div>
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12"> 状态 </label>
-          <SelectCard v-model="form.status" :options="statusOptions" />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-3 gap-4">
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12"> 币种 </label>
-          <SelectCard v-model="form.quoteCurrency" :options="currencyOptions" />
-        </div>
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            报价日期
-          </label>
-          <DatePicker v-model="form.quoteDate" block />
-        </div>
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12"> 有效期 </label>
-          <DatePicker v-model="form.validUntil" block />
-        </div>
-      </div>
-
-      <TextArea v-model="form.remark" label="备注" :max-length="2000" />
-
-      <!-- 报价明细 -->
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center justify-between">
-          <span
-            class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
-          >
-            <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
-            报价明细
-            <span class="font-normal normal-case text-n-ruby-11">必填</span>
-          </span>
-          <button
-            type="button"
-            class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
-            @click="addLineItem"
-          >
-            <span class="i-lucide-plus size-4" />
-            添加明细
-          </button>
-        </div>
-
-        <div class="flex flex-col gap-1.5">
-          <div class="flex gap-2 px-1 text-xs font-medium text-n-slate-10">
-            <span class="w-10 shrink-0">图片</span>
-            <span class="flex-[3]">产品/名称</span>
-            <span class="flex-[2]">规格</span>
-            <span class="flex-1">数量</span>
-            <span class="flex-1">单价</span>
-            <span class="flex-1 text-right">金额</span>
-            <span class="w-6 shrink-0" />
-          </div>
-          <div
-            v-for="(li, index) in form.lineItems"
-            :key="index"
-            class="flex items-center gap-2"
-          >
-            <div class="relative w-10 shrink-0">
-              <template v-if="li.picturePreview">
-                <img
-                  :src="li.picturePreview"
-                  class="object-contain border rounded-md size-10 border-n-weak bg-n-alpha-1"
-                  alt=""
-                />
-                <button
-                  type="button"
-                  class="absolute flex items-center justify-center text-white rounded-full -right-1.5 -top-1.5 size-4 bg-n-slate-11 hover:bg-n-ruby-11"
-                  title="清除图片"
-                  @click="clearLinePic(index)"
-                >
-                  <span class="i-lucide-x size-3" />
-                </button>
-              </template>
-              <div v-else class="flex flex-col w-10 gap-0.5">
-                <button
-                  type="button"
-                  class="flex items-center justify-center border border-dashed rounded-t-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
-                  title="从电脑上传"
-                  @click="triggerLinePic(index)"
-                >
-                  <span class="i-lucide-image-plus size-3.5 shrink-0" />
-                </button>
-                <button
-                  type="button"
-                  class="flex items-center justify-center border border-dashed rounded-b-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
-                  title="从知识库选图"
-                  @click="openPicker(index)"
-                >
-                  <span class="i-lucide-folder-open size-3.5 shrink-0" />
-                </button>
-              </div>
-              <input
-                :ref="el => (linePicInputs[index] = el)"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="e => onLinePic(e, index)"
-              />
-            </div>
-            <Input v-model="li.name" class="flex-[3]" />
-            <Input v-model="li.spec" class="flex-[2]" />
-            <Input v-model="li.quantity" type="number" class="flex-1" />
-            <Input v-model="li.unitPrice" type="number" class="flex-1" />
-            <span
-              class="flex-1 text-right text-[13px] font-medium tabular-nums text-n-slate-12"
+          <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              报价单号
+            </label>
+            <div
+              class="flex items-center h-10 px-3 text-sm rounded-lg bg-n-slate-3 text-n-slate-11"
             >
-              {{ fmtMoney(lineAmount(li)) }}
+              {{ quoteNo }}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              关联客户
+            </label>
+            <ComboBox
+              v-model="form.crmCustomerId"
+              :options="customerOptions"
+              :display-label="customerDisplayLabel"
+              :placeholder="loadingCustomers ? '加载中…' : '选择客户'"
+              search-placeholder="搜索客户"
+              empty-state="无匹配客户"
+              @search="onCustomerSearch"
+              @update:model-value="onCustomerChange"
+            />
+          </div>
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12"> 状态 </label>
+            <SelectCard v-model="form.status" :options="statusOptions" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12"> 币种 </label>
+            <SelectCard
+              v-model="form.quoteCurrency"
+              :options="currencyOptions"
+            />
+          </div>
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              报价日期
+            </label>
+            <DatePicker v-model="form.quoteDate" block />
+          </div>
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              有效期
+            </label>
+            <DatePicker v-model="form.validUntil" block />
+          </div>
+        </div>
+
+        <TextArea v-model="form.remark" label="备注" :max-length="2000" />
+
+        <!-- 报价明细 -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span
+              class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+            >
+              <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+              报价明细
+              <span class="font-normal normal-case text-n-ruby-11">必填</span>
             </span>
             <button
               type="button"
-              class="flex items-center justify-center w-6 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
-              title="删除"
-              @click="removeLineItem(index)"
+              class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+              @click="addLineItem"
             >
-              <span class="i-lucide-x size-4" />
+              <span class="i-lucide-plus size-4" />
+              添加明细
             </button>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <div class="flex gap-2 px-1 text-xs font-medium text-n-slate-10">
+              <span class="w-10 shrink-0">图片</span>
+              <span class="flex-[3]">产品/名称</span>
+              <span class="flex-[2]">规格</span>
+              <span class="flex-1">数量</span>
+              <span class="flex-1">单价</span>
+              <span class="flex-1 text-right">金额</span>
+              <span class="w-6 shrink-0" />
+            </div>
+            <div
+              v-for="(li, index) in form.lineItems"
+              :key="index"
+              class="flex items-center gap-2"
+            >
+              <div class="relative w-10 shrink-0">
+                <template v-if="li.picturePreview">
+                  <img
+                    :src="li.picturePreview"
+                    class="object-contain border rounded-md size-10 border-n-weak bg-n-alpha-1"
+                    alt=""
+                  />
+                  <button
+                    type="button"
+                    class="absolute flex items-center justify-center text-white rounded-full -right-1.5 -top-1.5 size-4 bg-n-slate-11 hover:bg-n-ruby-11"
+                    title="清除图片"
+                    @click="clearLinePic(index)"
+                  >
+                    <span class="i-lucide-x size-3" />
+                  </button>
+                </template>
+                <div v-else class="flex flex-col w-10 gap-0.5">
+                  <button
+                    type="button"
+                    class="flex items-center justify-center border border-dashed rounded-t-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
+                    title="从电脑上传"
+                    @click="triggerLinePic(index)"
+                  >
+                    <span class="i-lucide-image-plus size-3.5 shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    class="flex items-center justify-center border border-dashed rounded-b-md h-[19px] border-n-weak text-n-slate-10 hover:bg-n-alpha-1"
+                    title="从知识库选图"
+                    @click="openPicker(index)"
+                  >
+                    <span class="i-lucide-folder-open size-3.5 shrink-0" />
+                  </button>
+                </div>
+                <input
+                  :ref="el => (linePicInputs[index] = el)"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="e => onLinePic(e, index)"
+                />
+              </div>
+              <Input v-model="li.name" class="flex-[3]" />
+              <Input v-model="li.spec" class="flex-[2]" />
+              <Input v-model="li.quantity" type="number" class="flex-1" />
+              <Input v-model="li.unitPrice" type="number" class="flex-1" />
+              <span
+                class="flex-1 text-right text-[13px] font-medium tabular-nums text-n-slate-12"
+              >
+                {{ fmtMoney(lineAmount(li)) }}
+              </span>
+              <button
+                type="button"
+                class="flex items-center justify-center w-6 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+                title="删除"
+                @click="removeLineItem(index)"
+              >
+                <span class="i-lucide-x size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 金额合计 -->
+        <div
+          class="flex flex-col gap-2 p-4 border rounded-xl border-n-weak bg-n-solid-1/60"
+        >
+          <div
+            class="flex items-center justify-between text-sm text-n-slate-11"
+          >
+            <span>小计</span>
+            <span class="font-medium tabular-nums text-n-slate-12">
+              {{ fmtMoney(subtotal) }}
+            </span>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <Input v-model="form.discount" type="number" label="折扣" />
+            <Input v-model="form.shipping" type="number" label="运费" />
+            <Input v-model="form.tax" type="number" label="税费" />
+          </div>
+          <div
+            class="flex items-center justify-between pt-2 mt-1 border-t border-n-weak"
+          >
+            <span class="text-sm font-semibold text-n-slate-12">合计</span>
+            <span class="text-[20px] font-bold tabular-nums text-n-iris-11">
+              {{ fmtMoney(total) }}
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- 金额合计 -->
-      <div
-        class="flex flex-col gap-2 p-4 border rounded-xl border-n-weak bg-n-solid-1/60"
+      <!-- 实时预览：和「报价单预览」弹窗、导出的 Excel 同一个组件，不是另画一张。
+           sticky 钉在视口顶上——表单滚到第 20 行明细时，右边还看得见整张单。 -->
+      <aside
+        class="flex flex-col w-full gap-2 xl:w-[620px] 2xl:w-[740px] xl:shrink-0 xl:sticky xl:top-0"
       >
-        <div class="flex items-center justify-between text-sm text-n-slate-11">
-          <span>小计</span>
-          <span class="font-medium tabular-nums text-n-slate-12">
-            {{ fmtMoney(subtotal) }}
-          </span>
-        </div>
-        <div class="grid grid-cols-3 gap-3">
-          <Input v-model="form.discount" type="number" label="折扣" />
-          <Input v-model="form.shipping" type="number" label="运费" />
-          <Input v-model="form.tax" type="number" label="税费" />
-        </div>
+        <span class="text-heading-3 text-n-slate-12">实时预览</span>
         <div
-          class="flex items-center justify-between pt-2 mt-1 border-t border-n-weak"
+          class="p-4 overflow-auto bg-white border rounded-lg border-n-weak xl:max-h-[calc(100vh-14rem)]"
         >
-          <span class="text-sm font-semibold text-n-slate-12">合计</span>
-          <span class="text-[20px] font-bold tabular-nums text-n-iris-11">
-            {{ fmtMoney(total) }}
-          </span>
+          <div class="xl:[zoom:0.85] 2xl:[zoom:1]">
+            <CrmQuoteDocument :doc="previewDoc" />
+          </div>
         </div>
-      </div>
+      </aside>
     </div>
   </Dialog>
 

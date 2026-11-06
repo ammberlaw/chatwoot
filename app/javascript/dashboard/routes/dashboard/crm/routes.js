@@ -46,6 +46,7 @@ import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue
 import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
 import CrmCustomerSettingsIndex from './pages/CrmCustomerSettingsIndex.vue';
 import CrmDashboardSettingsIndex from './pages/CrmDashboardSettingsIndex.vue';
+import CrmIssueReportsIndex from './pages/CrmIssueReportsIndex.vue';
 import CrmCustomerDetailIndex from './pages/CrmCustomerDetailIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import CrmPayrollSheetsIndex from './pages/CrmPayrollSheetsIndex.vue';
@@ -208,6 +209,13 @@ const crmPages = [
   crmPage('payroll', 'crm_payroll_sheets_index', CrmPayrollSheetsIndex, SHARED),
   // 看板设置：目前管「谁计入成交排行」。归在 CRM 设置分组下。
   crmPage('dashboard-settings', 'crm_dashboard_settings_index', CrmDashboardSettingsIndex),
+  // 业务员在 AI 助手里报上来的问题单（超管/副管，后端 ensure_admin 把关）。
+  crmPage(
+    'issue-reports',
+    'crm_issue_reports_index',
+    CrmIssueReportsIndex,
+    SHARED
+  ),
   crmPage(
     'payroll/detail',
     'crm_payroll_sheet_detail',

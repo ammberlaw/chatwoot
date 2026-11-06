@@ -35,6 +35,12 @@ export default {
   convertToSalesOrder(accountId, id) {
     return axios.post(`${base(accountId)}/${id}/convert_to_sales_order`);
   },
+  // 新建/编辑时右侧实时预览用：模板固定文案 + 卖方两行 + 落款（单据还没落库，拿不到 id）。
+  previewMeta(accountId, ownerId) {
+    return axios.get(`${base(accountId)}/preview_meta`, {
+      params: ownerId ? { owner_id: ownerId } : {},
+    });
+  },
   // 在线预览：返回单据 + 模板里固定的抬头/条款文案（与导出同一份来源）。
   preview(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/preview`);

@@ -24,10 +24,23 @@ class Crm::Agent::Tools::Base < RubyLLM::Tool
                '① 明确列出哪几项还没做完（点名，不要只说「还有一些」）；' \
                '② 告诉用户回一句什么就能接着做完剩下的。'.freeze
 
+  WRITE_BUDGET_MSG = '这一轮建东西的次数已经用完，别再调写入类工具了。' \
+                     '把还没建的逐项点名列给用户，告诉他回一句什么就能接着建完。'.freeze
+
+  # 写入类工具：存草稿、建档、记一笔、报问题。扣的是另一份额度（MAX_WRITE_CALLS），
+  # 不跟查询抢——这一轮的产出卡在最后一步，前面查的全白费。子类加一行 `writes_data` 声明。
+  def self.writes_data = @writes_data = true
+
+  def self.writes_data? = @writes_data.present?
+
   # 每次工具调用都先扣预算。超了就回一句话让模型收口，而不是把这一轮废掉
   # （口径见 Crm::Agent::Scope#take_tool_budget!）。
   def call(args)
-    return BUDGET_MSG unless scope.take_tool_budget!
+    if self.class.writes_data?
+      return WRITE_BUDGET_MSG unless scope.take_write_budget!
+    elsif !scope.take_tool_budget!
+      return BUDGET_MSG
+    end
 
     super
   end

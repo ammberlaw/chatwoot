@@ -41,8 +41,9 @@ export default {
   healthCheck(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/health_check`);
   },
-  companyHeaders(accountId) {
-    return axios.get(`${base(accountId)}/company_headers`);
+  // 新建/编辑时右侧实时预览用：三个公司主体的完整抬头/银行块（单据还没落库，拿不到 id）。
+  previewMeta(accountId) {
+    return axios.get(`${base(accountId)}/preview_meta`);
   },
   parsePi(accountId, formData) {
     return axios.post(`${base(accountId)}/parse_pi`, formData, {

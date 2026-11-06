@@ -10,6 +10,7 @@ import PisAPI from 'dashboard/api/crm/pis';
 import PiSellerProfileAPI from 'dashboard/api/crm/piSellerProfiles';
 import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import camelcaseKeys from 'camelcase-keys';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -19,6 +20,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import CrmKnowledgeImagePicker from './CrmKnowledgeImagePicker.vue';
+import CrmPiDocument from './CrmPiDocument.vue';
 
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
@@ -166,8 +168,6 @@ const applyParsedPi = data => {
         pictureUrl: null,
         pictureFile: null,
         pictureSignedId: '',
-        pictureSignedId: '',
-        pictureSignedId: '',
       }))
     : [];
 
@@ -210,17 +210,20 @@ const onPiSelected = async event => {
 };
 
 // ── 公司抬头（3选1的公司主体：导出时公司名/地址/银行按此填） ──
-const companyHeaderOptions = ref([]);
+// 一次把三个主体的完整抬头/银行块取回来：下拉要名字，右侧预览要整块，
+// 切抬头时右边立刻跟着变，不用每切一次再问一遍后端。
+const previewMeta = ref(null);
+const companyHeaders = computed(() => previewMeta.value?.headers || []);
+const companyHeaderOptions = computed(() =>
+  companyHeaders.value.map(h => ({ value: h.key, label: h.name }))
+);
 const loadCompanyHeaders = async () => {
-  if (companyHeaderOptions.value.length) return;
+  if (previewMeta.value) return;
   try {
-    const { data } = await PisAPI.companyHeaders(accountId.value);
-    companyHeaderOptions.value = (data || []).map(h => ({
-      value: h.key,
-      label: h.name,
-    }));
+    const { data } = await PisAPI.previewMeta(accountId.value);
+    previewMeta.value = camelcaseKeys(data, { deep: true });
   } catch {
-    companyHeaderOptions.value = [];
+    previewMeta.value = null;
   }
 };
 
@@ -256,6 +259,69 @@ const addItem = () =>
     pictureSignedId: '',
   });
 const removeItem = i => form.items.splice(i, 1);
+
+// ── 右侧实时预览 ──
+// 渲染的是 CrmPiDocument，和「PI 预览」弹窗、导出的 Excel 同一套排版。
+// 单据内容直接读 form（所以是即时的）；公司抬头/银行块来自 previewMeta。
+//
+// 一行都没填的明细不进预览：新建默认就给一行空的，照原样渲染会在单据上留一道空白行，
+// 看着像排版坏了。
+const hasContent = it =>
+  [it.model, it.description, it.quantity, it.unitPrice].some(
+    v => String(v ?? '').trim() !== ''
+  ) || !!it.pictureUrl;
+const previewDoc = computed(() => {
+  // 没选抬头时回落默认主体——导出就是这么落的（PiTemplateFiller#header），
+  // 预览这里不跟着回落的话，右边会缺一整块公司名/银行信息，看着像出错了。
+  const pick = key => companyHeaders.value.find(h => h.key === key);
+  const company =
+    pick(form.companyHeader) || pick(previewMeta.value?.defaultKey);
+  const web = previewMeta.value?.sellerWeb || '';
+  return {
+    piNo: form.piNo,
+    piDate: form.piDate,
+    currency: form.currency,
+    attention: form.attention,
+    buyerCompany: form.buyerCompany,
+    buyerAddress: form.buyerAddress,
+    buyerEmail: form.buyerEmail,
+    buyerTel: form.buyerTel,
+    buyerEori: form.buyerEori,
+    portOfShipment: form.portOfShipment,
+    portOfDestination: form.portOfDestination,
+    countryOfOrigin: form.countryOfOrigin,
+    shippingMethod: form.shippingMethod,
+    shippingCostLabel: form.shippingCostLabel,
+    shippingCostMicros:
+      num(form.shippingCost) == null
+        ? null
+        : Math.round(num(form.shippingCost) * 1_000_000),
+    company,
+    seller: {
+      contactLine: `Contact: ${form.issuedBy}   |   Mobile: ${form.sellerMobile}`,
+      emailLine: `Email: ${form.sellerEmail}   |   ${web}`,
+    },
+    issuedBy: form.issuedBy,
+    termLines: form.terms
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean),
+    items: form.items.filter(hasContent).map((it, i) => ({
+      id: it.id || `row-${i}`,
+      model: it.model,
+      description: it.description,
+      pictureUrl: it.pictureUrl,
+      quantity: num(it.quantity),
+      unitPriceMicros:
+        num(it.unitPrice) == null
+          ? null
+          : Math.round(num(it.unitPrice) * 1_000_000),
+      amountMicros:
+        rowAmount(it) == null ? null : Math.round(rowAmount(it) * 1_000_000),
+    })),
+    grandTotalMicros: Math.round(grandTotal.value * 1_000_000),
+  };
+});
 
 const itemPicInputs = ref({});
 const triggerItemPic = i => itemPicInputs.value[i]?.click();
@@ -360,7 +426,6 @@ const open = record => {
         it.unitPriceMicros != null ? it.unitPriceMicros / 1_000_000 : '',
       pictureUrl: it.pictureUrl || null,
       pictureFile: null,
-      pictureSignedId: '',
       pictureSignedId: '',
     }));
   } else {
@@ -620,7 +685,7 @@ defineExpose({ open, markPaid });
 <template>
   <Dialog
     ref="dialogRef"
-    width="4xl"
+    width="full"
     overflow-y-auto
     confirm-button-color="iris"
     :dirty="isDirty"
@@ -632,313 +697,338 @@ defineExpose({ open, markPaid });
     @close="markPristine"
     @confirm="submit"
   >
-    <div class="flex flex-col gap-4">
-      <!-- 上传 PI 自动识别（仅新建）：上传 PDF/Excel，自动填 PI号/日期/币种/客户/明细 -->
-      <div v-if="!editingId" class="flex flex-col gap-1.5">
-        <div
-          class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
-        >
-          <div class="flex items-center gap-2 text-sm text-n-slate-11">
-            {{ t('CRM.PI.PI.HINT') }}
-          </div>
-          <button
-            type="button"
-            class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
-            :disabled="parsingPi"
-            @click="triggerPiUpload"
+    <!-- 左边填、右边同步看发出去长什么样。窄屏（<1280）排不下两栏就上下叠，
+         预览落到表单下面，仍然能看，只是要往下滚。 -->
+    <div class="flex flex-col gap-6 xl:flex-row xl:items-start">
+      <div class="flex flex-col flex-1 min-w-0 gap-4">
+        <!-- 上传 PI 自动识别（仅新建）：上传 PDF/Excel，自动填 PI号/日期/币种/客户/明细 -->
+        <div v-if="!editingId" class="flex flex-col gap-1.5">
+          <div
+            class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
           >
-            <span
-              class="size-4"
-              :class="
-                parsingPi
-                  ? 'i-lucide-loader-circle animate-spin'
-                  : 'i-ph-sparkle-fill'
-              "
-            />
-            {{ parsingPi ? t('CRM.PI.PI.PARSING') : t('CRM.PI.PI.UPLOAD') }}
-          </button>
-          <input
-            ref="piInputRef"
-            type="file"
-            accept=".pdf,.xlsx,.xls,.csv"
-            class="hidden"
-            @change="onPiSelected"
-          />
-        </div>
-        <p v-if="piMatchHint" class="text-xs text-n-amber-11">
-          {{ piMatchHint }}
-        </p>
-      </div>
-
-      <!-- 基本 -->
-      <div class="grid grid-cols-4 gap-3">
-        <Input
-          v-model="form.piNo"
-          :label="t('CRM.PI.FORM.PI_NO')"
-          :placeholder="t('CRM.PI.FORM.PI_NO_PLACEHOLDER')"
-        />
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.PI.FORM.DATE') }}
-          </label>
-          <DatePicker v-model="form.piDate" block />
-        </div>
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.PI.FORM.STATUS') }}
-          </label>
-          <SelectCard v-model="form.status" :options="statusOptions" />
-        </div>
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.PI.FORM.CURRENCY') }}
-          </label>
-          <SelectCard v-model="form.currency" :options="currencyOptions" />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.PI.FORM.CUSTOMER') }}
-          </label>
-          <ComboBox
-            :model-value="form.crmCustomerId"
-            :options="customerOptions"
-            use-api-results
-            :display-label="editingCustomerLabel"
-            :placeholder="
-              loadingCustomers
-                ? t('CRM.PI.FORM.CUSTOMER_LOADING')
-                : t('CRM.PI.FORM.CUSTOMER_PLACEHOLDER')
-            "
-            search-placeholder="搜客户名 / 联系人 / 邮箱"
-            @open="onCustomerOpen"
-            @search="onCustomerSearch"
-            @update:model-value="onCustomerChange"
-          />
-        </div>
-
-        <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.PI.FORM.COMPANY_HEADER') }}
-          </label>
-          <SelectCard
-            v-model="form.companyHeader"
-            :options="companyHeaderOptions"
-          />
-          <p class="text-xs text-n-slate-10">
-            {{ t('CRM.PI.FORM.COMPANY_HEADER_HINT') }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 买方 -->
-      <div
-        class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
-      >
-        <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
-        {{ t('CRM.PI.FORM.SECTION_BUYER') }}
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <Input v-model="form.attention" :label="t('CRM.PI.FORM.ATTENTION')" />
-        <Input v-model="form.buyerCompany" :label="t('CRM.PI.FORM.COMPANY')" />
-      </div>
-      <TextArea v-model="form.buyerAddress" :label="t('CRM.PI.FORM.ADDRESS')" />
-      <div class="grid grid-cols-3 gap-3">
-        <Input v-model="form.buyerEmail" :label="t('CRM.PI.FORM.EMAIL')" />
-        <Input v-model="form.buyerTel" :label="t('CRM.PI.FORM.TEL')" />
-        <Input v-model="form.buyerEori" :label="t('CRM.PI.FORM.EORI')" />
-      </div>
-
-      <!-- 装运 -->
-      <div
-        class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
-      >
-        <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
-        {{ t('CRM.PI.FORM.SECTION_SHIP') }}
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <Input
-          v-model="form.portOfShipment"
-          :label="t('CRM.PI.FORM.PORT_SHIP')"
-        />
-        <Input
-          v-model="form.portOfDestination"
-          :label="t('CRM.PI.FORM.PORT_DEST')"
-        />
-        <Input
-          v-model="form.countryOfOrigin"
-          :label="t('CRM.PI.FORM.ORIGIN')"
-        />
-        <Input
-          v-model="form.shippingMethod"
-          :label="t('CRM.PI.FORM.SHIP_METHOD')"
-        />
-      </div>
-
-      <!-- 明细 -->
-      <div class="flex items-center justify-between mt-1">
-        <span
-          class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
-        >
-          <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
-          {{ t('CRM.PI.FORM.SECTION_ITEMS') }}
-        </span>
-        <button
-          type="button"
-          class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
-          @click="addItem"
-        >
-          <span class="i-lucide-plus size-4" />
-          {{ t('CRM.PI.FORM.ADD_ITEM') }}
-        </button>
-      </div>
-      <div v-if="!form.items.length" class="text-xs text-n-slate-10">
-        {{ t('CRM.PI.FORM.ITEMS_EMPTY') }}
-      </div>
-      <div v-else class="flex flex-col gap-2">
-        <div
-          v-for="(it, i) in form.items"
-          :key="i"
-          class="flex items-start gap-2 p-2 border rounded-lg border-n-weak"
-        >
-          <!-- 序号：一张 PI 常有六七个型号，没有序号对不上客户回邮里说的「第 3 项」。 -->
-          <span
-            class="w-5 pt-1 text-xs text-right shrink-0 tabular-nums text-n-slate-10"
-          >
-            {{ i + 1 }}
-          </span>
-          <div class="flex flex-col items-center gap-1 shrink-0">
+            <div class="flex items-center gap-2 text-sm text-n-slate-11">
+              {{ t('CRM.PI.PI.HINT') }}
+            </div>
             <button
               type="button"
-              class="flex items-center justify-center overflow-hidden border rounded-md size-14 border-n-weak bg-n-alpha-1 text-n-slate-10 hover:bg-n-alpha-2"
-              :title="t('CRM.PI.FORM.ITEM_PIC')"
-              @click="triggerItemPic(i)"
+              class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              :disabled="parsingPi"
+              @click="triggerPiUpload"
             >
-              <img
-                v-if="it.pictureUrl"
-                :src="it.pictureUrl"
-                class="object-contain size-full"
+              <span
+                class="size-4"
+                :class="
+                  parsingPi
+                    ? 'i-lucide-loader-circle animate-spin'
+                    : 'i-ph-sparkle-fill'
+                "
               />
-              <span v-else class="i-lucide-image-plus size-5" />
-            </button>
-            <button
-              type="button"
-              class="flex items-center gap-0.5 text-[11px] text-n-slate-10 hover:text-n-slate-12"
-              title="从知识库选图"
-              @click="openPicker(i)"
-            >
-              <span class="i-lucide-folder-open size-3 shrink-0" />
-              知识库
+              {{ parsingPi ? t('CRM.PI.PI.PARSING') : t('CRM.PI.PI.UPLOAD') }}
             </button>
             <input
-              :ref="el => (itemPicInputs[i] = el)"
+              ref="piInputRef"
               type="file"
-              accept="image/*"
+              accept=".pdf,.xlsx,.xls,.csv"
               class="hidden"
-              @change="e => onItemPic(e, i)"
+              @change="onPiSelected"
             />
           </div>
-          <div class="flex flex-col flex-1 min-w-0 gap-2">
-            <div class="flex gap-2">
-              <Input
-                v-model="it.model"
-                class="w-40 shrink-0"
-                :placeholder="t('CRM.PI.FORM.ITEM_MODEL')"
-              />
-              <Input
-                v-model="it.description"
-                class="flex-1"
-                :placeholder="t('CRM.PI.FORM.ITEM_DESC')"
-              />
-            </div>
-            <div class="flex items-center gap-2">
-              <Input
-                v-model="it.quantity"
-                type="number"
-                class="w-24"
-                :placeholder="t('CRM.PI.FORM.ITEM_QTY')"
-              />
-              <Input
-                v-model="it.unitPrice"
-                type="number"
-                class="w-32"
-                :placeholder="t('CRM.PI.FORM.ITEM_PRICE')"
-              />
-              <span
-                class="flex-1 text-sm text-right text-n-slate-11 tabular-nums"
-              >
-                {{ fmtAmount(rowAmount(it)) }}
-              </span>
+          <p v-if="piMatchHint" class="text-xs text-n-amber-11">
+            {{ piMatchHint }}
+          </p>
+        </div>
+
+        <!-- 基本 -->
+        <div class="grid grid-cols-4 gap-3">
+          <Input
+            v-model="form.piNo"
+            :label="t('CRM.PI.FORM.PI_NO')"
+            :placeholder="t('CRM.PI.FORM.PI_NO_PLACEHOLDER')"
+          />
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.PI.FORM.DATE') }}
+            </label>
+            <DatePicker v-model="form.piDate" block />
+          </div>
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.PI.FORM.STATUS') }}
+            </label>
+            <SelectCard v-model="form.status" :options="statusOptions" />
+          </div>
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.PI.FORM.CURRENCY') }}
+            </label>
+            <SelectCard v-model="form.currency" :options="currencyOptions" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.PI.FORM.CUSTOMER') }}
+            </label>
+            <ComboBox
+              :model-value="form.crmCustomerId"
+              :options="customerOptions"
+              use-api-results
+              :display-label="editingCustomerLabel"
+              :placeholder="
+                loadingCustomers
+                  ? t('CRM.PI.FORM.CUSTOMER_LOADING')
+                  : t('CRM.PI.FORM.CUSTOMER_PLACEHOLDER')
+              "
+              search-placeholder="搜客户名 / 联系人 / 邮箱"
+              @open="onCustomerOpen"
+              @search="onCustomerSearch"
+              @update:model-value="onCustomerChange"
+            />
+          </div>
+
+          <div class="flex flex-col min-w-0 gap-1">
+            <label class="mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.PI.FORM.COMPANY_HEADER') }}
+            </label>
+            <SelectCard
+              v-model="form.companyHeader"
+              :options="companyHeaderOptions"
+            />
+            <p class="text-xs text-n-slate-10">
+              {{ t('CRM.PI.FORM.COMPANY_HEADER_HINT') }}
+            </p>
+          </div>
+        </div>
+
+        <!-- 买方 -->
+        <div
+          class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+        >
+          <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+          {{ t('CRM.PI.FORM.SECTION_BUYER') }}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <Input v-model="form.attention" :label="t('CRM.PI.FORM.ATTENTION')" />
+          <Input
+            v-model="form.buyerCompany"
+            :label="t('CRM.PI.FORM.COMPANY')"
+          />
+        </div>
+        <TextArea
+          v-model="form.buyerAddress"
+          :label="t('CRM.PI.FORM.ADDRESS')"
+        />
+        <div class="grid grid-cols-3 gap-3">
+          <Input v-model="form.buyerEmail" :label="t('CRM.PI.FORM.EMAIL')" />
+          <Input v-model="form.buyerTel" :label="t('CRM.PI.FORM.TEL')" />
+          <Input v-model="form.buyerEori" :label="t('CRM.PI.FORM.EORI')" />
+        </div>
+
+        <!-- 装运 -->
+        <div
+          class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+        >
+          <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+          {{ t('CRM.PI.FORM.SECTION_SHIP') }}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <Input
+            v-model="form.portOfShipment"
+            :label="t('CRM.PI.FORM.PORT_SHIP')"
+          />
+          <Input
+            v-model="form.portOfDestination"
+            :label="t('CRM.PI.FORM.PORT_DEST')"
+          />
+          <Input
+            v-model="form.countryOfOrigin"
+            :label="t('CRM.PI.FORM.ORIGIN')"
+          />
+          <Input
+            v-model="form.shippingMethod"
+            :label="t('CRM.PI.FORM.SHIP_METHOD')"
+          />
+        </div>
+
+        <!-- 明细 -->
+        <div class="flex items-center justify-between mt-1">
+          <span
+            class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+          >
+            <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+            {{ t('CRM.PI.FORM.SECTION_ITEMS') }}
+          </span>
+          <button
+            type="button"
+            class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="addItem"
+          >
+            <span class="i-lucide-plus size-4" />
+            {{ t('CRM.PI.FORM.ADD_ITEM') }}
+          </button>
+        </div>
+        <div v-if="!form.items.length" class="text-xs text-n-slate-10">
+          {{ t('CRM.PI.FORM.ITEMS_EMPTY') }}
+        </div>
+        <div v-else class="flex flex-col gap-2">
+          <div
+            v-for="(it, i) in form.items"
+            :key="i"
+            class="flex items-start gap-2 p-2 border rounded-lg border-n-weak"
+          >
+            <!-- 序号：一张 PI 常有六七个型号，没有序号对不上客户回邮里说的「第 3 项」。 -->
+            <span
+              class="w-5 pt-1 text-xs text-right shrink-0 tabular-nums text-n-slate-10"
+            >
+              {{ i + 1 }}
+            </span>
+            <div class="flex flex-col items-center gap-1 shrink-0">
               <button
                 type="button"
-                class="flex items-center justify-center size-8 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
-                :title="t('CRM.PI.FORM.ITEM_REMOVE')"
-                @click="removeItem(i)"
+                class="flex items-center justify-center overflow-hidden border rounded-md size-14 border-n-weak bg-n-alpha-1 text-n-slate-10 hover:bg-n-alpha-2"
+                :title="t('CRM.PI.FORM.ITEM_PIC')"
+                @click="triggerItemPic(i)"
               >
-                <span class="i-lucide-x size-4" />
+                <img
+                  v-if="it.pictureUrl"
+                  :src="it.pictureUrl"
+                  class="object-contain size-full"
+                />
+                <span v-else class="i-lucide-image-plus size-5" />
               </button>
+              <button
+                type="button"
+                class="flex items-center gap-0.5 text-[11px] text-n-slate-10 hover:text-n-slate-12"
+                title="从知识库选图"
+                @click="openPicker(i)"
+              >
+                <span class="i-lucide-folder-open size-3 shrink-0" />
+                知识库
+              </button>
+              <input
+                :ref="el => (itemPicInputs[i] = el)"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="e => onItemPic(e, i)"
+              />
+            </div>
+            <div class="flex flex-col flex-1 min-w-0 gap-2">
+              <div class="flex gap-2">
+                <Input
+                  v-model="it.model"
+                  class="w-40 shrink-0"
+                  :placeholder="t('CRM.PI.FORM.ITEM_MODEL')"
+                />
+                <Input
+                  v-model="it.description"
+                  class="flex-1"
+                  :placeholder="t('CRM.PI.FORM.ITEM_DESC')"
+                />
+              </div>
+              <div class="flex items-center gap-2">
+                <Input
+                  v-model="it.quantity"
+                  type="number"
+                  class="w-24"
+                  :placeholder="t('CRM.PI.FORM.ITEM_QTY')"
+                />
+                <Input
+                  v-model="it.unitPrice"
+                  type="number"
+                  class="w-32"
+                  :placeholder="t('CRM.PI.FORM.ITEM_PRICE')"
+                />
+                <span
+                  class="flex-1 text-sm text-right text-n-slate-11 tabular-nums"
+                >
+                  {{ fmtAmount(rowAmount(it)) }}
+                </span>
+                <button
+                  type="button"
+                  class="flex items-center justify-center size-8 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+                  :title="t('CRM.PI.FORM.ITEM_REMOVE')"
+                  @click="removeItem(i)"
+                >
+                  <span class="i-lucide-x size-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 费用 -->
-      <div class="grid grid-cols-2 gap-3">
-        <Input
-          v-model="form.shippingCostLabel"
-          :label="t('CRM.PI.FORM.SHIP_COST_LABEL')"
+        <!-- 费用 -->
+        <div class="grid grid-cols-2 gap-3">
+          <Input
+            v-model="form.shippingCostLabel"
+            :label="t('CRM.PI.FORM.SHIP_COST_LABEL')"
+          />
+          <Input
+            v-model="form.shippingCost"
+            type="number"
+            :label="t('CRM.PI.FORM.SHIP_COST')"
+          />
+        </div>
+        <div class="flex items-center justify-end gap-3 px-1">
+          <span class="text-sm text-n-slate-11">
+            {{ t('CRM.PI.FORM.GRAND_TOTAL') }}
+          </span>
+          <span class="text-base font-semibold text-n-slate-12 tabular-nums">
+            {{ fmtAmount(grandTotal) }}
+          </span>
+        </div>
+
+        <!-- 条款（自适应高度，写多少显示多少，不用滚动） -->
+        <TextArea
+          v-model="form.terms"
+          :label="t('CRM.PI.FORM.TERMS')"
+          auto-height
+          resize
         />
-        <Input
-          v-model="form.shippingCost"
-          type="number"
-          :label="t('CRM.PI.FORM.SHIP_COST')"
+
+        <!-- 卖方落款（按业务员预录带入，可当次改） -->
+        <div
+          class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+        >
+          {{ t('CRM.PI.FORM.SECTION_SELLER') }}
+        </div>
+        <p class="-mt-2 text-xs text-n-slate-10">
+          {{ t('CRM.PI.FORM.SELLER_HINT') }}
+        </p>
+        <div class="grid grid-cols-3 gap-3">
+          <Input v-model="form.issuedBy" :label="t('CRM.PI.FORM.ISSUED_BY')" />
+          <Input
+            v-model="form.sellerMobile"
+            :label="t('CRM.PI.FORM.SELLER_MOBILE')"
+          />
+          <Input
+            v-model="form.sellerEmail"
+            :label="t('CRM.PI.FORM.SELLER_EMAIL')"
+          />
+        </div>
+        <TextArea
+          v-model="form.remark"
+          :label="t('CRM.PI.FORM.REMARK')"
+          auto-height
+          resize
         />
       </div>
-      <div class="flex items-center justify-end gap-3 px-1">
-        <span class="text-sm text-n-slate-11">
-          {{ t('CRM.PI.FORM.GRAND_TOTAL') }}
-        </span>
-        <span class="text-base font-semibold text-n-slate-12 tabular-nums">
-          {{ fmtAmount(grandTotal) }}
-        </span>
-      </div>
 
-      <!-- 条款（自适应高度，写多少显示多少，不用滚动） -->
-      <TextArea
-        v-model="form.terms"
-        :label="t('CRM.PI.FORM.TERMS')"
-        auto-height
-        resize
-      />
-
-      <!-- 卖方落款（按业务员预录带入，可当次改） -->
-      <div
-        class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+      <!-- 实时预览：和「PI 预览」弹窗、导出的 Excel 同一个组件，不是另画一张。
+           sticky 钉在视口顶上——表单滚到下面的条款时，右边还看得见整张单。 -->
+      <aside
+        class="flex flex-col w-full gap-2 xl:w-[620px] 2xl:w-[740px] xl:shrink-0 xl:sticky xl:top-0"
       >
-        {{ t('CRM.PI.FORM.SECTION_SELLER') }}
-      </div>
-      <p class="-mt-2 text-xs text-n-slate-10">
-        {{ t('CRM.PI.FORM.SELLER_HINT') }}
-      </p>
-      <div class="grid grid-cols-3 gap-3">
-        <Input v-model="form.issuedBy" :label="t('CRM.PI.FORM.ISSUED_BY')" />
-        <Input
-          v-model="form.sellerMobile"
-          :label="t('CRM.PI.FORM.SELLER_MOBILE')"
-        />
-        <Input
-          v-model="form.sellerEmail"
-          :label="t('CRM.PI.FORM.SELLER_EMAIL')"
-        />
-      </div>
-      <TextArea
-        v-model="form.remark"
-        :label="t('CRM.PI.FORM.REMARK')"
-        auto-height
-        resize
-      />
+        <span class="text-heading-3 text-n-slate-12">实时预览</span>
+        <div
+          class="p-4 overflow-auto bg-white border rounded-lg border-n-weak xl:max-h-[calc(100vh-14rem)]"
+        >
+          <div class="xl:[zoom:0.85] 2xl:[zoom:1]">
+            <CrmPiDocument :doc="previewDoc" />
+          </div>
+        </div>
+      </aside>
     </div>
   </Dialog>
   <!-- 转单后补填结算信息：PI 不录这几项（要发给客户），转成销售订单那一刻就地补 -->

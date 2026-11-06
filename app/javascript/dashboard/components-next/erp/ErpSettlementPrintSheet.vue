@@ -63,6 +63,10 @@ const capital = computed(() => rmbCapital(props.record.amount_micros));
       <span>日期：{{ docDate }}</span>
       <span>单号：{{ docNo }}</span>
       <span>水单号：{{ record.reference_no || '—' }}</span>
+      <!-- 信保订单号只有收款单有（阿里国际站信保单），付款单不渲染这一格。 -->
+      <span v-if="record.trade_assurance_no">
+        信保订单号：{{ record.trade_assurance_no }}
+      </span>
     </div>
 
     <table

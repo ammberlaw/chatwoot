@@ -259,8 +259,8 @@ let previewSeq = 0;
 
 // 两个开票主体：对公=联迪（含税13%、带公章的采购合同），对私=联合触控（未税采购订单）。
 const ENTITY_OPTIONS = [
-  { value: 'wintouch', label: '深圳联合触控 · 未税' },
-  { value: 'liontek', label: '东莞联迪 · 含税（公章）' },
+  { value: 'wintouch', label: '深圳联合触控 · 未税', short: '未税' },
+  { value: 'liontek', label: '东莞联迪 · 含税（公章）', short: '含税' },
 ];
 
 const revokePreview = () => {
@@ -317,6 +317,23 @@ const fetchPreviewPdf = async () => {
   } finally {
     if (seq === previewSeq) previewLoading.value = false;
   }
+};
+
+// 行高亮：这两张表都有二十来列、要横向滚，眼睛从左边的料号挪到右边的金额就串行了
+// （2026-11-05 何双双反馈「希望鼠标选中的那一行颜色加深」）。
+// 悬停加深之外再给一个「点一下钉住」：横向滚动时手离开表格，高亮也还在。
+const pinnedRow = ref('');
+const togglePinnedRow = key => {
+  pinnedRow.value = pinnedRow.value === key ? '' : key;
+};
+
+// 一张单挂十几家供应商、要整单按含税那版出时，抬头得一家家点下拉改过去
+// （2026-11-04 何双双反馈：想「一键全选含税」）。两个方向都给——点错了一步能改回来。
+const setAllEntities = value => {
+  previewSuppliers.value.forEach(s => {
+    previewEntities.value[supplierKey(s)] = value;
+  });
+  fetchPreviewPdf();
 };
 
 // 「只看这家 / 看全部」：一张采购单常挂十几家供应商，预览默认全勾，
@@ -1358,7 +1375,13 @@ useRouteQueryReentry(async query => {
             <tr
               v-for="(p, i) in records"
               :key="p.id"
-              class="border-b group/row border-n-weak"
+              class="border-b group/row border-n-weak [&:hover>td:not(.sticky)]:bg-n-alpha-2"
+              :class="
+                pinnedRow === `po-${p.id}`
+                  ? '[&>td:not(.sticky)]:!bg-n-iris-2'
+                  : ''
+              "
+              @click="togglePinnedRow(`po-${p.id}`)"
             >
               <td
                 v-for="col in visibleOrderCols"
@@ -1625,12 +1648,16 @@ useRouteQueryReentry(async query => {
             <tr
               v-for="(r, i) in groupedItemRows"
               :key="r.key"
-              class="[&>td]:border-b [&:hover>td:not(.sticky)]:bg-n-alpha-1"
-              :class="
+              class="[&>td]:border-b [&:hover>td:not(.sticky)]:bg-n-alpha-2"
+              :class="[
                 r.lastOfPo
                   ? '[&>td]:border-n-strong'
-                  : '[&>td]:border-n-weak/40'
-              "
+                  : '[&>td]:border-n-weak/40',
+                pinnedRow === `item-${r.key}`
+                  ? '[&>td:not(.sticky)]:!bg-n-iris-2'
+                  : '',
+              ]"
+              @click="togglePinnedRow(`item-${r.key}`)"
             >
               <td
                 v-for="col in visibleItemCols"
@@ -1750,6 +1777,23 @@ useRouteQueryReentry(async query => {
             抬头默认按各供应商档案选（对公「东莞市联迪科技」含税带公章，对私「深圳联合触控」未税），
             这里改只影响这次导出的单，不会写回供应商档案。
           </p>
+
+          <!-- 整单统一抬头：挂十几家时一家家点下拉改不现实 -->
+          <div
+            v-if="previewSuppliers.length > 1"
+            class="flex items-center gap-2"
+          >
+            <span class="text-xs shrink-0 text-n-slate-11">全部抬头改为</span>
+            <button
+              v-for="o in ENTITY_OPTIONS"
+              :key="o.value"
+              type="button"
+              class="px-2 py-1 text-xs border rounded-md border-n-weak text-n-slate-11 hover:text-n-slate-12 hover:border-n-iris-8"
+              @click="setAllEntities(o.value)"
+            >
+              {{ o.short }}
+            </button>
+          </div>
 
           <div
             v-if="previewSuppliers.length"

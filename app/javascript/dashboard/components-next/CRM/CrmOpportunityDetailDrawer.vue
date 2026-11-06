@@ -6,6 +6,7 @@ import OpportunityAPI from 'dashboard/api/crm/opportunities';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
+import CrmCustomerPeekDialog from './CrmCustomerPeekDialog.vue';
 
 const emit = defineEmits(['edit']);
 const { t } = useI18n();
@@ -42,7 +43,6 @@ const formatDate = value =>
 const fields = computed(() => {
   const r = record.value || {};
   return [
-    ['TABLE.CUSTOMER', r.customerName],
     ['TABLE.PROBABILITY', r.probability == null ? null : `${r.probability}%`],
     [
       'TABLE.EXPECTED_CLOSE',
@@ -82,6 +82,13 @@ const load = async () => {
     if (currentRequest === requestId) loading.value = false;
   }
 };
+// 客户速览：点客户名在这张商机上面叠一层卡片，不用关掉商机跑去客户页再退回来。
+const customerPeek = ref(null);
+const peekCustomer = () => {
+  const id = record.value?.crmCustomerId;
+  if (id) customerPeek.value?.open(id);
+};
+
 const close = () => dialog.value?.close();
 const open = async item => {
   record.value = item;
@@ -186,6 +193,20 @@ defineExpose({ open });
               />
               {{ record.ownerName || '—' }}
             </dd>
+            <dt class="text-n-slate-11">
+              {{ t('CRM.OPPORTUNITIES.TABLE.CUSTOMER') }}
+            </dt>
+            <dd class="m-0 break-words">
+              <button
+                v-if="record.crmCustomerId && record.customerName"
+                type="button"
+                class="text-left underline decoration-dotted underline-offset-4 text-n-iris-11 hover:decoration-solid"
+                @click="peekCustomer"
+              >
+                {{ record.customerName }}
+              </button>
+              <template v-else>{{ record.customerName || '—' }}</template>
+            </dd>
             <template v-for="[key, value] in fields" :key="key">
               <dt class="text-n-slate-11">
                 {{ t(`CRM.OPPORTUNITIES.${key}`) }}
@@ -220,5 +241,6 @@ defineExpose({ open });
         </footer>
       </div>
     </dialog>
+    <CrmCustomerPeekDialog ref="customerPeek" />
   </Teleport>
 </template>

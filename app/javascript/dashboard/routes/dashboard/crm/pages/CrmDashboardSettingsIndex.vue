@@ -1,6 +1,8 @@
 <script setup>
 // 看板设置：目前只管「谁计入成交排行」。
-// 为什么不按角色自动判：规则怎么写都有例外——副管兼跑业务要算、挂 manager 的
+// 名单只列 CRM 成员（crm=true，口径见 AccountUser#can_access_crm?）：车间、仓管、质检
+// 这些岗位从不持有客户，摆进来只是让人在四十来个名字里找人更费劲。
+// 为什么 CRM 成员里还要再勾一次：规则怎么写都有例外——副管兼跑业务要算、挂 manager 的
 // 生产主管不算、建了号没人用的空号不算。与其堆条件，不如在这里勾。
 // 勾选只影响「零成交的人要不要以 ¥0 留在榜上」；有订单的人数据来自真实单据，不受此开关影响。
 import { ref, computed, onMounted } from 'vue';
@@ -16,7 +18,11 @@ const keyword = ref('');
 const load = async () => {
   loading.value = true;
   try {
-    const { data } = await MembersAPI.get({ active: true, per_page: 200 });
+    const { data } = await MembersAPI.get({
+      active: true,
+      crm: true,
+      per_page: 200,
+    });
     members.value = data.payload || [];
   } catch {
     members.value = [];

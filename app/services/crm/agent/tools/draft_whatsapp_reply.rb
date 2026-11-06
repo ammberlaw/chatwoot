@@ -7,6 +7,8 @@
 # 这是唯一既能「把写好的话留在对话里、手机上也看得到」，又能守住
 # 「什么都不许往外发」这条硬规矩的做法。
 class Crm::Agent::Tools::DraftWhatsappReply < Crm::Agent::Tools::Base
+  writes_data
+
   description '给某个 WhatsApp 对话写一版回复建议，存成会话里的私密备注（**客户收不到**）。' \
               '业务员自己看完再决定发不发。会话编号从 whatsapp_thread 的结果里取。'
   param :conversation_id, type: 'integer', desc: '会话编号（whatsapp_thread 结果里的「WhatsApp 对话 #123」那个数字）'

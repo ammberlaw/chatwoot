@@ -104,8 +104,8 @@ def preview
   end
 
   # 公司抬头下拉选项（3 选 1 的主体列表，导出时公司名/地址/银行按此填）。
-  def company_headers
-    render json: Crm::PiTemplateFiller.header_options
+  def preview_meta
+    render json: Crm::PiTemplateFiller.preview_meta
   end
 
   # 读取 PI 自动识别：上传 PDF/Excel，返回字段化结果供前端校对（不落库）。与订单自动填单同引擎。

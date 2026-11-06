@@ -420,6 +420,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       id: @customer.id, name: @customer.name, customer_code: @customer.customer_code,
       customer_status: @customer.customer_status, customer_level: @customer.customer_level,
       star: @customer.customer_star,
+      # 联系人/邮箱/电话/国家：商机详情里点客户名弹出的速览卡要用（会话里那张卡自己有联系人，
+      # 多这几个键不影响它）。
+      primary_contact_name: @customer.primary_contact_name,
+      contact_email: @customer.contact_email, contact_phone: @customer.contact_phone,
+      trade_country: @customer.trade_country,
       owner_name: @customer.account_owner&.crm_display_name,
       in_public_pool: @customer.is_in_public_pool,
       next_follow_up_at: @customer.next_follow_up_at,

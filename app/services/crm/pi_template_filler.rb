@@ -55,11 +55,6 @@ class Crm::PiTemplateFiller
   }.freeze
   DEFAULT_HEADER_KEY = 'HK_WINTOUCH'.freeze
 
-  # 供前端下拉：[{ key, name }]。抬头是稳定主体，前端选项以此为唯一来源。
-  def self.header_options
-    COMPANY_HEADERS.map { |key, h| { key: key, name: h[:name] } }
-  end
-
   # 指定抬头的完整主体资料（公司名/地址/银行块/页脚）；空或无效回落默认主体，与导出同口径。
   # 在线预览要跟导出的 Excel 长一样，所以两边都读这里，别在前端另抄一份常量。
   def self.header_for(key)
@@ -77,6 +72,19 @@ class Crm::PiTemplateFiller
 
   def self.seller_web
     SELLER_WEB
+  end
+
+  # 新建/编辑时右侧实时预览要的「单据之外」那部分：三个公司主体的完整抬头/银行块
+  # （含拼好的账号行与页脚）。一次给全，切抬头时右边立刻跟着变，不用再问一遍后端。
+  # 和 header_for / account_line_for 读的是同一份常量，前端不另抄。
+  # ⚠️ headers 是**数组**不是以抬头 key 为键的对象：前端拿到后整份 camelize，
+  # 对象的话 HK_WINTOUCH 会被改成 hkWintouch，再原样提交回来就匹配不上任何主体了。
+  def self.preview_meta
+    headers = COMPANY_HEADERS.map do |key, h|
+      h.slice(:name, :address, :beneficiary, :bank, :swift, :bank_address)
+       .merge(key: key, account_line: account_line_for(key), footer: "#{h[:footer]}#{FOOTER_SUFFIX}")
+    end
+    { headers: headers, seller_web: SELLER_WEB, default_key: DEFAULT_HEADER_KEY }
   end
 
   # GRAND TOTAL（micros）＝ 各项「数量 × 单价」之和 + 运费。

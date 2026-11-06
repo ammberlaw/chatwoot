@@ -8,6 +8,8 @@
 # 口径照 Api::V1::Accounts::Crm::CustomersController 的建档查重（邮箱/电话/WhatsApp/公司名），
 # **跨负责人全库查**（撞单检测不按辖区收口，否则两个人各建一份谁都看不见对方那份）。
 class Crm::Agent::Tools::CreateCustomer < Crm::Agent::Tools::Base
+  writes_data
+
   description '新建客户档案（处理陌生询盘时用）。会先按邮箱、电话、公司名全库查重，撞到已有客户就不建、把那条报给你。建完归属人是你自己。'
   param :name, desc: '公司名（必填）'
   param :contact_email, desc: '联系邮箱', required: false

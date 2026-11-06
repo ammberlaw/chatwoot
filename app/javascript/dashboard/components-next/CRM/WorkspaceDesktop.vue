@@ -68,19 +68,14 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
         </div>
       </div>
       <div
-        class="grid min-h-0 flex-1 grid-cols-2 items-start gap-3 min-[1100px]:grid-cols-[1.06fr_1fr_1fr_1.15fr] min-[1100px]:items-stretch"
+        class="grid min-h-0 flex-1 grid-cols-2 items-start gap-3 min-[1100px]:grid-cols-[1.25fr_1fr_1fr_1.15fr] min-[1100px]:items-stretch"
       >
         <div
-          class="grid min-h-0 gap-3 min-[1100px]:h-full"
-          :class="
-            c.canAccessErp
-              ? 'min-[1100px]:grid-rows-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)]'
-              : 'min-[1100px]:grid-rows-[minmax(0,1.8fr)_minmax(0,1fr)]'
-          "
+          class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:grid-rows-[minmax(0,1fr)_100px_minmax(0,0.45fr)]"
         >
           <section
             :class="card"
-            class="flex min-h-[300px] flex-col !border-[#e2eaf0] !bg-[#f6fafd] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            class="flex min-h-[460px] flex-col !border-[#e2eaf0] !bg-[#f6fafd] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             :tabindex="c.canOpenCrmCard ? 0 : -1"
             :aria-disabled="!c.canOpenCrmCard"
@@ -89,11 +84,11 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             @keydown.enter.self="c.canOpenCrmCard && open(c.crmCardTarget)"
           >
             <div class="flex items-center justify-between gap-2">
-              <h2 class="flex items-baseline gap-2 text-heading-3 !font-medium">
-                <span class="text-heading-3 !font-medium text-[#202427]">{{
+              <h2 class="flex flex-col items-start gap-1 text-heading-2 !font-medium">
+                <span class="text-label-small !font-medium text-[#737b83]">{{
                   tr('CODE_CRM')
                 }}</span
-                ><button class="m-0 block p-0 text-left !text-heading-3 !font-medium !text-[#202427]"
+                ><button class="m-0 block p-0 text-left !text-heading-1 !font-medium !text-[#202427]"
                   type="button"
                   :disabled="!c.canOpenCrmCard"
                   @click="open(c.crmCardTarget)"
@@ -103,32 +98,32 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
               </h2>
 
             </div>
-            <div class="mt-3 flex items-baseline gap-3">
+            <div class="mt-3 flex items-center gap-3">
               <strong
-                class="text-[24px] font-normal leading-none tabular-nums"
+                class="text-[32px] font-normal leading-none tabular-nums"
                 >{{ c.crmStats.follow_up_due ?? 0 }}</strong
-              ><span class="text-label-small text-[#646c73]">{{
+              ><span class="text-label text-[#646c73]">{{
                 tr('FOLLOW_UP')
               }}</span>
             </div>
             <dl
-              class="my-3 grid grid-cols-3 gap-2 text-label-small text-[#737b83]"
+              class="my-3 grid grid-cols-3 gap-3 text-label-small text-[#737b83]"
             >
               <div>
-                <dt class="inline">{{ tr('NEW') }}</dt>
-                <dd class="ml-1 inline tabular-nums text-[#202427]">
+                <dt class="block">{{ tr('NEW') }}</dt>
+                <dd class="mt-1 block text-heading-1 tabular-nums text-[#202427]">
                   {{ c.crmStats.new_today ?? 0 }}
                 </dd>
               </div>
-              <div class="border-l border-black/5 pl-2">
-                <dt class="inline">{{ tr('REVISIT') }}</dt>
-                <dd class="ml-1 inline tabular-nums text-[#202427]">
+              <div class="border-l border-black/5 pl-3">
+                <dt class="block">{{ tr('REVISIT') }}</dt>
+                <dd class="mt-1 block text-heading-1 tabular-nums text-[#202427]">
                   {{ c.crmStats.revisit_week ?? 0 }}
                 </dd>
               </div>
-              <div class="border-l border-black/5 pl-2">
-                <dt class="inline">{{ tr('OVERDUE') }}</dt>
-                <dd class="ml-1 inline tabular-nums text-[#202427]">
+              <div class="border-l border-black/5 pl-3">
+                <dt class="block">{{ tr('OVERDUE') }}</dt>
+                <dd class="mt-1 block text-heading-1 tabular-nums text-[#202427]">
                   {{ c.crmStats.overdue ?? 0 }}
                 </dd>
               </div>
@@ -136,7 +131,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             <WorkspaceCardRecords
               kind="crm"
               :enabled="c.canAccessCrm"
-              class="!my-0 !min-h-0 flex-1 [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!py-1 [&_[aria-hidden]]:!bg-[#dcebf6] [&_a]:!min-h-0 [&_a]:!rounded-2xl [&_a]:!p-3 [&_.size-12]:!size-7 [&_.size-12]:!bg-[#eef3f6] [&_.gap-3]:!gap-2 [&_.mt-4]:!mt-2 [&_.font-semibold]:!font-medium [&_.text-heading-3]:!text-heading-3"
+              class="!my-0 !min-h-0 flex-1 [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!py-1 [&_[aria-hidden]]:!bg-[#dcebf6] [&_a]:!min-h-0 [&_a]:!rounded-2xl [&_a]:!p-3 [&_.size-12]:!size-8 [&_.size-12]:!bg-[#eef3f6] [&_.gap-3]:!gap-2 [&_.mt-4]:!mt-2 [&_.font-semibold]:!font-medium [&_.text-heading-3]:!text-heading-3"
             />
             <p
               v-if="!c.canAccessCrm"
@@ -146,31 +141,30 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             </p>
           </section>
           <section
-            v-if="c.canAccessErp"
             :class="card"
-            class="flex min-h-[160px] flex-col min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            class="min-h-[108px] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             tabindex="0"
-            :aria-label="tr('ERP')"
-            @click="openCard($event, 'erp_dashboard_index', true)"
-            @keydown.enter.self="open('erp_dashboard_index')"
+            :aria-label="tr('OA')"
+            @click="openCard($event, 'crm_approvals_index', true)"
+            @keydown.enter.self="open('crm_approvals_index')"
           >
             <div class="flex items-center justify-between gap-2">
-              <h2 class="flex items-center gap-2 text-heading-3 !font-medium">
-                <Icon icon="i-lucide-chart-no-axes-combined" class="size-4 shrink-0" />
-                {{ tr('FINANCE_ERP') }}
+              <h2 class="flex items-center gap-2 whitespace-nowrap text-heading-3 !font-medium">
+                <Icon icon="i-lucide-clipboard-check" class="size-4 shrink-0" />
+                {{ tr('OA_APPROVAL') }}
               </h2>
               <span aria-hidden="true" class="grid size-7 shrink-0 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span>
             </div>
-            <div class="my-auto grid grid-cols-[1.15fr_1fr] items-center gap-3 py-3">
-              <button type="button" class="min-w-0 text-left" @click="open('erp_vouchers_index')">
-                <strong class="block text-[32px] font-medium leading-none tabular-nums">{{ c.erpDraftCount ?? '—' }}</strong>
-                <span class="mt-2 flex items-center gap-1.5 text-label-small text-[#858d80]"><Icon icon="i-lucide-receipt-text" class="size-3.5 shrink-0 text-[#3e9276]" />{{ tr('DRAFT_VOUCHERS') }}</span>
-              </button>
-              <button type="button" class="min-w-0 border-l border-black/10 py-1 pl-4 text-left" @click="open('erp_reports_index')">
-                <span class="block text-label-small text-[#858d80]">{{ tr('VIEW_REPORTS') }}</span>
-                <span class="mt-2 flex items-center gap-1.5 text-label-small text-[#858d80]"><Icon icon="i-lucide-chart-pie" class="size-3.5 shrink-0 text-[#3e9276]" />{{ tr('MONTH_REPORTS') }}</span>
-              </button>
+            <div class="mt-3 flex items-baseline gap-2">
+              <strong
+                class="text-[28px] font-normal leading-none tabular-nums"
+                >{{ c.oaMetric }}</strong
+              ><span class="text-label-small text-[#737b83]">{{
+                c.stats.approverView
+                  ? tr('PENDING_ITEMS')
+                  : tr('MY_REQUESTS')
+              }}</span>
             </div>
           </section>
           <button
@@ -260,35 +254,36 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
         </div>
         <div class="flex min-h-0 flex-col gap-3 min-[1100px]:h-full">
           <WorkspaceMyOrders
-            class="!min-h-0 !rounded-[20px] !border-black/[0.06] !bg-white !p-4 !shadow-sm min-[1100px]:h-[35%] [&_.rounded-full.border]:!border-transparent [&_.text-heading-3]:!text-heading-3 [&_button.block]:!bg-[#f6f7f7] [&_button.block]:!p-3 [&_.my-3]:!my-2 [&_button.block_.gap-3]:!gap-2 [&_.mt-3]:!mt-2"
+            class="!min-h-0 !rounded-[20px] !border-black/[0.06] !bg-white !p-4 !shadow-sm min-[1100px]:!min-h-[216px] min-[1100px]:h-[38%] [&_.rounded-full.border]:!border-transparent [&_.text-heading-3]:!text-heading-3 [&_button.block]:!bg-[#f6f7f7] [&_button.block]:!p-3 [&_.my-3]:!my-2 [&_button.block_.gap-3]:!gap-2 [&_.mt-3]:!mt-2"
             @overview="open('mes_dashboard_index')"
             @open="emit('openOrder', $event)"
           />
           <section
+            v-if="c.canAccessErp"
             :class="card"
-            class="min-h-[108px] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            class="flex min-h-[160px] flex-col min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             tabindex="0"
-            :aria-label="tr('OA')"
-            @click="openCard($event, 'crm_approvals_index', true)"
-            @keydown.enter.self="open('crm_approvals_index')"
+            :aria-label="tr('ERP')"
+            @click="openCard($event, 'erp_dashboard_index', true)"
+            @keydown.enter.self="open('erp_dashboard_index')"
           >
             <div class="flex items-center justify-between gap-2">
-              <h2 class="flex items-center gap-2 whitespace-nowrap text-heading-3 !font-medium">
-                <Icon icon="i-lucide-clipboard-check" class="size-4 shrink-0" />
-                {{ tr('OA_APPROVAL') }}
+              <h2 class="flex items-center gap-2 text-heading-3 !font-medium">
+                <Icon icon="i-lucide-chart-no-axes-combined" class="size-4 shrink-0" />
+                {{ tr('FINANCE_ERP') }}
               </h2>
               <span aria-hidden="true" class="grid size-7 shrink-0 place-items-center rounded-full border border-black/10"><Icon icon="i-lucide-arrow-up-right" class="size-4" /></span>
             </div>
-            <div class="mt-3 flex items-baseline gap-2">
-              <strong
-                class="text-[28px] font-normal leading-none tabular-nums"
-                >{{ c.oaMetric }}</strong
-              ><span class="text-label-small text-[#737b83]">{{
-                c.stats.approverView
-                  ? tr('PENDING_ITEMS')
-                  : tr('MY_REQUESTS')
-              }}</span>
+            <div class="my-auto grid grid-cols-[1.15fr_1fr] items-center gap-3 py-3">
+              <button type="button" class="min-w-0 text-left" @click="open('erp_vouchers_index')">
+                <strong class="block text-[32px] font-medium leading-none tabular-nums">{{ c.erpDraftCount ?? '—' }}</strong>
+                <span class="mt-2 flex items-center gap-1.5 text-label-small text-[#858d80]"><Icon icon="i-lucide-receipt-text" class="size-3.5 shrink-0 text-[#3e9276]" />{{ tr('DRAFT_VOUCHERS') }}</span>
+              </button>
+              <button type="button" class="min-w-0 border-l border-black/10 py-1 pl-4 text-left" @click="open('erp_reports_index')">
+                <span class="block text-label-small text-[#858d80]">{{ tr('VIEW_REPORTS') }}</span>
+                <span class="mt-2 flex items-center gap-1.5 text-label-small text-[#858d80]"><Icon icon="i-lucide-chart-pie" class="size-3.5 shrink-0 text-[#3e9276]" />{{ tr('MONTH_REPORTS') }}</span>
+              </button>
             </div>
           </section>
         </div>

@@ -41,4 +41,35 @@ class Crm::IssueReport < ApplicationRecord
 
   scope :open_ones, -> { where(status: %w[new ack]) }
   scope :recent_first, -> { order(created_at: :desc, id: :desc) }
+
+  def reporter_name = context.dig('reporter', 'name').presence || reporter&.name
+
+  # 提交那一刻的诊断现场，摘成四样：单据类型、当时状态、第一条阻碍、在等谁。
+  # 站内通知和「问题反馈」页用的是同一份，别各写一套——两边一走偏，
+  # 管理员在通知里看到的和点进去看到的就对不上了。
+  def diagnosis_summary
+    diag = context['diagnosis']
+    return {} unless diag.is_a?(Hash)
+
+    { doc_type: diag['doc_type'].presence, status_label: diag['status_label'].presence,
+      blocker: first_blocker(diag), waiting: waiting_summary(diag['waiting_on']) }.compact
+  end
+
+  private
+
+  # 出库诊断把 blockers 放顶层，其余三类放在 actions 里——两种都认。
+  def first_blocker(diag)
+    rows = Array(diag['blockers']).presence || Array(diag['actions']).flat_map { |a| Array(a['blockers']) }
+    rows.first.is_a?(Hash) ? rows.first['text'].presence : nil
+  end
+
+  # notified=false 的意思是「系统压根没给该动手的人发过通知」——这比「在等谁」更要紧，
+  # 单独标出来，不然看的人会以为对方收到了只是没动。
+  def waiting_summary(waiting)
+    return nil unless waiting.is_a?(Hash) && waiting['label'].present?
+
+    notified = waiting['notified']
+    { label: waiting['label'], names: Array(waiting['names']).compact_blank,
+      notified: notified.is_a?(Hash) && notified['supported'] ? notified['count'].to_i.positive? : nil }
+  end
 end
