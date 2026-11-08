@@ -12,32 +12,32 @@ export const DOC_FOLDER_STYLES = [
   {
     id: 'black-cat',
     label: 'BLACK_CAT',
-    image: '/assets/images/dashboard/folders/black-cat.png',
+    image: '/assets/images/dashboard/folders/black-cat-transparent.png',
   },
   {
     id: 'pink-sheep',
     label: 'PINK_SHEEP',
-    image: '/assets/images/dashboard/folders/pink-sheep.png',
+    image: '/assets/images/dashboard/folders/pink-sheep-transparent.png',
   },
   {
     id: 'purple-jester',
     label: 'PURPLE_JESTER',
-    image: '/assets/images/dashboard/folders/purple-jester.png',
+    image: '/assets/images/dashboard/folders/purple-jester-transparent.png',
   },
   {
     id: 'pink-bunny',
     label: 'PINK_BUNNY',
-    image: '/assets/images/dashboard/folders/pink-bunny.png',
+    image: '/assets/images/dashboard/folders/pink-bunny-transparent.png',
   },
   {
     id: 'yellow-puppy',
     label: 'YELLOW_PUPPY',
-    image: '/assets/images/dashboard/folders/yellow-puppy.png',
+    image: '/assets/images/dashboard/folders/yellow-puppy-transparent.png',
   },
   {
     id: 'blue-puppy',
     label: 'BLUE_PUPPY',
-    image: '/assets/images/dashboard/folders/blue-puppy.png',
+    image: '/assets/images/dashboard/folders/blue-puppy-transparent.png',
   },
   {
     id: 'christmas',

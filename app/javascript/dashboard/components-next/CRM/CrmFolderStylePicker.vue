@@ -106,7 +106,7 @@ defineExpose({ open });
         <CrmFolderArtwork
           :image="choice.image"
           :animated="choice.animated"
-          class="aspect-square w-full rounded-xl bg-white"
+          class="aspect-square w-full rounded-xl"
         />
         <span class="pb-1 text-label-small text-n-slate-12">{{
           copy(choice.label)
