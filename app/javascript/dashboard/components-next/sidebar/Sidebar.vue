@@ -815,11 +815,9 @@ const menuItems = computed(() => {
       },
       {
         name: 'Conversation',
-        // 「客户消息」：与「邮件中心」成一对（邮件走邮件中心、即时消息走这里），
-        // 也和内部的「团队沟通」区分开。核心 SIDEBAR.CONVERSATIONS 是 Chatwoot 自带键，
-        // 别处也在用，所以另起 CRM 自己的键，不动共享翻译。
+        // CRM WhatsApp 入口，保留原有会话分组和未读数量。
         label: t('SIDEBAR.CRM_G_MESSAGES'),
-        icon: 'i-lucide-message-circle',
+        icon: 'i-ri-whatsapp-line',
         badgeCount: conversationAttentionCount.value,
         children: [
           {
@@ -1229,6 +1227,7 @@ const menuItems = computed(() => {
         label: t('SIDEBAR.CRM_G_CUSTOMERS'),
         icon: 'i-lucide-users',
         activeOn: [
+          'crm_lead_center_index',
           'crm_customers_index',
           'crm_customer_intake_index',
           'crm_customer_dupes_index',
@@ -1239,6 +1238,13 @@ const menuItems = computed(() => {
           'crm_ai_background_check_index',
         ],
         children: [
+          // 放在组内第一个：获客是上游——先找到人，再建档，再跟进。
+          {
+            name: 'CRM Lead Center',
+            label: t('SIDEBAR.CRM_LEAD_CENTER'),
+            to: accountScopedRoute('crm_lead_center_index'),
+            activeOn: ['crm_lead_center_index'],
+          },
           {
             name: 'CRM Customer New',
             label: t('SIDEBAR.CRM_CUSTOMER_NEW'),

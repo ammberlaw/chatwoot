@@ -14,6 +14,8 @@ import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countri
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import camelcaseKeys from 'camelcase-keys';
 import OpportunitiesAPI from 'dashboard/api/crm/opportunities';
+import SamplesAPI from 'dashboard/api/crm/samples';
+import CrmSampleDialog from 'dashboard/components-next/CRM/CrmSampleDialog.vue';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
@@ -225,6 +227,8 @@ const saveNextFollowUp = async () => {
   }
 };
 const tasks = computed(() => data.value?.tasks || []);
+// 寄样记录随详情一次取回（见 CustomersController#detail），不单独发请求。
+const samples = computed(() => data.value?.samples || []);
 const opportunities = computed(() => data.value?.opportunities || []);
 const orders = computed(() => data.value?.orders || []);
 const pis = computed(() => data.value?.pis || []);
@@ -259,6 +263,30 @@ const MES_ORDER_STATUS = {
 };
 const files = computed(() => customer.value.files || []);
 const primaryOpp = computed(() => opportunities.value[0] || null);
+// ── 寄样记录：记一次 / 改一次。寄出去会把商机推到「样品中」（后端 after_commit 管，
+// 不在这里判——走脚本、走 agent 工具建的寄样也要一样生效）。
+const sampleDialogRef = ref(null);
+const savingSample = ref(false);
+
+const openSampleDialog = record => sampleDialogRef.value?.open(record);
+
+const saveSample = async payload => {
+  savingSample.value = true;
+  try {
+    const body = { ...payload, crm_customer_id: customer.value.id };
+    delete body.id;
+    if (payload.id) await SamplesAPI.update(payload.id, { sample: body });
+    else await SamplesAPI.create({ sample: body });
+    sampleDialogRef.value?.onSuccess();
+    useAlert(payload.id ? '寄样记录已更新' : '已记下这次寄样');
+    await load();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '保存失败，请重试');
+  } finally {
+    savingSample.value = false;
+  }
+};
+
 const openTasks = computed(() =>
   tasks.value.filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')
 );
@@ -386,6 +414,19 @@ const fields = computed(() => {
       label: '归属人',
       value: dash(c.account_owner_name),
     },
+    // 欧盟增值税号：开 PI 做反向征税要填。有 vat_verified_at 说明过了欧盟官方 VIES，
+    // 可以直接往形式发票上写；没有就是人工填的，用之前自己核一下。
+    ...(c.vat_no
+      ? [
+          {
+            icon: 'i-lucide-badge-check',
+            label: '增值税号',
+            value: c.vat_no,
+            hint: c.vat_verified_at ? '欧盟官方已验证' : '未验证',
+            verified: Boolean(c.vat_verified_at),
+          },
+        ]
+      : []),
   ];
 });
 
@@ -565,7 +606,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div v-if="loading" class="py-20 text-sm text-center text-n-slate-10">
       加载中…
@@ -586,9 +627,7 @@ onMounted(() => {
           >
             <span class="i-lucide-arrow-left size-5" />
           </button>
-          <h1
-            class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 min-w-0 truncate [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-          >
+          <h1 class="text-n-slate-12 min-w-0 truncate text-heading-1">
             客户详情
           </h1>
         </div>
@@ -602,7 +641,7 @@ onMounted(() => {
             共享
             <span
               v-if="(customer.shared_user_ids || []).length"
-              class="px-1.5 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+              class="px-1.5 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
             >
               {{ customer.shared_user_ids.length }}
             </span>
@@ -624,11 +663,11 @@ onMounted(() => {
         <div class="flex items-start gap-4">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-3">
-              <h2 class="text-lg font-semibold truncate text-n-slate-12">
+              <h2 class="truncate text-n-slate-12 text-heading-2">
                 {{ dash(customer.name) }}
               </h2>
               <span
-                class="px-2 py-0.5 text-xs rounded-md bg-n-teal-3 text-n-teal-11"
+                class="px-2 py-0.5 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
               >
                 {{ statusLabel(customer.customer_status) }}
               </span>
@@ -651,8 +690,53 @@ onMounted(() => {
             <span class="text-n-slate-10 shrink-0">{{ f.label }}：</span>
             <CrmStarRating v-if="f.stars" :micros="f.micros" />
             <span v-else class="truncate text-n-slate-12">{{ f.value }}</span>
+            <!-- 只有增值税号用得上：验没验过决定了能不能直接往形式发票上写 -->
+            <span
+              v-if="f.hint"
+              class="shrink-0 px-1.5 py-0.5 text-label-small rounded-full"
+              :class="
+                f.verified
+                  ? 'bg-n-teal-3 text-n-teal-11'
+                  : 'bg-n-slate-3 text-n-slate-11'
+              "
+              >{{ f.hint }}</span
+            >
           </div>
         </div>
+      </div>
+
+      <!-- 标签：主动开发建档时自动打的（「新客开发」+ 任务名），用来回溯这批客户从哪来。
+           目前只展示，手动增删还没做。 -->
+      <div
+        v-if="customer.labels && customer.labels.length"
+        class="flex flex-wrap items-center gap-1.5 mb-4"
+      >
+        <span
+          v-for="l in customer.labels"
+          :key="l"
+          class="px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+        >
+          {{ l }}
+        </span>
+      </div>
+
+      <!-- 背调摘要：主动开发建档时从线索带过来的。
+           以前这两列只写不读，情报到建档这一步就丢了。 -->
+      <div
+        v-if="customer.bg_summary"
+        class="p-4 mb-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+      >
+        <div class="flex items-center gap-2 text-xs text-n-slate-10">
+          <span class="i-lucide-sparkles size-4 shrink-0" /> AI 背调
+          <span v-if="customer.bg_checked_at" class="text-n-slate-9">
+            · {{ fmtDate(customer.bg_checked_at) }}
+          </span>
+        </div>
+        <p
+          class="mb-0 mt-2 whitespace-pre-line text-sm leading-relaxed text-n-slate-12"
+        >
+          {{ customer.bg_summary }}
+        </p>
       </div>
 
       <!-- KPI 速览：只留别处没有的两项（当前状态在上方徽标里、最近报价在下方报价记录里，故不重复） -->
@@ -678,7 +762,7 @@ onMounted(() => {
             </span>
             <span
               v-if="aiNextStep"
-              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-n-iris-11 bg-n-iris-3"
+              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-n-iris-11 bg-n-iris-3 text-label-small rounded-full"
               title="AI 从邮件往来自动生成"
             >
               <span class="i-ph-sparkle-fill size-3" />AI
@@ -702,7 +786,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-semibold text-n-slate-12">下次跟进</h3>
+              <h3 class="text-n-slate-12 text-heading-3">下次跟进</h3>
               <span
                 v-if="customer.next_follow_up_at"
                 class="text-xs text-n-slate-10"
@@ -719,7 +803,9 @@ onMounted(() => {
               <div class="w-full sm:w-28">
                 <SelectCard v-model="nextTime" :options="timeOptions" block />
               </div>
-              <label class="flex items-center gap-1.5 text-sm text-n-slate-11">
+              <label
+                class="flex items-center gap-1.5 text-n-slate-11 text-label"
+              >
                 <input
                   v-model="addToSchedule"
                   type="checkbox"
@@ -728,7 +814,7 @@ onMounted(() => {
                 加入我的日程
               </label>
               <button
-                class="px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+                class="px-3.5 py-2 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                 :disabled="savingNext"
                 @click="saveNextFollowUp"
               >
@@ -742,7 +828,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <div class="flex flex-wrap items-center gap-2 mb-4">
-              <h3 class="text-sm font-semibold text-n-slate-12">互动时间线</h3>
+              <h3 class="text-n-slate-12 text-heading-3">互动时间线</h3>
               <div class="flex items-center gap-1 ml-auto">
                 <button
                   v-for="f in TIMELINE_FILTERS"
@@ -780,21 +866,30 @@ onMounted(() => {
                 >
                   {{ fmtDate(e.at) }}
                   <span
-                    class="px-1.5 py-0.5 rounded"
+                    class="px-1.5 py-0.5 text-label-small rounded-full"
                     :class="TIMELINE_META[e.type].chip"
                   >
                     {{ TIMELINE_META[e.type].label }}
                   </span>
                   <span
                     v-if="e.source === 'AI'"
-                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-n-iris-3 text-n-iris-11"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                     title="AI 从邮件往来自动识别的进度"
                   >
                     <span class="i-ph-sparkle-fill size-3" />AI
                   </span>
+                  <!-- 系统按单据动作自动记的（如商机阶段随 PI/报价单推进）。
+                       不标出来会被当成业务员自己写的跟进。 -->
+                  <span
+                    v-else-if="e.source === 'SYSTEM'"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
+                    title="系统按单据动作自动记录"
+                  >
+                    <span class="i-lucide-settings size-3" />系统
+                  </span>
                   <span
                     v-if="e.tag"
-                    class="px-1.5 py-0.5 rounded bg-n-alpha-2 text-n-slate-10"
+                    class="px-1.5 py-0.5 bg-n-alpha-2 text-n-slate-10 text-label-small rounded-full"
                   >
                     {{ e.type === 'note' ? methodLabel(e.tag) : e.tag }}
                   </span>
@@ -828,7 +923,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <div class="flex items-center justify-between gap-3 mb-4">
-              <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
+              <h3 class="text-n-slate-12 text-heading-3">商机信息</h3>
               <div class="flex items-center gap-3 shrink-0">
                 <button
                   v-if="isPrivateCustomer"
@@ -891,7 +986,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <div class="flex items-center gap-1.5 mb-3">
-              <h3 class="text-sm font-semibold text-n-slate-12">文件附件</h3>
+              <h3 class="text-n-slate-12 text-heading-3">文件附件</h3>
               <!-- 说明收进悬停提示，标题行不再被一长串灰字占掉 -->
               <span
                 v-tooltip.top="
@@ -918,7 +1013,7 @@ onMounted(() => {
               }}</span>
               <span
                 v-if="f.doc_type_label"
-                class="shrink-0 px-1.5 py-0.5 text-xs rounded-md"
+                class="shrink-0 px-1.5 py-0.5 text-label-small rounded-full"
                 :class="docTypeCls(f.doc_type)"
               >
                 {{ f.doc_type_label }}
@@ -943,7 +1038,7 @@ onMounted(() => {
           >
             <div class="flex items-center justify-between mb-2">
               <h3
-                class="flex items-center gap-2 text-sm font-semibold text-n-slate-12"
+                class="flex items-center gap-2 text-n-slate-12 text-heading-3"
               >
                 <span class="i-ph-sparkle-fill size-4 text-n-iris-11" /> AI
                 销售建议
@@ -988,7 +1083,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <h3
-              class="flex items-center gap-2 mb-2 text-sm font-semibold text-n-slate-12"
+              class="flex items-center gap-2 mb-2 text-n-slate-12 text-heading-3"
             >
               <span class="i-ph-sparkle-fill size-4 text-n-iris-11" />
               AI 助手
@@ -1010,7 +1105,7 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">待办任务</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">待办任务</h3>
             <div v-if="!openTasks.length" class="text-sm text-n-slate-10">
               暂无待办
             </div>
@@ -1032,25 +1127,78 @@ onMounted(() => {
             </div>
           </section>
 
-          <!-- 样品记录（占位，后续新建样品模块） -->
+          <!-- 样品记录：寄了什么 / 到哪了 / 客户怎么说。寄出去就把商机推到「样品中」。 -->
           <section
-            class="p-5 border border-dashed rounded-2xl border-white/60 bg-n-solid-1/30"
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3
-              class="flex items-center gap-2 text-sm font-semibold text-n-slate-11"
+            <div class="flex items-center justify-between mb-4">
+              <h3
+                class="flex items-center gap-2 text-n-slate-12 text-heading-3"
+              >
+                <span class="i-lucide-package size-4" /> 样品记录
+              </h3>
+              <button
+                type="button"
+                class="text-xs reset-base text-n-iris-11 hover:underline"
+                @click="openSampleDialog()"
+              >
+                + 记一次寄样
+              </button>
+            </div>
+
+            <div v-if="!samples.length" class="text-sm text-n-slate-10">
+              还没有寄过样
+            </div>
+            <div
+              v-for="sp in samples"
+              :key="sp.id"
+              class="py-2.5 border-b last:border-b-0 border-n-weak"
             >
-              <span class="i-lucide-package size-4" /> 样品记录
-            </h3>
-            <p class="mt-2 text-sm text-n-slate-10">
-              即将上线：寄样状态、快递单号、客户反馈。
-            </p>
+              <div class="flex items-center gap-2 text-sm">
+                <span class="font-medium text-n-slate-12">
+                  {{ sp.status_label }}
+                </span>
+                <span v-if="sp.tracking_no" class="text-n-slate-11">
+                  {{ sp.carrier }} {{ sp.tracking_no }}
+                </span>
+                <span
+                  v-if="sp.days_since_sent !== null && sp.status !== 'FEEDBACK'"
+                  class="text-xs text-n-slate-10"
+                >
+                  · 寄出 {{ sp.days_since_sent }} 天
+                </span>
+                <button
+                  type="button"
+                  class="ml-auto text-xs reset-base text-n-slate-10 hover:text-n-iris-11"
+                  @click="openSampleDialog(sp)"
+                >
+                  编辑
+                </button>
+              </div>
+              <div v-if="sp.items.length" class="mt-1 text-xs text-n-slate-11">
+                <span v-for="(it, i) in sp.items" :key="`spi-${sp.id}-${i}`">
+                  <template v-if="i">、</template>
+                  {{ it.name || it.model }}
+                  <template v-if="it.quantity">×{{ it.quantity }}</template>
+                </span>
+              </div>
+              <div
+                v-if="sp.feedback_label || sp.feedback"
+                class="mt-1 text-xs text-n-slate-10"
+              >
+                <span v-if="sp.feedback_label" class="text-n-amber-11">
+                  {{ sp.feedback_label }}
+                </span>
+                <span v-if="sp.feedback">· {{ sp.feedback }}</span>
+              </div>
+            </div>
           </section>
 
           <!-- 订单记录 -->
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">订单记录</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">订单记录</h3>
             <div v-if="!orders.length" class="text-sm text-n-slate-10">
               暂无订单
             </div>
@@ -1065,7 +1213,7 @@ onMounted(() => {
                   o.order_no
                 }}</span>
                 <span
-                  class="px-2 py-0.5 text-xs rounded-md bg-n-amber-3 text-n-amber-11"
+                  class="px-2 py-0.5 bg-n-amber-3 text-n-amber-11 text-label-small rounded-full"
                 >
                   {{ ORDER_STATUS[o.status] || o.status }}
                 </span>
@@ -1101,7 +1249,7 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">PI 记录</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">PI 记录</h3>
             <div v-if="!pis.length" class="text-sm text-n-slate-10">
               暂无 PI
             </div>
@@ -1117,7 +1265,7 @@ onMounted(() => {
                     {{ p.pi_no }}
                   </span>
                   <span
-                    class="px-2 py-0.5 text-xs rounded-md shrink-0"
+                    class="px-2 py-0.5 shrink-0 text-label-small rounded-full"
                     :class="PI_STATUS[p.status]?.cls"
                   >
                     {{ PI_STATUS[p.status]?.label || p.status }}
@@ -1135,7 +1283,7 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">报价记录</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">报价记录</h3>
             <div v-if="!quotes.length" class="text-sm text-n-slate-10">
               暂无报价
             </div>
@@ -1163,7 +1311,7 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">生产订单</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">生产订单</h3>
             <div
               v-if="!productionOrders.length"
               class="text-sm text-n-slate-10"
@@ -1181,7 +1329,7 @@ onMounted(() => {
                   {{ po.order_no }}
                 </span>
                 <span
-                  class="px-2 py-0.5 text-xs rounded-md shrink-0 bg-n-iris-3 text-n-iris-11"
+                  class="px-2 py-0.5 shrink-0 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                 >
                   {{ MES_STAGE[po.stage] || po.stage }}
                 </span>
@@ -1206,7 +1354,7 @@ onMounted(() => {
             v-if="qcMedia.length"
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">质检影像</h3>
+            <h3 class="mb-4 text-n-slate-12 text-heading-3">质检影像</h3>
             <div
               v-for="g in qcMedia"
               :key="g.production_order_id"
@@ -1328,7 +1476,7 @@ onMounted(() => {
           class="w-full max-w-lg p-5 overflow-auto border shadow-xl rounded-2xl bg-n-solid-1 border-n-weak max-h-[80vh]"
         >
           <div class="flex items-start justify-between gap-3 mb-3">
-            <h3 class="text-base font-semibold text-n-slate-12">
+            <h3 class="text-n-slate-12 text-heading-3">
               {{ noteDetail.title || '跟进记录' }}
             </h3>
             <button
@@ -1346,7 +1494,7 @@ onMounted(() => {
             <span v-if="noteDetail.who">{{ noteDetail.who }}</span>
             <span
               v-if="noteDetail.tag"
-              class="px-1.5 py-0.5 rounded bg-n-alpha-2 text-n-slate-11"
+              class="px-1.5 py-0.5 bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
             >
               {{ noteDetail.tag }}
             </span>
@@ -1415,5 +1563,12 @@ onMounted(() => {
         </p>
       </div>
     </Dialog>
+
+    <!-- 记一次寄样 / 改一次。保存后重拉详情，右列那块跟着更新。 -->
+    <CrmSampleDialog
+      ref="sampleDialogRef"
+      :is-loading="savingSample"
+      @save="saveSample"
+    />
   </div>
 </template>

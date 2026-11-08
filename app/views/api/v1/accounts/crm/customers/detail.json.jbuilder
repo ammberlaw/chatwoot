@@ -107,3 +107,8 @@ json.tasks @tasks do |task|
   json.task_type task.task_type
   json.assignee_name task.assignee&.crm_display_name
 end
+
+# 寄样记录（右列那块）。复用 samples 的 partial，两处字段不会走偏。
+json.samples @samples do |sample|
+  json.partial! 'api/v1/accounts/crm/samples/sample', sample: sample
+end

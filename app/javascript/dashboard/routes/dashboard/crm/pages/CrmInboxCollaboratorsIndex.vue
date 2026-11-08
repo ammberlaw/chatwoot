@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 // 业务分配设置：管理各收件箱（如 WhatsApp）的协作者——即会话「分配业务」下拉可选的人。
 // 原生「设置→收件箱→协作者」页要 administrator 权限（副管进不去），这里放 CRM 设置组，超管+副管可用。
 import { ref, reactive, onMounted } from 'vue';
@@ -6,6 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import InboxCollaboratorsAPI from 'dashboard/api/crm/inboxCollaborators';
 import Button from 'dashboard/components-next/button/Button.vue';
 
+const { t: translate } = useI18n();
 const loading = ref(true);
 const savingId = ref(null);
 const inboxes = ref([]);
@@ -23,6 +26,7 @@ const ROLE_LABEL = {
 
 const CHANNEL_LABEL = {
   'Channel::Whatsapp': 'WhatsApp',
+  'Channel::WhatsappWeb': 'WhatsApp',
   'Channel::Email': '邮件',
   'Channel::WebWidget': '网页',
   'Channel::Api': 'API',
@@ -79,110 +83,115 @@ onMounted(load);
 </script>
 
 <template>
-  <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  <CrmSettingsLayout
+    :title="translate('CRM.SETTINGS_PAGE.INBOX')"
+    :description="translate('CRM.SETTINGS_PAGE.INBOX_NOTE')"
   >
     <div
-      class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
-    >
-      <h1
-        class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
-        业务分配设置
-      </h1>
-      <p class="mt-0.5 text-xs text-n-slate-11">
-        选中的成员才会出现在会话「分配业务」下拉里
-      </p>
-    </div>
-
-    <div
       v-if="loading"
-      class="flex items-center justify-center flex-1 text-sm text-n-slate-11"
+      class="flex items-center justify-center flex-1 text-label text-n-slate-11"
     >
-      加载中…
+      {{ translate('CRM.SETTINGS_COPY.INBOXCOLLABORATORS_1') }}
     </div>
 
-    <div
-      v-else
-      class="flex flex-col gap-4 p-4 sm:p-6 [.theme-classic_&]:sm:!p-8"
-    >
-      <div
-        v-for="ib in inboxes"
+    <div v-else class="space-y-4">
+      <details
+        v-for="(ib, index) in inboxes"
         :key="ib.id"
-        class="p-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/60"
+        :open="index === 0"
+        class="group rounded-2xl border border-n-weak bg-n-solid-1"
       >
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-semibold text-n-slate-12">{{
-              ib.name
-            }}</span>
-            <span
-              class="px-1.5 py-0.5 text-xs rounded-md bg-n-alpha-2 text-n-slate-11"
-            >
-              {{ channelLabel(ib.channel_type) }}
-            </span>
-            <span class="text-xs text-n-slate-10">
-              已选 {{ (selected[ib.id] || []).length }} 人
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="text-xs text-n-slate-11 hover:text-n-slate-12"
-              @click="selectAll(ib.id)"
-            >
-              全选
-            </button>
-            <span class="text-n-slate-6">·</span>
-            <button
-              type="button"
-              class="text-xs text-n-slate-11 hover:text-n-slate-12"
-              @click="clearAll(ib.id)"
-            >
-              清空
-            </button>
-            <Button
-              label="保存"
-              icon="i-lucide-check"
-              color="iris"
-              size="sm"
-              :is-loading="savingId === ib.id"
-              @click="save(ib.id)"
-            />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
-          <label
-            v-for="c in candidates"
-            :key="c.id"
-            class="flex items-center gap-2 px-2.5 py-2 text-sm border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
-            :class="
-              isChecked(ib.id, c.id)
-                ? 'bg-n-iris-3 border-n-iris-6'
-                : 'bg-n-solid-1/40'
-            "
+        <summary
+          class="flex min-h-16 cursor-pointer list-none items-center gap-3 p-5 [&::-webkit-details-marker]:hidden"
+        >
+          <span
+            class="i-lucide-inbox size-5 shrink-0 text-n-slate-11"
+            aria-hidden="true"
+          />
+          <span
+            class="min-w-0 flex-1 truncate text-heading-2 text-n-slate-12"
+            >{{ ib.name }}</span
           >
-            <input
-              type="checkbox"
-              class="accent-n-iris-9"
-              :checked="isChecked(ib.id, c.id)"
-              @change="toggle(ib.id, c.id)"
-            />
-            <span class="truncate text-n-slate-12">{{ c.name }}</span>
-            <span
-              v-if="ROLE_LABEL[c.crm_role]"
-              class="ml-auto shrink-0 text-[11px] text-n-slate-10"
-            >
-              {{ ROLE_LABEL[c.crm_role] }}
-            </span>
-          </label>
-        </div>
-      </div>
+          <span class="hidden text-label-small text-n-slate-11 sm:inline">{{
+            channelLabel(ib.channel_type)
+          }}</span>
+          <span
+            class="shrink-0 rounded-full bg-n-alpha-2 px-2.5 py-1 text-label-small text-n-slate-11"
+            >{{
+              translate('CRM.SETTINGS_PAGE.PICKED', {
+                count: (selected[ib.id] || []).length,
+              })
+            }}</span
+          >
+          <span
+            class="i-lucide-chevron-down size-4 shrink-0 text-n-slate-11 transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <div class="border-t border-n-weak p-5 sm:p-6">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <span class="text-label text-n-slate-12">{{
+              translate('CRM.SETTINGS_PAGE.COLLABORATORS')
+            }}</span>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="min-h-10 px-2 text-label-small text-n-slate-11 hover:text-n-slate-12"
+                @click="selectAll(ib.id)"
+              >
+                {{ translate('CRM.SETTINGS_COPY.INBOXCOLLABORATORS_2') }}
+              </button>
+              <span class="text-n-slate-6">·</span>
+              <button
+                type="button"
+                class="min-h-10 px-2 text-label-small text-n-slate-11 hover:text-n-slate-12"
+                @click="clearAll(ib.id)"
+              >
+                {{ translate('CRM.SETTINGS_COPY.INBOXCOLLABORATORS_3') }}
+              </button>
+              <Button
+                :label="translate('CRM.SETTINGS_COPY.INBOXCOLLABORATORS_4')"
+                icon="i-lucide-check"
+                color="iris"
+                size="sm"
+                :is-loading="savingId === ib.id"
+                @click="save(ib.id)"
+              />
+            </div>
+          </div>
 
-      <p v-if="!inboxes.length" class="text-sm text-n-slate-10">
-        还没有收件箱。
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <label
+              v-for="c in candidates"
+              :key="c.id"
+              class="flex items-center gap-2 min-h-12 px-3 py-3 text-label border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+              :class="
+                isChecked(ib.id, c.id)
+                  ? 'bg-n-alpha-2 border-n-slate-7'
+                  : 'bg-n-solid-1/40'
+              "
+            >
+              <input
+                type="checkbox"
+                class="size-4 shrink-0 accent-n-slate-12"
+                :checked="isChecked(ib.id, c.id)"
+                @change="toggle(ib.id, c.id)"
+              />
+              <span class="truncate text-n-slate-12">{{ c.name }}</span>
+              <span
+                v-if="ROLE_LABEL[c.crm_role]"
+                class="ml-auto shrink-0 text-label-small text-n-slate-10"
+              >
+                {{ ROLE_LABEL[c.crm_role] }}
+              </span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <p v-if="!inboxes.length" class="text-label text-n-slate-10">
+        {{ translate('CRM.SETTINGS_COPY.INBOXCOLLABORATORS_5') }}
       </p>
     </div>
-  </div>
+  </CrmSettingsLayout>
 </template>

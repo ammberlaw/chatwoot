@@ -710,13 +710,13 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-start justify-between gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
+        <h1 class="text-n-slate-12 text-heading-1">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">
           {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
         </p>
@@ -850,7 +850,7 @@ onMounted(() => {
               </span>
               <span
                 v-if="isDeactivated(selectedMember)"
-                class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs bg-n-ruby-3 text-n-ruby-11"
+                class="flex-shrink-0 px-2 py-0.5 bg-n-ruby-3 text-n-ruby-11 text-label-small rounded-full"
               >
                 已停用
               </span>
@@ -903,7 +903,7 @@ onMounted(() => {
                 class="flex items-center gap-2"
               >
                 <span
-                  class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
+                  class="px-2 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                 >
                   {{
                     ROLE_OPTIONS.find(
@@ -942,7 +942,7 @@ onMounted(() => {
               </span>
               <label
                 v-else
-                class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
               >
                 <input
                   type="checkbox"
@@ -980,7 +980,7 @@ onMounted(() => {
                 <label
                   v-for="mod in MODULE_OPTIONS"
                   :key="mod.key"
-                  class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                  class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
                 >
                   <input
                     type="checkbox"
@@ -1197,7 +1197,7 @@ onMounted(() => {
         <div class="flex justify-end gap-2">
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-9 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="
               savingAccount ||
               (isManagerOnly
@@ -1376,7 +1376,7 @@ onMounted(() => {
         </div>
         <div class="flex justify-end">
           <button
-            class="flex items-center h-9 gap-1.5 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+            class="flex items-center h-9 gap-1.5 px-4 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             @click="startNewTemplate"
           >
             <span class="size-4 i-lucide-plus" />
@@ -1411,7 +1411,7 @@ onMounted(() => {
             <label
               v-for="mod in MODULE_OPTIONS"
               :key="mod.key"
-              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
             >
               <input
                 type="checkbox"
@@ -1458,7 +1458,7 @@ onMounted(() => {
         </div>
 
         <label
-          class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+          class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
         >
           <input
             v-model="templateForm.crm_finance"
@@ -1481,7 +1481,7 @@ onMounted(() => {
           </button>
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-9 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="savingTemplate || !templateForm.name.trim()"
             @click="saveTemplate"
           >

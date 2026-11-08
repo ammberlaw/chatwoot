@@ -1525,7 +1525,7 @@ defineExpose({ open, close });
           </span>
           <button
             v-show="!minimized"
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+            class="px-4 py-1.5 rounded-full disabled:opacity-60 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="sending"
             @click="send"
           >
@@ -2249,7 +2249,7 @@ defineExpose({ open, close });
             {{ L.cancel }}
           </button>
           <button
-            class="px-5 py-1.5 text-sm text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+            class="px-5 py-1.5 rounded-full disabled:opacity-60 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="sending || !scheduleAt"
             @click="scheduleSend"
           >
@@ -2472,7 +2472,7 @@ defineExpose({ open, close });
             <Icon icon="i-lucide-folder-open" class="size-10 opacity-40" />
             <p class="text-sm">{{ L.tplEmpty }}</p>
             <button
-              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+              class="px-4 py-1.5 rounded-full text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               @click="openTemplateManage"
             >
               {{ L.tplNew }}
@@ -2491,7 +2491,7 @@ defineExpose({ open, close });
                   {{ tp.name }}
                 </span>
                 <span
-                  class="px-1.5 py-0.5 rounded-full text-[11px] shrink-0 bg-n-slate-3 text-n-slate-11 ml-auto"
+                  class="px-1.5 py-0.5 shrink-0 bg-n-slate-3 text-n-slate-11 ml-auto text-label-small rounded-full"
                 >
                   {{ TPL_CATEGORY_LABELS[tp.category] || tp.category }}
                 </span>
@@ -2660,7 +2660,7 @@ defineExpose({ open, close });
               {{ L.qtCancel }}
             </button>
             <button
-              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+              class="px-4 py-1.5 rounded-full disabled:opacity-50 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="!quickTextForm.title.trim()"
               @click="saveQuickText"
             >

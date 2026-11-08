@@ -123,7 +123,7 @@ const chipTitle = r => (r.name ? `${r.name} <${r.email}>` : r.email);
     <span
       v-for="(r, i) in modelValue"
       :key="`${r.email}-${i}`"
-      class="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-md text-sm bg-n-slate-3 text-n-slate-12 max-w-full"
+      class="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 bg-n-slate-3 text-n-slate-12 max-w-full text-label-small rounded-full"
       :title="chipTitle(r)"
     >
       <span
@@ -179,7 +179,7 @@ const chipTitle = r => (r.name ? `${r.name} <${r.email}>` : r.email);
           s.email
         }}</span>
         <span
-          class="ml-auto shrink-0 text-[10px] px-1.5 py-0.5 rounded"
+          class="ml-auto shrink-0 px-1.5 py-0.5 text-label-small rounded-full"
           :class="
             s.type === 'member'
               ? 'bg-n-teal-3 text-n-teal-11'

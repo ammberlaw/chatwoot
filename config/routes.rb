@@ -64,6 +64,37 @@ Rails.application.routes.draw do
               collection { get :events }
               member { post :confirm }
             end
+            # 获客中心：主动拓客任务（AI 出客户画像和关键词 → 搜潜在客户）
+            resources :lead_campaigns, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :outcomes
+                # 管理端：谁领了多少、压了多久、转化率（经理/副管/管理员可见）
+                get :team_stats
+                # 全公司已验证的搜索词库（从各任务的真实战绩现算）
+                get :keyword_library
+                # 共享线索池：跨任务的待领线索（scope=pool 池子里 / mine 我领的）
+                get :pool
+              end
+              member do
+                post :build_profile
+                post :search
+                get :leads
+              end
+            end
+            # 线索池里的单条操作（解锁要花 Apollo credits，所以是人工点）
+            resources :leads, only: [:show] do
+              member do
+                post :unlock
+                # take = 从共享池里领取（归属自己）；claim = 建档成客户。两件事别搞混。
+                post :take
+                post :release
+                post :claim
+                post :discard
+                post :ai_bg_check
+              end
+            end
+            # 寄样记录：客户详情页右列那块（寄样状态/快递单号/客户反馈）
+            resources :samples, only: [:index, :create, :update, :destroy]
             resources :customers do
               collection do
                 get :check_duplicate
@@ -89,6 +120,8 @@ Rails.application.routes.draw do
                 get :card
                 # 互动时间线：跟进/邮件/会话/订单合流
                 get :timeline
+                # 销售快照：上次成交/在跟的 PI/在途订单阶段/多久没联系（邮件页读信时直接摆出来）
+                get :sales_snapshot
                 # 就地识别客户附件里的 PI（前端据此开建单弹窗）
                 post :parse_attachment
                 post :attach_contact
@@ -1187,6 +1220,7 @@ Rails.application.routes.draw do
 
         # MFA routes
         scope module: 'profile' do
+          resource :workspace_wallpaper, controller: 'workspace_wallpapers', only: [:show, :update, :destroy]
           resource :mfa, controller: 'mfa', only: [:show, :create, :destroy] do
             post :verify
             post :backup_codes

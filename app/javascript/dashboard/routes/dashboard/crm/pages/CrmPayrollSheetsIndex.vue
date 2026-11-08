@@ -214,7 +214,7 @@ const onUnlocked = () => {
               </td>
               <td class="px-3 py-2 whitespace-nowrap">
                 <span
-                  class="px-2 py-0.5 rounded text-label-small"
+                  class="px-2 py-0.5 text-label-small rounded-full"
                   :class="
                     row.status === 'CONFIRMED'
                       ? 'bg-n-teal-3 text-n-teal-11'

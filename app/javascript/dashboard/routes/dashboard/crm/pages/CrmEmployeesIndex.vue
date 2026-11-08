@@ -558,17 +558,17 @@ const removeEmployee = async row => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <h1 class="text-n-slate-12 text-heading-1">
         {{ mode === 'list' ? '员工档案' : editingId ? '编辑员工' : '新增员工' }}
       </h1>
       <button
         v-if="sudoActive && mode === 'list'"
-        class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+        class="h-9 px-4 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
         @click="openCreate"
       >
         新增员工
@@ -603,7 +603,7 @@ const removeEmployee = async row => {
           @keyup.enter="unlock"
         />
         <button
-          class="h-9 px-4 text-sm font-medium text-white rounded-lg shrink-0 whitespace-nowrap bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+          class="h-9 px-4 shrink-0 whitespace-nowrap disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           :disabled="!sudoPassword || sudoVerifying"
           @click="unlock"
         >
@@ -669,7 +669,7 @@ const removeEmployee = async row => {
                 {{ row.name }}
               </span>
               <span
-                class="px-2 py-0.5 text-xs rounded-full shrink-0"
+                class="px-2 py-0.5 shrink-0 text-label-small rounded-full"
                 :class="STATUS_STYLE[row.status]"
               >
                 {{ STATUS_LABEL[row.status] || row.status }}
@@ -774,7 +774,7 @@ const removeEmployee = async row => {
               </td>
               <td class="px-3 py-2">
                 <span
-                  class="px-2 py-0.5 text-xs rounded-full"
+                  class="px-2 py-0.5 text-label-small rounded-full"
                   :class="STATUS_STYLE[row.status]"
                 >
                   {{ STATUS_LABEL[row.status] || row.status }}
@@ -897,7 +897,7 @@ const removeEmployee = async row => {
               class="object-cover w-16 h-16 border rounded-lg border-n-weak"
             />
             <label
-              class="h-9 px-3 inline-flex items-center text-sm border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
+              class="h-9 px-3 inline-flex items-center border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2 text-label"
             >
               {{ pendingPhotoPreview || photoUrl ? '更换照片' : '上传照片' }}
               <input
@@ -950,7 +950,7 @@ const removeEmployee = async row => {
               </button>
             </div>
             <label
-              class="h-9 px-3 inline-flex items-center self-start text-sm border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
+              class="h-9 px-3 inline-flex items-center self-start border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2 text-label"
             >
               添加入职资料
               <input
@@ -1189,7 +1189,7 @@ const removeEmployee = async row => {
           </span>
           <div class="flex flex-wrap items-center gap-4">
             <label
-              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
             >
               <input
                 v-model="form.handoverMode"
@@ -1200,7 +1200,7 @@ const removeEmployee = async row => {
               客户退回公海
             </label>
             <label
-              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
             >
               <input
                 v-model="form.handoverMode"
@@ -1281,7 +1281,7 @@ const removeEmployee = async row => {
                 </button>
               </div>
               <label
-                class="h-9 px-3 inline-flex items-center self-start text-sm border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
+                class="h-9 px-3 inline-flex items-center self-start border rounded-lg cursor-pointer border-n-weak text-n-slate-12 hover:bg-n-alpha-2 text-label"
               >
                 添加离职资料
                 <input
@@ -1324,7 +1324,7 @@ const removeEmployee = async row => {
 
       <div class="flex items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 duration-150"
           :disabled="missing.length > 0 || saving"
           @click="save"
         >

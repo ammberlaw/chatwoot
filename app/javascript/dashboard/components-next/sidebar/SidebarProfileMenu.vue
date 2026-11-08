@@ -23,9 +23,8 @@ const props = defineProps({
   isCollapsed: { type: Boolean, default: false },
   placement: { type: String, default: 'sidebar' },
 });
-const isTopbar = computed(() => props.placement === 'topbar');
-
 const emit = defineEmits(['close', 'openKeyShortcutModal']);
+const isTopbar = computed(() => props.placement === 'topbar');
 
 const MAX_AVATAR_SIZE_MB = 15;
 
@@ -179,15 +178,11 @@ const menuItems = computed(() => {
       icon: 'i-lucide-signature',
       click: openSignatureDialog,
     },
-    {
-      show: currentUser.value.type === 'SuperAdmin',
-      showOnCustomBrandedInstance: true,
-      label: t('SIDEBAR_ITEMS.SUPER_ADMIN_CONSOLE'),
-      icon: 'i-lucide-castle',
-      link: '/super_admin',
-      nativeLink: true,
-      target: '_blank',
-    },
+    // 「超级管理员控制台」入口已从菜单移除（2026-11-06 用户定）：它只对超管可见
+    // （生产上只有一个人），而上线那周配完账号和品牌就再没动过——留在菜单里
+    // 只是占一行，风格也和这套系统不搭（Chatwoot 原生后台，英文界面）。
+    // ⚠️ 控制台本身没有关闭：直接访问 /super_admin 照样进得去，要建账号、
+    // 改实例品牌名时还用得上，别去动后端路由。
     {
       show: true,
       showOnCustomBrandedInstance: true,
@@ -219,78 +214,159 @@ const menuItems = computed(() => {
 const allowedMenuItems = computed(() => {
   return menuItems.value.filter(item => item.show);
 });
-const topbarMenuGroups = computed(() => [
-  ['i-lucide-life-buoy', 'i-lucide-keyboard', 'i-lucide-user-pen', 'i-lucide-image-up', 'i-lucide-signature'],
-  ['i-lucide-castle'],
-  ['i-lucide-book-open'],
-  ['i-lucide-power'],
-].map(icons => allowedMenuItems.value.filter(item => icons.includes(item.icon))).filter(group => group.length));
+const topbarMenuGroups = computed(() =>
+  [
+    [
+      'i-lucide-life-buoy',
+      'i-lucide-keyboard',
+      'i-lucide-user-pen',
+      'i-lucide-image-up',
+      'i-lucide-signature',
+    ],
+    ['i-lucide-book-open'],
+    ['i-lucide-power'],
+  ]
+    .map(icons =>
+      allowedMenuItems.value.filter(item => icons.includes(item.icon))
+    )
+    .filter(group => group.length)
+);
 </script>
 
 <template>
   <DropdownContainer
     class="relative min-w-0"
-    :class="isTopbar ? 'w-auto [&>div.absolute]:right-0 [&>div.absolute]:top-full [&>div.absolute]:mt-2' : isCollapsed ? 'w-auto' : 'w-full'"
+    :class="
+      isTopbar
+        ? 'w-auto [&>div.absolute]:right-0 [&>div.absolute]:top-full [&>div.absolute]:mt-2'
+        : isCollapsed
+          ? 'w-auto'
+          : 'w-full'
+    "
     @close="emit('close')"
   >
     <template #trigger="{ toggle, isOpen }">
       <slot name="trigger" :toggle="toggle" :is-open="isOpen">
-      <button
-        data-sidebar-profile-trigger
-        class="flex gap-2 items-center p-1 text-left rounded-lg cursor-pointer hover:bg-n-alpha-1"
-        :class="[
-          { 'bg-n-alpha-1': isOpen },
-          isCollapsed ? 'justify-center' : 'w-full',
-        ]"
-        :title="isCollapsed ? currentUser.available_name : undefined"
-        @click="toggle"
-      >
-        <Avatar
-          :size="32"
-          :name="currentUser.available_name"
-          :src="currentUser.avatar_url"
-          class="flex-shrink-0"
-        />
-        <div v-if="!isCollapsed" class="min-w-0">
-          <div class="text-sm font-medium leading-4 truncate text-n-slate-12">
-            {{ currentUser.available_name }}
+        <button
+          data-sidebar-profile-trigger
+          class="flex gap-2 items-center p-1 text-left rounded-lg cursor-pointer hover:bg-n-alpha-1"
+          :class="[
+            { 'bg-n-alpha-1': isOpen },
+            isCollapsed ? 'justify-center' : 'w-full',
+          ]"
+          :title="isCollapsed ? currentUser.available_name : undefined"
+          @click="toggle"
+        >
+          <Avatar
+            :size="32"
+            :name="currentUser.available_name"
+            :src="currentUser.avatar_url"
+            class="flex-shrink-0"
+          />
+          <div v-if="!isCollapsed" class="min-w-0">
+            <div class="text-sm font-medium leading-4 truncate text-n-slate-12">
+              {{ currentUser.available_name }}
+            </div>
+            <div class="text-xs truncate text-n-slate-11">
+              {{ currentUser.email }}
+            </div>
           </div>
-          <div class="text-xs truncate text-n-slate-11">
-            {{ currentUser.email }}
-          </div>
-        </div>
-      </button>
+        </button>
       </slot>
     </template>
     <DropdownBody
       class="z-50 w-80"
       :class="[
-        isTopbar ? '!top-0 !right-0 !bottom-auto !left-auto !m-0' : 'bottom-12 mb-2 ltr:left-0 rtl:right-0',
         isTopbar
-          ? '!w-[304px] max-w-[calc(100vw-2rem)] [&>ul]:!bg-white [&>ul]:!border-[#e8ebe5] [&>ul]:!backdrop-blur-none [&>ul]:!rounded-[20px] [&>ul]:!p-0 [&>ul]:!gap-0 [&>ul]:!shadow-[0_16px_48px_-12px_rgba(0,0,0,0.24)]'
+          ? '!top-0 !right-0 !bottom-auto !left-auto !m-0'
+          : 'bottom-12 mb-2 ltr:left-0 rtl:right-0',
+        isTopbar
+          ? '!w-72 max-w-[calc(100vw-2rem)] [&>ul]:!bg-white/65 [&>ul]:!border-white/80 [&>ul]:!backdrop-blur-2xl [&>ul]:!backdrop-saturate-150 [&>ul]:!rounded-2xl [&>ul]:!p-0 [&>ul]:!gap-0 [&>ul]:!shadow-[0_16px_40px_-12px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.85)]'
           : ['classicBlack', 'obsidian'].includes(activePalette)
-          ? '[--slate-10:110_113_121] [--slate-11:79_82_89] [--slate-12:25_27_27] [--alpha-1:0,0,0,0.04] [--alpha-2:0,0,0,0.06] !w-[360px] max-w-[calc(100vw-2rem)] [&>ul]:!bg-white/80 [&>ul]:!border-white/80 [&>ul]:!backdrop-blur-2xl [&>ul]:!rounded-3xl [&>ul]:!p-0 [&>ul]:!gap-0 [&>ul]:!shadow-xl'
-          : ''
+            ? '[--slate-10:110_113_121] [--slate-11:79_82_89] [--slate-12:25_27_27] [--alpha-1:0,0,0,0.04] [--alpha-2:0,0,0,0.06] !w-[360px] max-w-[calc(100vw-2rem)] [&>ul]:!bg-white/80 [&>ul]:!border-white/80 [&>ul]:!backdrop-blur-2xl [&>ul]:!rounded-3xl [&>ul]:!p-0 [&>ul]:!gap-0 [&>ul]:!shadow-xl'
+            : '',
       ]"
     >
-      <div v-if="isTopbar" class="max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-[20px] text-[#252a23]">
-        <div class="flex items-center gap-3 px-4 py-3.5">
-          <Avatar :size="34" :name="currentUser.available_name" :src="currentUser.avatar_url" rounded-full />
-          <div class="min-w-0"><div class="truncate text-heading-3 font-semibold">{{ currentUser.available_name }}</div><div class="mt-0.5 truncate text-label-small text-[#8c9287]">{{ currentUser.email }}</div></div>
+      <div
+        v-if="isTopbar"
+        class="max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl text-[#202427]"
+      >
+        <div
+          class="flex items-center gap-3 border-b border-black/[0.05] px-4 py-3"
+        >
+          <Avatar
+            :size="32"
+            :name="currentUser.available_name"
+            :src="currentUser.avatar_url"
+            rounded-full
+            class="shrink-0"
+          />
+          <div class="min-w-0">
+            <div class="truncate text-heading-3 font-medium">
+              {{ currentUser.available_name }}
+            </div>
+            <div class="mt-0.5 truncate text-label-small text-[#777c83]">
+              {{ currentUser.email }}
+            </div>
+          </div>
         </div>
-        <div class="border-y border-[#eef0eb] px-3 py-3">
-          <h3 class="m-0 mb-2 px-1 text-label-small font-medium text-[#8c9287]">{{ paletteMenuTitle }}</h3>
-          <div class="grid grid-cols-5 gap-1">
-            <button v-for="palette in blackPalettes" :key="palette.key" type="button" :title="palette.label" :aria-pressed="palette.key === activePalette" class="flex min-w-0 flex-col items-center gap-1.5 rounded-xl px-0.5 py-2 text-label-small transition-colors hover:bg-[#f5f6f2]" :class="palette.key === activePalette ? 'bg-[#f0f3e9] text-[#20241f]' : 'text-[#7f8778]'" @click="selectPalette(palette.key)">
-              <span class="relative grid size-6 place-items-center rounded-full border border-black/5" :class="palette.swatch"><span v-if="palette.key === activePalette" class="i-lucide-check size-3 text-white drop-shadow" /></span>
+        <div class="border-b border-black/[0.05] px-3 py-3">
+          <h3 class="m-0 mb-2 px-1 text-label-small font-normal text-[#777c83]">
+            {{ paletteMenuTitle }}
+          </h3>
+          <div class="grid grid-cols-5 gap-1 rounded-xl bg-black/[0.035] p-1">
+            <button
+              v-for="palette in blackPalettes"
+              :key="palette.key"
+              type="button"
+              :title="palette.label"
+              :aria-pressed="palette.key === activePalette"
+              class="flex min-w-0 flex-col items-center gap-1.5 rounded-lg border px-0.5 py-2 text-label-small font-normal transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#202427]"
+              :class="
+                palette.key === activePalette
+                  ? 'border-white/90 bg-white/70 text-[#202427] shadow-sm'
+                  : 'border-transparent text-[#777c83] hover:bg-white/45'
+              "
+              @click="selectPalette(palette.key)"
+            >
+              <span
+                class="relative grid size-5 place-items-center rounded-full border border-black/10"
+                :class="palette.swatch"
+              >
+                <span
+                  v-if="palette.key === activePalette"
+                  class="absolute -bottom-0.5 -right-1 grid size-3.5 place-items-center rounded-full bg-[#202427] ring-2 ring-white"
+                  aria-hidden="true"
+                  ><span class="i-lucide-check size-2.5 text-white"
+                /></span>
+              </span>
               <span class="whitespace-nowrap">{{ palette.label }}</span>
             </button>
           </div>
         </div>
         <div class="px-2 pb-1">
-          <div v-for="(group, index) in topbarMenuGroups" :key="group[0].icon" class="py-1" :class="index ? 'border-t border-[#eef0eb]' : ''">
-            <CustomBrandPolicyWrapper v-for="item in group" :key="item.label" :show-on-custom-branded-instance="item.showOnCustomBrandedInstance">
-              <DropdownItem v-bind="item" :icon="item.label === t('SIDEBAR_ITEMS.USER_GUIDE_MES') ? 'i-lucide-factory' : item.icon" class="!rounded-lg !px-3 !py-2 !text-label-small !text-[#444b3e] [&_.size-4]:!text-[#8b9384] hover:!bg-[#f4f6f0]" />
+          <div
+            v-for="(group, index) in topbarMenuGroups"
+            :key="group[0].icon"
+            class="py-1"
+            :class="index ? 'border-t border-black/[0.05]' : ''"
+          >
+            <CustomBrandPolicyWrapper
+              v-for="item in group"
+              :key="item.label"
+              :show-on-custom-branded-instance="
+                item.showOnCustomBrandedInstance
+              "
+            >
+              <DropdownItem
+                v-bind="item"
+                :icon="
+                  item.label === t('SIDEBAR_ITEMS.USER_GUIDE_MES')
+                    ? 'i-lucide-factory'
+                    : item.icon
+                "
+                class="!min-h-8 !gap-2.5 !rounded-lg !px-3 !py-1.5 !text-label !font-normal !leading-5 !text-[#34383d] [&_.size-4]:!shrink-0 [&_.size-4]:!text-[#777c83] hover:!bg-white/45 focus-visible:!bg-white/45 focus-visible:!outline focus-visible:!outline-2 focus-visible:!outline-[#a2a6ac]"
+              />
             </CustomBrandPolicyWrapper>
           </div>
         </div>

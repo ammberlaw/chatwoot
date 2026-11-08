@@ -113,15 +113,13 @@ const statusClass = s =>
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div>
-        <h1
-          class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ t('CRM.KPI_SHEETS.LIST_HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -194,7 +192,7 @@ const statusClass = s =>
                 {{ s.ownerName || '—' }}
               </span>
               <span
-                class="inline-flex px-2 py-0.5 rounded-full text-xs shrink-0"
+                class="inline-flex px-2 py-0.5 shrink-0 text-label-small rounded-full"
                 :class="statusClass(s.status)"
               >
                 {{ t(`CRM.KPI_SHEETS.STATUS.${s.status}`) }}
@@ -274,7 +272,7 @@ const statusClass = s =>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1.5">
                   <span
-                    class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                    class="inline-flex px-2 py-0.5 text-label-small rounded-full"
                     :class="statusClass(s.status)"
                   >
                     {{ t(`CRM.KPI_SHEETS.STATUS.${s.status}`) }}

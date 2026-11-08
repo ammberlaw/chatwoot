@@ -9,9 +9,13 @@
 #  api_base                 :string
 #  api_key                  :text
 #  apollo_api_key           :text
+#  apollo_monthly_limit     :integer
+#  apollo_user_limit        :integer
+#  apollo_user_limits       :jsonb            not null
 #  auto_draft_reply_enabled :boolean          default(FALSE), not null
 #  auto_draft_user_ids      :bigint           default([]), not null, is an Array
 #  inquiry_triage_enabled   :boolean          default(FALSE), not null
+#  lead_default_criteria    :text
 #  model                    :string           default("deepseek-chat"), not null
 #  created_at               :datetime         not null
 #  updated_at               :datetime         not null

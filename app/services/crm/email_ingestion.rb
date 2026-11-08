@@ -187,8 +187,32 @@ module Crm::EmailIngestion
       body: truncate_text(text_body(mail)),
       body_html: html,
       contact_id: contact&.id,
-      crm_customer_id: contact&.crm_customer_id
+      crm_customer_id: contact&.crm_customer_id || customer_id_by_address(from)
     }
+  end
+
+  # 没有联系人记录、或联系人还没归属时，按客户档案上的联系邮箱再认一次。
+  #
+  # 为什么要这条回落：认客户原本只查 contacts 表，而 contacts 是会话那边的东西——
+  # 建档的路子里只有建档页会同步建它（sync_contacts），别的路子建出来的客户一条都没有，
+  # 于是**客户档案建好了，来信一直挂不上**。2026-11-06 核实：生产 87 个客户填了
+  # contact_email 却没有对应的 contacts 记录（7 到 11 月都有，不是某一条路独有），
+  # 21 封收件箱邮件因此认不出归属。
+  #
+  # 两道闸：
+  # ① 唯一命中才认——库里有一个邮箱对着 13 个同名无主档案，挂错比不挂更难查。
+  # ② 自家邮箱不认——有人把同事当客户建了档（contact_email 填成我们自己的在用邮箱），
+  #    不挡的话同事之间的内部邮件会被当成客户往来记进那条档案。
+  def customer_id_by_address(from)
+    address = from.to_s.strip.downcase
+    return nil if address.blank? || own_mailbox?(address)
+
+    ids = @account.account.crm_customers.where('LOWER(contact_email) = ?', address).limit(2).pluck(:id)
+    ids.size == 1 ? ids.first : nil
+  end
+
+  def own_mailbox?(address)
+    @account.account.crm_mail_accounts.exists?(['LOWER(email_address) = ?', address])
   end
 
   # Date 头的时区偏移（分钟）。没有 Date 头、或解析不出时区就返回 nil（不猜 0，

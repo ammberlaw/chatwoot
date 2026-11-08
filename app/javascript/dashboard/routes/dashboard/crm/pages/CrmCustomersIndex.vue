@@ -1535,7 +1535,7 @@ watch(
 <template>
   <div
     data-theme-page="customers"
-    class="flex w-full h-full overflow-hidden font-sans"
+    class="flex w-full h-full overflow-hidden rounded-3xl border border-n-weak/70 bg-n-solid-1/80 font-sans shadow-wintouch-glass backdrop-blur-2xl backdrop-saturate-150"
   >
     <div
       class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-4 py-3 sm:px-5 sm:py-4 [.theme-classic_&]:sm:!px-8"
@@ -1544,7 +1544,7 @@ watch(
         class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
         <div class="min-w-0">
-          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+          <h1 class="text-n-slate-12 text-heading-1">
             {{
               activeFilter === 'churn_risk'
                 ? '流失预警'
@@ -1571,7 +1571,7 @@ watch(
           />
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
+            class="inline-flex items-center gap-1.5 h-9 px-3.5 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             @click="goToIntake"
           >
             <span class="i-lucide-plus size-4" />
@@ -1872,7 +1872,7 @@ watch(
                       <!-- 状态标签放这行（原本在右侧独立列），把整行宽度让给客户名 -->
                       <span
                         v-if="statusMeta(customer)"
-                        class="inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-bold whitespace-nowrap shrink-0"
+                        class="inline-flex items-center px-2 py-[2px] whitespace-nowrap shrink-0 text-label-small rounded-full"
                         :class="pillCls(statusMeta(customer).color)"
                       >
                         {{ statusMeta(customer).label }}
@@ -1904,7 +1904,7 @@ watch(
                   <span>{{ customer.dealOrderCount || 0 }} 单</span>
                   <span
                     v-if="sourceMeta(customer)"
-                    class="inline-flex px-2 py-[2px] rounded-full text-[10.5px] font-bold"
+                    class="inline-flex px-2 py-[2px] text-label-small rounded-full"
                     :class="pillCls(sourceMeta(customer).color)"
                   >
                     {{ sourceMeta(customer).label }}
@@ -2244,7 +2244,7 @@ watch(
                       <template v-else-if="col.key === 'status'">
                         <span
                           v-if="statusMeta(customer)"
-                          class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
+                          class="inline-flex items-center px-2.5 py-[3px] whitespace-nowrap text-label-small rounded-full"
                           :class="pillCls(statusMeta(customer).color)"
                         >
                           {{ statusMeta(customer).label }}
@@ -2259,7 +2259,7 @@ watch(
                       <template v-else-if="col.key === 'source'">
                         <span
                           v-if="sourceMeta(customer)"
-                          class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
+                          class="inline-flex px-2.5 py-[3px] whitespace-nowrap text-label-small rounded-full"
                           :class="pillCls(sourceMeta(customer).color)"
                         >
                           {{ sourceMeta(customer).label }}
@@ -2449,7 +2449,7 @@ watch(
               </div>
             </div>
             <label
-              class="flex items-center gap-1.5 mt-3 text-sm text-n-slate-11"
+              class="flex items-center gap-1.5 mt-3 text-n-slate-11 text-label"
             >
               <input
                 v-model="addToSchedule"
@@ -2459,7 +2459,7 @@ watch(
               加入我的日程
             </label>
             <button
-              class="w-full py-2 mt-3 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+              class="w-full py-2 mt-3 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="savingNext"
               @click="saveNextFollowUp"
             >
@@ -2480,7 +2480,7 @@ watch(
               class="w-full px-3 py-2 text-sm border rounded-lg resize-none no-margin border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-2 focus:ring-n-iris-9"
             />
             <button
-              class="w-full py-2 mt-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+              class="w-full py-2 mt-2 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="!newNote.trim()"
               @click="addNote"
             >
@@ -2510,7 +2510,7 @@ watch(
                   <CrmStarRating v-if="row.stars" :micros="row.micros" />
                   <span
                     v-if="row.tag"
-                    class="inline-flex px-2 py-0.5 text-xs rounded-md"
+                    class="inline-flex px-2 py-0.5 text-label-small rounded-full"
                     :class="row.tag.cls"
                   >
                     {{ row.tag.text }}
@@ -2626,7 +2626,7 @@ watch(
         <!-- 文件 -->
         <div v-else-if="activeTab === 'files'" class="flex flex-col gap-3 p-5">
           <label
-            class="flex items-center justify-center gap-2 py-2 text-sm border border-dashed rounded-lg cursor-pointer border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            class="flex items-center justify-center gap-2 py-2 border border-dashed rounded-lg cursor-pointer border-n-weak text-n-slate-11 hover:bg-n-alpha-1 text-label"
           >
             <span class="i-lucide-upload size-4" /> 上传文件
             <input type="file" multiple class="hidden" @change="uploadFiles" />
@@ -2683,7 +2683,7 @@ watch(
             >
               <div class="flex items-center gap-2">
                 <span
-                  class="px-1.5 py-0.5 text-xs rounded-md"
+                  class="px-1.5 py-0.5 text-label-small rounded-full"
                   :class="
                     e.folder === 'SENT'
                       ? 'bg-n-teal-3 text-n-teal-11'
@@ -2695,7 +2695,7 @@ watch(
                 <!-- 邮件追踪：发出的信是否被客户打开（已读/未读） -->
                 <span
                   v-if="e.folder === 'SENT' && e.tracked"
-                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-md"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-label-small rounded-full"
                   :class="
                     e.open_count > 0
                       ? 'bg-n-teal-3 text-n-teal-11'
@@ -2886,7 +2886,7 @@ watch(
         </div>
         <div class="flex flex-col gap-2">
           <label
-            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+            class="flex items-center gap-2.5 cursor-pointer text-n-slate-12 text-label"
           >
             <input
               type="checkbox"
@@ -2899,7 +2899,7 @@ watch(
             一并转移客户商机
           </label>
           <label
-            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+            class="flex items-center gap-2.5 cursor-pointer text-n-slate-12 text-label"
           >
             <input
               type="checkbox"
@@ -2910,7 +2910,7 @@ watch(
             一并转移客户订单（含报价）
           </label>
           <label
-            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+            class="flex items-center gap-2.5 cursor-pointer text-n-slate-12 text-label"
           >
             <input
               type="checkbox"

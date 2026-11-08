@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 // 问题反馈：业务员在 AI 助手里说「这是不是 bug」时报上来的单子。
 //
 // 为什么非有这一页不可：提交只发一条站内通知，刷过去就埋了，既没有清单也没法标
@@ -15,6 +17,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+const { t } = useI18n();
 const STATUS_LABEL = {
   new: '待查',
   ack: '已受理',
@@ -131,109 +134,126 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1">
-    <header
-      class="flex flex-wrap items-center gap-3 px-5 py-6 shrink-0 sm:px-8"
-    >
-      <h1 class="text-heading-1 text-n-slate-12">问题反馈</h1>
-      <div data-tabbar="page" class="my-0">
-        <button
-          v-for="t in TABS"
-          :key="t.key"
-          :aria-selected="tab === t.key"
-          @click="tab = t.key"
-        >
-          {{ t.label }} {{ tabCount(t.key) }}
-        </button>
-      </div>
-      <Button
-        label="刷新"
+  <CrmSettingsLayout
+    :title="t('CRM.SETTINGS_PAGE.ISSUES')"
+    :description="t('CRM.SETTINGS_PAGE.ISSUES_NOTE')"
+  >
+    <template #actions
+      ><Button
+        :label="t('CRM.SETTINGS_PAGE.REFRESH')"
         icon="i-lucide-refresh-cw"
-        variant="outline"
+        variant="faded"
         color="slate"
-        size="sm"
-        class="ml-auto"
         :is-loading="loading"
         @click="load"
-      />
-    </header>
-
-    <div class="flex-1 px-5 pb-6 overflow-auto sm:px-8">
-      <p v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
-        加载中…
-      </p>
-      <p
-        v-else-if="!visible.length"
-        class="py-10 text-sm text-center text-n-slate-10"
+    /></template>
+    <template #toolbar
+      ><nav
+        class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-n-alpha-2 p-1"
+        :aria-label="t('CRM.SETTINGS_PAGE.ISSUES')"
       >
-        {{ tab === 'open' ? '没有待处理的问题。' : '还没有人报过问题。' }}
-      </p>
-
-      <div v-else class="flex flex-col max-w-4xl gap-3">
-        <article
-          v-for="r in visible"
-          :key="r.id"
-          class="flex flex-col gap-3 p-4 border rounded-xl border-n-weak"
+        <button
+          v-for="item in TABS"
+          :key="item.key"
+          type="button"
+          :aria-pressed="tab === item.key"
+          class="min-h-10 shrink-0 rounded-lg px-4 text-label transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-10"
+          :class="
+            tab === item.key
+              ? 'bg-n-slate-12 text-n-solid-1 shadow-sm'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
+          "
+          @click="tab = item.key"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <span
-              class="px-2 py-0.5 text-label-small rounded-md shrink-0"
-              :class="STATUS_CLASS[r.status]"
-            >
-              {{ STATUS_LABEL[r.status] || r.status }}
-            </span>
-            <span class="text-label-small text-n-slate-10">#{{ r.id }}</span>
-            <span class="font-medium text-n-slate-12">
-              {{ r.reporter_name }}
-            </span>
-            <span class="ml-auto text-label-small text-n-slate-10">
-              {{ fmtTime(r.created_at) }}
-            </span>
-          </div>
+          {{ item.label
+          }}<span class="ml-2 tabular-nums opacity-70">{{
+            tabCount(item.key)
+          }}</span>
+        </button>
+      </nav></template
+    >
+    <p v-if="loading" class="py-10 text-label text-center text-n-slate-10">
+      {{ t('CRM.SETTINGS_COPY.ISSUEREPORTS_1') }}
+    </p>
+    <p
+      v-else-if="!visible.length"
+      class="py-10 text-label text-center text-n-slate-10"
+    >
+      {{ tab === 'open' ? '没有待处理的问题。' : '还没有人报过问题。' }}
+    </p>
 
-          <p class="text-sm whitespace-pre-wrap text-n-slate-12">
-            {{ r.body }}
-          </p>
-
-          <div
-            v-if="diagnosisLines(r).length"
-            class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-n-alpha-1"
+    <div v-else class="flex flex-col gap-4">
+      <article
+        v-for="r in visible"
+        :key="r.id"
+        class="flex flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+      >
+        <div class="flex flex-wrap items-center gap-3">
+          <span
+            class="px-2 py-0.5 text-label-small shrink-0 rounded-full"
+            :class="STATUS_CLASS[r.status]"
           >
-            <span
-              v-for="(line, i) in diagnosisLines(r)"
-              :key="i"
-              class="text-label-small text-n-slate-11"
-            >
-              {{ line }}
-            </span>
-          </div>
+            {{ STATUS_LABEL[r.status] || r.status }}
+          </span>
+          <span class="text-label-small text-n-slate-10">#{{ r.id }}</span>
+          <span class="font-medium text-n-slate-12">
+            {{ r.reporter_name }}
+          </span>
+          <span
+            class="w-full text-label-small text-n-slate-10 sm:ml-auto sm:w-auto"
+          >
+            {{ fmtTime(r.created_at) }}
+          </span>
+        </div>
 
-          <p v-if="r.resolved_by_name" class="text-label-small text-n-slate-10">
-            {{ r.resolved_by_name }} 于 {{ fmtTime(r.resolved_at) }} 收尾
-          </p>
+        <p
+          class="mb-0 text-label leading-relaxed whitespace-pre-wrap break-words text-n-slate-12"
+        >
+          {{ r.body }}
+        </p>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <SelectCard
-              v-model="editOf(r).status"
-              :options="STATUS_OPTIONS"
-              trigger-class="w-28"
-            />
-            <Input
-              v-model="editOf(r).resolution"
-              class="flex-1 min-w-48 reset-base !h-9"
-              placeholder="处理说明"
-            />
-            <Button
-              label="保存"
-              icon="i-lucide-check"
-              color="iris"
-              size="sm"
-              :is-loading="savingId === r.id"
-              @click="save(r)"
-            />
-          </div>
-        </article>
-      </div>
+        <div
+          v-if="diagnosisLines(r).length"
+          class="flex flex-col gap-1 px-3 py-2 rounded-lg bg-n-alpha-1"
+        >
+          <span
+            v-for="(line, i) in diagnosisLines(r)"
+            :key="i"
+            class="text-label-small text-n-slate-11"
+          >
+            {{ line }}
+          </span>
+        </div>
+
+        <p v-if="r.resolved_by_name" class="text-label-small text-n-slate-10">
+          {{ r.resolved_by_name }} {{ t('CRM.SETTINGS_COPY.ISSUEREPORTS_2') }}
+          {{ fmtTime(r.resolved_at) }}
+          {{ t('CRM.SETTINGS_COPY.ISSUEREPORTS_3') }}
+        </p>
+
+        <div
+          class="mt-1 flex flex-wrap items-center gap-3 border-t border-n-weak pt-4"
+        >
+          <SelectCard
+            v-model="editOf(r).status"
+            :options="STATUS_OPTIONS"
+            trigger-class="w-28"
+          />
+          <Input
+            v-model="editOf(r).resolution"
+            class="flex-1 min-w-0 w-full sm:min-w-48 reset-base !h-9"
+            :placeholder="t('CRM.SETTINGS_COPY.ISSUEREPORTS_4')"
+          />
+          <Button
+            :label="t('CRM.SETTINGS_COPY.ISSUEREPORTS_5')"
+            icon="i-lucide-check"
+            color="iris"
+            size="sm"
+            :is-loading="savingId === r.id"
+            @click="save(r)"
+          />
+        </div>
+      </article>
     </div>
-  </div>
+  </CrmSettingsLayout>
 </template>

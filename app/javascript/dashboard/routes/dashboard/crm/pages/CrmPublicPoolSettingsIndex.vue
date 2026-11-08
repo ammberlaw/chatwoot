@@ -1,4 +1,5 @@
 <script setup>
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -10,6 +11,8 @@ import Button from 'dashboard/components-next/button/Button.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
+const settingsTab = ref('rules');
+const settingsTabs = ['rules', 'groups', 'exempt'];
 // 与后端 PublicPoolSetting 列一一对应：pool_limit_* 私海上限，recycle_days_* 分组回收天数。
 // key 是列名后缀，其大写即客户设置里对应分组的 code；显示名优先取「客户设置→分组设置」的当前名字，
 // 取不到再回退到这里的默认名（管理员在客户设置改了分组名，这张表跟着变）。
@@ -120,63 +123,74 @@ const save = async () => {
 };
 
 const fieldCls =
-  'h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
+  'h-10 px-3 text-label border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
 </script>
 
 <template>
   <HScrollButtons />
-  <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  <CrmSettingsLayout
+    width="narrow"
+    :title="t('CRM.SETTINGS_PAGE.POOL')"
+    :description="t('CRM.SETTINGS_PAGE.POOL_NOTE')"
   >
-    <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
-    >
-      <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
-          {{ t('CRM.POOL_SETTINGS.HEADER') }}
-        </h1>
-        <p class="mt-0.5 text-xs text-n-slate-11">
-          {{ t('CRM.POOL_SETTINGS.SUBTITLE') }}
-        </p>
-      </div>
-      <Button
+    <template #actions
+      ><Button
         :label="t('CRM.POOL_SETTINGS.SAVE')"
         icon="i-lucide-check"
         color="iris"
-        class="shrink-0"
         :is-disabled="busy || loading"
         @click="save"
-      />
-    </div>
-    <div
-      v-if="loading"
-      class="flex items-center justify-center flex-1 text-n-slate-11"
+    /></template>
+    <template #toolbar
+      ><nav
+        class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-n-alpha-2 p-1"
+        :aria-label="t('CRM.SETTINGS_PAGE.POOL')"
+      >
+        <button
+          v-for="item in settingsTabs"
+          :key="item"
+          type="button"
+          :aria-pressed="settingsTab === item"
+          class="min-h-10 shrink-0 rounded-lg px-4 text-label transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-10"
+          :class="
+            settingsTab === item
+              ? 'bg-n-slate-12 text-n-solid-1 shadow-sm'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
+          "
+          @click="settingsTab = item"
+        >
+          {{ t(`CRM.SETTINGS_PAGE.POOL_${item}`) }}
+        </button>
+      </nav></template
     >
+    <div v-if="loading" class="py-12 text-center text-label text-n-slate-11">
       {{ t('CRM.POOL_SETTINGS.LOADING') }}
     </div>
-    <div
-      v-else
-      class="flex flex-col w-full max-w-xl gap-5 px-4 py-4 sm:px-6 sm:py-6 [.theme-classic_&]:sm:!px-8"
-    >
+    <div v-else class="space-y-5">
       <!-- 客户流转规则 -->
-      <div class="flex flex-col gap-3">
+      <div
+        v-show="settingsTab === 'rules'"
+        class="flex flex-col gap-5 rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+      >
         <div>
-          <div class="text-sm font-medium text-n-slate-12">
+          <div class="text-heading-2 text-n-slate-12">
             {{ t('CRM.POOL_SETTINGS.RECYCLE_SECTION') }}
           </div>
-          <div class="mt-0.5 text-xs text-n-slate-10">
+          <div class="mt-0.5 text-label-small text-n-slate-10">
             {{ t('CRM.POOL_SETTINGS.RECYCLE_HINT') }}
           </div>
         </div>
-        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+        <label
+          class="flex min-h-11 items-center gap-3 rounded-lg bg-n-alpha-1 px-3 py-2 text-label text-n-slate-12"
+        >
           <input v-model="form.recycleEnabled" type="checkbox" />
           {{ t('CRM.POOL_SETTINGS.RECYCLE_ENABLED') }}
         </label>
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm text-n-slate-12">
+          <span class="text-label text-n-slate-12">
             {{ t('CRM.POOL_SETTINGS.STALE_DAYS') }}
           </span>
-          <span class="text-xs text-n-slate-10">
+          <span class="text-label-small text-n-slate-10">
             {{ t('CRM.POOL_SETTINGS.STALE_DAYS_HINT') }}
           </span>
           <input
@@ -188,7 +202,9 @@ const fieldCls =
             :class="[fieldCls]"
           />
         </label>
-        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+        <label
+          class="flex min-h-11 items-center gap-3 rounded-lg bg-n-alpha-1 px-3 py-2 text-label text-n-slate-12"
+        >
           <input
             v-model="form.recycleNeverFollowed"
             type="checkbox"
@@ -198,16 +214,17 @@ const fieldCls =
         </label>
         <!-- eslint-disable vue/no-bare-strings-in-template -->
         <label class="flex flex-col gap-1.5">
-          <span class="text-sm text-n-slate-12">原归属人领回冷却（天）</span>
-          <span class="text-xs text-n-slate-10">
-            客户进公海后，原归属人在此天数内不能自己领回（其他成员不受限）；0 =
-            不限制
+          <span class="text-label text-n-slate-12">{{
+            t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_1')
+          }}</span>
+          <span class="text-label-small text-n-slate-10">
+            {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_2') }}
           </span>
           <input
             v-model="form.claimCooldownDays"
             type="number"
             min="0"
-            class="w-32"
+            class="!h-9 !w-32 !max-w-full font-normal"
             :class="[fieldCls]"
           />
         </label>
@@ -215,12 +232,15 @@ const fieldCls =
       </div>
 
       <!-- 分组规则：各分组的回收天数 + 私海上限 -->
-      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+      <div
+        v-show="settingsTab === 'groups'"
+        class="flex flex-col gap-5 rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+      >
         <div>
-          <div class="text-sm font-medium text-n-slate-12">
+          <div class="text-heading-2 text-n-slate-12">
             {{ t('CRM.POOL_SETTINGS.GROUP_SECTION') }}
           </div>
-          <div class="mt-0.5 text-xs text-n-slate-10">
+          <div class="mt-0.5 text-label-small text-n-slate-10">
             {{ t('CRM.POOL_SETTINGS.GROUP_HINT') }}
           </div>
         </div>
@@ -231,11 +251,11 @@ const fieldCls =
             :key="`m-${row.key}`"
             class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
           >
-            <div class="text-sm font-medium text-n-slate-12">
+            <div class="text-heading-2 text-n-slate-12">
               {{ groupLabels[row.key] }}
             </div>
             <label class="flex flex-col gap-1 mt-2">
-              <span class="text-xs text-n-slate-11">
+              <span class="text-label-small text-n-slate-11">
                 {{ t('CRM.POOL_SETTINGS.COL_DAYS') }}
               </span>
               <input
@@ -250,7 +270,7 @@ const fieldCls =
               />
             </label>
             <label class="flex flex-col gap-1 mt-2">
-              <span class="text-xs text-n-slate-11">
+              <span class="text-label-small text-n-slate-11">
                 {{ t('CRM.POOL_SETTINGS.COL_LIMIT') }}
               </span>
               <input
@@ -264,16 +284,18 @@ const fieldCls =
             </label>
           </div>
         </div>
-        <table class="hidden text-sm border-collapse md:table">
+        <table
+          class="hidden w-full table-fixed border-collapse text-label font-normal md:table"
+        >
           <thead class="text-n-slate-11">
             <tr class="border-b border-n-weak">
-              <th class="py-2 pr-4 font-medium text-left">
+              <th class="w-2/5 py-2 pr-3 font-medium text-left">
                 {{ t('CRM.POOL_SETTINGS.COL_GROUP') }}
               </th>
-              <th class="px-4 py-2 font-medium text-left">
+              <th class="px-3 py-2 font-medium text-left">
                 {{ t('CRM.POOL_SETTINGS.COL_DAYS') }}
               </th>
-              <th class="px-4 py-2 font-medium text-left">
+              <th class="px-3 py-2 font-medium text-left">
                 {{ t('CRM.POOL_SETTINGS.COL_LIMIT') }}
               </th>
             </tr>
@@ -284,10 +306,10 @@ const fieldCls =
               :key="row.key"
               class="border-b border-n-weak"
             >
-              <td class="py-2.5 pr-4 text-n-slate-12">
+              <td class="py-2 pr-3 font-normal text-n-slate-12">
                 {{ groupLabels[row.key] }}
               </td>
-              <td class="px-4 py-1.5">
+              <td class="px-3 py-2">
                 <input
                   v-model="form.recycleDays[row.key]"
                   type="number"
@@ -295,42 +317,47 @@ const fieldCls =
                   :placeholder="
                     t('CRM.POOL_SETTINGS.USE_DEFAULT', { days: form.staleDays })
                   "
-                  class="w-32"
+                  class="!h-9 !w-32 !max-w-full font-normal"
                   :class="[fieldCls]"
                 />
               </td>
-              <td class="px-4 py-1.5">
+              <td class="px-3 py-2">
                 <input
                   v-model="form.limits[row.key]"
                   type="number"
                   min="0"
                   :placeholder="t('CRM.POOL_SETTINGS.NO_LIMIT')"
-                  class="w-32"
+                  class="!h-9 !w-32 !max-w-full font-normal"
                   :class="[fieldCls]"
                 />
               </td>
             </tr>
           </tbody>
         </table>
-        <p class="text-xs text-n-slate-10">
+        <p class="text-label-small text-n-slate-10">
           {{ t('CRM.POOL_SETTINGS.GROUP_NOTE') }}
         </p>
       </div>
 
       <!-- 回收豁免成员：名单内成员的客户与商机不参与自动回收 -->
       <!-- eslint-disable vue/no-bare-strings-in-template -->
-      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+      <div
+        v-show="settingsTab === 'exempt'"
+        class="flex flex-col gap-5 rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+      >
         <div>
-          <div class="text-sm font-medium text-n-slate-12">豁免成员</div>
-          <div class="mt-0.5 text-xs text-n-slate-10">
-            勾选后，该成员不参与上述规则：名下客户与商机不自动回收，认领/转移也不受私海上限约束
+          <div class="text-heading-2 text-n-slate-12">
+            {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_3') }}
+          </div>
+          <div class="mt-0.5 text-label-small text-n-slate-10">
+            {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_4') }}
           </div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <label
             v-for="m in members"
             :key="m.user_id"
-            class="flex items-center gap-2 text-sm text-n-slate-12"
+            class="flex min-h-11 items-center gap-3 rounded-lg bg-n-alpha-1 px-3 py-2 text-label text-n-slate-12"
           >
             <input
               v-model="form.exemptUserIds"
@@ -340,26 +367,31 @@ const fieldCls =
             {{ m.name }}
           </label>
         </div>
-        <p v-if="!members.length" class="text-xs text-n-slate-10">
-          成员列表加载中…
+        <p v-if="!members.length" class="text-label-small text-n-slate-10">
+          {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_5') }}
         </p>
       </div>
 
       <!-- 工作月报：每月 1 号自动给各成员发上月经营数据（按各自权限范围） -->
-      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+      <div
+        v-show="settingsTab === 'exempt'"
+        class="flex flex-col gap-5 rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+      >
         <div>
-          <div class="text-sm font-medium text-n-slate-12">工作月报</div>
-          <div class="mt-0.5 text-xs text-n-slate-10">
-            每月 1
-            号自动给业务员、主管、管理员发一封上月工作月报邮件（成交金额、新建客户、目标完成进度，各看各的权限范围）
+          <div class="text-heading-2 text-n-slate-12">
+            {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_6') }}
+          </div>
+          <div class="mt-0.5 text-label-small text-n-slate-10">
+            {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_7') }}
           </div>
         </div>
-        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+        <label
+          class="flex min-h-11 items-center gap-3 rounded-lg bg-n-alpha-1 px-3 py-2 text-label text-n-slate-12"
+        >
           <input v-model="form.monthlyReportEnabled" type="checkbox" />
-          启用每月自动发送工作月报
+          {{ t('CRM.SETTINGS_COPY.PUBLICPOOLSETTINGS_8') }}
         </label>
       </div>
-      <!-- eslint-enable vue/no-bare-strings-in-template -->
     </div>
-  </div>
+  </CrmSettingsLayout>
 </template>

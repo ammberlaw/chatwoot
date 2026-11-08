@@ -1,6 +1,7 @@
 # PI 付款自动转销售订单：PI 状态改「已付款」时把 PI 落成一张销售订单。
 # 口径：已付款=已成单，直接落「生产中」（跳过待确认）；金额取明细净额、运费单列；
-# 明细/客户/负责人/币种全带过来；并把 PI 的 Excel 附到订单上（单据留痕）。
+# 明细/客户/负责人/币种全带过来；交期从条款里解析（Crm::DeliveryTerm）；
+# 并把 PI 的 Excel 附到订单上（单据留痕）。
 # 幂等：同一 PI（按 pi_no）只转一次，重复调用返回已存在的订单。
 class Crm::PiToSalesOrder
   XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'.freeze
@@ -43,6 +44,9 @@ class Crm::PiToSalesOrder
       name: @pi.pi_no,
       pi_no: @pi.pi_no,
       crm_customer_id: @pi.crm_customer_id,
+      # 商机跟着单据走：PI 上挂的是哪个商机，转出来的订单就是哪个
+      # （PI 的商机由 Crm::OpportunityStageSync 在保存时挂好，见 PisController）。
+      crm_opportunity_id: @pi.crm_opportunity_id,
       contact_id: @pi.contact_id,
       owner_id: @pi.owner_id,
       handled_by_id: @pi.handled_by_id,
@@ -52,6 +56,10 @@ class Crm::PiToSalesOrder
       # 改为「待确认」：转单（定制→生产单 / 库存→出库单）真正发生时才进生产中。
       status: 'PENDING_CONFIRMATION',
       order_date: Time.current,
+      # 交期：从 PI 条款里那句「Delivery time: 30 working days after receiving the
+      # payment」解析出来，以转单日（＝收款日，PI 一改已付款就转单）为起点算。
+      # 解析不出来就留空，不编日期——交期是对客户的承诺。
+      delivery_date: Crm::DeliveryTerm.due_from(@pi.terms, Time.current),
       order_currency: @pi.currency,
       order_amount_micros: net_amount_micros,
       shipping_micros: @pi.shipping_cost_micros,

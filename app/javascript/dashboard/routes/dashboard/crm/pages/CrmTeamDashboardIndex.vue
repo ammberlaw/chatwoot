@@ -392,7 +392,7 @@ const memberHeaders = computed(() => [
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full gap-4 px-4 py-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 px-4 py-4 sm:p-6 overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
     :class="
       isClassicBlack &&
       '!gap-6 !bg-white !border-[#e9eae6] !shadow-none !backdrop-blur-none !p-6'
@@ -402,9 +402,7 @@ const memberHeaders = computed(() => [
       class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div>
-        <h1
-          class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ t('CRM.TEAM_DASHBOARD.HEADER') }}
         </h1>
       </div>

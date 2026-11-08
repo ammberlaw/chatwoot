@@ -1,4 +1,5 @@
 <script setup>
+import CrmFolderArtwork from 'dashboard/components-next/CRM/CrmFolderArtwork.vue';
 /* global axios */
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -12,6 +13,8 @@ import * as XLSX from 'xlsx';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
+import { useDocFolderStyle } from 'dashboard/composables/useDocFolderStyle';
+import CrmFolderStylePicker from 'dashboard/components-next/CRM/CrmFolderStylePicker.vue';
 
 import CrmDocSectionManager from 'dashboard/components-next/CRM/CrmDocSectionManager.vue';
 import CrmCredentialVault from 'dashboard/components-next/CRM/CrmCredentialVault.vue';
@@ -27,6 +30,8 @@ const route = useRoute();
 const { accountId } = useAccount();
 const store = useCrmKnowledgeDocsStore();
 const categoriesStore = useCrmKnowledgeCategoriesStore();
+const { folderStyleKey, styleForFolder } = useDocFolderStyle();
+const folderStylePicker = ref(null);
 
 const activeFilter = ref(route.query.filter || 'company');
 // 文档中心「板块」筛选：侧栏板块子项带 ?section=<id>；为空=「全公司文档」(全部板块)。
@@ -834,7 +839,13 @@ const focusRename = el => {
 };
 
 // Finder 式新建文件夹：立刻建「未命名文件夹」（同层自动去重）并进入就地改名。
+//
+// creatingFolder 防的是连点：两次调用会算出同一个「未命名文件夹 N」，
+// 一个建成、另一个撞同层重名的唯一索引报 500（2026-11-06 生产日志里就有一次）。
+const creatingFolder = ref(false);
 const createUnnamedFolder = async () => {
+  if (creatingFolder.value) return;
+  creatingFolder.value = true;
   const base = t('CRM.KNOWLEDGE_DOCS.VIEW.NEW_FOLDER_DEFAULT');
   const siblings = new Set(
     currentFolders.value.filter(f => f.type === 'category').map(f => f.name)
@@ -861,6 +872,8 @@ const createUnnamedFolder = async () => {
     }
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
+  } finally {
+    creatingFolder.value = false;
   }
 };
 
@@ -960,14 +973,14 @@ watch(
 
 <template>
   <div
-    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
       >
         <div class="min-w-0">
-          <h1 class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+          <h1 class="truncate text-n-slate-12 text-heading-1">
             {{
               isGeneral
                 ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
@@ -980,6 +993,15 @@ watch(
           </p>
         </div>
         <div class="flex items-center gap-3 shrink-0">
+          <Button
+            v-if="(isGeneral || isMineView) && !isVault && !isRecycle"
+            :label="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.TITLE')"
+            icon="i-lucide-palette"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="folderStylePicker.open()"
+          />
           <Button
             v-if="isGeneral && isAdminLike && !isVault"
             label="管理板块"
@@ -1083,7 +1105,7 @@ watch(
                   {{ doc.name }}
                 </span>
                 <span
-                  class="px-1.5 py-0.5 text-[11px] rounded-full shrink-0 bg-n-slate-3 text-n-slate-11"
+                  class="px-1.5 py-0.5 shrink-0 bg-n-slate-3 text-n-slate-11 text-label-small rounded-full"
                 >
                   {{
                     doc.scope === 'PERSONAL'
@@ -1165,7 +1187,7 @@ watch(
                     doc.name
                   }}</span>
                   <span
-                    class="ml-2 px-1.5 py-0.5 text-[11px] rounded-full bg-n-slate-3 text-n-slate-11"
+                    class="ml-2 px-1.5 py-0.5 bg-n-slate-3 text-n-slate-11 text-label-small rounded-full"
                   >
                     {{
                       doc.scope === 'PERSONAL'
@@ -1218,8 +1240,9 @@ watch(
 
       <!-- 三级目录浏览器：面包屑 + 子文件夹网格 + 本层文档（搜索时平铺命中）-->
       <div v-else class="flex flex-col flex-1 overflow-hidden">
-        <!-- 面包屑 -->
+        <!-- 销售资料根目录已由页标题标识，进入子目录或搜索后再显示路径。 -->
         <div
+          v-if="isGeneral || pathStack.length || isSearching"
           class="flex items-center gap-1.5 px-4 py-3 text-sm border-b sm:px-6 border-n-weak min-w-0"
         >
           <button
@@ -1376,7 +1399,7 @@ watch(
                 v-if="canCreateDocsHere"
                 type="button"
                 :disabled="directUploading"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md text-white bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+                class="inline-flex items-center gap-1 px-2 py-1 disabled:opacity-60 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                 @click="triggerDirectUpload"
               >
                 <span
@@ -1415,7 +1438,7 @@ watch(
                   :ref="focusRename"
                   v-model="editingName"
                   class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  @keyup.enter="saveRename"
+                  @keyup.enter="$event.target.blur()"
                   @blur="saveRename"
                   @click.stop
                 />
@@ -1427,7 +1450,18 @@ watch(
                   @click="enterFolder(folder)"
                 >
                   <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白/黄纸扇形探出 + 前袋写名 -->
-                  <div class="relative w-full aspect-[8/7]">
+                  <div v-if="(isGeneral || isMineView) && styleForFolder(folderStyleKey('category', folder.id)).image" class="flex flex-col items-center gap-2 p-2">
+                    <CrmFolderArtwork :image="styleForFolder(folderStyleKey('category', folder.id)).image" :animated="styleForFolder(folderStyleKey('category', folder.id)).animated" class="aspect-square w-full rounded-xl" />
+                    <div class="w-full min-w-0 text-center">
+                      <div class="truncate text-label text-n-slate-12" :title="folder.name">{{ folder.name }}</div>
+                      <div class="mt-1 truncate text-label-small text-n-slate-10">
+                        {{ t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', { count: folder.docs.length }) }}
+                        <template v-if="folder.childCount"> · {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', { count: folder.childCount }) }}</template>
+                        <template v-if="folderBytes(folder)"> · {{ fmtSize(folderBytes(folder)) }}</template>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="relative w-full aspect-[8/7]">
                     <div
                       class="absolute left-[11%] right-[11%] top-[17%] bottom-[7%] rounded-[16px] bg-gradient-to-b from-[#5aa6ff] to-[#3f8bf7]"
                     />
@@ -1484,6 +1518,17 @@ watch(
                       </div>
                     </div>
                   </div>
+                </button>
+
+                <button
+                  v-if="isGeneral || isMineView"
+                  type="button"
+                  class="absolute left-0 top-0 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 shadow-sm hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8"
+                  :title="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
+                  :aria-label="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
+                  @click.stop="folderStylePicker.open({ key: folderStyleKey('category', folder.id), name: folder.name })"
+                >
+                  <span class="i-lucide-palette size-3.5" aria-hidden="true" />
                 </button>
 
                 <!-- 悬停操作：重命名 / 删除（空且无子文件夹才可删）-->
@@ -1579,7 +1624,7 @@ watch(
                     :ref="focusRename"
                     v-model="editingDocName"
                     class="w-full h-7 px-1.5 text-sm text-center border rounded border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-8"
-                    @keyup.enter="saveRenameDoc"
+                    @keyup.enter="$event.target.blur()"
                     @blur="saveRenameDoc"
                     @click.stop
                   />
@@ -1701,7 +1746,7 @@ watch(
           <template v-if="!isForm">
             <div class="flex items-center gap-2">
               <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full"
+                class="px-2 py-0.5 text-label-small rounded-full"
                 :class="colorOf(selectedDoc.category)"
               >
                 {{
@@ -1709,7 +1754,7 @@ watch(
                 }}
               </span>
               <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-alpha-2 text-n-slate-11"
+                class="px-2 py-0.5 bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
               >
                 {{ scopeLabel(selectedDoc.scope) }}
               </span>
@@ -2025,7 +2070,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2054,7 +2099,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2076,7 +2121,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2105,7 +2150,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2123,7 +2168,7 @@ watch(
               </p>
               <button
                 type="button"
-                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                 @click="openDocFile(previewDoc)"
               >
                 <span class="i-lucide-download size-3.5" />
@@ -2134,6 +2179,8 @@ watch(
         </div>
       </div>
     </Teleport>
+
+    <CrmFolderStylePicker v-if="isGeneral || isMineView" ref="folderStylePicker" />
 
     <CrmDocSectionManager
       :show="showSectionManager"

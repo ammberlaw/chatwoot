@@ -258,13 +258,13 @@ const unmarkPaid = async s => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ t('CRM.COMMISSION.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -290,7 +290,7 @@ const unmarkPaid = async s => {
           :clearable="false"
         />
         <button
-          class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+          class="h-9 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           :disabled="isCreating"
           @click="createSheet"
         >
@@ -311,7 +311,7 @@ const unmarkPaid = async s => {
         <div
           class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
         >
-          <h2 class="text-base font-medium text-n-slate-12">提成点设置</h2>
+          <h2 class="text-n-slate-12 text-heading-2">提成点设置</h2>
           <button
             class="text-n-slate-10 hover:text-n-slate-12"
             @click="showRateDialog = false"
@@ -356,7 +356,7 @@ const unmarkPaid = async s => {
             取消
           </button>
           <button
-            class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-8 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="rateBusy"
             @click="saveRates"
           >
@@ -449,14 +449,14 @@ const unmarkPaid = async s => {
                 {{ s.ownerName || '—' }}
               </span>
               <span
-                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs"
+                class="shrink-0 inline-flex px-2 py-0.5 text-label-small rounded-full"
                 :class="STATUS_CLASS[s.status]"
               >
                 {{ t(`CRM.COMMISSION.STATUS.${s.status}`) }}
               </span>
               <span
                 v-if="s.paidAt"
-                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs bg-n-teal-3 text-n-teal-11"
+                class="shrink-0 inline-flex px-2 py-0.5 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
               >
                 {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
               </span>
@@ -601,14 +601,14 @@ const unmarkPaid = async s => {
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1.5">
                   <span
-                    class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                    class="inline-flex px-2 py-0.5 text-label-small rounded-full"
                     :class="STATUS_CLASS[s.status]"
                   >
                     {{ t(`CRM.COMMISSION.STATUS.${s.status}`) }}
                   </span>
                   <span
                     v-if="s.paidAt"
-                    class="inline-flex px-2 py-0.5 rounded-full text-xs bg-n-teal-3 text-n-teal-11"
+                    class="inline-flex px-2 py-0.5 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
                     :title="`${s.paidByName || ''} · ${fmtDate(s.paidAt)}`"
                   >
                     {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
@@ -675,7 +675,7 @@ const unmarkPaid = async s => {
       <div
         class="flex items-center justify-between px-5 py-3 border-b border-n-weak"
       >
-        <h3 class="text-base font-medium text-n-slate-12">
+        <h3 class="text-n-slate-12 text-heading-3">
           {{ t('CRM.COMMISSION.PAYOUT.DIALOG_TITLE') }}
         </h3>
         <button

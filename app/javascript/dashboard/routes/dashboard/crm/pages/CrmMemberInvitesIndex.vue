@@ -327,10 +327,10 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
+      <h1 class="text-n-slate-12 text-heading-1">{{ L.header }}</h1>
       <p class="mt-0.5 text-xs text-n-slate-10">{{ L.subtitle }}</p>
     </div>
 
@@ -351,7 +351,7 @@ onMounted(() => {
             <label
               v-for="mod in MODULE_OPTIONS"
               :key="mod.key"
-              class="flex items-center gap-1.5 text-sm text-n-slate-11"
+              class="flex items-center gap-1.5 text-n-slate-11 text-label"
               :class="
                 mod.disabled
                   ? 'opacity-50 cursor-not-allowed'
@@ -503,7 +503,7 @@ onMounted(() => {
                 {{ invite.note || `邀请 #${invite.id}` }}
               </span>
               <span
-                class="shrink-0 px-2 py-0.5 rounded-full text-xs"
+                class="shrink-0 px-2 py-0.5 text-label-small rounded-full"
                 :class="{
                   'bg-n-amber-3 text-n-amber-11': invite.status === 'pending',
                   'bg-n-teal-3 text-n-teal-11': invite.status === 'used',
@@ -592,7 +592,7 @@ onMounted(() => {
               </td>
               <td class="px-6 py-3">
                 <span
-                  class="px-2 py-0.5 rounded-full text-xs"
+                  class="px-2 py-0.5 text-label-small rounded-full"
                   :class="{
                     'bg-n-amber-3 text-n-amber-11': invite.status === 'pending',
                     'bg-n-teal-3 text-n-teal-11': invite.status === 'used',

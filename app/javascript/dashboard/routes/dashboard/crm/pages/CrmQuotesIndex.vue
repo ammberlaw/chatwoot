@@ -280,16 +280,14 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <!-- 头部：标题 + 副标题 + 新建 -->
     <div
       class="flex flex-col items-start justify-between flex-shrink-0 gap-2 px-4 pt-4 pb-1.5 sm:flex-row sm:items-start sm:gap-0 sm:px-[26px] sm:pt-[18px] [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div class="min-w-0">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
-          报价单管理
-        </h1>
+        <h1 class="text-n-slate-12 text-heading-1">报价单管理</h1>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button
@@ -302,7 +300,7 @@ onMounted(() => {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
+          class="inline-flex items-center gap-1.5 h-9 px-3.5 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           @click="openCreate"
         >
           <span class="i-lucide-plus size-4" />
@@ -440,7 +438,7 @@ onMounted(() => {
               {{ record.quoteNo }}
             </span>
             <span
-              class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[11px] font-medium rounded-full shrink-0"
+              class="inline-flex items-center gap-[5px] px-2.5 py-[3px] shrink-0 text-label-small rounded-full"
               :class="STATUSES[record.status]?.class"
             >
               <span class="rounded-full size-1.5 bg-current opacity-90" />
@@ -497,7 +495,7 @@ onMounted(() => {
             </span>
             <span
               v-if="expiringDays(record) !== null"
-              class="inline-flex items-center gap-1 px-2 py-[3px] text-[11px] font-medium rounded-full bg-n-amber-3 text-n-amber-11"
+              class="inline-flex items-center gap-1 px-2 py-[3px] bg-n-amber-3 text-n-amber-11 text-label-small rounded-full"
             >
               <span class="i-lucide-clock size-3" />
               {{
@@ -600,7 +598,7 @@ onMounted(() => {
             </td>
             <td class="px-3 py-3 whitespace-nowrap">
               <span
-                class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full"
+                class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-label-small rounded-full"
                 :class="STATUSES[record.status]?.class"
               >
                 <span class="rounded-full size-1.5 bg-current opacity-90" />
@@ -609,7 +607,7 @@ onMounted(() => {
               <span
                 v-if="expiringDays(record) !== null"
                 v-tooltip.top="`有效期至 ${fmtDate(record.validUntil)}`"
-                class="ml-1.5 inline-flex items-center gap-1 px-2 py-[3px] text-[11px] font-medium rounded-full bg-n-amber-3 text-n-amber-11 align-middle"
+                class="ml-1.5 inline-flex items-center gap-1 px-2 py-[3px] bg-n-amber-3 text-n-amber-11 align-middle text-label-small rounded-full"
               >
                 <span class="i-lucide-clock size-3" />
                 {{

@@ -62,13 +62,13 @@ onMounted(() => deptStore.get());
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:bg-[#f7f8fa] [.theme-classic_&]:border-[#e4e7ec] [.theme-classic_&]:shadow-none"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border [.theme-classic_&]:bg-[#f7f8fa] [.theme-classic_&]:border-[#e4e7ec] [.theme-classic_&]:shadow-none bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8 [.theme-classic_&]:bg-white [.theme-classic_&]:py-5"
     >
       <div class="min-w-0">
-        <h1 class="text-lg font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
+        <h1 class="text-n-slate-12 text-heading-1">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10 [.theme-classic_&]:text-label-small">{{ L.hint }}</p>
       </div>
       <div class="flex items-center flex-shrink-0 gap-1 [.theme-classic_&]:rounded-xl [.theme-classic_&]:border [.theme-classic_&]:border-[#e3e6eb] [.theme-classic_&]:bg-[#f8f9fb] [.theme-classic_&]:p-1">

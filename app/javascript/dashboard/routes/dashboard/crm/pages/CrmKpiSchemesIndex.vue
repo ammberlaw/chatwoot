@@ -191,7 +191,7 @@ const fmtMonth = value => {
                 {{ record.name }}
               </span>
               <span
-                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-label-small"
+                class="shrink-0 inline-flex px-2 py-0.5 text-label-small rounded-full"
                 :class="
                   record.status === 'PUBLISHED'
                     ? 'bg-n-teal-3 text-n-teal-11'
@@ -295,7 +295,7 @@ const fmtMonth = value => {
               </td>
               <td class="px-3 py-2">
                 <span
-                  class="inline-flex px-2 py-0.5 rounded-full text-label-small"
+                  class="inline-flex px-2 py-0.5 text-label-small rounded-full"
                   :class="
                     record.status === 'PUBLISHED'
                       ? 'bg-n-teal-3 text-n-teal-11'

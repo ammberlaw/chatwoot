@@ -32,7 +32,10 @@ class Crm::InquiryTriageJob < ApplicationJob
     # 初筛建的回复草稿也要认领给这封来信，否则收件箱那行不显示「已预写回复」，
     # 业务员只能自己去草稿箱翻——和老客户预写那条路口径保持一致。
     Crm::AgentDraftLink.claim(email)
-    notify(email, answer)
+    # reload：建档那一步会把这封信补挂到新客户名下
+    # （Crm::Agent::Tools::CreateCustomer#link_contact_and_history），通知里的 ref
+    # 带着 crm_customer_id，取到新挂上的那个，业务员点通知就能直接进客户详情页。
+    notify(email.reload, answer)
   rescue StandardError => e
     Rails.logger.error("[crm_inquiry_triage] email=#{email_id} 失败：#{e.class} #{e.message}")
   end

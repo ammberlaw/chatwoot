@@ -4,6 +4,8 @@
 class Crm::ApolloClient
   BASE_URL = 'https://api.apollo.io/api/v1'.freeze
   TIMEOUT = 8
+  # 公司搜索失败最多试几次（见 post_search）。
+  SEARCH_ATTEMPTS = 2
 
   def initialize(account:)
     @account = account
@@ -36,19 +38,112 @@ class Crm::ApolloClient
   end
 
   # 按国家 + 行业/产品关键词搜公司（展会找新买家用）：POST mixed_companies/search。
-  # country 用英文国名（如 Germany）；keywords 逗号/空格分隔。返回轻量候选列表。
-  def search_companies(country: nil, keywords: nil, limit: 25)
+  # country 用英文国名（如 Germany）；keywords 是**一个或多个完整标签**，逗号分隔（别按空格拆，见 company_search_body）。
+  def search_companies(country: nil, keywords: nil, limit: 25, employee_ranges: nil, page: 1)
     return [] unless configured?
 
     body = company_search_body(country, keywords, limit)
-    body ? post_search(body).select { |c| c[:name].present? } : []
+    return [] unless body
+
+    # ⚠️ page 必须能往后翻。写死 1 的话一个关键词永远只有前 25 条，
+    # 同一个任务重跑多少次都是同一批公司（2026-11-08 实测）。
+    body[:page] = page
+
+    # 规模过滤是关键：不加这个，搜「数字标牌采购」会搜出西门子、拜耳、SAP——
+    # 全是巨头的集团采购，跟卖 $107 平板的我们完全不是一条线上的（2026-11-06 实测）。
+    body[:organization_num_employees_ranges] = Array(employee_ranges) if employee_ranges.present?
+    post_search(body).select { |c| c[:name].present? }
+  end
+
+  # 按公司域名搜联系人。**只返回预览**：名字半遮、没有邮箱，只有 has_email 告诉你有没有。
+  # 拿真地址要再调 unlock_person（那一步才扣 credits）——Apollo 就是这么两段式设计的。
+  #
+  # ⚠️ 端点是 mixed_people/api_search，不是 mixed_people/search：
+  # 后者对 API 调用方已经弃用，调了只会收到一句 deprecated。
+  def search_people(domain:, titles: nil, limit: 5)
+    return [] unless configured? && domain.present?
+
+    body = { page: 1, per_page: limit, q_organization_domains_list: [domain] }
+    body[:person_titles] = Array(titles) if titles.present?
+    resp = HTTParty.post("#{BASE_URL}/mixed_people/api_search",
+                         body: body.to_json, headers: headers, timeout: TIMEOUT)
+    people = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['people'] : nil
+    Array(people).map { |person| normalize_person(person) }
+  rescue StandardError => e
+    Rails.logger.info("[Crm::Apollo] people search failed: #{e.class} #{e.message}")
+    []
+  end
+
+  # 解锁一个联系人的真实邮箱。**这一步扣 credits**，所以只在人点了之后才调。
+  def unlock_person(apollo_id)
+    return nil unless configured? && apollo_id.present?
+
+    resp = HTTParty.post("#{BASE_URL}/people/match",
+                         body: { id: apollo_id }.to_json, headers: headers, timeout: TIMEOUT)
+    person = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['person'] : nil
+    person && unlocked_fields(person)
+  rescue StandardError => e
+    Rails.logger.info("[Crm::Apollo] unlock failed: #{e.class} #{e.message}")
+    nil
+  end
+
+  # 某个标签挂着多少家公司。给 Crm::ApolloTagResolver 探词表用——标签不存在就是 0。
+  # 同样走搜索接口，**不扣 credits**。
+  #
+  # ⚠️ 探测失败（限流、超时）必须返回 **nil**，不能返回 0。
+  # 两者对调用方的含义完全相反：0 = 这个词在词表里不存在，nil = 这次没问到。
+  # 把限流当成 0 的话，调用方会把一个好词判成「词表里没有」，然后退到更短更糙的词去搜。
+  def count_companies(tag:, country: nil)
+    return nil unless configured?
+
+    body = { page: 1, per_page: 1, q_organization_keyword_tags: [tag] }
+    body[:organization_locations] = [country] if country.present?
+    resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
+                         body: body.to_json, headers: headers, timeout: TIMEOUT)
+    total = resp.parsed_response.is_a?(Hash) ? resp.parsed_response.dig('pagination', 'total_entries') : nil
+    return total.to_i if total
+
+    Rails.logger.info("[Crm::Apollo] count '#{tag}' 没问到: HTTP #{resp.code}")
+    nil
+  rescue StandardError => e
+    Rails.logger.info("[Crm::Apollo] count failed: #{e.class} #{e.message}")
+    nil
   end
 
   private
 
+  # 搜索阶段拿得到的：名 + 遮住的姓 + 职位 + 有没有邮箱。
+  def normalize_person(person)
+    org = person['organization'] || {}
+    {
+      apollo_id: person['id'],
+      name: [person['first_name'], person['last_name_obfuscated']].compact_blank.join(' '),
+      title: person['title'],
+      has_email: person['has_email'],
+      company_name: org['name']
+    }.compact
+  end
+
+  # 解锁之后才有的：真名、真邮箱、领英、公司官网。
+  def unlocked_fields(person)
+    org = person['organization'] || {}
+    {
+      name: person['name'], title: person['title'],
+      email: person['email'], email_status: person['email_status'],
+      linkedin_url: person['linkedin_url'],
+      company_name: org['name'], domain: org['primary_domain'] || org['website_url']
+    }.compact
+  end
+
   # 拼公司搜索请求体（国家 + 关键词标签）；国家与关键词都空则返回 nil（不搜）。
+  #
+  # ⚠️ **只按逗号拆，绝不按空格拆。**
+  # q_organization_keyword_tags 是一套固定词表，多个标签之间取并集。
+  # 按空格拆的话 "consumer electronics brand" 会变成 consumer ∪ electronics ∪ brand，
+  # 25196 家里一个买家都没有（广告代理、行业杂志、设计奖项）。
+  # 整句搜不到就该交给 Crm::ApolloTagResolver 换个真实存在的标签，不是拆开来硬凑。
   def company_search_body(country, keywords, limit)
-    tags = keywords.to_s.split(/[，,\s]+/).map(&:strip).reject(&:blank?)
+    tags = keywords.to_s.split(/[，,]/).map(&:strip).reject(&:blank?)
     return if country.blank? && tags.empty?
 
     body = { page: 1, per_page: limit }
@@ -58,14 +153,24 @@ class Crm::ApolloClient
   end
 
   # POST mixed_companies/search，解析并规范化候选公司列表；异常静默返回 []。
+  #
+  # 失败重试一次：出国的连接会间歇性 Net::OpenTimeout / ReadTimeout，
+  # 而拓客任务一次要搜几十页——一页超时就返回空，调用方会以为「这个关键词搜完了」
+  # 直接停在这一页，一个好词整轮白费。重试一次能挡掉绝大部分抖动。
   def post_search(body)
-    resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
-                         body: body.to_json, headers: headers, timeout: TIMEOUT)
-    orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
-    Array(orgs).map { |o| normalize_candidate(o) }
-  rescue StandardError => e
-    Rails.logger.info("[Crm::Apollo] search failed: #{e.class} #{e.message}")
-    []
+    attempts = 0
+    begin
+      attempts += 1
+      resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
+                           body: body.to_json, headers: headers, timeout: TIMEOUT)
+      orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
+      Array(orgs).map { |o| normalize_candidate(o) }
+    rescue StandardError => e
+      Rails.logger.info("[Crm::Apollo] search failed (第 #{attempts} 次): #{e.class} #{e.message}")
+      retry if attempts < SEARCH_ATTEMPTS
+
+      []
+    end
   end
 
   def headers
@@ -100,14 +205,34 @@ class Crm::ApolloClient
     }.compact
   end
 
+  # 搜索阶段（mixed_companies/search）**不扣 credits**，但它返回的字段和
+  # organization 那个接口不是一套：industry / city / country / estimated_num_employees
+  # 这几个它根本不给（2026-11-07 实测 115 条线索这三列 100% 为空，不是数据缺，是问错了）。
+  #
+  # 下面这些才是它真给、而且白给的（98 家真实样本实测覆盖率）：
+  #   linkedin 100% · naics 100% · website 89% · sic 85% · phone 71%
+  #   revenue 53% · 人数增长 46% · 门店数 13% · 上市 3%
+  # 电话尤其实用——解锁邮箱要花 credits，电话不要钱。
   def normalize_candidate(org)
     {
       name: org['name'],
       domain: org['primary_domain'],
-      industry: org['industry'],
-      city: org['city'],
-      country: org['country'],
-      logo: org['logo_url']
+      logo: org['logo_url'],
+      apollo_org_id: org['id'],
+      website: org['website_url'],
+      linkedin: org['linkedin_url'],
+      phone: org['phone'] || org.dig('primary_phone', 'number'),
+      revenue: org['organization_revenue_printed'],
+      # 门店数：卖广告机给连锁零售时，这个数就约等于订单量。
+      # 0 和「没这个数」要分开，所以原样保留不 compact 掉。
+      retail_locations: org['num_retail_locations'],
+      # 行业代码：比 industry 字符串硬。实测德国几家杂志全是 513120（期刊出版），
+      # 招聘公司是 561311/561320，而买家侧清一色 334xxx（电子制造）/423690（电子批发）。
+      naics: Array(org['naics_codes']),
+      sic: Array(org['sic_codes']),
+      # 上市代码：有这个的基本是巨头，不是我们这档供应商直接对的买家。
+      listed: org['publicly_traded_symbol'],
+      headcount_growth: org['organization_headcount_twelve_month_growth']
     }.compact
   end
 end

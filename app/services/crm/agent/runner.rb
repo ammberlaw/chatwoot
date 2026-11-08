@@ -143,23 +143,24 @@ class Crm::Agent::Runner
   TOOL_CLASSES = [
     # 先列计划再动手：多步任务摆给用户看，也给模型自己一张清单（见 Tools::Plan）。
     Crm::Agent::Tools::Plan,
-    Crm::Agent::Tools::FindCustomer, Crm::Agent::Tools::CustomerProfile,
-    Crm::Agent::Tools::CustomerEmails, Crm::Agent::Tools::SearchProducts,
-    Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
-    Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers,
-    Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::DormantCustomers, Crm::Agent::Tools::CompanyLookup,
-    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftReply, Crm::Agent::Tools::DraftPi,
-    Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes,
-    Crm::Agent::Tools::MyTargets, Crm::Agent::Tools::SalesRanking, Crm::Agent::Tools::Shipments,
-    Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
+    Crm::Agent::Tools::FindCustomer, Crm::Agent::Tools::CustomerProfile, Crm::Agent::Tools::CustomerEmails,
+    Crm::Agent::Tools::SearchProducts, Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
+    Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers, Crm::Agent::Tools::MyWorklist,
+    Crm::Agent::Tools::DormantCustomers, Crm::Agent::Tools::CompanyLookup, Crm::Agent::Tools::DraftEmail,
+    Crm::Agent::Tools::DraftReply, Crm::Agent::Tools::DraftPi, Crm::Agent::Tools::SendDrafts,
+    Crm::Agent::Tools::FollowUpNotes, Crm::Agent::Tools::Quotes, Crm::Agent::Tools::MyTargets,
+    Crm::Agent::Tools::SalesRanking,
+    Crm::Agent::Tools::Shipments, Crm::Agent::Tools::ProductDocs, Crm::Agent::Tools::LogFollowUp,
     Crm::Agent::Tools::CreateCustomer, Crm::Agent::Tools::DraftQuote,
-    Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment,
-    # 「这单为什么卡着」+「这是 bug，帮我报上去」。诊断只读、事实全来自
-    # Mes::DocDiagnosis，模型只负责把结果说成人话。
-    Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::ReportIssue,
+    Crm::Agent::Tools::CreateOpportunity, Crm::Agent::Tools::ReadAttachment, Crm::Agent::Tools::ReportIssue,
+    # 「这单为什么卡着」：诊断只读、事实全来自 Mes::DocDiagnosis，模型只把结果说成人话。
     # WhatsApp：客户在那边说的话不在邮件里，不接这两个工具就等于看不见半个沟通面。
-    # 回复只落私密备注（客户收不到），守住「什么都不许往外发」。
-    Crm::Agent::Tools::WhatsappThread, Crm::Agent::Tools::DraftWhatsappReply,
+    # 回复只落私密备注（客户收不到），不经 send_drafts 不往外发。
+    Crm::Agent::Tools::DiagnoseDocument, Crm::Agent::Tools::WhatsappThread, Crm::Agent::Tools::DraftWhatsappReply,
+    # 新客开发：查线索池 → 看家底 → 建档/丢弃/排背调，建完接 DraftEmail 写开发信。
+    # ⚠️ 解锁邮箱（唯一真扣 Apollo 积分，见 Crm::ApolloQuota）和发起搜索不给 agent，人点。
+    Crm::Agent::Tools::LeadPool, Crm::Agent::Tools::LeadDetail, Crm::Agent::Tools::LeadOutcomes,
+    Crm::Agent::Tools::ClaimLead, Crm::Agent::Tools::DiscardLead, Crm::Agent::Tools::LeadBgCheck,
     # 跨对话记忆：被纠正过的口径、用惯的写法，下次还算数。
     Crm::Agent::Tools::Remember, Crm::Agent::Tools::Forget
   ].freeze
@@ -210,7 +211,9 @@ class Crm::Agent::Runner
     chat.before_tool_call do |call|
       recorder.start(call, note: scope.budget_exhausted? ? '已达本轮查询上限，改用已查到的信息作答' : nil)
     end
-    chat.after_tool_result { recorder.finish }
+    # 带上工具返回：StepRecorder 存前 200 字（result_digest），每日体检靠它判断
+    # 这一步是不是撞墙了。以前这里把结果丢掉，于是「撞墙」那个信号从上线起没响过一次。
+    chat.after_tool_result { |result| recorder.finish(result) }
   end
 
   TOOL_LABELS = {

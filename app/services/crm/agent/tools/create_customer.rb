@@ -90,8 +90,29 @@ class Crm::Agent::Tools::CreateCustomer < Crm::Agent::Tools::Base
 
   def create(company, attrs)
     Audited.audit_class.as_user(scope.user) do
-      scope.account.crm_customers.create!(base_attrs(company).merge(contact_attrs(attrs)))
+      customer = scope.account.crm_customers.create!(base_attrs(company).merge(contact_attrs(attrs)))
+      link_contact_and_history(customer)
+      customer
     end
+  end
+
+  # 建完档必须再做建档页做的那两件事（见 CustomersController#create）——工具不走控制器，
+  # 这两步以前整个漏掉了：
+  #   · sync_contacts        建/挂一条联系人。收信是按 Contact 认客户的
+  #     （见 Crm::EmailIngestion#inbound_attrs），不挂的话这家客户**以后每一封**来信
+  #     都认不出归属。
+  #   · absorb_unlinked_emails! 把这个邮箱已经收到的历史邮件补挂到新客户名下。
+  #     不补的话最典型的就是初筛：建完档，触发它的那封询盘还显示「该邮箱尚未建档为客户」，
+  #     客户详情页里也点不出往来邮件（2026-11-06 核实生产 9 封信栽在这儿）。
+  #
+  # 口径照建档页的 primary 条目拼（contact_entries），字段取刚落库的客户本身。
+  def link_contact_and_history(customer)
+    address = customer.contact_email.to_s.strip.downcase
+    return if address.exclude?('@')
+
+    customer.sync_contacts([{ name: customer.primary_contact_name, email: address,
+                              phone: customer.contact_phone, is_primary: true }])
+    customer.absorb_unlinked_emails!([address])
   end
 
   def base_attrs(company)

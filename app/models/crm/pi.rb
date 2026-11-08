@@ -38,6 +38,7 @@
 #  account_id           :bigint           not null
 #  contact_id           :bigint
 #  crm_customer_id      :bigint
+#  crm_opportunity_id   :bigint
 #  handled_by_id        :bigint
 #  owner_id             :bigint
 #
@@ -47,6 +48,7 @@
 #  index_crm_pis_on_account_id_and_pi_no   (account_id,pi_no) UNIQUE
 #  index_crm_pis_on_account_id_and_status  (account_id,status)
 #  index_crm_pis_on_crm_customer_id        (crm_customer_id)
+#  index_crm_pis_on_crm_opportunity_id     (crm_opportunity_id)
 #  index_crm_pis_on_handled_by_id          (handled_by_id)
 #  index_crm_pis_on_owner_id               (owner_id)
 #

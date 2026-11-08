@@ -128,6 +128,38 @@ crm_agent_quality_job:
   class: 'Crm::AgentQualityJob'
   queue: scheduled_jobs
 
+# CRM：交期提醒，北京时间 09:20。快到交期（7 天内）和已逾期的在途订单推给负责人。
+# 交期由 Crm::DeliveryTerm 从 PI 条款解析、转单时写进订单，所以这件事才算得出来。
+crm_delivery_due_job:
+  cron: '20 1 * * *'
+  class: 'Crm::DeliveryDueJob'
+  queue: scheduled_jobs
+
+# CRM：WhatsApp 待回复提醒，北京时间 09:30（在 AI 体检之后，错开）。
+# 客户在 WhatsApp 上发了消息、我们晾了 12 小时以上的，按号汇总推给号主。
+# 一天一条、没有就不发——一周 666 条入站，实时提醒就是刷屏。
+crm_whatsapp_unanswered_job:
+  cron: '30 1 * * *'
+  class: 'Crm::WhatsappUnansweredJob'
+  queue: scheduled_jobs
+
+# CRM：新客开发自动续挖，北京时间 06:40（人上班前挖完，早上打开就有新线索）。
+# 只挖开了「自动续挖」的任务，每个至少隔 3 天、一天最多 3 个。
+# 关键词底下的公司挖不完——加了翻页游标之后连跑两次各新增 235 家全新公司，
+# 但手动按钮没人会天天点。
+crm_lead_auto_search_job:
+  cron: '40 22 * * *'
+  class: 'Crm::LeadAutoSearchJob'
+  queue: scheduled_jobs
+
+# CRM：个人 WhatsApp 号掉线巡检，每小时一次。
+# 刚掉线通知号主去重新扫码；掉了 3 天以上的进管理员汇总（对号主天天念叨没意义）。
+# 桥接问不到实况时一个号都不判掉线，只告诉管理员桥接不可达。
+crm_whatsapp_web_health_job:
+  cron: '7 * * * *'
+  class: 'Crm::WhatsappWebHealthJob'
+  queue: scheduled_jobs
+
 # CRM：业务员邮箱 IMAP/POP 收信，每 1 分钟拉取新邮件（被动延迟≤1分钟；用户可在邮件页手动「收取」立即拉）
 crm_fetch_imap_emails_job:
   cron: '* * * * *'

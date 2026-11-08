@@ -377,13 +377,11 @@ onMounted(async () => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="w-full px-4 py-4 mx-auto max-w-6xl sm:px-8 sm:py-6">
       <div class="flex items-center justify-between mb-1 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
-          备用金台账
-        </h1>
+        <h1 class="text-n-slate-12 text-heading-1">备用金台账</h1>
         <div class="flex items-center gap-2">
           <Button
             v-if="canManage"

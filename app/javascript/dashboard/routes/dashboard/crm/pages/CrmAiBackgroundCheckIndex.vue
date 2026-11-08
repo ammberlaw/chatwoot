@@ -160,7 +160,7 @@ const openCustomer = customer => {
 <!-- eslint-disable @intlify/vue-i18n/no-raw-text -->
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto border backdrop-blur-2xl backdrop-saturate-150 rounded-3xl bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="px-4 pt-4 pb-3 border-b sm:px-6 sm:pt-6 sm:pb-4 border-n-weak">
       <div class="text-lg font-medium text-n-slate-12">AI 背调</div>
@@ -186,7 +186,7 @@ const openCustomer = customer => {
           @keyup.enter="run"
         />
         <button
-          class="absolute top-0 bottom-0 right-0 flex items-center gap-1.5 px-5 text-sm font-medium text-white rounded-r-lg outline-none bg-n-iris-9 hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
+          class="absolute top-0 bottom-0 right-0 flex items-center gap-1.5 px-5 rounded-r-lg outline-none hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           :disabled="loading || searching"
           @click="run"
         >
@@ -330,6 +330,52 @@ const openCustomer = customer => {
           </span>
         </div>
 
+        <!-- 欧盟官方增值税号验证。
+             这是整张卡里唯一**官方**的证据：官网是对方自己写的、Apollo 是第三方推测的，
+             只有这一条是欧盟说「这个号现在确实登记在册」。空壳和注销公司在这里露馅。 -->
+        <div
+          v-if="result.vat"
+          class="flex items-start gap-2 p-3 mt-4 text-sm rounded-lg"
+          :class="
+            result.vat.status === 'valid'
+              ? 'bg-n-teal-9/5 text-n-slate-12'
+              : 'bg-n-ruby-9/5 text-n-slate-12'
+          "
+        >
+          <span
+            :class="
+              result.vat.status === 'valid'
+                ? 'i-lucide-badge-check text-n-teal-11'
+                : 'i-lucide-badge-alert text-n-ruby-11'
+            "
+            class="mt-0.5 size-4 shrink-0"
+          />
+          <div class="min-w-0">
+            <span
+              class="font-medium"
+              :class="
+                result.vat.status === 'valid'
+                  ? 'text-n-teal-11'
+                  : 'text-n-ruby-11'
+              "
+            >
+              {{
+                result.vat.status === 'valid'
+                  ? '增值税号已通过欧盟官方验证'
+                  : '官网上的增值税号验不过'
+              }} </span
+            >：{{ result.vat.number }}
+            <!-- 成员国自己决定披不披露名称：意大利给全名和地址，德国一律不给。
+                 给了就摆出来和官网的说法对账。 -->
+            <div v-if="result.vat.name" class="mt-1 text-xs text-n-slate-11">
+              官方登记名称：{{ result.vat.name }}
+            </div>
+            <div v-if="result.vat.address" class="text-xs text-n-slate-11">
+              官方登记地址：{{ result.vat.address }}
+            </div>
+          </div>
+        </div>
+
         <div
           v-if="profile.note"
           class="p-3 mt-4 text-sm rounded-lg text-n-slate-12 bg-n-iris-9/5"
@@ -441,7 +487,7 @@ const openCustomer = customer => {
             <span
               v-for="d in enrichDepartments"
               :key="d.name"
-              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-alpha-2 text-n-slate-11"
+              class="inline-flex items-center gap-1 px-2 py-0.5 bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
             >
               {{ d.name }}
               <span class="font-medium text-n-slate-12 tabular-nums">{{
@@ -495,7 +541,7 @@ const openCustomer = customer => {
             <span class="flex items-center gap-2 shrink-0 text-n-slate-10">
               <span
                 v-if="c.mine"
-                class="px-1.5 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+                class="px-1.5 py-0.5 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
               >
                 我的客户
               </span>

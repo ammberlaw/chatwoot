@@ -487,7 +487,7 @@ onMounted(() => {
             class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
           >
             <label
-              class="text-sm font-medium text-n-slate-12 sm:w-20 sm:flex-shrink-0"
+              class="text-n-slate-12 sm:w-20 sm:flex-shrink-0 text-label"
             >
               {{ L.defaultTitle }}
             </label>
@@ -521,12 +521,12 @@ onMounted(() => {
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <h3 class="font-medium truncate text-n-slate-12">
+                  <h3 class="truncate text-n-slate-12 text-heading-3">
                     {{ record.name }}
                   </h3>
                   <span
                     v-if="record.isDefault"
-                    class="px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 bg-n-iris-9 text-white"
+                    class="px-1.5 py-0.5 flex-shrink-0 bg-n-iris-9 text-white text-label-small rounded-full"
                   >
                     {{ L.defaultBadge }}
                   </span>
@@ -536,7 +536,7 @@ onMounted(() => {
                 </p>
               </div>
               <span
-                class="px-2 py-0.5 rounded-full text-[11px] flex-shrink-0 bg-n-alpha-2 text-n-slate-11"
+                class="px-2 py-0.5 flex-shrink-0 bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
               >
                 {{ PROVIDERS[record.provider] || record.provider }}
               </span>
@@ -634,12 +634,12 @@ onMounted(() => {
           >
             <div class="flex items-center gap-1.5">
               <Icon icon="i-lucide-pen-line" class="size-3.5 text-n-iris-11" />
-              <h3 class="font-medium truncate text-n-slate-12">
+              <h3 class="truncate text-n-slate-12 text-heading-3">
                 {{ sig.name }}
               </h3>
               <span
                 v-if="sig.isDefault"
-                class="px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 bg-n-iris-9 text-white"
+                class="px-1.5 py-0.5 flex-shrink-0 bg-n-iris-9 text-white text-label-small rounded-full"
               >
                 {{ L.defaultBadge }}
               </span>
@@ -897,7 +897,7 @@ onMounted(() => {
           />
         </div>
         <label
-          class="inline-flex items-center gap-2 text-sm cursor-pointer text-n-slate-12"
+          class="inline-flex items-center gap-2 cursor-pointer text-n-slate-12 text-label"
         >
           <input
             v-model="sigForm.isDefault"

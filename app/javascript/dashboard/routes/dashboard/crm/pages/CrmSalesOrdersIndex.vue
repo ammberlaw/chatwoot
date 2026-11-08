@@ -731,16 +731,14 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
 
 <template>
   <div
-    class="relative flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="relative flex w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <!-- 标题 + 新建订单 -->
       <div
         class="flex items-center justify-between gap-2 px-4 sm:px-[26px] pt-[18px] pb-3.5 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
-        <h1
-          class="min-w-0 truncate text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
+        <h1 class="min-w-0 truncate text-n-slate-12 text-heading-1">
           {{ t('CRM.SALES_ORDERS.HEADER') }}
         </h1>
         <div class="flex items-center gap-2 shrink-0">
@@ -757,7 +755,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           <button
             v-if="!isCrmFinanceOnly"
             type="button"
-            class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
+            class="inline-flex items-center gap-1.5 h-9 px-3.5 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             @click="openCreateDialog"
           >
             <span class="i-lucide-plus size-4" />
@@ -878,7 +876,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   {{ record.piNo || record.name }}
                 </span>
                 <span
-                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] shrink-0 rounded-full text-[12px] font-medium"
+                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] shrink-0 text-label-small rounded-full"
                   :class="STATUSES[record.status]?.class"
                 >
                   <span class="rounded-full size-1.5 bg-current opacity-90" />
@@ -887,7 +885,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 <!-- 审核：只在「待审核/已驳回」时出现——已审核是常态，摆上去反而把状态列撑宽。 -->
                 <span
                   v-if="record.approvalStatus !== 'APPROVED'"
-                  class="inline-flex items-center px-2 py-[3px] ml-1 rounded-full text-[12px] font-medium shrink-0"
+                  class="inline-flex items-center px-2 py-[3px] ml-1 shrink-0 text-label-small rounded-full"
                   :class="APPROVAL_CHIP[record.approvalStatus] || ''"
                   :title="record.rejectReason || ''"
                 >
@@ -1054,7 +1052,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap">
                   <span
-                    class="inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-full text-[12px] font-medium"
+                    class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-label-small rounded-full"
                     :class="STATUSES[record.status]?.class"
                   >
                     <span class="rounded-full size-1.5 bg-current opacity-90" />
@@ -1063,7 +1061,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   <!-- 审核：只在「待审核/已驳回」时出现——已审核是常态，摆上去反而把状态列撑宽。 -->
                   <span
                     v-if="record.approvalStatus !== 'APPROVED'"
-                    class="inline-flex items-center px-2 py-[3px] ml-1 rounded-full text-[12px] font-medium shrink-0"
+                    class="inline-flex items-center px-2 py-[3px] ml-1 shrink-0 text-label-small rounded-full"
                     :class="APPROVAL_CHIP[record.approvalStatus] || ''"
                     :title="record.rejectReason || ''"
                   >
@@ -1212,7 +1210,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
         <!-- 审核：过了才能转生产订单 / 进财务待建账 -->
         <div class="flex flex-wrap items-center gap-2 mt-3">
           <span
-            class="px-2 py-0.5 text-xs rounded-full shrink-0"
+            class="px-2 py-0.5 shrink-0 text-label-small rounded-full"
             :class="APPROVAL_CHIP[selectedOrder.approvalStatus] || ''"
           >
             {{ selectedOrder.approvalLabel }}
@@ -1341,7 +1339,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 <div class="flex flex-wrap items-center flex-1 min-w-0 gap-2">
                   <span
                     v-if="row.tag"
-                    class="inline-flex px-2 py-0.5 text-xs rounded-md"
+                    class="inline-flex px-2 py-0.5 text-label-small rounded-full"
                     :class="row.tag.cls"
                   >
                     {{ row.tag.text }}
@@ -1634,7 +1632,7 @@ v-if="!row.tag && !row.value" class="text-n-slate-10"
                   {{ po.qty }}{{ po.unit || '' }}
                 </span>
                 <span
-                  class="px-2 py-0.5 ml-auto text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                  class="px-2 py-0.5 ml-auto bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                 >
                   {{ po.stage_label }}
                 </span>

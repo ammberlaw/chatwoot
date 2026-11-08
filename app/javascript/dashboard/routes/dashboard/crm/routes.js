@@ -19,6 +19,7 @@ import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
 import CrmKnowledgeDocsIndex from './pages/CrmKnowledgeDocsIndex.vue';
 import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
+import CrmLeadCenterIndex from './pages/CrmLeadCenterIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmAiSettingsIndex from './pages/CrmAiSettingsIndex.vue';
 import CrmAgentIndex from './pages/CrmAgentIndex.vue';
@@ -156,6 +157,8 @@ const crmPages = [
     ...SHARED,
   }),
   crmPage('sales-targets', 'crm_sales_targets_index', CrmSalesTargetsIndex),
+  // 新客开发：主动拓客（AI 客户画像 + 本地化关键词 → 搜潜在买家）
+  crmPage('lead-center', 'crm_lead_center_index', CrmLeadCenterIndex),
   crmPage('mail-accounts', 'crm_mail_accounts_index', CrmMailAccountsIndex),
   crmPage(
     'email-templates',

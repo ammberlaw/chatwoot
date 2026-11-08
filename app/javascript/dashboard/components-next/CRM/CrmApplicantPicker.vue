@@ -53,7 +53,7 @@ const remove = token => {
       <span
         v-for="token in picked"
         :key="token"
-        class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full"
+        class="inline-flex items-center gap-1 px-2 py-0.5 text-label-small rounded-full"
         :class="
           isDept(token)
             ? 'bg-n-iris-3 text-n-iris-11'

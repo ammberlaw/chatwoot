@@ -77,7 +77,7 @@ const bars = computed(() =>
               <!-- 数值贴在条子顶上，不占条子的高度：榜首是白色浮标，其余只写数字 -->
               <span
                 v-if="bar.top"
-                class="absolute z-10 -translate-x-1/2 left-1/2 px-2 py-0.5 rounded-lg bg-n-solid-1 text-[10px] font-semibold text-n-slate-12 shadow-md whitespace-nowrap"
+                class="absolute z-10 -translate-x-1/2 left-1/2 px-2 py-0.5 bg-n-solid-1 text-n-slate-12 shadow-md whitespace-nowrap text-label-small rounded-full"
                 :style="{ bottom: `calc(${bar.pct}% + 6px)` }"
               >
                 {{ bar.value }} 封

@@ -60,10 +60,20 @@ class Crm::KnowledgeDoc < ApplicationRecord
 
   has_many_attached :files
 
+  # 附件抽出来的可搜索正文上限。Crm::KnowledgeExtractJob 按这个数截断。
+  #
+  # ⚠️ 必须显式声明 length 校验：ApplicationRecord 对所有没自定义 length 的 text 列
+  # 统一按 MAX_TEXT_COLUMN_LENGTH(20000) 校验。抽取是用 update_columns 写的（绕过校验），
+  # 于是 6 万字的正文存得进去，之后**改个名字都会 422**——报的还是
+  # 「Extracted text is too long」，跟用户正在做的事毫无关系。
+  # 2026-11-06 生产上 10 份文件栽在这儿（UL 认证、UN38.3 报告、MSDS、员工手册、报关文件）。
+  EXTRACTED_TEXT_MAX = 60_000
+
   validates :name, presence: true
   # 分类为账号级可管理的自由文本（见 Crm::KnowledgeCategory），不再硬校验枚举。
   validates :scope, inclusion: { in: SCOPES }
   validates :library, inclusion: { in: LIBRARIES }
+  validates :extracted_text, length: { maximum: EXTRACTED_TEXT_MAX }
 
   scope :company_docs, -> { where(scope: 'COMPANY') }
   scope :personal_of, ->(user_id) { where(scope: 'PERSONAL', owner_id: user_id) }

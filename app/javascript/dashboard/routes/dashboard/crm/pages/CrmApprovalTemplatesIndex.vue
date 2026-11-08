@@ -343,6 +343,27 @@ const ccCandidateOptions = computed(() => [
   ...ccCandidates.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
 
+// 条件节点「值」那一格：按变量类型换成部门或枚举。首项留空＝还没选，
+// 和原生 select 的占位 option 同一个意思（存进 c.value 的也还是空串）。
+const departmentValueOptions = computed(() => [
+  { value: '', label: '选择部门…' },
+  ...departments.value.map(d => ({ value: String(d.id), label: d.name })),
+]);
+const enumValueOptions = v => [
+  { value: '', label: '选择…' },
+  ...(varMeta(v).options || []).map(o => ({ value: o, label: o })),
+];
+
+// 审批人步骤的两格：类型 + 指定成员。条件分支里的步骤和普通步骤共用。
+const stepTypeOptions = [
+  { value: 'dept_leader', label: L.deptLeader },
+  { value: 'user', label: L.specificUser },
+];
+const agentPickOptions = computed(() => [
+  { value: '', label: '选择成员…' },
+  ...agents.value.map(a => ({ value: String(a.id), label: a.name })),
+]);
+
 // flow 序列化：普通步骤 {type,user_id}；条件节点 {type:'condition',branches:[{conditions,flow}]}。
 const serializeApprover = s => ({
   type: s.type,
@@ -443,15 +464,13 @@ onMounted(async () => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1
-          class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ L.header }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
@@ -646,18 +665,11 @@ onMounted(async () => {
                 :placeholder="L.fieldLabel"
                 class="flex-1 min-w-[100px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
               />
-              <select
+              <SelectCard
                 v-model="f.type"
-                class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-              >
-                <option
-                  v-for="t in FIELD_TYPES"
-                  :key="t.value"
-                  :value="t.value"
-                >
-                  {{ t.label }}
-                </option>
-              </select>
+                :options="FIELD_TYPES"
+                trigger-class="w-28 h-8"
+              />
               <input
                 v-if="f.type === 'select'"
                 v-model="f.optionsText"
@@ -665,7 +677,7 @@ onMounted(async () => {
                 class="flex-1 min-w-[120px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
               />
               <label
-                class="inline-flex items-center gap-1 text-xs cursor-pointer text-n-slate-11"
+                class="inline-flex items-center gap-1 cursor-pointer text-n-slate-11 text-label"
               >
                 <input
                   v-model="f.required"
@@ -785,59 +797,35 @@ onMounted(async () => {
                         >
                           {{ ci > 0 ? '且' : '' }}
                         </span>
-                        <select
+                        <SelectCard
                           v-model="c.var"
-                          class="flex-1 min-w-0 h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                          @change="onVarChange(c)"
-                        >
-                          <option
-                            v-for="v in conditionVars"
-                            :key="v.value"
-                            :value="v.value"
-                          >
-                            {{ v.label }}
-                          </option>
-                        </select>
-                        <select
+                          :options="conditionVars"
+                          block
+                          class="flex-1 min-w-0"
+                          trigger-class="h-8"
+                          @update:model-value="onVarChange(c)"
+                        />
+                        <SelectCard
                           v-model="c.op"
-                          class="w-14 shrink-0 h-8 px-1 text-xs text-center border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                        >
-                          <option
-                            v-for="o in opsForVar(c.var)"
-                            :key="o.value"
-                            :value="o.value"
-                          >
-                            {{ o.label }}
-                          </option>
-                        </select>
-                        <select
+                          :options="opsForVar(c.var)"
+                          trigger-class="w-16 h-8"
+                        />
+                        <SelectCard
                           v-if="varMeta(c.var).kind === 'dept'"
                           v-model="c.value"
-                          class="flex-1 min-w-0 h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                        >
-                          <option value="">选择部门…</option>
-                          <option
-                            v-for="d in departments"
-                            :key="d.id"
-                            :value="String(d.id)"
-                          >
-                            {{ d.name }}
-                          </option>
-                        </select>
-                        <select
+                          :options="departmentValueOptions"
+                          block
+                          class="flex-1 min-w-0"
+                          trigger-class="h-8"
+                        />
+                        <SelectCard
                           v-else-if="varMeta(c.var).kind === 'enum'"
                           v-model="c.value"
-                          class="flex-1 min-w-0 h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                        >
-                          <option value="">选择…</option>
-                          <option
-                            v-for="opt in varMeta(c.var).options || []"
-                            :key="opt"
-                            :value="opt"
-                          >
-                            {{ opt }}
-                          </option>
-                        </select>
+                          :options="enumValueOptions(c.var)"
+                          block
+                          class="flex-1 min-w-0"
+                          trigger-class="h-8"
+                        />
                         <input
                           v-else
                           v-model="c.value"
@@ -876,29 +864,19 @@ onMounted(async () => {
                           >
                             {{ si + 1 }}
                           </span>
-                          <select
+                          <SelectCard
                             v-model="bs.type"
-                            class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                          >
-                            <option value="dept_leader">
-                              {{ L.deptLeader }}
-                            </option>
-                            <option value="user">{{ L.specificUser }}</option>
-                          </select>
-                          <select
+                            :options="stepTypeOptions"
+                            trigger-class="w-28 h-8"
+                          />
+                          <SelectCard
                             v-if="bs.type === 'user'"
                             v-model="bs.userId"
-                            class="flex-1 h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                          >
-                            <option value="">选择成员…</option>
-                            <option
-                              v-for="a in agents"
-                              :key="a.id"
-                              :value="String(a.id)"
-                            >
-                              {{ a.name }}
-                            </option>
-                          </select>
+                            :options="agentPickOptions"
+                            block
+                            class="flex-1 min-w-0"
+                            trigger-class="h-8"
+                          />
                           <span class="flex-1" />
                           <button
                             v-if="b.flow.length > 1"
@@ -929,23 +907,19 @@ onMounted(async () => {
                 >
                   {{ i + 1 }}
                 </span>
-                <select
+                <SelectCard
                   v-model="s.type"
-                  class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                >
-                  <option value="dept_leader">{{ L.deptLeader }}</option>
-                  <option value="user">{{ L.specificUser }}</option>
-                </select>
-                <select
+                  :options="stepTypeOptions"
+                  trigger-class="w-28 h-8"
+                />
+                <SelectCard
                   v-if="s.type === 'user'"
                   v-model="s.userId"
-                  class="flex-1 h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-                >
-                  <option value="">{{ '选择成员…' }}</option>
-                  <option v-for="a in agents" :key="a.id" :value="String(a.id)">
-                    {{ a.name }}
-                  </option>
-                </select>
+                  :options="agentPickOptions"
+                  block
+                  class="flex-1 min-w-0"
+                  trigger-class="h-8"
+                />
                 <span class="flex-1" />
                 <button
                   class="text-n-slate-10 hover:text-n-ruby-11"
@@ -966,7 +940,7 @@ onMounted(async () => {
             <span
               v-for="id in form.ccUserIds"
               :key="id"
-              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+              class="inline-flex items-center gap-1 px-2 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
             >
               {{ ccName(id) }}
               <button class="hover:text-n-ruby-11" @click="toggleCc(id)">

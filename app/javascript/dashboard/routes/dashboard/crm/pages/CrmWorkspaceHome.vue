@@ -18,6 +18,8 @@ import WootKeyShortcutModal from 'dashboard/components/widgets/modal/WootKeyShor
 import CrmQuickClock from 'dashboard/components-next/CRM/CrmQuickClock.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/login-card-wordmark-rounded.png';
 import WorkspaceDesktop from 'dashboard/components-next/CRM/WorkspaceDesktop.vue';
+import WorkspaceWallpaperPicker from 'dashboard/components-next/CRM/WorkspaceWallpaperPicker.vue';
+import WallpaperAPI from 'dashboard/api/workspaceWallpaper';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 const router = useRouter();
@@ -28,14 +30,28 @@ const stats = ref({ todo: 0, mine: 0, approverView: true, unread: 0 });
 
 const showShortcutModal = ref(false);
 const profileMenuOpen = ref(false);
+const wallpaperPicker = ref(null);
+const wallpaperUrl = ref('');
+onMounted(async () => {
+  try {
+    const { data } = await WallpaperAPI.get();
+    wallpaperUrl.value = data.url || '';
+  } catch {
+    // A wallpaper loading failure should not prevent using the workspace.
+  }
+});
 
 // 首页卡片真实数据（当前用户视角）。
 const homeStats = ref(null);
 const crmStats = computed(() => homeStats.value?.crm || {});
+// 新客开发待处理：判像买家、分数够高、有联系人、不是同事已有客户的那批。
+const leadStats = computed(() => homeStats.value?.leads || {});
 const hrDays = computed(() => homeStats.value?.hr?.days || []);
 const attendancePercent = computed(() => {
   const days = hrDays.value.filter(d => d.workday);
-  return days.length ? Math.round(days.filter(d => d.present).length / days.length * 100) : 0;
+  return days.length
+    ? Math.round((days.filter(d => d.present).length / days.length) * 100)
+    : 0;
 });
 const hrAllPresent = computed(() => homeStats.value?.hr?.all_present);
 const hrLabel = computed(() => {
@@ -97,9 +113,16 @@ const greeting = computed(() => {
   return '晚上好';
 });
 const calendarMonth = ref(new Date(now.getFullYear(), now.getMonth(), 1));
-const monthLabel = computed(() => `${calendarMonth.value.getFullYear()}年${calendarMonth.value.getMonth() + 1}月`);
+const monthLabel = computed(
+  () =>
+    `${calendarMonth.value.getFullYear()}年${calendarMonth.value.getMonth() + 1}月`
+);
 const changeCalendarMonth = offset => {
-  calendarMonth.value = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + offset, 1);
+  calendarMonth.value = new Date(
+    calendarMonth.value.getFullYear(),
+    calendarMonth.value.getMonth() + offset,
+    1
+  );
 };
 const todayNum = now.getDate();
 
@@ -122,24 +145,32 @@ const todayEvents = computed(() =>
 const hhmm = iso => (iso ? iso.slice(11, 16) : '');
 
 const calendarEvents = ref([]);
-watch(() => [calendarMonth.value, accountId.value], async (_, __, onCleanup) => {
-  let active = true;
-  onCleanup(() => { active = false; });
-  calendarEvents.value = [];
-  const year = calendarMonth.value.getFullYear();
-  const month = calendarMonth.value.getMonth();
-  if (year === now.getFullYear() && month === now.getMonth()) return;
-  try {
-    const { data } = await ScheduleAPI.get(accountId.value, {
-      from: `${year}-${pad(month + 1)}-01`,
-      to: `${year}-${pad(month + 1)}-${new Date(year, month + 1, 0).getDate()}`,
+watch(
+  () => [calendarMonth.value, accountId.value],
+  async (_, __, onCleanup) => {
+    let active = true;
+    onCleanup(() => {
+      active = false;
     });
-    if (active) calendarEvents.value = data.payload || [];
-  } catch {
-    /* 月份请求失败不影响今日议程。 */
-  }
-}, { immediate: true });
-const calendarEventDates = computed(() => new Set(calendarEvents.value.map(event => event.occurrence_date)));
+    calendarEvents.value = [];
+    const year = calendarMonth.value.getFullYear();
+    const month = calendarMonth.value.getMonth();
+    if (year === now.getFullYear() && month === now.getMonth()) return;
+    try {
+      const { data } = await ScheduleAPI.get(accountId.value, {
+        from: `${year}-${pad(month + 1)}-01`,
+        to: `${year}-${pad(month + 1)}-${new Date(year, month + 1, 0).getDate()}`,
+      });
+      if (active) calendarEvents.value = data.payload || [];
+    } catch {
+      /* 月份请求失败不影响今日议程。 */
+    }
+  },
+  { immediate: true }
+);
+const calendarEventDates = computed(
+  () => new Set(calendarEvents.value.map(event => event.occurrence_date))
+);
 
 // 当月日历（周一起），今日高亮，有安排的日子打点。
 const calCells = computed(() => {
@@ -225,214 +256,318 @@ onMounted(async () => {
 
 <template>
   <Teleport to="body">
-    <div :class="{ '!z-[60]': profileMenuOpen || showShortcutModal }" class="wsh-root !font-sans antialiased [&_.text-heading-2]:!font-medium [&_.text-heading-3]:!font-medium !bg-[#f6f7f8] !bg-none md:!p-0 min-[1100px]:!overflow-hidden">
-      <div class="wsh-actions md:!top-3 md:!right-[max(2rem,calc((100vw-1216px)/2))]">
-        <SidebarProfileMenu placement="topbar" @close="profileMenuOpen = false" @open-key-shortcut-modal="showShortcutModal = true">
+    <div
+      :class="{ '!z-[60]': profileMenuOpen || showShortcutModal }"
+      class="wsh-root !font-sans antialiased [&_.text-heading-2]:!font-medium [&_.text-heading-3]:!font-medium !bg-[#f6f7f8] !bg-none md:!p-0 min-[1100px]:!overflow-hidden"
+    >
+      <img
+        v-if="wallpaperUrl"
+        :src="wallpaperUrl"
+        alt=""
+        class="pointer-events-none fixed inset-0 z-0 h-dvh w-screen object-cover"
+      />
+      <div
+        v-if="wallpaperUrl"
+        class="pointer-events-none fixed inset-0 z-0 bg-white/25"
+      />
+      <WorkspaceWallpaperPicker
+        ref="wallpaperPicker"
+        :url="wallpaperUrl"
+        @update="wallpaperUrl = $event"
+      />
+      <div
+        class="wsh-actions md:!top-3 md:!right-[max(2rem,calc((100vw-1216px)/2))]"
+      >
+        <button
+          type="button"
+          :aria-label="$t('CRM.WORKSPACE_WALLPAPER.TITLE')"
+          :title="$t('CRM.WORKSPACE_WALLPAPER.TITLE')"
+          class="grid size-10 place-items-center rounded-full border border-white/70 bg-white/75 text-[#20241f] backdrop-blur-md hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          @click="wallpaperPicker.open()"
+        >
+          <Icon icon="i-lucide-image" class="size-4" />
+        </button>
+        <SidebarProfileMenu
+          placement="topbar"
+          @close="profileMenuOpen = false"
+          @open-key-shortcut-modal="showShortcutModal = true"
+        >
           <template #trigger="{ toggle, isOpen }">
-            <button type="button" aria-label="用户菜单" :aria-expanded="isOpen" class="flex h-10 items-center gap-2 rounded-full border border-white/70 bg-white/75 py-1 pl-1 pr-3 text-left text-[#20241f] backdrop-blur-md hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#819452]" @click="toggle(); profileMenuOpen = !isOpen">
-              <Avatar :size="30" :name="userName || currentUser?.available_name || '用户'" :src="currentUser?.avatar_url || ''" rounded-full />
-              <span class="hidden max-w-32 truncate text-heading-3 font-semibold sm:block">{{ userName || currentUser?.available_name }}</span>
-              <Icon icon="i-lucide-chevron-down" class="size-3.5 text-[#70766d]" />
+            <button
+              type="button"
+              aria-label="用户菜单"
+              :aria-expanded="isOpen"
+              class="flex h-10 items-center gap-2 rounded-full border border-white/70 bg-white/75 py-1 pl-1 pr-3 text-left text-[#20241f] backdrop-blur-md hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#819452]"
+              @click="
+                toggle();
+                profileMenuOpen = !isOpen;
+              "
+            >
+              <Avatar
+                :size="30"
+                :name="userName || currentUser?.available_name || '用户'"
+                :src="currentUser?.avatar_url || ''"
+                rounded-full
+              />
+              <span
+                class="hidden max-w-32 truncate text-heading-3 font-semibold sm:block"
+                >{{ userName || currentUser?.available_name }}</span>
+              <Icon
+                icon="i-lucide-chevron-down"
+                class="size-3.5 text-[#70766d]"
+              />
             </button>
           </template>
         </SidebarProfileMenu>
       </div>
-      <WootKeyShortcutModal :show="showShortcutModal" @close="showShortcutModal = false" @clickaway="showShortcutModal = false" />
+      <WootKeyShortcutModal
+        :show="showShortcutModal"
+        @close="showShortcutModal = false"
+        @clickaway="showShortcutModal = false"
+      />
 
-      <div class="wsh-wrap !max-w-[1680px] !p-0 md:!m-auto">
-      <main class="min-w-0">
-        <div class="wsh-top !items-center !mb-3 px-4 pt-1 pb-1 md:!hidden">
-          <div class="grid min-w-0 grid-cols-1 gap-1 md:pr-80">
-            <img :src="wintouchLockup" alt="Wintouch" class="wsh-logo md:!hidden sm:col-span-2 !mb-2 !h-auto !w-[125px] shrink-0" />
-            <h1 class="wsh-hello !m-0 !text-heading-1 !tracking-normal !leading-snug !font-semibold">
-              {{ greeting
-              }}<template v-if="userName">，{{ userName }}</template>
-            </h1>
-            <div class="wsh-sub !mt-0 !text-label-small !font-normal !leading-relaxed">让工作井然有序</div>
-          </div>
-          <!-- 手机端右上角快捷打卡（仅紫色圆按钮，一键上/下班打卡）；桌面隐藏 -->
-          <CrmQuickClock compact class="self-center shrink-0 md:hidden" />
-        </div>
-
-        <!-- ─── 手机端一级界面：紧凑网格排版（≤767px 独占，桌面隐藏；配色沿用）─── -->
-        <div class="wsh-m">
-          <!-- 两大主入口：CRM / MES -->
-          <div class="m-duo">
-            <button
-              type="button"
-              class="m-big c-crm"
-              :class="{ locked: !canOpenCrmCard }"
-              :disabled="!canOpenCrmCard"
-              @click="go(crmCardTarget)"
-            >
-              <span
-                class="blob"
-                style="width: 120px; height: 120px; right: -30px; top: -40px"
+      <div class="wsh-wrap relative z-[1] !max-w-[1680px] !p-0 md:!m-auto">
+        <main class="min-w-0">
+          <div class="wsh-top !items-center !mb-3 px-4 pt-1 pb-1 md:!hidden">
+            <div class="grid min-w-0 grid-cols-1 gap-1 md:pr-80">
+              <img
+                :src="wintouchLockup"
+                alt="Wintouch"
+                class="wsh-logo md:!hidden sm:col-span-2 !mb-2 !h-auto !w-[125px] shrink-0"
               />
-              <div class="m-big-l"><Icon icon="i-lucide-users" /> CRM</div>
-              <div class="m-big-n">
-                客户管理 · {{ crmStats.follow_up_due ?? 0 }} 待跟进
-              </div>
-              <div v-if="canOpenCrmCard" class="m-big-go">
-                进入 <Icon icon="i-lucide-arrow-right" />
-              </div>
-              <div v-else class="m-big-go">
-                <Icon icon="i-lucide-lock" /> 未开通
-              </div>
-            </button>
-            <button
-              type="button"
-              class="m-big c-mes"
-              @click="go('mes_dashboard_index')"
-            >
-              <span
-                class="blob"
-                style="width: 120px; height: 120px; right: -30px; bottom: -40px"
-              />
-              <div class="m-big-l"><Icon icon="i-lucide-factory" /> MES</div>
-              <div class="m-big-n">生产制造 · 工单排产</div>
-              <div class="m-big-go">
-                进入 <Icon icon="i-lucide-arrow-right" />
-              </div>
-            </button>
-          </div>
-
-          <!-- 图标快启 -->
-          <div class="m-launch">
-            <button
-              type="button"
-              class="m-lz"
-              @click="go('crm_approvals_index')"
-            >
-              <span class="m-lc g-lime">
-                <Icon icon="i-lucide-clipboard-check" />
-                <span v-if="oaMetric" class="m-badge">{{ oaMetric }}</span>
-              </span>
-              <span class="m-ll">OA 审批</span>
-            </button>
-            <button
-              type="button"
-              class="m-lz"
-              @click="go('crm_team_chat_index')"
-            >
-              <span class="m-lc g-teal">
-                <Icon icon="i-lucide-messages-square" />
-                <span v-if="stats.unread" class="m-badge">
-                  {{ stats.unread }}
-                </span>
-              </span>
-              <span class="m-ll">团队协同</span>
-            </button>
-            <button
-              type="button"
-              class="m-lz"
-              @click="go('crm_org_structure_index')"
-            >
-              <span class="m-lc g-sky"><Icon icon="i-lucide-network" /></span>
-              <span class="m-ll">HR 人事</span>
-            </button>
-            <button
-              type="button"
-              class="m-lz"
-              @click="go('crm_doc_center_index')"
-            >
-              <span class="m-lc g-violet">
-                <Icon icon="i-lucide-folder-open" />
-              </span>
-              <span class="m-ll">文档中心</span>
-            </button>
-            
-            <button
-              v-if="canAccessTiktok"
-              type="button"
-              class="m-lz"
-              @click="go('tiktok_dashboard_index')"
-            >
-              <span class="m-lc g-cyan">
-                <Icon icon="i-lucide-shopping-bag" />
-              </span>
-              <span class="m-ll">TikTok</span>
-            </button>
-            <button type="button" class="m-lz" @click="soon('ERP 进销存')">
-              <span class="m-lc g-gray"><Icon icon="i-lucide-package" /></span>
-              <span class="m-ll">ERP</span>
-            </button>
-          </div>
-
-          <div class="m-section-t">今日概览</div>
-          <div class="m-drow">
-            <button
-              type="button"
-              class="m-dcard"
-              @click="go('crm_schedule_index')"
-            >
-              <span class="m-dc g-blue">
-                <Icon icon="i-lucide-calendar-days" />
-              </span>
-              <div>
-                <div class="m-dn">{{ todayEvents.length }}</div>
-                <div class="m-du">今日日程</div>
-              </div>
-            </button>
-            <button
-              type="button"
-              class="m-dcard"
-              @click="go('crm_org_structure_index')"
-            >
-              <span class="m-dc g-sky"><Icon icon="i-lucide-network" /></span>
-              <div>
-                <div class="m-dn">{{ hrLabel }}</div>
-                <div class="m-du">本周出勤</div>
-              </div>
-            </button>
-          </div>
-
-          <!-- 今日安排 -->
-          <div class="m-section-t">
-            今日安排 <span class="m-count">{{ todayEvents.length }} 项</span>
-          </div>
-          <div class="m-agenda">
-            <template v-if="todayEvents.length">
-              <button
-                v-for="e in todayEvents"
-                :key="e.id + e.starts_at"
-                type="button"
-                class="m-ev"
-                :class="e.color"
-                @click="go('crm_schedule_index')"
+              <h1
+                class="wsh-hello !m-0 !text-heading-1 !tracking-normal !leading-snug !font-semibold"
               >
-                <div class="m-ev-tm">
-                  {{ e.all_day ? '全天' : hhmm(e.starts_at) }}
+                {{ greeting
+                }}<template v-if="userName">，{{ userName }}</template>
+              </h1>
+              <div
+                class="wsh-sub !mt-0 !text-label-small !font-normal !leading-relaxed"
+              >
+                让工作井然有序
+              </div>
+            </div>
+            <!-- 手机端右上角快捷打卡（仅紫色圆按钮，一键上/下班打卡）；桌面隐藏 -->
+            <CrmQuickClock compact class="self-center shrink-0 md:hidden" />
+          </div>
+
+          <!-- ─── 手机端一级界面：紧凑网格排版（≤767px 独占，桌面隐藏；配色沿用）─── -->
+          <div class="wsh-m">
+            <!-- 两大主入口：CRM / MES -->
+            <div class="m-duo">
+              <button
+                type="button"
+                class="m-big c-crm"
+                :class="{ locked: !canOpenCrmCard }"
+                :disabled="!canOpenCrmCard"
+                @click="go(crmCardTarget)"
+              >
+                <span
+                  class="blob"
+                  style="width: 120px; height: 120px; right: -30px; top: -40px"
+                />
+                <div class="m-big-l"><Icon icon="i-lucide-users" /> CRM</div>
+                <div class="m-big-n">
+                  客户管理 · {{ crmStats.follow_up_due ?? 0 }} 待跟进
                 </div>
-                <div class="m-ev-b">
-                  <b>{{ e.title }}</b>
-                  <small>{{ e.owner_name }}</small>
+                <div v-if="canOpenCrmCard" class="m-big-go">
+                  进入 <Icon icon="i-lucide-arrow-right" />
+                </div>
+                <div v-else class="m-big-go">
+                  <Icon icon="i-lucide-lock" /> 未开通
                 </div>
               </button>
-            </template>
-            <button
-              v-else
-              type="button"
-              class="m-ev-empty"
-              @click="go('crm_schedule_index')"
-            >
-              今天暂无安排 · 点此新建
-            </button>
+              <button
+                type="button"
+                class="m-big c-mes"
+                @click="go('mes_dashboard_index')"
+              >
+                <span
+                  class="blob"
+                  style="
+                    width: 120px;
+                    height: 120px;
+                    right: -30px;
+                    bottom: -40px;
+                  "
+                />
+                <div class="m-big-l"><Icon icon="i-lucide-factory" /> MES</div>
+                <div class="m-big-n">生产制造 · 工单排产</div>
+                <div class="m-big-go">
+                  进入 <Icon icon="i-lucide-arrow-right" />
+                </div>
+              </button>
+            </div>
+
+            <!-- 图标快启 -->
+            <div class="m-launch">
+              <button
+                type="button"
+                class="m-lz"
+                @click="go('crm_approvals_index')"
+              >
+                <span class="m-lc g-lime">
+                  <Icon icon="i-lucide-clipboard-check" />
+                  <span v-if="oaMetric" class="m-badge">{{ oaMetric }}</span>
+                </span>
+                <span class="m-ll">OA 审批</span>
+              </button>
+              <button
+                type="button"
+                class="m-lz"
+                @click="go('crm_team_chat_index')"
+              >
+                <span class="m-lc g-teal">
+                  <Icon icon="i-lucide-messages-square" />
+                  <span v-if="stats.unread" class="m-badge">
+                    {{ stats.unread }}
+                  </span>
+                </span>
+                <span class="m-ll">团队协同</span>
+              </button>
+              <button
+                type="button"
+                class="m-lz"
+                @click="go('crm_org_structure_index')"
+              >
+                <span class="m-lc g-sky"><Icon icon="i-lucide-network" /></span>
+                <span class="m-ll">HR 人事</span>
+              </button>
+              <button
+                type="button"
+                class="m-lz"
+                @click="go('crm_doc_center_index')"
+              >
+                <span class="m-lc g-violet">
+                  <Icon icon="i-lucide-folder-open" />
+                </span>
+                <span class="m-ll">文档中心</span>
+              </button>
+
+              <button
+                v-if="canAccessTiktok"
+                type="button"
+                class="m-lz"
+                @click="go('tiktok_dashboard_index')"
+              >
+                <span class="m-lc g-cyan">
+                  <Icon icon="i-lucide-shopping-bag" />
+                </span>
+                <span class="m-ll">TikTok</span>
+              </button>
+              <button type="button" class="m-lz" @click="soon('ERP 进销存')">
+                <span class="m-lc g-gray"><Icon icon="i-lucide-package"/></span>
+                <span class="m-ll">ERP</span>
+              </button>
+            </div>
+
+            <div class="m-section-t">今日概览</div>
+            <div class="m-drow">
+              <button
+                type="button"
+                class="m-dcard"
+                @click="go('crm_schedule_index')"
+              >
+                <span class="m-dc g-blue">
+                  <Icon icon="i-lucide-calendar-days" />
+                </span>
+                <div>
+                  <div class="m-dn">{{ todayEvents.length }}</div>
+                  <div class="m-du">今日日程</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="m-dcard"
+                @click="go('crm_org_structure_index')"
+              >
+                <span class="m-dc g-sky"><Icon icon="i-lucide-network" /></span>
+                <div>
+                  <div class="m-dn">{{ hrLabel }}</div>
+                  <div class="m-du">本周出勤</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- 今日安排 -->
+            <div class="m-section-t">
+              今日安排 <span class="m-count">{{ todayEvents.length }} 项</span>
+            </div>
+            <div class="m-agenda">
+              <template v-if="todayEvents.length">
+                <button
+                  v-for="e in todayEvents"
+                  :key="e.id + e.starts_at"
+                  type="button"
+                  class="m-ev"
+                  :class="e.color"
+                  @click="go('crm_schedule_index')"
+                >
+                  <div class="m-ev-tm">
+                    {{ e.all_day ? '全天' : hhmm(e.starts_at) }}
+                  </div>
+                  <div class="m-ev-b">
+                    <b>{{ e.title }}</b>
+                    <small>{{ e.owner_name }}</small>
+                  </div>
+                </button>
+              </template>
+              <button
+                v-else
+                type="button"
+                class="m-ev-empty"
+                @click="go('crm_schedule_index')"
+              >
+                今天暂无安排 · 点此新建
+              </button>
+            </div>
           </div>
-        </div>
 
-        <WorkspaceDesktop
-          :context="{ userName, greeting, crmStats, hrDays, attendancePercent, canAccessCrm, canOpenCrmCard, isCrmFinanceOnly, crmCardTarget, canAccessErp, canAccessTiktok, erpDraftCount, oaMetric, stats, mesTodo, monthLabel, calCells, todayEvents, todayNum }"
-          @go="go"
-          @change-month="changeCalendarMonth"
-          @open-order="orderNo => router.push(accountScopedRoute('mes_production_orders_index', {}, orderNo ? { q: orderNo } : {}))"
-        />
+          <WorkspaceDesktop
+            :context="{
+              userName,
+              greeting,
+              crmStats,
+              leadStats,
+              hrDays,
+              attendancePercent,
+              canAccessCrm,
+              canOpenCrmCard,
+              isCrmFinanceOnly,
+              crmCardTarget,
+              canAccessErp,
+              canAccessTiktok,
+              erpDraftCount,
+              oaMetric,
+              stats,
+              mesTodo,
+              monthLabel,
+              calCells,
+              todayEvents,
+              todayNum,
+            }"
+            @go="go"
+            @change-month="changeCalendarMonth"
+            @open-order="
+              orderNo =>
+                router.push(
+                  accountScopedRoute(
+                    'mes_production_orders_index',
+                    {},
+                    orderNo ? { q: orderNo } : {}
+                  )
+                )
+            "
+          />
 
-        <div class="wsh-foot md:!hidden md:flex md:items-center md:justify-center md:gap-3 md:[&_.wsh-beian]:!mt-0 !mt-3 !text-label-small !text-[10px] !font-normal !text-[#73796e]">
-          WintouchSpace · Designed &amp; Developed by Amber Law
-          <span class="wsh-beian">粤ICP备2026106012号-1</span>
-        </div>
-      </main></div>
+          <div
+            class="wsh-foot md:!hidden md:flex md:items-center md:justify-center md:gap-3 md:[&_.wsh-beian]:!mt-0 !mt-3 !text-label-small !text-[10px] !font-normal !text-[#73796e]"
+          >
+            WintouchSpace · Designed &amp; Developed by Amber Law
+            <span class="wsh-beian">粤ICP备2026106012号-1</span>
+          </div>
+        </main>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -444,8 +579,7 @@ onMounted(async () => {
   z-index: 50;
   overflow: auto;
   color: #232833;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       58vw 52vh at 8% 2%,
       rgba(122, 170, 250, 0.34),
       transparent 56%

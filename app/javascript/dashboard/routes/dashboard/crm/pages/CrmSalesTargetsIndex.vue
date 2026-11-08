@@ -135,12 +135,12 @@ const fmtRate = rate => (rate ? `${Number(rate).toFixed(2)}%` : '—');
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <h1 class="text-n-slate-12 text-heading-1">
         {{ t('CRM.SALES_TARGETS.HEADER') }}
       </h1>
       <Button
@@ -207,13 +207,13 @@ const fmtRate = rate => (rate ? `${Number(rate).toFixed(2)}%` : '—');
                 </span>
                 <span
                   v-if="row.missing_current_month"
-                  class="shrink-0 px-1.5 py-0.5 rounded text-label-small bg-n-ruby-3 text-n-ruby-11"
+                  class="shrink-0 px-1.5 py-0.5 text-label-small bg-n-ruby-3 text-n-ruby-11 rounded-full"
                 >
                   {{ t('CRM.SALES_TARGETS.AUDIT.MISSING') }}
                 </span>
                 <span
                   v-if="row.new_hire"
-                  class="shrink-0 px-1.5 py-0.5 rounded text-label-small bg-n-amber-3 text-n-amber-11"
+                  class="shrink-0 px-1.5 py-0.5 text-label-small bg-n-amber-3 text-n-amber-11 rounded-full"
                 >
                   {{ t('CRM.SALES_TARGETS.AUDIT.NEW_HIRE') }}
                 </span>
@@ -302,7 +302,7 @@ const fmtRate = rate => (rate ? `${Number(rate).toFixed(2)}%` : '—');
                       </span>
                       <span
                         v-if="row.new_hire"
-                        class="shrink-0 px-1.5 py-0.5 rounded text-label-small bg-n-amber-3 text-n-amber-11"
+                        class="shrink-0 px-1.5 py-0.5 text-label-small bg-n-amber-3 text-n-amber-11 rounded-full"
                       >
                         {{ t('CRM.SALES_TARGETS.AUDIT.NEW_HIRE') }}
                       </span>

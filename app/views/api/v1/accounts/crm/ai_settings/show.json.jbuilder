@@ -20,3 +20,22 @@ json.auto_draft_user_ids @setting.auto_draft_user_ids
 
 # 本月用量：开了自动初筛之后它会自己跑、自己花钱，管理员得看得到花了多少。
 json.usage @usage || {}
+
+# Apollo 积分额度。Apollo 自己没有查余额的接口（usage_stats 404），用量只能我们记。
+# 能扣积分的只有「解锁联系方式」，所以额度就卡在那一步（见 Crm::ApolloQuota）。
+json.apollo_monthly_limit @setting.apollo_monthly_limit
+json.apollo_user_limit @setting.apollo_user_limit
+json.apollo_user_limits @setting.apollo_user_limits
+json.apollo_usage do
+  json.unlocked_this_month @apollo.used
+  # 背调查企业库的次数：是否计费 Apollo 没说死，只摆数不设限。
+  json.bg_checks_this_month @apollo.bg_checks_this_month
+  json.by_user Current.account.crm_leads.where(unlocked_at: Time.current.all_month)
+                      .where.not(unlocked_by_id: nil).group(:unlocked_by_id).count
+end
+
+# 公司级默认初筛条件：新建拓客任务时自动带上（见 LeadCampaignsController#create）。
+json.lead_default_criteria @setting.lead_default_criteria
+
+# 本月 AI 用量，按用途分。只给 token 数不折钱——单价随模型变，折算出来很快就过期。
+json.ai_usage Crm::AiCall.month_summary(Current.account)

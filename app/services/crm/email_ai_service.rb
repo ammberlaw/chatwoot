@@ -34,11 +34,14 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     ['SPEC', /spec|规格|datasheet|drawing|图纸|技术|参数|manual/i]
   ].freeze
 
-  def initialize(account:, api_key: nil, api_base: nil, model: nil)
+  # purpose：这次调用是谁在烧 token（lead_screen／lead_bg／mail_draft…）。
+  # 记进 Crm::AiCall，管理端才看得到「这个功能一个月花了多少」。
+  def initialize(account:, api_key: nil, api_base: nil, model: nil, purpose: nil)
     @account = account
     @override_key = api_key
     @override_base = api_base
     @override_model = model
+    @purpose = purpose
   end
 
   COMPOSE_SYSTEM = <<~PROMPT.freeze
@@ -98,6 +101,12 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     }
     注意：输入里会用【首页】【法律信息页】【关于我们】【产品线】【联系方式】标出内容来自哪一页。
     法定实体、地址、负责人优先采信法律信息页（欧洲公司这一页是法律强制的，信息最准）。
+    那一页的字段名是法律规定的、写法固定，照着抄就行，**这几项只要法律页上出现过就不许填「未提及」**：
+    - `Geschäftsführer` / `Vertreten durch` / `Inhaber` / `Vorstand` 后面跟的人名 → management
+      （常常是连着好几个人名，全都要，用顿号分隔）
+    - `Anschrift` 或街道 + 邮编 + 城市 + 国家 → address
+    - `Registergericht` + `Registernummer`（HRB…）出现，说明这是登记在册的法人；
+      公司全称一般就在该页开头、页脚或地址上方 → legal_entity
     buying_categories 之外的字段一律只能照抄原文事实，不许推断。
   PROMPT
 
@@ -298,8 +307,15 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     parse_json(ask(system_prompt, user_prompt))
   end
 
+  # ⚠️ 这里必须显式给上限，别用 truncate 的默认值 6000。
+  # Crm::CompanySiteFetcher 按优先级拼了 15000 字（首页 + 法律信息页 + 关于我们 + 产品线），
+  # 法律页排第二位——可一旦走默认的 6000，首页长一点的站点整块法律页就被切在外面，
+  # 法人全称、注册地址、负责人全部读不到。上游排的优先级被下游一个默认参数废掉了。
+  # 2026-11-07 itz-display.solutions 三项全「未提及」，根子就在这一行。
+  SITE_TEXT_MAX = 15_000
+
   def company_profile(domain:, site_text:)
-    raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text)}")
+    raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text, SITE_TEXT_MAX)}")
     parse_json(raw)
   end
 
@@ -408,7 +424,27 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     raise Faraday::TimeoutError, "AI 服务 #{REQUEST_TIMEOUT} 秒没有响应"
   end
 
+  # 调一次模型，顺带把用量记下来（见 Crm::AiCall）。记账失败绝不能影响正事。
   def chat_once(system_prompt, user_prompt)
+    started = Time.current
+    message = raw_chat(system_prompt, user_prompt)
+    log_usage(message, started)
+    message.content.to_s.strip
+  end
+
+  def log_usage(message, started)
+    return if @purpose.blank?
+
+    Crm::AiCall.create!(
+      account_id: @account.id, purpose: @purpose, model: model,
+      input_tokens: message.try(:input_tokens).to_i, output_tokens: message.try(:output_tokens).to_i,
+      duration_ms: ((Time.current - started) * 1000).round
+    )
+  rescue StandardError => e
+    Rails.logger.info("[Crm::AiCall] 记账失败（不影响主流程）: #{e.class} #{e.message}")
+  end
+
+  def raw_chat(system_prompt, user_prompt)
     context = RubyLLM.context do |config|
       config.openai_api_key = api_key
       config.openai_api_base = api_base
@@ -420,7 +456,7 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     end
     chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
     chat.with_instructions(system_prompt)
-    chat.ask(user_prompt).content.to_s.strip
+    chat.ask(user_prompt)
   end
 
   def setting

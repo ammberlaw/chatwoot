@@ -38,6 +38,7 @@ import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity
 import CrmBackgroundCheck from 'dashboard/components-next/CRM/CrmBackgroundCheck.vue';
 import CrmLocalTimeChip from 'dashboard/components-next/CRM/CrmLocalTimeChip.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 
@@ -1274,6 +1275,8 @@ const selectEmail = async email => {
   aiSummary.value = null;
   // 拉取本封邮件所属会话（同往来的全部邮件），供阅读栏「会话往来」展示。
   fetchThread(email.id);
+  // 这家客户的销售快照（上次成交/在跟的 PI/在途订单/多久没联系），读信时直接摆出来。
+  loadSalesSnapshot(email.crmCustomerId);
   if (
     activeFolder.value !== 'DISTRIBUTED' &&
     email.folder === 'INBOX' &&
@@ -1383,26 +1386,84 @@ const toFollowUpTask = async email => {
   }
 };
 
-// 转商机：把邮件落成一条商机（需已关联客户）；金额/阶段到商机看板补充。
-const toOpportunity = async email => {
-  if (!email.crmCustomerId) {
-    useAlert('该邮件未关联客户，无法转商机');
+// ── 客户销售快照：读信时一眼就有「上次买了什么、在跟什么单、货到哪了、多久没联系」 ──
+//
+// 为什么推过去而不是等人查：AI 助手手里早就有这些工具，对 41 个人开放，
+// 可每月只被问 214 次（人均 5 次）。不是工具不好，是它只会等人问，
+// 而人忙起来想不起来。所以搬到他本来就在看的这一屏上。
+//
+// 只摆销售自己这一侧的事实——成本、供应商、毛利不出现（见 Crm::CustomerSalesSnapshot）。
+const salesSnapshot = ref(null);
+const snapshotCache = new Map();
+
+const loadSalesSnapshot = async customerId => {
+  salesSnapshot.value = null;
+  if (!customerId) return;
+  if (snapshotCache.has(customerId)) {
+    salesSnapshot.value = snapshotCache.get(customerId);
     return;
   }
   try {
-    await axios.post(
-      `/api/v1/accounts/${route.params.accountId}/crm/opportunities`,
-      {
-        opportunity: {
-          name: email.subject || '(无主题)',
-          crm_customer_id: email.crmCustomerId,
-          sales_stage: 'NEEDS_CONFIRMED',
-        },
-      }
+    const { data } = await axios.get(
+      `/api/v1/accounts/${route.params.accountId}/crm/customers/${customerId}/sales_snapshot`
     );
-    useAlert('已转为商机，可到商机看板补充金额与阶段');
+    snapshotCache.set(customerId, data);
+    salesSnapshot.value = data;
+  } catch {
+    salesSnapshot.value = null; // 查不到就不摆这一条，不打扰读信
+  }
+};
+
+// 「37 天没联系」比「最后往来 2026-10-01」好读——要判断的是久不久，不是哪一天。
+const snapshotSilence = computed(() => {
+  const d = salesSnapshot.value?.last_touch_days;
+  if (d === null || d === undefined) return null;
+  return d <= 0 ? '今天刚联系过' : `${d} 天没联系`;
+});
+
+const fmtQty = v => {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : v;
+};
+
+// 新建商机：就地弹窗，带着这封邮件的主题和客户预填。
+//
+// 原来这里是**静默建一条**——名字取邮件主题、阶段固定「需求确认」、金额不填，
+// 然后提示「到商机看板补充」。没人会回头去补，生产 185 个商机里金额/概率/预计成交日
+// 大片是空的，这条路是来源之一。改成当场填完再建。
+// 没关联客户也能开：弹窗里本来就有客户搜索框，当场选一个即可。
+const opportunityDialogRef = ref(null);
+const creatingOpportunity = ref(false);
+
+const openOpportunityDialog = email => {
+  opportunityDialogRef.value?.open({
+    name: email.subject || '',
+    crmCustomerId: email.crmCustomerId || null,
+  });
+};
+
+// 弹窗吐的是驼峰（和商机页一致），接口要下划线。
+const snakeKeys = obj =>
+  Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [
+      k.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`),
+      v,
+    ])
+  );
+
+const saveOpportunity = async (payload, id = null) => {
+  creatingOpportunity.value = true;
+  try {
+    const base = `/api/v1/accounts/${route.params.accountId}/crm/opportunities`;
+    const body = { opportunity: snakeKeys(payload) };
+    if (id) await axios.patch(`${base}/${id}`, body);
+    else await axios.post(base, body);
+    opportunityDialogRef.value?.onSuccess();
+    useAlert(id ? '商机已更新' : '商机已创建');
   } catch (e) {
-    useAlert(e?.response?.data?.error || '转商机失败，请重试');
+    useAlert(e?.response?.data?.error || '保存商机失败，请重试');
+  } finally {
+    creatingOpportunity.value = false;
   }
 };
 
@@ -1728,15 +1789,11 @@ const moreMenuItems = computed(() => {
       icon: 'i-lucide-list-checks',
       run: () => toFollowUpTask(e),
     },
-    ...(e.crmCustomerId
-      ? [
-          {
-            label: '转商机',
-            icon: 'i-lucide-trending-up',
-            run: () => toOpportunity(e),
-          },
-        ]
-      : []),
+    {
+      label: '新建商机',
+      icon: 'i-lucide-trending-up',
+      run: () => openOpportunityDialog(e),
+    },
     { label: '转发', icon: 'i-lucide-forward', run: () => forward(e) },
     {
       label: '附件转发',
@@ -1865,7 +1922,7 @@ watch(
 
 <template>
   <div
-    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <!-- 左栏：文件夹（手机端隐藏，让列表/阅读占满屏） -->
     <aside
@@ -2098,9 +2155,7 @@ watch(
         <div
           class="flex items-center justify-between gap-2 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
         >
-          <h1
-            class="text-lg font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-          >
+          <h1 class="text-n-slate-12 text-heading-1">
             {{ activeFolderLabel }}
           </h1>
           <div class="flex items-center flex-wrap gap-2">
@@ -2419,10 +2474,7 @@ watch(
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between gap-2">
-                    <span
-                      class="text-sm truncate"
-                      :class="senderClass(record)"
-                    >
+                    <span class="text-sm truncate" :class="senderClass(record)">
                       {{ counterpartyLabel(record) }}
                     </span>
                     <span class="flex-shrink-0 text-xs text-n-slate-10">
@@ -2435,7 +2487,7 @@ watch(
                   >
                     <span
                       v-if="record._threadCount > 1"
-                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mr-1 rounded text-[10px] font-semibold align-middle bg-n-iris-3 text-n-iris-11"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mr-1 align-middle bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                       title="本会话邮件数"
                     >
                       <Icon icon="i-lucide-messages-square" class="size-3" />
@@ -2460,7 +2512,7 @@ watch(
                     />
                     <span
                       v-if="showSendBadge(record)"
-                      class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap"
+                      class="px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap text-label-small rounded-full"
                       :class="SEND_STATUSES[record.sendStatus]?.class"
                     >
                       {{ SEND_STATUSES[record.sendStatus]?.label }}
@@ -2479,28 +2531,28 @@ watch(
                     <!-- 草稿箱里要分得出哪些是 AI 写的、哪些是自己写了一半的 -->
                     <span
                       v-else-if="record.aiDrafted"
-                      class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap bg-n-iris-3 text-n-iris-11"
+                      class="px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                       title="这份草稿是 AI 预写的，发送前请核对"
                     >
                       AI 预写
                     </span>
                     <span
                       v-if="mailScope === 'team' && record.ownerName"
-                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-iris-3 text-n-iris-11 truncate max-w-[96px]"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-n-iris-3 text-n-iris-11 truncate max-w-[96px] text-label-small rounded-full"
                     >
                       <Icon icon="i-lucide-user" class="size-3" />
                       {{ record.ownerName }}
                     </span>
                     <span
                       v-if="record.customerName && record.counterpartyName"
-                      class="px-1.5 py-0.5 rounded text-[11px] bg-n-alpha-2 text-n-slate-11 truncate max-w-[140px]"
+                      class="px-1.5 py-0.5 bg-n-alpha-2 text-n-slate-11 truncate max-w-[140px] text-label-small rounded-full"
                       :title="counterparty(record)"
                     >
                       {{ record.customerName }}
                     </span>
                     <span
                       v-if="distributionLabel(record)"
-                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-teal-3 text-n-teal-11 max-w-[150px]"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-n-teal-3 text-n-teal-11 max-w-[150px] text-label-small rounded-full"
                       :title="distributionLabel(record).title"
                     >
                       <Icon
@@ -2655,12 +2707,12 @@ watch(
             >
               <Icon icon="i-lucide-arrow-left" class="size-4" />
             </button>
-            <h2 class="text-base font-medium truncate text-n-slate-12">
+            <h2 class="truncate text-n-slate-12 text-heading-2">
               {{ selectedEmail.subject || '(无主题)' }}
             </h2>
             <span
               v-if="showSendBadge(selectedEmail)"
-              class="px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
+              class="px-2 py-0.5 flex-shrink-0 text-label-small rounded-full"
               :class="SEND_STATUSES[selectedEmail.sendStatus]?.class"
             >
               {{ SEND_STATUSES[selectedEmail.sendStatus]?.label }}
@@ -2882,7 +2934,7 @@ watch(
                 <span
                   v-for="l in emailLabels(selectedEmail)"
                   :key="`lbl-${l.id}`"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-label-small rounded-full"
                   :class="labelPill(l.color)"
                 >
                   {{ l.name }}
@@ -2896,6 +2948,72 @@ watch(
                 </span>
               </div>
             </div>
+          </div>
+
+          <!-- 客户销售快照：读信时一眼就有，省掉切到客户页或去问 AI 的来回。
+               只摆销售自己那一侧的事实，不含成本/供应商/毛利。 -->
+          <div
+            v-if="salesSnapshot && selectedEmail.crmCustomerId"
+            class="flex flex-wrap items-center py-2 text-xs gap-x-5 gap-y-1.5 border-b border-n-weak text-n-slate-11"
+          >
+            <span
+              v-if="salesSnapshot.last_order"
+              class="inline-flex items-center gap-1.5"
+            >
+              <Icon icon="i-lucide-package-check" class="size-3.5 shrink-0" />
+              <span class="text-n-slate-10">上次成交</span>
+              <span class="font-medium text-n-slate-12">
+                {{ salesSnapshot.last_order.currency }}
+                {{ salesSnapshot.last_order.amount }}
+              </span>
+              <span class="text-n-slate-10">
+                {{ salesSnapshot.last_order.order_date }}
+              </span>
+              <span
+                v-for="(it, i) in salesSnapshot.last_order.items"
+                :key="`si-${i}`"
+                class="text-n-slate-11"
+              >
+                {{ it.name }} ×{{ fmtQty(it.quantity) }}
+                <template v-if="it.unit_price">@{{ it.unit_price }}</template>
+              </span>
+              <span
+                v-if="salesSnapshot.last_order.more_items"
+                class="text-n-slate-9"
+              >
+                等 {{ salesSnapshot.last_order.more_items }} 项
+              </span>
+            </span>
+
+            <span
+              v-for="pi in salesSnapshot.open_pis"
+              :key="`pi-${pi.pi_no}`"
+              class="inline-flex items-center gap-1.5 text-n-amber-11"
+            >
+              <Icon icon="i-lucide-file-clock" class="size-3.5 shrink-0" />
+              {{ pi.pi_no }} {{ pi.status_label }}
+              <span class="font-medium">{{ pi.currency }} {{ pi.amount }}</span>
+            </span>
+
+            <span
+              v-for="o in salesSnapshot.in_progress"
+              :key="`io-${o.order_no}`"
+              class="inline-flex items-center gap-1.5"
+            >
+              <Icon icon="i-lucide-truck" class="size-3.5 shrink-0" />
+              {{ o.order_no }} {{ o.status_label }}
+              <span v-if="o.expected_date" class="text-n-slate-10">
+                交期 {{ o.expected_date }}
+              </span>
+            </span>
+
+            <span
+              v-if="snapshotSilence"
+              class="inline-flex items-center gap-1.5 text-n-slate-10"
+            >
+              <Icon icon="i-lucide-clock" class="size-3.5 shrink-0" />
+              {{ snapshotSilence }}
+            </span>
           </div>
 
           <!-- 会话往来：同一往来的多封邮件（同客户/同对方 + 主题归一），点选切换 -->
@@ -3332,7 +3450,7 @@ watch(
         class="w-full max-w-[440px] max-h-[90vh] overflow-auto p-5 border rounded-2xl bg-n-solid-1 shadow-xl border-n-weak"
       >
         <div class="flex items-center justify-between mb-1">
-          <h3 class="text-base font-semibold text-n-slate-12">分发给同事</h3>
+          <h3 class="text-n-slate-12 text-heading-3">分发给同事</h3>
           <button
             class="grid rounded-lg size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2"
             @click="distributeDialog = false"
@@ -3450,7 +3568,7 @@ v-if="d.note" class="text-n-slate-9"
             取消
           </button>
           <button
-            class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+            class="px-4 py-2 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="distributing"
             @click="submitDistribute"
           >
@@ -3567,6 +3685,14 @@ v-if="d.note" class="text-n-slate-9"
     <CrmCustomerCreateDialog
       ref="bgDialogRef"
       @create="createCustomerFromBackground"
+    />
+
+    <!-- 读着邮件就地建商机：主题和客户预填，不跳走（原来是跳建商机页，回来还得重新找这封信）。 -->
+    <CrmOpportunityCreateDialog
+      ref="opportunityDialogRef"
+      :is-loading="creatingOpportunity"
+      @create="saveOpportunity"
+      @update="payload => saveOpportunity(payload, payload.id)"
     />
 
     <!-- 写跟进右侧抽屉：不跳转，直接记一条跟进 -->

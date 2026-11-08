@@ -23,6 +23,12 @@ class Crm::CustomerPolicy < ApplicationPolicy
     show?
   end
 
+  # 邮件页的销售快照：与详情同权（内容本来就是客户详情页上看得到的那些，
+  # 只是换个地方摆；可见范围由 fetch_customer 收口）。
+  def sales_snapshot?
+    show?
+  end
+
   # 特别关注（每人各标）：任何可见该客户的 CRM 成员都能标自己的，辖区收口在 fetch_customer。
   def favorite?
     true

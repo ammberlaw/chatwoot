@@ -322,7 +322,7 @@ const saveNote = async () => {
         </button>
         <span
           v-if="status"
-          class="px-2 py-0.5 text-[11px] rounded-full shrink-0"
+          class="px-2 py-0.5 shrink-0 text-label-small rounded-full"
           :class="status.cls"
         >
           {{ status.label }}

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :parse_attachment, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge, :card, :timeline]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :parse_attachment, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge, :card, :timeline, :sales_snapshot]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -399,6 +399,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @tasks = Current.account.crm_follow_up_tasks
                     .where(crm_customer_id: @customer.id)
                     .order(Arel.sql('due_at IS NULL, due_at ASC')).limit(30)
+    # 寄样记录：和右列其它块一样随详情一次取回，不单独再发一个请求。
+    @samples = Current.account.crm_samples.where(crm_customer_id: @customer.id)
+                      .includes(:owner).recent_first.limit(20)
   end
 
   # 按生产订单归集质检影像。一次把附件都 includes 出来，避免逐单逐张查。
@@ -434,6 +437,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       open_opportunity_count: @customer.opportunities.open_stages.count,
       can_edit: share_allowed?
     }
+  end
+
+  # 销售快照：上次买了什么、在跟的 PI、在途订单阶段、多久没联系。
+  # 给邮件页用——读信时一眼就有，不用切页面也不用去问 AI。
+  # 只含销售侧事实，不碰成本/供应商/毛利（见 Crm::CustomerSalesSnapshot）。
+  def sales_snapshot
+    render json: Crm::CustomerSalesSnapshot.new(account: Current.account, customer: @customer).call
   end
 
   # 客户互动时间线：跟进 + 往来邮件 + 会话 + 订单合成一条时间轴。
@@ -744,7 +754,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       :last_follow_up_at, :next_follow_up_at, :is_in_public_pool, :public_pool_at,
       :primary_contact_name, :contact_job_title, :contact_email, :contact_phone,
       :whats_app, :wechat, :contact_preference, :customer_remark,
-      :address, :linkedin, :alibaba_account
+      :address, :linkedin, :alibaba_account, :vat_no
     )
   end
 

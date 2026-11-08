@@ -138,7 +138,7 @@ const openCustomer = customer => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto border backdrop-blur-2xl backdrop-saturate-150 rounded-3xl bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-n-weak"
@@ -188,7 +188,7 @@ const openCustomer = customer => {
             <span class="i-lucide-x size-4" />
           </button>
           <button
-            class="flex items-center h-full gap-1.5 px-5 text-sm font-medium text-white outline-none shrink-0 bg-n-iris-9 hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
+            class="flex items-center h-full gap-1.5 px-5 outline-none shrink-0 hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="searching"
             @click="runSearch"
           >
@@ -356,7 +356,7 @@ const openCustomer = customer => {
           <span :class="dim.icon" class="size-3.5" />
           {{ dim.label }}
           <span
-            class="px-1.5 py-0.5 text-xs rounded-full"
+            class="px-1.5 py-0.5 text-label-small rounded-full"
             :class="
               dimCount(dim.key)
                 ? 'bg-n-ruby-4 text-n-ruby-11'
@@ -396,12 +396,12 @@ const openCustomer = customer => {
               {{ group.value }}
             </span>
             <span
-              class="shrink-0 px-1.5 py-0.5 text-xs rounded-full bg-n-ruby-4 text-n-ruby-11"
+              class="shrink-0 px-1.5 py-0.5 bg-n-ruby-4 text-n-ruby-11 text-label-small rounded-full"
             >
               {{ group.customers.length }} 条
             </span>
             <button
-              class="flex items-center gap-1 px-2.5 py-1 ml-auto text-xs font-medium rounded-md shrink-0 text-white bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              class="flex items-center gap-1 px-2.5 py-1 ml-auto shrink-0 disabled:opacity-60 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="merging === group.value"
               title="把其余客户合并到选中的「保留」项"
               @click="mergeGroup(group)"

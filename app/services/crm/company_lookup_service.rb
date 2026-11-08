@@ -11,27 +11,8 @@ class Crm::CompanyLookupService
   ].freeze
 
   THIN_EMPLOYEE_MAX = 10  # 少于这个人数且没有营收，视作「薄记录」，才去比对是否匹配错了公司
-  FETCH_TIMEOUT = 6       # 首页抓取超时（秒）
-  SUB_PAGE_TIMEOUT = 5    # 子页抓取超时（秒）
-  MAX_SUB_PAGES = 4       # 最多再抓几个子页
   # 抓取总预算：agent 那条路径放宽到 90 秒，但那是整轮（含十几次模型往返）的额度，
   # 背调一个人不能把它吃光。超预算就用已经抓到的内容作答，不是报错。
-  FETCH_BUDGET = 18
-  MAX_SITE_TEXT = 6000      # 首页正文上限
-  MAX_SUB_PAGE_TEXT = 3200  # 单个子页上限——别让一个产品列表页把法律页挤掉
-  MAX_TOTAL_TEXT = 15_000   # 送模型的总文本上限
-  USER_AGENT = 'Mozilla/5.0 (compatible; WintouchCRM/1.0; +https://wintouchspace.com)'.freeze
-
-  # 子页抓取优先级。法律声明页排第一：德国《电信媒体法》第 5 条强制每个商业网站都要有
-  # Impressum，法人实体全称、注册地址、Geschäftsführer（负责人）都写在那一页，首页永远没有。
-  # 其余欧洲国家有同类页面（法国 mentions légales、西班牙 aviso legal）。
-  # 只认首页上真实存在的链接，不去盲猜路径——猜错一次就白白花掉 5 秒预算。
-  SUB_PAGE_PATTERNS = [
-    ['法律信息页', /impressum|legal[-_ ]?notice|mentions[-_ ]?legales|aviso[-_ ]?legal|colofon/i],
-    ['关于我们', /about|ueber[-_ ]?uns|über[-_ ]?uns|unternehmen|company|qui[-_ ]?sommes/i],
-    ['产品线', /product|produkte|katalog|catalog|sortiment|brand|marken/i],
-    ['联系方式', /contact|kontakt|contacto/i]
-  ].freeze
 
   def initialize(account:)
     @account = account
@@ -49,16 +30,20 @@ class Crm::CompanyLookupService
 
     enrichment = Crm::ApolloClient.new(account: @account).organization(domain: domain)
 
-    site = fetch_website(domain)
+    site = Crm::CompanySiteFetcher.new.call(domain)
     if site[:text].present?
-      profile = Crm::EmailAiService.new(account: @account).company_profile(domain: domain, site_text: site[:text])
+      profile = Crm::EmailAiService.new(account: @account, purpose: 'lead_bg')
+                                   .company_profile(domain: domain, site_text: site[:text])
       { status: 'ok', domain: domain, url: site[:url], profile: profile, enrichment: enrichment,
+        vat: Crm::VatLookup.for(site[:legal_text].presence || site[:text], domain: domain),
+        site_status: site[:status],
         enrichment_warning: enrichment_warning(enrichment, site[:text], profile) }
     elsif enrichment
       # 官网抓不到，但 Apollo 有这家公司 → 用企业库数据兜底，避免「背调不到」的死胡同。
       { status: 'ok', domain: domain, url: enrichment[:website], profile: profile_from_enrichment(enrichment), enrichment: enrichment }
     else
-      { status: 'no_site', domain: domain }
+      # site[:status] 区分「站点不存在」和「站点存在但不让进」（451/403）。
+      { status: 'no_site', domain: domain, site_status: site[:status] }
     end
   end
 
@@ -146,122 +131,5 @@ class Crm::CompanyLookupService
     raw = raw.split('@').last.to_s if raw.include?('@')
     raw = raw.sub(%r{\Ahttps?://}, '').sub(%r{[/:?].*\z}, '').sub(/\Awww\./, '')
     raw.include?('.') ? raw.presence : nil
-  end
-
-  # 首页 + 几个关键子页。
-  #
-  # 原来只抓首页，结果是背调永远只能说「这家公司是做什么的」，说不出法人实体、
-  # 注册地址、负责人、产品线——那些内容首页本来就不写。欧洲公司的法律信息页
-  # （Impressum）是法律强制页，恰恰把这些全列齐了。
-  def fetch_website(domain)
-    home = fetch_home(domain)
-    return { url: nil, text: nil } if home[:text].blank?
-
-    blocks = ["【首页】\n#{home[:text]}"] + sub_page_blocks(home)
-    { url: home[:url], text: blocks.join("\n\n")[0, MAX_TOTAL_TEXT] }
-  end
-
-  # 依次尝试 https://域名 与 https://www.域名，任一抓到正文即返回（html 留着解析子页链接）。
-  def fetch_home(domain)
-    %W[https://#{domain} https://www.#{domain}].each do |url|
-      html = fetch_html(url, FETCH_TIMEOUT)
-      text = extract_text(html, MAX_SITE_TEXT)
-      return { url: url, html: html, text: text } if text.present?
-    end
-    { url: nil, html: nil, text: nil }
-  end
-
-  # Accept-Language 要带：多语站点按来访 IP 发语言，我们的服务器在国内，
-  # 不声明就会拿到对方的**中文站**——实测 phoenixcontact 抓回来的是中国子公司的
-  # 法人实体和南京地址，而做外贸要的是德国母公司那一份。
-  REQUEST_HEADERS = {
-    'User-Agent' => USER_AGENT,
-    'Accept-Language' => 'en-US,en;q=0.9,de;q=0.8'
-  }.freeze
-
-  def fetch_html(url, timeout)
-    HTTParty.get(url, timeout: timeout, follow_redirects: true, headers: REQUEST_HEADERS).body
-  rescue StandardError => e
-    Rails.logger.info("[Crm::CompanyLookup] fetch #{url} failed: #{e.class}")
-    nil
-  end
-
-  # 按优先级抓子页，超出时间预算就停——拿到几页算几页，不报错。
-  #
-  # ⚠️ 必须 each + 累加，不能写成 filter_map：filter_map 里 break 出来整个表达式是 nil，
-  # 不是已经抓到的那几页，上游 `[首页] + nil` 直接崩（生产 2026-11-03 背调 steliau.fr
-  # 报 no implicit conversion of nil into Array，就是慢站吃满预算触发的）。
-  def sub_page_blocks(home)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + FETCH_BUDGET
-    blocks = []
-    pick_sub_pages(home[:html], home[:url]).each do |label, url|
-      break if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-
-      text = extract_text(fetch_html(url, SUB_PAGE_TIMEOUT), MAX_SUB_PAGE_TEXT)
-      blocks << "【#{label}】#{url}\n#{text}" if text.present?
-    end
-    blocks
-  end
-
-  # 只认首页上真实存在的同站链接，每类取第一个命中的，最多 MAX_SUB_PAGES 个。
-  #
-  # ⚠️ 只拿**路径**去匹，不能拿整条 URL：phoenixcontact.com 这种域名本身就含 contact，
-  # 用整条 URL 匹的话它家每一个链接都命中「联系方式」，第一条往往就是首页。
-  def pick_sub_pages(html, base_url)
-    links = same_site_links(html, base_url).reject { |href| href == base_url }
-    picked = []
-    SUB_PAGE_PATTERNS.each do |label, pattern|
-      hit = links.find { |href| pattern.match?(path_of(href)) && picked.none? { |_, taken| taken == href } }
-      picked << [label, hit] if hit
-    end
-    picked.first(MAX_SUB_PAGES)
-  end
-
-  def path_of(url)
-    uri = URI.parse(url)
-    "#{uri.path}?#{uri.query}"
-  rescue StandardError
-    ''
-  end
-
-  def same_site_links(html, base_url)
-    return [] if html.blank? || base_url.blank?
-
-    base = URI.parse(base_url)
-    Nokogiri::HTML(html).css('a[href]').filter_map { |a| absolute_same_host(a['href'], base) }.uniq
-  rescue URI::InvalidURIError
-    []
-  end
-
-  SKIP_HREF_PREFIXES = ['#', 'mailto:', 'tel:', 'javascript:'].freeze
-
-  def absolute_same_host(href, base)
-    return nil if href.blank? || href.start_with?(*SKIP_HREF_PREFIXES)
-
-    uri = URI.join(base, href)
-    uri.fragment = nil
-    same_site_page?(uri, base) ? uri.to_s : nil
-  rescue StandardError
-    nil
-  end
-
-  # 同站、http(s)、且不是首页本身——"/#contact" 这类锚点去掉 fragment 后就落回首页，
-  # 抓它只会拿到一份重复内容，还白花一次预算。
-  def same_site_page?(uri, base)
-    uri.host == base.host && uri.scheme&.start_with?('http') &&
-      uri.path.present? && uri.path != '/'
-  end
-
-  # 提取可读文本：标题 + meta 描述 + 正文，去掉脚本/样式，压缩空白后截断。
-  def extract_text(html, limit)
-    return '' if html.blank?
-
-    doc = Nokogiri::HTML(html)
-    doc.css('script, style, noscript, svg').remove
-    title = doc.at_css('title')&.text.to_s.strip
-    desc = doc.at_css('meta[name="description"]')&.[]('content').to_s.strip
-    body = doc.css('body').text.gsub(/\s+/, ' ').strip
-    parts = ["标题：#{title}", ("描述：#{desc}" if desc.present?), body].compact
-    parts.join("\n").strip[0, limit].to_s
   end
 end

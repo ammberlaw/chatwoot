@@ -711,7 +711,7 @@ defineExpose({ open, markPaid });
             </div>
             <button
               type="button"
-              class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="parsingPi"
               @click="triggerPiUpload"
             >

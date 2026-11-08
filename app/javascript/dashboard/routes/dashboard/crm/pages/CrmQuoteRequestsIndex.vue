@@ -435,13 +435,11 @@ onMounted(async () => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div class="w-full px-4 py-4 mx-auto max-w-6xl sm:px-8 sm:py-6">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-1 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
-          定制报价
-        </h1>
+        <h1 class="text-n-slate-12 text-heading-1">定制报价</h1>
         <Button
           label="发起定制报价"
           icon="i-lucide-plus"
@@ -492,7 +490,7 @@ onMounted(async () => {
               {{ row.requestNo }}
             </span>
             <span
-              class="px-2 py-[2px] text-[12px] font-medium rounded-full"
+              class="px-2 py-[2px] text-label-small rounded-full"
               :class="STATUS[row.status]?.class"
             >
               {{ STATUS[row.status]?.label || row.status }}
@@ -610,7 +608,7 @@ onMounted(async () => {
       <div v-if="detailRow" class="flex flex-col gap-4">
         <div class="flex flex-wrap items-center gap-2">
           <span
-            class="px-2 py-[2px] text-[12px] font-medium rounded-full"
+            class="px-2 py-[2px] text-label-small rounded-full"
             :class="STATUS[detailRow.status]?.class"
           >
             {{ STATUS[detailRow.status]?.label || detailRow.status }}
@@ -772,7 +770,7 @@ onMounted(async () => {
               <label
                 v-for="opt in f.options || []"
                 :key="opt"
-                class="flex items-center gap-1.5 text-sm text-n-slate-11"
+                class="flex items-center gap-1.5 text-n-slate-11 text-label"
               >
                 <input
                   type="checkbox"

@@ -39,7 +39,10 @@ class Crm::FollowUpNote < ApplicationRecord
   FOLLOW_UP_METHODS = %w[EMAIL PHONE MEETING WHATSAPP WECHAT].freeze
   RESULT_TAGS = %w[INTERESTED WAITING_CUSTOMER WAITING_INTERNAL INVALID].freeze
   # MANUAL=人工录入；AI=AI 从邮件往来自动识别的进度（时间线带 AI 徽标）。
-  SOURCES = %w[MANUAL AI].freeze
+  # MANUAL=人工录入；AI=AI 从邮件往来自动识别的进度；
+  # SYSTEM=系统按单据动作记的（商机阶段自动推进，见 Crm::OpportunityStageSync）。
+  # 后两种在客户时间线上各带一个徽标（CrmCustomerDetailIndex）。
+  SOURCES = %w[MANUAL AI SYSTEM].freeze
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true

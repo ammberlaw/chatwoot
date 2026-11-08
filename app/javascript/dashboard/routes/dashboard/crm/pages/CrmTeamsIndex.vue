@@ -178,13 +178,13 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-wrap gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-lg font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
+        <h1 class="text-n-slate-12 text-heading-1">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
@@ -222,11 +222,11 @@ onMounted(() => {
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
-                <h2 class="text-sm font-semibold truncate text-n-slate-12">
+                <h2 class="truncate text-n-slate-12 text-heading-2">
                   {{ team.name }}
                 </h2>
                 <span
-                  class="flex-shrink-0 px-1.5 py-0.5 text-[10px] leading-none rounded-full bg-n-alpha-2 text-n-slate-11 tabular-nums"
+                  class="flex-shrink-0 px-1.5 py-0.5 leading-none bg-n-alpha-2 text-n-slate-11 tabular-nums text-label-small rounded-full"
                 >
                   {{ (team.members || []).length }}{{ L.memberCountSuffix }}
                 </span>
@@ -343,7 +343,7 @@ onMounted(() => {
                   teamOfAgent(agent.id) &&
                   teamOfAgent(agent.id).id !== editingId
                 "
-                class="flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded-full bg-n-amber-3 text-n-amber-12"
+                class="flex-shrink-0 px-1.5 py-0.5 bg-n-amber-3 text-n-amber-12 text-label-small rounded-full"
               >
                 {{ L.otherTeamPrefix }}{{ teamOfAgent(agent.id).name }}
               </span>

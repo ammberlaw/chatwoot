@@ -177,7 +177,7 @@ const sourceShare = index =>
           </div>
         </section>
         <section
-          class="order-3 xl:col-span-8 min-w-0 p-6 sm:p-7 bg-white rounded-3xl"
+          class="order-4 xl:col-span-8 min-w-0 p-6 sm:p-7 bg-white rounded-3xl"
           :class="isMine && 'border border-[#e9eae6]'"
         >
           <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
@@ -416,7 +416,7 @@ const sourceShare = index =>
           </div>
         </section>
         <section
-          class="order-4 xl:col-span-4 min-w-0 flex flex-col p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
+          class="order-5 xl:col-span-4 min-w-0 flex flex-col p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
           :class="isMine && !customers.length ? 'min-h-[328px]' : 'h-[434px]'"
         >
           <div class="flex items-center justify-between gap-3 mb-4">
@@ -732,5 +732,6 @@ const sourceShare = index =>
         </section>
       </div>
     </div>
+    <slot name="lead-team-overview" />
   </div>
 </template>

@@ -4,12 +4,14 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
 import CrmBlackDashboard from 'dashboard/components-next/CRM/CrmBlackDashboard.vue';
+import CrmLeadTeamOverview from 'dashboard/components-next/CRM/CrmLeadTeamOverview.vue';
 import {
   themeColor,
   usesClassicContentColors,
@@ -24,6 +26,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { accountId } = useAccount();
+const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
 
 const stats = ref(null);
 const loading = ref(true);
@@ -363,6 +366,11 @@ const isClassicBlack = computed(() => {
 
 // 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。
 const isMine = computed(() => scope.value === 'mine');
+const canViewLeadTeam = computed(
+  () =>
+    !isMine.value &&
+    (isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value)
+);
 
 // 成交排行腾出来的那 2/3，个人视角换成几张当下状态的小卡。
 // 这几个数都是「此刻是多少」，不跟着上方的月份筛选走。
@@ -678,7 +686,7 @@ const PERIODS = [
   <div
     data-black-dashboard
     :data-dashboard-scope="scope"
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:sm:!p-8"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border [.theme-classic_&]:sm:!p-8 !bg-white border-n-weak/70 shadow-wintouch-glass"
   >
     <!-- 顶栏 -->
     <div
@@ -686,7 +694,7 @@ const PERIODS = [
       class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div class="min-w-0">
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1 class="text-n-slate-12 text-heading-1">
           {{
             scope === 'mine'
               ? t('CRM.DASHBOARD.HEADER_MINE')
@@ -782,7 +790,11 @@ const PERIODS = [
       :money-format="moneyYuan"
       :initials="rankInitials"
       @customer="goCustomer"
-    />
+    >
+      <template v-if="canViewLeadTeam" #lead-team-overview>
+        <CrmLeadTeamOverview :key="accountId" />
+      </template>
+    </CrmBlackDashboard>
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
       <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->
@@ -850,9 +862,7 @@ const PERIODS = [
             data-dashboard-card="rank"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
-            <h2 class="mb-4 text-base font-medium text-n-slate-12">
-              业务员成交排行
-            </h2>
+            <h2 class="mb-4 text-n-slate-12 text-heading-2">业务员成交排行</h2>
             <div class="h-72 min-w-0">
               <div
                 v-if="ownerRank.empty"
@@ -934,9 +944,7 @@ const PERIODS = [
             data-dashboard-card="trend"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
-            <h2 class="mb-4 text-base font-medium text-n-slate-12">
-              订单金额趋势
-            </h2>
+            <h2 class="mb-4 text-n-slate-12 text-heading-2">订单金额趋势</h2>
             <div class="h-40 min-w-0">
               <CrmAreaChart
                 v-if="!trendChart.empty"
@@ -965,9 +973,7 @@ const PERIODS = [
               class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
             >
               <div class="flex items-center justify-between mb-4">
-                <h2 class="text-base font-medium text-n-slate-12">
-                  商机阶段分布
-                </h2>
+                <h2 class="text-n-slate-12 text-heading-2">商机阶段分布</h2>
                 <span v-if="winRate != null" class="text-xs text-n-slate-11">
                   成交转化率
                   <span class="font-semibold text-n-iris-11"
@@ -1018,7 +1024,7 @@ const PERIODS = [
               v-if="!isMine"
               class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
             >
-              <h2 class="mb-4 text-base font-medium text-n-slate-12">
+              <h2 class="mb-4 text-n-slate-12 text-heading-2">
                 业务员资料完善度
               </h2>
               <div class="h-72 min-w-0">
@@ -1094,9 +1100,7 @@ const PERIODS = [
           class="flex flex-col gap-4 min-w-0"
         >
           <div v-if="!isMine" data-dashboard-details-title>
-            <h2 class="text-base font-medium text-n-slate-12">
-              {{ periodNoun }}明细
-            </h2>
+            <h2 class="text-n-slate-12 text-heading-2">{{ periodNoun }}明细</h2>
             <p class="mt-1 text-xs text-n-slate-10">{{ periodLabel }}</p>
           </div>
           <div v-if="isMine" class="grid grid-cols-3 gap-3">
@@ -1148,7 +1152,7 @@ const PERIODS = [
             data-dashboard-card="target"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
-            <h2 class="text-base font-medium text-n-slate-12">
+            <h2 class="text-n-slate-12 text-heading-2">
               {{ periodNoun }}目标完成率
             </h2>
             <p class="mt-1 mb-2 text-xs text-n-slate-10">{{ periodLabel }}</p>
@@ -1189,9 +1193,7 @@ const PERIODS = [
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <div class="flex items-center justify-between gap-3 mb-4">
-              <h2 class="text-base font-medium text-n-slate-12">
-                客户成交排行
-              </h2>
+              <h2 class="text-n-slate-12 text-heading-2">客户成交排行</h2>
               <span class="text-xs text-n-slate-10">{{ periodLabel }}</span>
             </div>
             <div
@@ -1238,9 +1240,7 @@ const PERIODS = [
             data-dashboard-card="sources"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
-            <h2 class="mb-4 text-base font-medium text-n-slate-12">
-              客户来源占比
-            </h2>
+            <h2 class="mb-4 text-n-slate-12 text-heading-2">客户来源占比</h2>
             <template v-if="!sourceDonut.empty">
               <div class="relative h-40 mx-auto max-w-[12rem]">
                 <CrmDoughnutChart
@@ -1283,6 +1283,7 @@ const PERIODS = [
           </div>
         </div>
       </div>
+      <CrmLeadTeamOverview v-if="canViewLeadTeam" :key="accountId" />
     </template>
   </div>
 </template>

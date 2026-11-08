@@ -892,7 +892,7 @@ const inCls =
                 <div class="flex items-center justify-between gap-2 text-label">
                   <span class="text-n-slate-12">{{ signer.label }}</span>
                   <span
-                    class="rounded px-1.5 py-0.5 text-label-small"
+                    class="px-1.5 py-0.5 text-label-small rounded-full"
                     :class="
                       signer.url
                         ? 'bg-n-slate-3 text-n-slate-12'

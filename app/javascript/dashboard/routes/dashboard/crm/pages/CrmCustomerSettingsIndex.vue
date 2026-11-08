@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 import { ref, onMounted } from 'vue';
 import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
@@ -7,6 +9,7 @@ import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 // 客户设置：客户分组 / 客户来源 的自定义项（二级层级 + 显隐 + 拖拽排序）。
 // 页面与侧栏入口已按 isAdminLike 限定；写操作后端 policy 再次校验管理员/副管理员。
+const { t } = useI18n();
 const TABS = [
   { key: 'customer_group', label: '分组设置' },
   { key: 'customer_source', label: '客户来源' },
@@ -128,226 +131,217 @@ onMounted(load);
 </script>
 
 <template>
-  <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  <CrmSettingsLayout
+    width="narrow"
+    :title="t('CRM.SETTINGS_PAGE.CUSTOMER')"
+    :description="t('CRM.SETTINGS_PAGE.CUSTOMER_NOTE')"
   >
-    <div class="w-full max-w-3xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
-      <h1
-        class="mb-1 text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
-        客户设置
-      </h1>
-      <p class="mb-5 text-sm text-n-slate-11">仅管理员可维护</p>
-
-      <!-- Tabs -->
-      <div
-        class="flex gap-1 mb-5 border-b border-n-weak"
-        data-tabbar="page"
-        data-tabbar-theme="classic"
+    <template #toolbar
+      ><nav
+        class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-n-alpha-2 p-1"
+        :aria-label="t('CRM.SETTINGS_PAGE.CUSTOMER')"
       >
         <button
           v-for="tab in TABS"
           :key="tab.key"
-          :aria-selected="activeTab === tab.key"
-          class="px-4 py-2 -mb-px text-sm border-b-2"
+          type="button"
+          :aria-pressed="activeTab === tab.key"
+          class="min-h-10 shrink-0 rounded-lg px-4 text-label transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-10"
           :class="
             activeTab === tab.key
-              ? 'border-n-iris-9 text-n-iris-11 font-medium'
-              : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
+              ? 'bg-n-slate-12 text-n-solid-1 shadow-sm'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
           "
           @click="switchTab(tab.key)"
         >
           {{ tab.label }}
         </button>
-      </div>
+      </nav></template
+    >
+    <div v-if="loading" class="py-10 text-label text-center text-n-slate-10">
+      {{ t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_1') }}
+    </div>
 
-      <div v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
-        加载中…
-      </div>
-
-      <template v-else>
-        <!-- 一级项拖拽列表 -->
-        <Draggable
-          v-model="tree"
-          item-key="id"
-          handle=".root-handle"
-          class="flex flex-col gap-2"
-          @end="onReorderRoots"
+    <template v-else>
+      <!-- 添加一级项 -->
+      <div class="mb-4 flex items-center gap-3">
+        <input
+          v-model="newRootName"
+          class="min-w-0 flex-1 h-9 px-3 text-label border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-12"
+          :placeholder="
+            activeTab === 'customer_group' ? '新增一级分组名称' : '新增来源名称'
+          "
+          @keyup.enter="addRoot"
+        />
+        <button
+          class="h-9 px-4 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
+          @click="addRoot"
         >
-          <template #item="{ element: root }">
-            <div
-              class="border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
-            >
-              <!-- 一级行 -->
-              <div class="flex items-center gap-2 px-3 py-2.5">
-                <span
-                  class="cursor-move root-handle i-lucide-grip-vertical size-4 text-n-slate-9 shrink-0"
+          {{ t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_2') }}
+        </button>
+      </div>
+
+      <!-- 一级项拖拽列表 -->
+      <Draggable
+        v-model="tree"
+        item-key="id"
+        handle=".root-handle"
+        class="flex flex-col gap-2"
+        @end="onReorderRoots"
+      >
+        <template #item="{ element: root }">
+          <div
+            class="overflow-hidden rounded-2xl border border-n-weak bg-n-solid-1"
+          >
+            <!-- 一级行 -->
+            <div class="flex min-h-12 items-center gap-2 px-4 py-2">
+              <span
+                class="cursor-move root-handle i-lucide-grip-vertical size-4 text-n-slate-9 shrink-0"
+              />
+              <template v-if="editing.id === root.id">
+                <input
+                  v-model="editing.name"
+                  class="min-w-0 flex-1 h-8 px-2 text-label border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-12"
+                  @keyup.enter="saveEdit(root)"
+                  @blur="saveEdit(root)"
                 />
-                <template v-if="editing.id === root.id">
-                  <input
-                    v-model="editing.name"
-                    class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
-                    @keyup.enter="saveEdit(root)"
-                    @blur="saveEdit(root)"
-                  />
-                </template>
+              </template>
+              <span
+                v-else
+                class="flex-1 text-label font-medium truncate"
+                :class="
+                  root.active
+                    ? 'text-n-slate-12'
+                    : 'text-n-slate-9 line-through'
+                "
+              >
+                {{ root.name }}
+              </span>
+              <button
+                class="grid size-9 shrink-0 place-items-center rounded-lg text-n-slate-10 hover:bg-n-alpha-1"
+                :title="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_3')"
+                @click="startAddChild(root)"
+              >
+                <span class="i-lucide-plus size-4" />
+              </button>
+              <button
+                class="grid size-9 shrink-0 place-items-center rounded-lg text-n-slate-10 hover:bg-n-alpha-1"
+                :title="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_4')"
+                @click="startEdit(root)"
+              >
+                <span class="i-lucide-pencil size-4" />
+              </button>
+              <button
+                class="grid size-9 shrink-0 place-items-center rounded-lg text-n-slate-10 hover:bg-n-alpha-1"
+                :title="root.active ? '隐藏' : '显示'"
+                @click="toggleActive(root)"
+              >
                 <span
-                  v-else
-                  class="flex-1 text-sm font-medium truncate"
-                  :class="
-                    root.active
-                      ? 'text-n-slate-12'
-                      : 'text-n-slate-9 line-through'
-                  "
-                >
-                  {{ root.name }}
-                </span>
-                <button
-                  class="p-1 rounded text-n-slate-10 hover:bg-n-alpha-1"
-                  title="添加子项"
-                  @click="startAddChild(root)"
-                >
-                  <span class="i-lucide-plus size-4" />
-                </button>
-                <button
-                  class="p-1 rounded text-n-slate-10 hover:bg-n-alpha-1"
-                  title="重命名"
-                  @click="startEdit(root)"
-                >
-                  <span class="i-lucide-pencil size-4" />
-                </button>
-                <button
-                  class="p-1 rounded text-n-slate-10 hover:bg-n-alpha-1"
-                  :title="root.active ? '隐藏' : '显示'"
-                  @click="toggleActive(root)"
+                  class="size-4"
+                  :class="root.active ? 'i-lucide-eye' : 'i-lucide-eye-off'"
+                />
+              </button>
+              <button
+                class="grid size-9 shrink-0 place-items-center rounded-lg text-n-ruby-10 hover:bg-n-ruby-2"
+                :title="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_5')"
+                @click="remove(root)"
+              >
+                <span class="i-lucide-trash-2 size-4" />
+              </button>
+            </div>
+
+            <!-- 子项拖拽列表 -->
+            <Draggable
+              v-if="root.children.length"
+              v-model="root.children"
+              item-key="id"
+              handle=".child-handle"
+              class="flex flex-col border-t border-n-weak"
+              @end="onReorderChildren(root)"
+            >
+              <template #item="{ element: child }">
+                <div
+                  class="flex items-center gap-2 py-2 pl-8 pr-3 border-b last:border-b-0 border-n-weak"
                 >
                   <span
-                    class="size-4"
-                    :class="root.active ? 'i-lucide-eye' : 'i-lucide-eye-off'"
+                    class="cursor-move child-handle i-lucide-grip-vertical size-4 text-n-slate-9 shrink-0"
                   />
-                </button>
-                <button
-                  class="p-1 rounded text-n-ruby-10 hover:bg-n-ruby-2"
-                  title="删除"
-                  @click="remove(root)"
-                >
-                  <span class="i-lucide-trash-2 size-4" />
-                </button>
-              </div>
-
-              <!-- 子项拖拽列表 -->
-              <Draggable
-                v-if="root.children.length"
-                v-model="root.children"
-                item-key="id"
-                handle=".child-handle"
-                class="flex flex-col border-t border-n-weak"
-                @end="onReorderChildren(root)"
-              >
-                <template #item="{ element: child }">
-                  <div
-                    class="flex items-center gap-2 py-2 pl-8 pr-3 border-b last:border-b-0 border-n-weak"
+                  <template v-if="editing.id === child.id">
+                    <input
+                      v-model="editing.name"
+                      class="min-w-0 flex-1 h-8 px-2 text-label border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-12"
+                      @keyup.enter="saveEdit(child)"
+                      @blur="saveEdit(child)"
+                    />
+                  </template>
+                  <span
+                    v-else
+                    class="flex-1 text-label truncate"
+                    :class="
+                      child.active
+                        ? 'text-n-slate-11'
+                        : 'text-n-slate-9 line-through'
+                    "
+                  >
+                    {{ child.name }}
+                  </span>
+                  <button
+                    class="grid size-9 shrink-0 place-items-center rounded-lg text-n-slate-10 hover:bg-n-alpha-1"
+                    :title="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_4')"
+                    @click="startEdit(child)"
+                  >
+                    <span class="i-lucide-pencil size-4" />
+                  </button>
+                  <button
+                    class="grid size-9 shrink-0 place-items-center rounded-lg text-n-slate-10 hover:bg-n-alpha-1"
+                    :title="child.active ? '隐藏' : '显示'"
+                    @click="toggleActive(child)"
                   >
                     <span
-                      class="cursor-move child-handle i-lucide-grip-vertical size-4 text-n-slate-9 shrink-0"
-                    />
-                    <template v-if="editing.id === child.id">
-                      <input
-                        v-model="editing.name"
-                        class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
-                        @keyup.enter="saveEdit(child)"
-                        @blur="saveEdit(child)"
-                      />
-                    </template>
-                    <span
-                      v-else
-                      class="flex-1 text-sm truncate"
+                      class="size-4"
                       :class="
-                        child.active
-                          ? 'text-n-slate-11'
-                          : 'text-n-slate-9 line-through'
+                        child.active ? 'i-lucide-eye' : 'i-lucide-eye-off'
                       "
-                    >
-                      {{ child.name }}
-                    </span>
-                    <button
-                      class="p-1 rounded text-n-slate-10 hover:bg-n-alpha-1"
-                      title="重命名"
-                      @click="startEdit(child)"
-                    >
-                      <span class="i-lucide-pencil size-4" />
-                    </button>
-                    <button
-                      class="p-1 rounded text-n-slate-10 hover:bg-n-alpha-1"
-                      :title="child.active ? '隐藏' : '显示'"
-                      @click="toggleActive(child)"
-                    >
-                      <span
-                        class="size-4"
-                        :class="
-                          child.active ? 'i-lucide-eye' : 'i-lucide-eye-off'
-                        "
-                      />
-                    </button>
-                    <button
-                      class="p-1 rounded text-n-ruby-10 hover:bg-n-ruby-2"
-                      title="删除"
-                      @click="remove(child)"
-                    >
-                      <span class="i-lucide-trash-2 size-4" />
-                    </button>
-                  </div>
-                </template>
-              </Draggable>
+                    />
+                  </button>
+                  <button
+                    class="grid size-9 shrink-0 place-items-center rounded-lg text-n-ruby-10 hover:bg-n-ruby-2"
+                    :title="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_5')"
+                    @click="remove(child)"
+                  >
+                    <span class="i-lucide-trash-2 size-4" />
+                  </button>
+                </div>
+              </template>
+            </Draggable>
 
-              <!-- 添加子项输入 -->
-              <div
-                v-if="addingChildFor === root.id"
-                class="flex items-center gap-2 py-2 pl-8 pr-3 border-t border-n-weak"
+            <!-- 添加子项输入 -->
+            <div
+              v-if="addingChildFor === root.id"
+              class="flex items-center gap-2 py-2 pl-8 pr-3 border-t border-n-weak"
+            >
+              <input
+                v-model="newChildName"
+                class="min-w-0 flex-1 h-8 px-2 text-label border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-12"
+                :placeholder="t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_6')"
+                @keyup.enter="addChild(root)"
+              />
+              <button
+                class="h-8 px-3 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
+                @click="addChild(root)"
               >
-                <input
-                  v-model="newChildName"
-                  class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
-                  placeholder="子项名称"
-                  @keyup.enter="addChild(root)"
-                />
-                <button
-                  class="h-8 px-3 text-sm text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-sm hover:opacity-90"
-                  @click="addChild(root)"
-                >
-                  添加
-                </button>
-                <button
-                  class="h-8 px-2 text-sm rounded text-n-slate-11 hover:bg-n-alpha-1"
-                  @click="addingChildFor = null"
-                >
-                  取消
-                </button>
-              </div>
+                {{ t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_2') }}
+              </button>
+              <button
+                class="h-8 px-2 text-label rounded text-n-slate-11 hover:bg-n-alpha-1"
+                @click="addingChildFor = null"
+              >
+                {{ t('CRM.SETTINGS_COPY.CUSTOMERSETTINGS_7') }}
+              </button>
             </div>
-          </template>
-        </Draggable>
-
-        <!-- 添加一级项 -->
-        <div class="flex items-center gap-2 mt-4">
-          <input
-            v-model="newRootName"
-            class="flex-1 h-9 px-3 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
-            :placeholder="
-              activeTab === 'customer_group'
-                ? '新增一级分组名称'
-                : '新增来源名称'
-            "
-            @keyup.enter="addRoot"
-          />
-          <button
-            class="h-9 px-4 text-sm text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-sm hover:opacity-90"
-            @click="addRoot"
-          >
-            添加
-          </button>
-        </div>
-      </template>
-    </div>
-  </div>
+          </div>
+        </template>
+      </Draggable>
+    </template>
+  </CrmSettingsLayout>
 </template>

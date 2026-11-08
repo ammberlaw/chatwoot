@@ -261,13 +261,13 @@ onMounted(() => store.get());
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ t('CRM.EMAIL_TEMPLATES.HEADER') }}
         </h1>
       </div>
@@ -351,18 +351,18 @@ onMounted(() => store.get());
           @click="openEdit(record)"
         >
           <div class="flex items-start justify-between gap-2">
-            <h3 class="font-medium truncate text-n-slate-12">
+            <h3 class="truncate text-n-slate-12 text-heading-3">
               {{ record.name }}
             </h3>
             <div class="flex flex-shrink-0 gap-1">
               <span
-                class="px-2 py-0.5 rounded-full text-[11px]"
+                class="px-2 py-0.5 text-label-small rounded-full"
                 :class="SCOPE_META[record.scope]?.chip"
               >
                 {{ SCOPE_META[record.scope]?.label }}
               </span>
               <span
-                class="px-2 py-0.5 rounded-full text-[11px]"
+                class="px-2 py-0.5 text-label-small rounded-full"
                 :class="CATEGORY_META[record.category]?.chip"
               >
                 {{ CATEGORY_META[record.category]?.label || record.category }}

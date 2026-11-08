@@ -534,16 +534,12 @@ const submit = async () => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
     >
-      <h1
-        class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
-        客户建档
-      </h1>
+      <h1 class="text-n-slate-12 text-heading-1">客户建档</h1>
     </div>
 
     <div
@@ -753,7 +749,7 @@ const submit = async () => {
             <template v-else>
               <div class="flex flex-wrap items-center gap-2">
                 <span
-                  class="inline-flex items-center px-2 py-0.5 text-xs rounded-md"
+                  class="inline-flex items-center px-2 py-0.5 text-label-small rounded-full"
                   :class="bgLegit.cls"
                 >
                   {{ bgLegit.label }}
@@ -811,7 +807,7 @@ const submit = async () => {
               >
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+                  class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 disabled:opacity-50 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                   :disabled="bgImported"
                   @click="importBackground"
                 >
@@ -1051,7 +1047,7 @@ const submit = async () => {
 
       <div class="flex flex-wrap items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 duration-150"
           :disabled="!canSubmit"
           @click="submit"
         >

@@ -13,6 +13,9 @@ class Crm::Agent::QualityDiagnosis
   # 一天只读这么多轮对话。按命中信号数排序取最严重的几轮，省钱也省上下文。
   MAX_CONVERSATIONS = 5
   MAX_BODY = 600
+  # 工具返回摘要在诊断稿里的长度。存的本来就只有 200 字，这里再收一道：
+  # 一轮能有二十几次调用，全摆上去工具结果会把对话正文挤出上下文。
+  MAX_TOOL_RESULT = 150
 
   SYSTEM = <<~PROMPT.freeze
     你在给一个企业 CRM 里的 AI 助手做每日质检。下面是昨天表现异常的几轮真实对话。
@@ -73,9 +76,15 @@ class Crm::Agent::QualityDiagnosis
      *msgs.filter_map { |m| line(m) }].join("\n")
   end
 
+  # 工具那行要带上它查到了什么（result_digest，见 StepRecorder）。
+  # 以前只给工具名和参数，却要模型判断「为什么掉链子」——查到了没查到都长一个样，
+  # 它只能猜。有了返回摘要，「撞墙」和「查到了却没用上」才分得开。
+  # 2026-11-06 之前的老会话没有这个字段，那几行照旧只有工具名。
   def line(msg)
     if msg.meta['tool'].present?
-      "  [工具] #{msg.meta['tool']} #{msg.meta['args'].to_s.truncate(120)}"
+      head = "  [工具] #{msg.meta['tool']} #{msg.meta['args'].to_s.truncate(120)}"
+      digest = msg.meta['result_digest'].to_s
+      digest.present? ? "#{head}\n         → #{digest.truncate(MAX_TOOL_RESULT)}" : head
     elsif msg.content.present?
       "  #{msg.role == 'user' ? '用户' : '助手'}：#{msg.content.to_s.squish.truncate(MAX_BODY)}"
     end

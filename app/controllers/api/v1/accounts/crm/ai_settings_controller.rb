@@ -6,10 +6,12 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
   def show
     @setting = Crm::AiSetting.for_account(Current.account)
     @usage = month_usage
+    @apollo = Crm::ApolloQuota.new(account: Current.account)
   end
 
   def update
     @setting = Crm::AiSetting.for_account(Current.account)
+    @apollo = Crm::ApolloQuota.new(account: Current.account)
     attrs = setting_params
     # api_key / apollo_api_key 留空 = 保持原值不变（前端不回显完整 key，改其它设置时不必重填）。
     attrs = attrs.except(:api_key) if attrs[:api_key].blank?
@@ -66,6 +68,9 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
     params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key,
                                     :inquiry_triage_enabled,
                                     :auto_draft_reply_enabled,
-                                    agent_user_ids: [], auto_draft_user_ids: [])
+                                    :apollo_monthly_limit, :apollo_user_limit, :lead_default_criteria,
+                                    agent_user_ids: [], auto_draft_user_ids: [],
+                                    # 个别人的单独额度 { 用户id => 条数 }，留空表示跟默认走。
+                                    apollo_user_limits: {})
   end
 end

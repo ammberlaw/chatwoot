@@ -66,8 +66,11 @@ def preview
     @pi.handled_by_id ||= current_user.id
     apply_seller_profile_defaults
     @pi.save!
+    # 顺序有讲究：先同步商机（把商机挂到这张 PI 上），再转销售订单——
+    # 转单会把 PI 的 crm_opportunity_id 带到订单上，反过来就带不到了。
+    Crm::OpportunityStageSync.from_pi(@pi.reload)
     # 建单时直接选「已付款」也要落销售订单（与 update 同口径；服务按 pi_no 幂等）。
-    @converted_order = convert_to_sales_order if @pi.status == 'PAID'
+    @converted_order = convert_to_sales_order if @pi.reload.status == 'PAID'
     render :show
   end
 
@@ -79,9 +82,11 @@ def preview
       attrs[:owner_id] = performance_owner_id(attrs[:crm_customer_id])
     end
     @pi.update!(attrs)
+    # 同上：商机先挂到 PI，再转单，订单才带得到商机。
+    Crm::OpportunityStageSync.from_pi(@pi.reload)
     # 只要是「已付款」就落一张销售订单（幂等：按 pi_no 只建一次，重存不会重复，
     # 也给此前漏转的 PI 一条补救路径）。失败只记日志、不阻断 PI 保存。
-    @converted_order = convert_to_sales_order if @pi.status == 'PAID'
+    @converted_order = convert_to_sales_order if @pi.reload.status == 'PAID'
     render :show
   end
 

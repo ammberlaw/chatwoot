@@ -64,6 +64,19 @@ class Crm::Agent::Scope
     artifacts << { kind: kind, id: id, label: label, customer_id: customer_id }
   end
 
+  # 看得见的拓客任务 / 线索。口径同 Crm::LeadCampaignsController 的 scope_by_owner
+  # （按任务负责人收口），别在这里放宽——放宽了就等于「用 AI 能看别人的线索池」。
+  def lead_campaigns
+    ids = @access.visible_owner_ids
+    return @account.crm_lead_campaigns if ids == :all
+
+    @account.crm_lead_campaigns.where(owner_id: ids)
+  end
+
+  def leads
+    @account.crm_leads.where(crm_lead_campaign_id: lead_campaigns.select(:id))
+  end
+
   # 可见私海（团队口径归属 + 被共享）∪ 公海
   def customers
     ids = @access.team_visible_owner_ids

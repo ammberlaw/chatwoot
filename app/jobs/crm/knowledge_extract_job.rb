@@ -10,7 +10,9 @@ class Crm::KnowledgeExtractJob < ApplicationJob
 
   # 一篇文档可能挂好几个附件（规格书 + 认证报告），逐个抽、拼起来。
   # 上限防的是有人把整本画册传上来——几十万字塞进一行，搜索和喂给模型都受不了。
-  MAX_CHARS = 60_000
+  # 取模型上的常量：这里截断、那边校验，两个数一旦不一致，抽出来的文档就再也保存不了
+  # （2026-11-06 的 422 就是这么来的）。
+  MAX_CHARS = Crm::KnowledgeDoc::EXTRACTED_TEXT_MAX
   # 少于这个字数当没抽到：PDF 里零星几个字符多半是页眉页脚，不是正文。
   MIN_USEFUL = 30
 

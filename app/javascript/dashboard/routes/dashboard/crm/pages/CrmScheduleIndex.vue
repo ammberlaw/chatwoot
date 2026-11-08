@@ -602,13 +602,13 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <!-- 头 -->
     <div
       class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">日程 Schedule</h1>
+      <h1 class="text-n-slate-12 text-heading-1">日程 Schedule</h1>
       <div class="flex items-center gap-3">
         <!-- 月/周 视图切换 -->
         <!-- 月/周 也走统一的槽（灰槽 + 深色选中块），别自己写底色/阴影 -->
@@ -626,7 +626,7 @@ onMounted(() => {
           </button>
         </div>
         <button
-          class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
+          class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           @click="openCreate()"
         >
           <Icon icon="i-lucide-plus" class="size-4" /> 新建日程
@@ -724,7 +724,7 @@ onMounted(() => {
           <template v-if="dayView">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <h2 class="text-[15px] font-semibold text-n-slate-12">
+                <h2 class="text-n-slate-12 text-heading-2">
                   {{ mmdd(selectedDate) }} {{ weekdayOf(selectedDate) }}
                 </h2>
                 <span class="text-xs text-n-slate-10"
@@ -793,7 +793,7 @@ onMounted(() => {
                     </template>
                     <span
                       v-if="isOverdue(e)"
-                      class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-n-ruby-11 bg-n-ruby-3"
+                      class="ml-1.5 px-1.5 py-0.5 text-n-ruby-11 bg-n-ruby-3 text-label-small rounded-full"
                       >逾期</span
                     >
                   </div>
@@ -829,7 +829,7 @@ onMounted(() => {
           <template v-else>
             <section v-for="grp in agendaGroups" :key="grp.key">
               <div class="flex items-center gap-2 mb-2">
-                <h2 class="text-[15px] font-semibold text-n-slate-12">
+                <h2 class="text-n-slate-12 text-heading-2">
                   {{ grp.title }}
                 </h2>
                 <span class="text-xs text-n-slate-10"
@@ -1027,7 +1027,7 @@ onMounted(() => {
         class="w-full max-w-[460px] max-h-[90vh] overflow-auto p-5 rounded-2xl bg-n-solid-1 shadow-xl border border-n-weak"
       >
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-semibold text-n-slate-12">
+          <h3 class="text-n-slate-12 text-heading-3">
             {{ form.id ? '编辑日程' : '新建日程' }}
           </h3>
           <button
@@ -1133,7 +1133,7 @@ onMounted(() => {
               <DatePicker v-model="form.date" block :clearable="false" />
             </div>
             <label
-              class="flex items-center gap-1.5 text-sm text-n-slate-11 shrink-0"
+              class="flex items-center gap-1.5 text-n-slate-11 shrink-0 text-label"
             >
               <input
                 v-model="form.allDay"
@@ -1278,7 +1278,7 @@ onMounted(() => {
               取消
             </button>
             <button
-              class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
+              class="px-4 py-2 disabled:opacity-60 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="saving"
               @click="save"
             >
@@ -1299,7 +1299,7 @@ onMounted(() => {
         class="w-full max-w-[440px] max-h-[90vh] overflow-auto p-5 rounded-2xl bg-n-solid-1 shadow-xl border border-n-weak"
       >
         <div class="flex items-center justify-between mb-1">
-          <h3 class="text-base font-semibold text-n-slate-12">完成跟进</h3>
+          <h3 class="text-n-slate-12 text-heading-3">完成跟进</h3>
           <button
             class="grid rounded-lg size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2"
             @click="completeDialog = false"

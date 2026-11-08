@@ -257,15 +257,13 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1
-          class="text-xl md:text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
+        <h1 class="text-n-slate-12 text-heading-1">
           {{ t('CRM.FUNNEL.HEADER') }}
         </h1>
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
@@ -392,7 +390,7 @@ onMounted(() => {
               {{ col.label }}
             </span>
             <span
-              class="px-1.5 py-0.5 ml-auto text-xs rounded-md bg-n-alpha-2 text-n-slate-11"
+              class="px-1.5 py-0.5 ml-auto bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
             >
               {{ col.items.length }}
             </span>

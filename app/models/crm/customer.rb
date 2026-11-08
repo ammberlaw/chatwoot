@@ -43,6 +43,8 @@
 #  trade_city               :string
 #  trade_country            :string
 #  trade_region             :string
+#  vat_no                   :string
+#  vat_verified_at          :datetime
 #  website                  :string
 #  wechat                   :string
 #  whats_app                :string
@@ -69,6 +71,9 @@
 #  fk_rails_...  (account_id => accounts.id)
 #
 class Crm::Customer < ApplicationRecord
+  # 标签：复用 Chatwoot 自带的 acts_as_taggable（联系人和会话一直在用这套）。
+  # 不加列、不建表，标签存在公共的 taggings 表里。
+  include Labelable
   include Crm::CustomerScoring
   # 选项集合（对应 A-CRM SELECT 字段的 value 集合）
   TRADE_REGIONS = %w[NORTH_AMERICA EUROPE SOUTH_AMERICA MIDDLE_EAST SOUTHEAST_ASIA AFRICA OTHER].freeze

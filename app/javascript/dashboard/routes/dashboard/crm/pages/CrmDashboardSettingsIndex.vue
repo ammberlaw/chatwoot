@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 // 看板设置：目前只管「谁计入成交排行」。
 // 名单只列 CRM 成员（crm=true，口径见 AccountUser#can_access_crm?）：车间、仓管、质检
 // 这些岗位从不持有客户，摆进来只是让人在四十来个名字里找人更费劲。
@@ -10,6 +12,7 @@ import { useAlert } from 'dashboard/composables';
 import MembersAPI from 'dashboard/api/crm/members';
 import Input from 'dashboard/components-next/input/Input.vue';
 
+const { t } = useI18n();
 const members = ref([]);
 const loading = ref(false);
 const savingId = ref(null);
@@ -75,47 +78,65 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1">
-    <header class="px-5 py-6 sm:px-8">
-      <h1 class="text-heading-1 text-n-slate-12">看板设置</h1>
-    </header>
-
-    <div class="px-5 sm:px-8">
-      <h2 class="text-heading-3 text-n-slate-12">计入成交排行的人</h2>
-      <p class="mt-1 text-label-small text-n-slate-11">
-        勾上的人当期没成交也会以 ¥0 留在排行里；有订单的人不受此开关影响。
-      </p>
-      <div class="flex items-center gap-2 mt-4">
-        <Input v-model="keyword" placeholder="搜成员" class="w-60" />
-        <span class="text-label-small text-n-slate-11">
-          已选 {{ pickedCount }} 人
-        </span>
+  <CrmSettingsLayout
+    :title="t('CRM.SETTINGS_PAGE.DASHBOARD')"
+    :description="t('CRM.SETTINGS_PAGE.DASHBOARD_NOTE')"
+  >
+    <template #toolbar>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <Input
+          v-model="keyword"
+          :placeholder="t('CRM.SETTINGS_PAGE.SEARCH_MEMBERS')"
+          class="w-full sm:w-72"
+        />
+        <span class="text-label-small text-n-slate-11"
+          >{{ t('CRM.SETTINGS_PAGE.PICKED', { count: pickedCount }) }} ·
+          {{ t('CRM.SETTINGS_PAGE.AUTO_SAVE') }}</span
+        >
       </div>
-    </div>
-
-    <div class="flex-1 px-5 py-4 overflow-auto sm:px-8">
-      <p v-if="loading" class="py-10 text-sm text-center text-n-slate-10">
-        加载中…
-      </p>
-      <div v-else class="flex flex-col max-w-2xl gap-1">
+    </template>
+    <p v-if="loading" class="py-12 text-center text-label text-n-slate-11">
+      {{ t('CRM.SETTINGS_PAGE.LOADING') }}
+    </p>
+    <section
+      v-else
+      class="rounded-2xl border border-n-weak bg-n-solid-1 p-5 sm:p-6"
+    >
+      <h2 class="mb-5 text-heading-2 text-n-slate-12">
+        {{ t('CRM.SETTINGS_PAGE.RANK_MEMBERS') }}
+      </h2>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <label
           v-for="m in visible"
           :key="m.id"
-          class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+          class="flex min-h-14 min-w-0 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors"
+          :class="
+            m.in_sales_rank
+              ? 'border-n-slate-7 bg-n-alpha-2'
+              : 'border-n-weak hover:bg-n-alpha-1'
+          "
         >
           <input
             type="checkbox"
-            class="accent-n-iris-9"
+            class="size-4 shrink-0 accent-n-slate-12"
             :checked="m.in_sales_rank"
             :disabled="savingId === m.id"
             @change="toggle(m, $event.target.checked)"
           />
-          <span class="font-medium text-n-slate-12">{{ m.name }}</span>
-          <span class="ml-auto text-label-small text-n-slate-10">
-            {{ roleLabel(m) }}
-          </span>
+          <span class="min-w-0 flex-1 truncate text-label text-n-slate-12">{{
+            m.name
+          }}</span>
+          <span class="shrink-0 text-label-small text-n-slate-11">{{
+            roleLabel(m)
+          }}</span>
         </label>
       </div>
-    </div>
-  </div>
+      <p
+        v-if="!visible.length"
+        class="mb-0 py-8 text-center text-label-small text-n-slate-11"
+      >
+        {{ t('CRM.SETTINGS_PAGE.NO_MATCHES') }}
+      </p>
+    </section>
+  </CrmSettingsLayout>
 </template>

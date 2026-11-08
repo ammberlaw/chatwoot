@@ -194,16 +194,12 @@ onUnmounted(() => timer && clearInterval(timer));
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex flex-col flex-shrink-0 gap-2 px-4 pt-4 pb-1.5 sm:px-[26px] sm:pt-[18px]"
     >
-      <h1
-        class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold"
-      >
-        展会名片
-      </h1>
+      <h1 class="text-n-slate-12 text-heading-1">展会名片</h1>
       <p class="text-label-small text-n-slate-11">
         现场只管连拍，识别在后台跑；回头在这页校对、确认建客户。
       </p>
@@ -247,7 +243,7 @@ onUnmounted(() => timer && clearInterval(timer));
         <button
           type="button"
           :disabled="uploading > 0"
-          class="flex items-center justify-center w-full gap-2 text-base font-semibold text-white rounded-xl reset-base h-14 bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+          class="flex items-center justify-center w-full gap-2 rounded-xl reset-base h-14 disabled:opacity-60 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
           @click="fileInput?.click()"
         >
           <span class="i-lucide-camera size-5 shrink-0" />

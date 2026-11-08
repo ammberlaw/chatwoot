@@ -816,12 +816,12 @@ onMounted(fetchMine);
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">考勤</h1>
+      <h1 class="text-n-slate-12 text-heading-1">考勤</h1>
       <div class="flex flex-wrap items-center gap-2" data-tabbar="page">
         <button
           :aria-selected="view === 'mine'"
@@ -907,13 +907,13 @@ onMounted(fetchMine);
           </div>
           <span
             v-if="todayRec"
-            class="px-2 py-0.5 text-xs rounded-full"
+            class="px-2 py-0.5 text-label-small rounded-full"
             :class="STATUS_META[todayRec.status]?.cls"
           >
             {{ STATUS_META[todayRec.status]?.label }}
           </span>
           <button
-            class="h-10 px-6 text-sm font-medium text-white rounded-xl shrink-0 whitespace-nowrap bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-10 px-6 rounded-xl shrink-0 whitespace-nowrap disabled:opacity-50 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="clocking"
             @click="clock()"
           >
@@ -984,7 +984,7 @@ onMounted(fetchMine);
               <span class="text-xs text-n-slate-12">{{ d }}</span>
               <span
                 v-if="dayStatus(d)"
-                class="px-1.5 py-0.5 text-[10px] rounded-full"
+                class="px-1.5 py-0.5 text-label-small rounded-full"
                 :class="STATUS_META[dayStatus(d)]?.cls"
               >
                 {{ STATUS_META[dayStatus(d)]?.label }}
@@ -1006,7 +1006,7 @@ onMounted(fetchMine);
           <span
             v-for="(meta, key) in STATUS_META"
             :key="key"
-            class="px-1.5 py-0.5 text-[10px] rounded-full"
+            class="px-1.5 py-0.5 text-label-small rounded-full"
             :class="meta.cls"
           >
             {{ meta.label }}
@@ -1184,7 +1184,7 @@ onMounted(fetchMine);
           <span
             v-for="p in notClockedToday"
             :key="p.user_id"
-            class="px-2 py-0.5 text-xs rounded-full bg-n-solid-1/70 text-n-slate-11"
+            class="px-2 py-0.5 bg-n-solid-1/70 text-n-slate-11 text-label-small rounded-full"
           >
             {{ p.name }}
           </span>
@@ -1557,7 +1557,7 @@ onMounted(fetchMine);
                 <span
                   v-for="d in groupForm.holidays"
                   :key="d"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
                 >
                   {{ d }}
                   <button
@@ -1590,7 +1590,7 @@ onMounted(fetchMine);
                 <span
                   v-for="d in groupForm.extraWorkdays"
                   :key="d"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
                 >
                   {{ d }}
                   <button
@@ -1643,7 +1643,7 @@ onMounted(fetchMine);
                       {{ deptSelectedCount(g) }}/{{ g.members.length }}
                     </span>
                     <label
-                      class="flex items-center gap-1 ml-auto text-xs cursor-pointer text-n-slate-11"
+                      class="flex items-center gap-1 ml-auto cursor-pointer text-n-slate-11 text-label"
                     >
                       <input
                         type="checkbox"
@@ -1662,7 +1662,7 @@ onMounted(fetchMine);
                     <label
                       v-for="a in g.members"
                       :key="a.id"
-                      class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                      class="flex items-center gap-1.5 cursor-pointer text-n-slate-11 text-label"
                     >
                       <input
                         type="checkbox"
@@ -1684,7 +1684,7 @@ onMounted(fetchMine);
             </div>
             <div class="flex items-center gap-2">
               <button
-                class="h-9 px-5 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+                class="h-9 px-5 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                 :disabled="
                   savingSetting ||
                   !groupForm.name.trim() ||
@@ -1745,7 +1745,7 @@ onMounted(fetchMine);
         <div class="flex justify-end">
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-9 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="adjusting"
             @click="saveAdjust"
           >

@@ -60,12 +60,14 @@ def preview
     @quote.handled_by_id ||= current_user.id
     @quote.save!
     recompute_totals!
+    Crm::OpportunityStageSync.from_quote(@quote.reload)
     render :show
   end
 
   def update
     @quote.update!(quote_params)
     recompute_totals!
+    Crm::OpportunityStageSync.from_quote(@quote.reload)
     render :show
   end
 

@@ -662,7 +662,7 @@ const openForward = () => {
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="flex flex-col md:flex-row md:items-center md:justify-between flex-shrink-0 gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
@@ -674,18 +674,18 @@ const openForward = () => {
         >
           {{ t('CRM.COMMISSION.DETAIL.BACK') }}
         </button>
-        <h1 class="text-lg font-medium truncate min-w-0 text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1 class="truncate min-w-0 text-n-slate-12 text-heading-1">
           {{ title }}
         </h1>
         <span
           v-if="sheet"
-          class="inline-flex px-2 py-0.5 rounded-full text-xs shrink-0 bg-n-iris-3 text-n-iris-11"
+          class="inline-flex px-2 py-0.5 shrink-0 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
         >
           {{ t(`CRM.COMMISSION.STATUS.${status}`) }}
         </span>
         <span
           v-if="sheet && sheet.paidAt"
-          class="inline-flex px-2 py-0.5 rounded-full text-xs shrink-0 bg-n-teal-3 text-n-teal-11"
+          class="inline-flex px-2 py-0.5 shrink-0 bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
         >
           {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
         </span>
@@ -739,7 +739,7 @@ const openForward = () => {
           </button>
           <button
             v-if="canSubmit"
-            class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="h-8 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="isBusy"
             @click="submit"
           >
@@ -1436,7 +1436,7 @@ const openForward = () => {
         <div
           class="flex items-center justify-between px-5 py-3 border-b border-n-weak"
         >
-          <h2 class="text-sm font-semibold text-n-slate-12">
+          <h2 class="text-n-slate-12 text-heading-2">
             {{ t('CRM.COMMISSION.DETAIL.IMPORT_ORDERS') }}
           </h2>
           <button
@@ -1544,7 +1544,7 @@ const openForward = () => {
               {{ t('CRM.COMMISSION.DETAIL.CANCEL') }}
             </button>
             <button
-              class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+              class="h-8 px-4 disabled:opacity-50 text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
               :disabled="pickerBusy || !pickerSelected.length"
               @click="importSelectedOrders"
             >

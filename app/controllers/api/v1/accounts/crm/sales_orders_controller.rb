@@ -51,6 +51,8 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     copy_source_attachment(source_attachment)
     @sales_order.save!
     remember_product_choices(@sales_order.line_items)
+    # 不走 PI 直接手工建的单也要推商机（PI 那条路在 PisController 里已经推过）。
+    Crm::OpportunityStageSync.from_order(@sales_order)
     notify_approval_pending(@sales_order)
   end
 

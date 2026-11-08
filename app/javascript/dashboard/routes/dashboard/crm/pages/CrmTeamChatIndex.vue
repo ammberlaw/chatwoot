@@ -638,6 +638,17 @@ const REF_ROUTES = {
     params: { accountId: accountId.value },
     query: { focus: String(t.id) },
   }),
+  // WhatsApp 待回复提醒：卡片上的 id 是会话 display_id，点开直接进那串对话。
+  whatsapp_chat: t => ({
+    name: 'inbox_conversation',
+    params: { accountId: accountId.value, conversation_id: String(t.id) },
+  }),
+  // WhatsApp 掉线提醒：扫码在「邮箱 / WhatsApp 绑定」页，那是整页没有单据 id，
+  // 卡片带的 inbox id 不参与路由（同 quote_request）。
+  whatsapp_binding: () => ({
+    name: 'crm_mail_accounts_index',
+    params: { accountId: accountId.value },
+  }),
   // 邮件深链要「客户 + 邮件」两个参数才打得开那一封；没关联客户就只到邮件中心。
   email: t =>
     t.snapshot?.customer_id
@@ -663,6 +674,8 @@ const REF_ICONS = {
   quote_request: 'i-lucide-calculator',
   email: 'i-lucide-mail',
   oa_approval: 'i-lucide-stamp',
+  whatsapp_chat: 'i-lucide-message-circle',
+  whatsapp_binding: 'i-lucide-smartphone',
 };
 
 const refIcon = t => REF_ICONS[t?.type] || 'i-lucide-file-text';
@@ -1090,7 +1103,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="w-full h-full overflow-hidden bg-transparent">
     <div
-      class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
+      class="flex w-full h-full overflow-hidden border backdrop-blur-2xl backdrop-saturate-150 rounded-3xl bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
     >
       <!-- 左：会话列表（手机端：有选中会话时隐藏，让消息区占满） -->
       <aside
@@ -1117,9 +1130,7 @@ onBeforeUnmount(() => {
         <div
           class="flex items-center justify-between px-5 pb-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
         >
-          <h1
-            class="text-xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-          >
+          <h1 class="text-n-slate-12 text-heading-1">
             {{ L.messages }}
           </h1>
           <div class="flex gap-0.5">
@@ -1260,7 +1271,7 @@ onBeforeUnmount(() => {
               hide-offline-status
             />
             <div class="min-w-0">
-              <h2 class="text-[15px] font-semibold truncate text-n-slate-12">
+              <h2 class="truncate text-n-slate-12 text-heading-2">
                 {{ activeConv.name }}
               </h2>
               <div class="flex items-center gap-1.5 mt-0.5">
@@ -1738,7 +1749,7 @@ onBeforeUnmount(() => {
                 :disabled="
                   !newText.trim() && !pendingFiles.length && !pendingRef
                 "
-                class="grid transition-colors rounded-full shrink-0 size-9 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7"
+                class="grid transition-colors rounded-full shrink-0 size-9 place-items-center disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 text-label bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 duration-150"
                 @click="sendMessage"
               >
                 <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
@@ -1765,7 +1776,7 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 :disabled="!selectedIds.length"
-                class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="inline-flex items-center gap-1.5 h-9 px-4 disabled:opacity-40 disabled:cursor-not-allowed text-label rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
                 @click="openForward()"
               >
                 <Icon icon="i-lucide-forward" class="size-4" />
@@ -1862,7 +1873,7 @@ onBeforeUnmount(() => {
             <label
               v-for="a in otherAgents"
               :key="a.id"
-              class="flex items-center gap-2 p-2 text-sm rounded-lg cursor-pointer hover:bg-n-alpha-1"
+              class="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-n-alpha-1 text-label"
             >
               <input
                 v-model="groupForm.memberIds"
@@ -1988,7 +1999,7 @@ onBeforeUnmount(() => {
               </span>
               <span
                 v-if="p.user_id === activeConv?.creator_id"
-                class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-n-iris-3 text-n-iris-11"
+                class="px-2 py-0.5 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
               >
                 {{ L.ownerBadge }}
               </span>

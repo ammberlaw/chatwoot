@@ -187,7 +187,7 @@ const attachToCustomer = async row => {
     >
       <div class="flex items-center gap-2">
         <span
-          class="px-1.5 py-0.5 text-[11px] text-white rounded"
+          class="px-1.5 py-0.5 text-white text-label-small rounded-full"
           :class="style.badgeCls"
         >
           {{ style.badge }}

@@ -537,7 +537,7 @@ onMounted(load);
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <div
       class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6 [.theme-classic_&]:max-w-none [.theme-classic_&]:lg:!px-8"
@@ -545,9 +545,7 @@ onMounted(load);
       <div
         class="flex items-center justify-between mb-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:mb-6 [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
-          标准价目表
-        </h1>
+        <h1 class="text-n-slate-12 text-heading-1">标准价目表</h1>
         <div
           class="flex items-center gap-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:[&>button]:!rounded-xl [.theme-classic_&]:[&>button]:!border-[#e3e4df] [.theme-classic_&]:[&>button]:!outline-[#e3e4df] [.theme-classic_&]:[&>button]:!text-[#292b2b] [.theme-classic_&]:[&>button]:!bg-[#f7f8fa] [.theme-classic_&]:[&>button:last-child]:!bg-[#ffd34f] [.theme-classic_&]:[&>button:last-child]:!outline-transparent"
         >
@@ -676,7 +674,7 @@ onMounted(load);
           />
           <span
             v-if="detail.status !== 'PUBLISHED'"
-            class="px-2 py-0.5 text-xs rounded-full"
+            class="px-2 py-0.5 text-label-small rounded-full"
             :class="
               detail.status === 'PUBLISHED'
                 ? 'bg-n-teal-3 text-n-teal-11'
@@ -726,7 +724,7 @@ onMounted(load);
             >
               <label
                 v-if="detail.has_images"
-                class="flex items-center gap-2 px-2 py-1 text-sm rounded cursor-pointer hover:bg-n-alpha-1"
+                class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-n-alpha-1 text-label"
               >
                 <input
                   type="checkbox"
@@ -738,7 +736,7 @@ onMounted(load);
               <label
                 v-for="c in columns"
                 :key="`vis-${c.label}`"
-                class="flex items-center gap-2 px-2 py-1 text-sm rounded cursor-pointer hover:bg-n-alpha-1"
+                class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-n-alpha-1 text-label"
               >
                 <input
                   type="checkbox"
@@ -802,7 +800,7 @@ onMounted(load);
                 class="object-contain w-12 h-9 rounded bg-n-alpha-1 shrink-0"
               />
               <span
-                class="px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11 shrink-0"
+                class="px-2 py-0.5 bg-n-iris-3 text-n-iris-11 shrink-0 text-label-small rounded-full"
               >
                 {{ row.product_line }}
               </span>
@@ -952,7 +950,7 @@ onMounted(load);
                     <img
                       v-if="item.image_url"
                       :src="item.image_url"
-                      class="object-contain w-[60px] h-11 rounded cursor-zoom-in bg-n-alpha-1"
+                      class="object-contain w-[60px] h-11 rounded cursor-zoom-in bg-transparent"
                       @click="openPreview(item)"
                     />
                   </td>
@@ -983,7 +981,7 @@ onMounted(load);
                     <img
                       v-if="row.image_url"
                       :src="row.image_url"
-                      class="object-contain w-[60px] h-11 rounded cursor-pointer bg-n-alpha-1"
+                      class="object-contain w-[60px] h-11 rounded cursor-pointer bg-transparent"
                       @click="pickRowImage(ri)"
                     />
                     <Button

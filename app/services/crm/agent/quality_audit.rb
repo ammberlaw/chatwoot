@@ -15,6 +15,11 @@ class Crm::Agent::QualityAudit
 
   # 工具回了这些话＝这条路走不通。命中不代表助手有错（有时确实没有），
   # 但**连着撞墙还不换路**就是问题，所以只统计不定性。
+  #
+  # 匹配的是步骤 meta 里的 result_digest（工具返回的前 200 字，见 StepRecorder）。
+  # 原来匹配的是 content，而 content 存的是步骤标签「做客户背调」——
+  # 这个信号因此从上线起一次没响过（2026-11-06 核实：生产 460 次调用撞墙率恒为 0）。
+  # 2026-11-06 之前的老会话没有 result_digest，这个信号在它们身上照旧不响，没法追溯。
   DEAD_END_HINTS = %w[没找到 查不到 看不到 不在你的可见范围 没有可用 不是有效].freeze
 
   # 最后一条回答里出现这些＝它把问题丢回给用户了。
@@ -28,7 +33,7 @@ class Crm::Agent::QualityAudit
   PLACEHOLDER_ARGS = ['"email_id":0', '"email_id": 0', '"customer_id":0', '"customer_id": 0',
                       '"body":"x"', '"body": "x"'].freeze
 
-  Finding = Struct.new(:conversation_id, :user_name, :question, :signals, :tool_calls, :turns,
+  Finding = Struct.new(:conversation_id, :user_name, :question, :title, :signals, :tool_calls, :turns,
                        keyword_init: true)
 
   def initialize(account:, date: Date.yesterday)
@@ -57,7 +62,10 @@ class Crm::Agent::QualityAudit
 
     Finding.new(
       conversation_id: convo.id, user_name: convo.user&.name,
-      question: first_question(msgs), signals: signals,
+      # 机器发起的那些（新询盘初筛、自动预写）没有用户提问，只有会话名——
+      # 它们占了一多半（生产近 14 天 122 轮里 68 轮），报告里不能一律标成「图片/附件」。
+      question: first_question(msgs), title: convo.title,
+      signals: signals,
       tool_calls: msgs.count { |m| m.meta['tool'].present? },
       turns: msgs.count { |m| m.role == 'user' }
     )
@@ -70,7 +78,10 @@ class Crm::Agent::QualityAudit
     '回头跟用户要信息' => ->(a, msgs, _tools) { a.send(:ask_back?, msgs) },
     '用户当场纠正' => ->(a, msgs, _tools) { a.send(:user_corrected?, msgs) },
     '拿占位值试工具' => ->(a, _msgs, tools) { a.send(:placeholder?, tools) },
-    '有工具没跑完' => ->(_a, _msgs, tools) { tools.any? { |m| m.meta['status'].blank? } },
+    # 跑崩的那次 close_dangling 会把状态落成 failed，不是留空——判 blank? 只抓得到
+    # 2026-10-24 以前没有 status 字段的老数据，真正崩掉的一次（2026-11-03 背调崩在
+    # steliau.fr）反而不响。done 之外的一切都算没跑完。
+    '有工具没跑完' => ->(_a, _msgs, tools) { tools.any? { |m| m.meta['status'].to_s != 'done' } },
     '问一次就走' => lambda { |_a, msgs, tools|
       msgs.count { |m| m.role == 'user' } == 1 && tools.size >= 3
     }
@@ -90,7 +101,12 @@ class Crm::Agent::QualityAudit
   end
 
   def dead_ends(msgs)
-    msgs.count { |m| m.meta['tool'].present? && DEAD_END_HINTS.any? { |h| m.content.to_s.include?(h) } }
+    msgs.count do |m|
+      next false if m.meta['tool'].blank?
+
+      digest = m.meta['result_digest'].to_s
+      DEAD_END_HINTS.any? { |h| digest.include?(h) }
+    end
   end
 
   # 只看**最后一条**助手回答：中间问一句很正常，一轮结束还在要信息才是问题。

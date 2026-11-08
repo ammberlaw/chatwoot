@@ -1,0 +1,30 @@
+json.id campaign.id
+json.name campaign.name
+json.status campaign.status
+json.target_markets campaign.target_markets
+json.product_hint campaign.product_hint
+# 编辑弹窗要回填这两项，不序列化就会被清空。
+json.screen_criteria campaign.screen_criteria
+json.default_customer_group campaign.default_customer_group
+json.auto_run campaign.auto_run
+# 挖到的线索进不进共享池。不勾的只有负责人自己看得见、领得走。
+json.shared campaign.shared
+json.owner_id campaign.owner_id
+json.auto_run_at campaign.auto_run_at
+json.seed_keywords campaign.seed_keywords
+json.target_count campaign.target_count
+json.profile campaign.profile
+json.keywords campaign.keywords
+# 画像里哪几条是模型推的——前端据此标「发信前先核实」。
+json.inferred_fields campaign.inferred_fields
+# 喂给模型的真实数据，摆出来让人看得见画像是从哪来的。
+json.facts campaign.evidence['facts']
+json.run_model campaign.run_model
+json.profiled_at campaign.profiled_at
+json.owner_name campaign.owner&.crm_display_name
+json.lead_count campaign.leads.size
+json.last_error campaign.last_error
+# Apollo 词表里不存在的搜索词。摆出来让人知道哪些词是白写的——
+# 不摆的话这些词永远静静地产出 0 条，没人知道为什么。
+json.dead_keywords campaign.dead_keywords
+json.created_at campaign.created_at

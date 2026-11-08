@@ -151,9 +151,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       v-if="!embedded"
       class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1
-        class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
+      <h1 class="text-n-slate-12 text-heading-1">
         {{ t('CRM.OPPORTUNITIES.HEADER') }}
       </h1>
     </div>
@@ -210,14 +208,14 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
                 {{ record.name }}
               </span>
               <span
-                class="px-2 py-0.5 rounded text-xs font-medium shrink-0"
+                class="px-2 py-0.5 shrink-0 text-label-small rounded-full"
                 :class="STAGES[record.salesStage]?.class"
               >
                 {{ STAGES[record.salesStage]?.label || record.salesStage }}
               </span>
               <span
                 v-if="record.salesStage === 'LOST' && record.lossReason"
-                class="px-1.5 py-0.5 rounded text-xs bg-n-ruby-3 text-n-ruby-11 shrink-0"
+                class="px-1.5 py-0.5 bg-n-ruby-3 text-n-ruby-11 shrink-0 text-label-small rounded-full"
               >
                 {{ LOSS_REASONS[record.lossReason] || record.lossReason }}
               </span>
@@ -322,14 +320,14 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
               </td>
               <td class="px-3 py-2 whitespace-nowrap">
                 <span
-                  class="px-2 py-0.5 rounded text-xs font-medium"
+                  class="px-2 py-0.5 text-label-small rounded-full"
                   :class="STAGES[record.salesStage]?.class"
                 >
                   {{ STAGES[record.salesStage]?.label || record.salesStage }}
                 </span>
                 <span
                   v-if="record.salesStage === 'LOST' && record.lossReason"
-                  class="ml-1 px-1.5 py-0.5 rounded text-xs bg-n-ruby-3 text-n-ruby-11"
+                  class="ml-1 px-1.5 py-0.5 bg-n-ruby-3 text-n-ruby-11 text-label-small rounded-full"
                 >
                   {{ LOSS_REASONS[record.lossReason] || record.lossReason }}
                 </span>

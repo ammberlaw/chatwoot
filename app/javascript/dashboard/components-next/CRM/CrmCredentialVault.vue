@@ -380,7 +380,7 @@ const groupManagerApi = {
             </span>
             <span
               v-if="!isPersonal"
-              class="px-1.5 py-0.5 text-[11px] rounded-full shrink-0 bg-n-slate-3 text-n-slate-11"
+              class="px-1.5 py-0.5 shrink-0 bg-n-slate-3 text-n-slate-11 text-label-small rounded-full"
             >
               {{ groupName(entry.group_id) }}
             </span>

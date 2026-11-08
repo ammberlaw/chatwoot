@@ -79,7 +79,7 @@ class Crm::AgentQualityJob < ApplicationJob
 
   def evidence_block(audit)
     rows = audit[:findings].first(MAX_LISTED).map do |f|
-      "· #{f.user_name}｜#{f.question.presence || '（图片/附件）'}\n  工具 #{f.tool_calls} 次、#{f.turns} 轮｜#{f.signals.join('、')}"
+      "· #{f.user_name}｜#{f.question.presence || f.title.presence || '（图片/附件）'}\n  工具 #{f.tool_calls} 次、#{f.turns} 轮｜#{f.signals.join('、')}"
     end
     more = audit[:findings].size - rows.size
     ['机检命中的对话：', *rows, (more.positive? ? "（另有 #{more} 轮，去「AI 助手」历史里翻）" : nil)].compact.join("\n")

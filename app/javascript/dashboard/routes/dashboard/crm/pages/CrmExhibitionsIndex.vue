@@ -429,14 +429,14 @@ onMounted(loadList);
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
   >
     <!-- 头部 -->
     <div
       class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak shrink-0 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center min-w-0 gap-2">
-        <h1 class="text-xl font-semibold truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">展会邀约</h1>
+        <h1 class="truncate text-n-slate-12 text-heading-1">展会邀约</h1>
         <span class="text-sm text-n-slate-10"
           >按展会从自己的客户里筛人、AI 生成邀请函、追邀约进度</span
         >
@@ -491,7 +491,7 @@ onMounted(loadList);
             >
             <span
               v-if="ex.stageCounts && ex.stageCounts.accepted"
-              class="px-1.5 py-0.5 text-2xs rounded-full bg-n-teal-3 text-n-teal-11"
+              class="px-1.5 py-0.5 text-2xs bg-n-teal-3 text-n-teal-11 text-label-small rounded-full"
             >
               已接受 {{ ex.stageCounts.accepted }}
             </span>
@@ -515,7 +515,7 @@ onMounted(loadList);
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <h2 class="text-lg font-semibold truncate text-n-slate-12">
+                <h2 class="truncate text-n-slate-12 text-heading-2">
                   {{ detail.name }}
                 </h2>
                 <div
@@ -582,7 +582,7 @@ onMounted(loadList);
 
           <!-- 名单头 -->
           <div class="flex items-center justify-between gap-2">
-            <h3 class="text-base font-semibold text-n-slate-12">
+            <h3 class="text-n-slate-12 text-heading-3">
               邀约名单
               <span class="text-sm font-normal text-n-slate-10"
                 >（{{ detail.invites.length }}）</span
@@ -679,7 +679,7 @@ onMounted(loadList);
                   <td class="py-2.5 pr-3 whitespace-nowrap">
                     <span
                       v-if="inv.matchLevel && MATCH_META[inv.matchLevel]"
-                      class="px-1.5 py-0.5 text-2xs rounded-full"
+                      class="px-1.5 py-0.5 text-2xs text-label-small rounded-full"
                       :class="MATCH_META[inv.matchLevel].cls"
                     >
                       {{ MATCH_META[inv.matchLevel].label }}
@@ -687,7 +687,7 @@ onMounted(loadList);
                   </td>
                   <td class="py-2.5 pr-3 whitespace-nowrap">
                     <span
-                      class="px-1.5 py-0.5 text-2xs rounded-full"
+                      class="px-1.5 py-0.5 text-2xs text-label-small rounded-full"
                       :class="STAGE_META[inv.stage].cls"
                     >
                       {{ STAGE_META[inv.stage].label }}
@@ -811,7 +811,7 @@ onMounted(loadList);
     >
       <div class="flex flex-col gap-3">
         <div class="flex items-center justify-between gap-2">
-          <label class="flex items-center gap-2 text-sm text-n-slate-11">
+          <label class="flex items-center gap-2 text-n-slate-11 text-label">
             <input
               v-model="includeLow"
               type="checkbox"
@@ -869,7 +869,7 @@ onMounted(loadList);
             </div>
             <span
               v-if="MATCH_META[c.matchLevel]"
-              class="px-1.5 py-0.5 text-2xs rounded-full shrink-0"
+              class="px-1.5 py-0.5 text-2xs shrink-0 text-label-small rounded-full"
               :class="MATCH_META[c.matchLevel].cls"
             >
               {{ MATCH_META[c.matchLevel].label }}
@@ -950,7 +950,7 @@ onMounted(loadList);
               </div>
             </div>
             <span
-              class="px-1.5 py-0.5 text-2xs rounded-full shrink-0 bg-n-iris-3 text-n-iris-11"
+              class="px-1.5 py-0.5 text-2xs shrink-0 bg-n-iris-3 text-n-iris-11 text-label-small rounded-full"
             >
               新买家
             </span>
@@ -1015,7 +1015,7 @@ onMounted(loadList);
               </div>
             </div>
             <span
-              class="px-1.5 py-0.5 text-2xs rounded-full shrink-0"
+              class="px-1.5 py-0.5 text-2xs shrink-0 text-label-small rounded-full"
               :class="STAGE_META[inv.stage].cls"
             >
               {{ STAGE_META[inv.stage].label }}

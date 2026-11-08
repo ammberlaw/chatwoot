@@ -167,12 +167,12 @@ const onUnlocked = () => load();
         <div v-if="sheet" class="flex flex-wrap items-center gap-3">
           <h1 class="text-heading-1 text-n-slate-12">{{ sheet.title }}</h1>
           <span
-            class="px-2 py-0.5 rounded bg-n-alpha-2 text-label-small text-n-slate-11"
+            class="px-2 py-0.5 bg-n-alpha-2 text-label-small text-n-slate-11 rounded-full"
           >
             {{ sheet.templateLabel }}
           </span>
           <span
-            class="px-2 py-0.5 rounded text-label-small"
+            class="px-2 py-0.5 text-label-small rounded-full"
             :class="
               sheet.status === 'CONFIRMED'
                 ? 'bg-n-teal-3 text-n-teal-11'

@@ -333,7 +333,7 @@ const togglePicker = key => {
                 </div>
                 <span
                   v-if="sec.is_protected"
-                  class="px-1.5 py-0.5 text-xs rounded text-n-slate-10 bg-n-alpha-1 shrink-0"
+                  class="px-1.5 py-0.5 text-n-slate-10 bg-n-alpha-1 shrink-0 text-label-small rounded-full"
                 >
                   系统{{ itemLabel }}
                 </span>

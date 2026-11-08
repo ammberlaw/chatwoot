@@ -1,4 +1,6 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+import CrmSettingsLayout from 'dashboard/components-next/CRM/CrmSettingsLayout.vue';
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import camelcaseKeys from 'camelcase-keys';
@@ -12,6 +14,7 @@ import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 定制报价的参数模板：每条产品线配一套字段，业务员发起申请时按产品线套用。
 // 字段定义结构与 OA 审批模板一致（key/label/type/required/options），前端渲染逻辑同源。
+const { t: translate } = useI18n();
 const isClassic = ref(isClassicTheme());
 const goColor = computed(() => (isClassic.value ? 'amber' : 'teal'));
 
@@ -171,138 +174,132 @@ onMounted(load);
 </script>
 
 <template>
-  <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  <CrmSettingsLayout
+    width="wide"
+    :title="translate('CRM.SETTINGS_PAGE.QUOTES')"
+    :description="translate('CRM.SETTINGS_PAGE.QUOTES_NOTE')"
   >
-    <div class="w-full px-4 py-4 mx-auto max-w-5xl sm:px-8 sm:py-6">
+    <template #actions
+      ><Button
+        :label="translate('CRM.SETTINGS_PAGE.NEW_TEMPLATE')"
+        icon="i-lucide-plus"
+        :color="goColor"
+        @click="openNew"
+    /></template>
+    <p v-if="loading" class="py-8 text-label text-center text-n-slate-10">
+      {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_1') }}
+    </p>
+    <p
+      v-else-if="!rows.length"
+      class="py-10 text-label text-center text-n-slate-10"
+    >
+      {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_2') }}
+    </p>
+
+    <div v-else class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <div
-        class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
+        v-for="row in rows"
+        :key="row.id"
+        class="p-5 border rounded-2xl border-n-weak bg-n-solid-1 sm:p-6"
       >
-        <h1
-          class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-        >
-          定制报价模板
-        </h1>
-        <Button
-          label="新建模板"
-          icon="i-lucide-plus"
-          :color="goColor"
-          size="sm"
-          @click="openNew"
-        />
-      </div>
-      <p class="mt-1 mb-5 text-sm text-n-slate-11">
-        每条产品线一套参数字段，发起定制报价时按产品线带出
-      </p>
-
-      <p v-if="loading" class="py-8 text-sm text-center text-n-slate-10">
-        加载中…
-      </p>
-      <p
-        v-else-if="!rows.length"
-        class="py-10 text-sm text-center text-n-slate-10"
-      >
-        还没有模板。点「新建模板」给第一条产品线配上参数。
-      </p>
-
-      <div v-else class="flex flex-col gap-3">
-        <div
-          v-for="row in rows"
-          :key="row.id"
-          class="p-4 border rounded-2xl border-n-weak bg-n-solid-1/60"
-        >
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-semibold text-n-slate-12">
-              {{ row.productLine }}
-            </span>
-            <span class="text-sm text-n-slate-11">{{ row.name }}</span>
-            <span
-              v-if="!row.active"
-              class="px-2 py-[2px] text-[12px] rounded-full bg-n-slate-4 text-n-slate-11"
-            >
-              已停用
-            </span>
-            <span class="flex-1" />
-            <Button
-              label="编辑"
-              size="sm"
-              variant="outline"
-              color="slate"
-              @click="openEdit(row)"
-            />
-            <Button
-              label="删除"
-              size="sm"
-              variant="outline"
-              color="ruby"
-              @click="remove(row)"
-            />
-          </div>
-          <p v-if="row.description" class="mt-1 text-xs text-n-slate-10">
-            {{ row.description }}
-          </p>
-          <div class="flex flex-wrap gap-1.5 mt-2">
-            <span
-              v-for="f in row.formFields || []"
-              :key="f.key"
-              class="px-2 py-[2px] text-[12px] rounded-full bg-n-alpha-1 text-n-slate-11"
-            >
-              {{ f.label }}
-              <span class="text-n-slate-10">· {{ typeLabel(f.type) }}</span>
-              <span v-if="f.required" class="text-n-ruby-11">*</span>
-            </span>
-            <span
-              v-if="!(row.formFields || []).length"
-              class="text-xs text-n-slate-10"
-            >
-              还没配字段
-            </span>
-          </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-heading-2 text-n-slate-12">
+            {{ row.productLine }}
+          </span>
+          <span class="text-label text-n-slate-11">{{ row.name }}</span>
+          <span
+            v-if="!row.active"
+            class="px-2 py-[2px] text-label-small bg-n-slate-4 text-n-slate-11 rounded-full"
+          >
+            {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_3') }}
+          </span>
+          <span class="flex-1" />
+          <Button
+            :label="translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_4')"
+            size="sm"
+            variant="outline"
+            color="slate"
+            @click="openEdit(row)"
+          />
+          <Button
+            :label="translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_5')"
+            size="sm"
+            variant="outline"
+            color="ruby"
+            @click="remove(row)"
+          />
+        </div>
+        <p v-if="row.description" class="mt-1 text-label-small text-n-slate-10">
+          {{ row.description }}
+        </p>
+        <div class="flex flex-wrap gap-2 mt-4">
+          <span
+            v-for="f in row.formFields || []"
+            :key="f.key"
+            class="px-2 py-[2px] text-label-small bg-n-alpha-1 text-n-slate-11 rounded-full"
+          >
+            {{ f.label }}
+            <span class="text-n-slate-10">· {{ typeLabel(f.type) }}</span>
+            <span v-if="f.required" class="text-n-ruby-11">*</span>
+          </span>
+          <span
+            v-if="!(row.formFields || []).length"
+            class="text-label-small text-n-slate-10"
+          >
+            {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_6') }}
+          </span>
         </div>
       </div>
     </div>
-
     <Dialog
       ref="dialogRef"
       overflow-y-auto
-      width="3xl"
+      width="4xl"
       :title="editing ? '编辑模板' : '新建模板'"
-      description="字段名存数据用英文，显示名是业务员看到的文字"
-      confirm-button-label="保存"
+      :description="translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_7')"
+      :confirm-button-label="
+        translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_8')
+      "
       :confirm-button-color="goColor"
       :is-loading="saving"
       :dirty="isDirty"
-      dirty-save-label="保存"
+      :dirty-save-label="translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_8')"
       @confirm="save"
       @close="markPristine"
       @save="save"
     >
-      <div class="flex flex-col gap-3">
-        <div class="grid grid-cols-2 gap-3">
+      <div class="flex flex-col gap-5">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label class="flex flex-col gap-1">
-            <span class="text-sm text-n-slate-11">产品线 *</span>
+            <span class="text-label text-n-slate-11">{{
+              translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_9')
+            }}</span>
             <input
               v-model="form.productLine"
               type="text"
-              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+              class="w-full h-10 px-3 text-label border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-sm text-n-slate-11">模板名称 *</span>
+            <span class="text-label text-n-slate-11">{{
+              translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_10')
+            }}</span>
             <input
               v-model="form.name"
               type="text"
-              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+              class="w-full h-10 px-3 text-label border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
           </label>
         </div>
 
         <label class="flex flex-col gap-1">
-          <span class="text-sm text-n-slate-11">说明</span>
+          <span class="text-label text-n-slate-11">{{
+            translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_11')
+          }}</span>
           <input
             v-model="form.description"
             type="text"
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+            class="w-full h-10 px-3 text-label border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </label>
 
@@ -312,16 +309,18 @@ onMounted(load);
             type="checkbox"
             class="reset-base size-4"
           />
-          <span class="text-sm text-n-slate-11">
-            启用（停用后业务员发起申请时看不到这个模板，已有申请不受影响）
+          <span class="text-label text-n-slate-11">
+            {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_12') }}
           </span>
         </label>
 
         <div class="flex items-center gap-2 mt-2">
-          <span class="text-sm font-medium text-n-slate-12">参数字段</span>
+          <span class="text-label font-medium text-n-slate-12">{{
+            translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_13')
+          }}</span>
           <span class="flex-1" />
           <Button
-            label="加一个字段"
+            :label="translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_14')"
             icon="i-lucide-plus"
             size="sm"
             variant="outline"
@@ -332,9 +331,9 @@ onMounted(load);
 
         <p
           v-if="!form.fields.length"
-          class="py-4 text-xs text-center text-n-slate-10"
+          class="py-4 text-label text-center text-n-slate-10"
         >
-          还没有字段，点「加一个字段」开始配
+          {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_15') }}
         </p>
 
         <div
@@ -342,55 +341,70 @@ onMounted(load);
           :key="i"
           class="p-3 border rounded-xl border-n-weak bg-n-alpha-1"
         >
-          <div class="grid grid-cols-12 gap-2">
-            <label class="flex flex-col col-span-3 gap-1">
-              <span class="text-xs text-n-slate-10">字段名（英文）</span>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-12">
+            <label class="flex flex-col min-w-0 gap-2 sm:col-span-3">
+              <span class="text-label text-n-slate-10">{{
+                translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_16')
+              }}</span>
               <input
                 v-model="f.key"
                 type="text"
-                placeholder="size"
-                class="w-full h-9 px-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
+                :placeholder="
+                  translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_17')
+                "
+                class="w-full h-9 px-2 text-label border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
               />
             </label>
-            <label class="flex flex-col col-span-3 gap-1">
-              <span class="text-xs text-n-slate-10">显示名</span>
+            <label class="flex flex-col min-w-0 gap-2 sm:col-span-3">
+              <span class="text-label text-n-slate-10">{{
+                translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_18')
+              }}</span>
               <input
                 v-model="f.label"
                 type="text"
-                placeholder="尺寸"
-                class="w-full h-9 px-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
+                :placeholder="
+                  translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_19')
+                "
+                class="w-full h-9 px-2 text-label border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
               />
             </label>
-            <label class="flex flex-col col-span-3 gap-1">
-              <span class="text-xs text-n-slate-10">类型</span>
+            <label class="flex flex-col min-w-0 gap-2 sm:col-span-3">
+              <span class="text-label text-n-slate-10">{{
+                translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_20')
+              }}</span>
               <SelectCard v-model="f.type" :options="FIELD_TYPES" block />
             </label>
-            <label class="flex flex-col items-center col-span-1 gap-1">
-              <span class="text-xs text-n-slate-10">必填</span>
+            <label class="flex flex-col items-center gap-2 sm:col-span-1">
+              <span class="text-label text-n-slate-10">{{
+                translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_21')
+              }}</span>
               <input
                 v-model="f.required"
                 type="checkbox"
                 class="mt-2 reset-base size-4"
               />
             </label>
-            <div class="flex items-end justify-end col-span-2 gap-1 pb-1">
+            <div class="flex items-end justify-end gap-1 pb-1 sm:col-span-2">
               <button
                 type="button"
-                class="text-n-slate-9 hover:text-n-slate-12"
+                class="grid size-9 place-items-center rounded-lg text-n-slate-9 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                :aria-label="translate('CRM.SETTINGS_PAGE.MOVE_UP')"
                 @click="moveField(i, -1)"
               >
                 <span class="i-lucide-arrow-up size-4" />
               </button>
               <button
                 type="button"
-                class="text-n-slate-9 hover:text-n-slate-12"
+                class="grid size-9 place-items-center rounded-lg text-n-slate-9 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                :aria-label="translate('CRM.SETTINGS_PAGE.MOVE_DOWN')"
                 @click="moveField(i, 1)"
               >
                 <span class="i-lucide-arrow-down size-4" />
               </button>
               <button
                 type="button"
-                class="text-n-slate-9 hover:text-n-ruby-11"
+                class="grid size-9 place-items-center rounded-lg text-n-slate-9 hover:bg-n-alpha-2 hover:text-n-ruby-11"
+                :aria-label="translate('CRM.SETTINGS_PAGE.REMOVE_FIELD')"
                 @click="removeField(i)"
               >
                 <span class="i-lucide-x size-4" />
@@ -398,17 +412,17 @@ onMounted(load);
             </div>
           </div>
           <label v-if="f.type === 'select'" class="flex flex-col gap-1 mt-2">
-            <span class="text-xs text-n-slate-10">
-              下拉选项（用逗号分隔，例：7寸，10.1寸，15.6寸）
+            <span class="text-label text-n-slate-10">
+              {{ translate('CRM.SETTINGS_COPY.QUOTEREQUESTTEMPLATES_22') }}
             </span>
             <input
               v-model="f.optionsText"
               type="text"
-              class="w-full h-9 px-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
+              class="w-full h-9 px-2 text-label border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none"
             />
           </label>
         </div>
       </div>
     </Dialog>
-  </div>
+  </CrmSettingsLayout>
 </template>

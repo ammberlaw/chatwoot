@@ -249,7 +249,7 @@ defineExpose({ runBackgroundCheck });
       <template v-else>
         <div class="flex flex-wrap items-center gap-2">
           <span
-            class="inline-flex items-center px-2 py-0.5 text-xs rounded-md"
+            class="inline-flex items-center px-2 py-0.5 text-label-small rounded-full"
             :class="bgLegit.cls"
           >
             {{ bgLegit.label }}
@@ -307,7 +307,7 @@ defineExpose({ runBackgroundCheck });
         >
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 disabled:opacity-50 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
             :disabled="bgImported"
             @click="importBackground"
           >
