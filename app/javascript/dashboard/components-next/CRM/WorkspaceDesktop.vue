@@ -61,7 +61,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
 
 <template>
   <div
-    class="mx-auto hidden w-full max-w-[1280px] flex-col px-6 md:flex min-[1100px]:h-dvh min-[1100px]:px-8"
+    class="mx-auto hidden w-full max-w-[1280px] flex-col px-6 md:flex min-[1100px]:h-dvh min-[1100px]:min-h-[772px] min-[1100px]:px-8"
   >
     <header class="flex h-[52px] shrink-0 items-center gap-10 pr-48">
       <img :src="wintouchLockup" alt="Wintouch" class="h-auto w-24 shrink-0" />
@@ -87,7 +87,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
         class="grid min-h-0 flex-1 grid-cols-2 items-start gap-3 min-[1100px]:grid-cols-[1.25fr_1fr_1fr_1.15fr] min-[1100px]:items-stretch"
       >
         <div
-          class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:grid-rows-[minmax(0,1fr)_100px_minmax(0,0.45fr)]"
+          class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:grid-rows-[minmax(340px,1fr)_100px_minmax(164px,0.45fr)]"
         >
           <section
             :class="[card, cardBackground('crm')]"
@@ -125,7 +125,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
               }}</span>
             </div>
             <dl
-              class="my-3 grid grid-cols-3 gap-3 text-label-small text-[#737b83]"
+              class="my-2 grid grid-cols-3 gap-3 text-label-small text-[#737b83]"
             >
               <div>
                 <dt class="block">{{ tr('NEW') }}</dt>
@@ -159,7 +159,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             <button
               v-if="(c.leadStats?.ready ?? 0) > 0"
               type="button"
-              class="mb-3 flex w-full items-center justify-between rounded-2xl bg-[#eef3f6] px-3 py-2 text-left"
+              class="mb-2 flex w-full items-center justify-between rounded-2xl bg-[#eef3f6] px-3 py-2 text-left"
               @click="open('crm_lead_center_index')"
             >
               <span class="text-label-small text-[#646c73]">{{
@@ -175,7 +175,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             <WorkspaceCardRecords
               kind="crm"
               :enabled="c.canAccessCrm"
-              class="!my-0 !min-h-0 flex-1 [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!py-1 [&_[aria-hidden]]:!bg-[#dcebf6] [&_a]:!min-h-0 [&_a]:!rounded-2xl [&_a]:!p-3 [&_.size-12]:!size-8 [&_.size-12]:!bg-[#eef3f6] [&_.gap-3]:!gap-2 [&_.mt-4]:!mt-2 [&_.font-semibold]:!font-medium [&_.text-heading-3]:!text-heading-3"
+              class="!my-0 !min-h-0 flex-1 [&_[aria-hidden]]:!bg-[#dcebf6] [&_.size-8]:!bg-[#eef3f6]"
             />
             <p
               v-if="!c.canAccessCrm"

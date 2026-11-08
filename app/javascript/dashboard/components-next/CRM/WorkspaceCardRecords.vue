@@ -184,7 +184,15 @@ watch(() => [props.kind, props.enabled, props.approverView], async (_, __, onCle
       </template>
     </template>
   </div>
-  <div v-else class="wsh-art relative my-4 min-h-40 text-left motion-reduce:[&_*]:!animate-none" @mouseenter="paused = true" @mouseleave="paused = false" @focusin="paused = true" @focusout="paused = false">
+  <div
+    v-else
+    class="wsh-art relative my-4 min-h-40 text-left motion-reduce:[&_*]:!animate-none"
+    :class="kind === 'crm' ? 'flex flex-col' : ''"
+    @mouseenter="paused = true"
+    @mouseleave="paused = false"
+    @focusin="paused = true"
+    @focusout="paused = false"
+  >
     <div v-if="kind !== 'crm'" class="mb-2 flex items-center justify-between text-label-small text-[#878787]">
       <span>{{ caption }}</span>
       <Icon :icon="icons[kind]" class="size-3.5" aria-hidden="true" />
@@ -201,20 +209,68 @@ watch(() => [props.kind, props.enabled, props.approverView], async (_, __, onCle
         </div>
       </div>
     </div>
-    <div v-else-if="!enabled || error || loading || !rows.length" class="grid min-h-32 place-items-center rounded-2xl border border-dashed border-[#dadada] text-label-small text-[#8f8f8f]" role="status">
+    <div
+      v-else-if="!enabled || error || loading || !rows.length"
+      class="grid place-items-center rounded-2xl border border-dashed border-[#dadada] text-label-small text-[#8f8f8f]"
+      :class="kind === 'crm' ? 'min-h-0 flex-1 px-3 py-3' : 'min-h-32'"
+      role="status"
+    >
       {{ !enabled ? '暂无查看权限' : loading ? '正在加载真实记录…' : error || '暂无记录' }}
     </div>
-    <div v-else-if="kind === 'crm'" class="relative h-full min-h-40 py-3">
-      <div aria-hidden="true" class="absolute inset-x-2 inset-y-3 rotate-[7deg] rounded-[20px] bg-[#b9d57a]" />
-      <div aria-hidden="true" class="absolute inset-x-2 inset-y-3 -rotate-[4deg] rounded-[20px] bg-[#eff6da]" />
-      <Transition mode="out-in" enter-active-class="transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none" leave-active-class="transition-opacity duration-150 motion-reduce:transition-none" enter-from-class="translate-y-2 opacity-0 motion-reduce:translate-y-0" leave-to-class="opacity-0">
-      <router-link :key="currentSlide.id" :to="accountScopedRoute('crm_customer_detail_index', { id: currentSlide.id })" :aria-label="`查看客户 ${currentSlide.title}`" class="relative flex w-full h-full text-left text-[#242923] no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7c9c42] min-h-36 flex-col justify-between rounded-[20px] bg-white p-4 shadow-sm">
-        <div class="flex flex-col items-start gap-3">
-          <span class="grid size-12 shrink-0 place-items-center rounded-full bg-[#eaf3ce] text-label text-[#30362b]">{{ currentSlide.title?.slice(0, 2) }}</span>
-          <div class="min-w-0"><div class="line-clamp-2 text-heading-3 font-semibold text-[#242923]" :title="currentSlide.title">{{ currentSlide.title }}</div><div class="mt-1 truncate text-label-small text-[#949b8c]">{{ currentSlide.detail }}</div></div>
-        </div>
-        <div class="mt-4 flex items-center justify-between gap-2"><span class="rounded-lg border border-[#e4e9db] px-2 py-1 text-label-small text-[#77816a]">{{ currentSlide.badge || '查看客户' }}</span><span class="text-label-small text-[#a1aa91]">最近客户</span></div>
-      </router-link>
+    <div
+      v-else-if="kind === 'crm'"
+      class="relative flex min-h-0 flex-1 flex-col py-1"
+    >
+      <div
+        aria-hidden="true"
+        class="absolute inset-x-2 inset-y-3 rotate-[7deg] rounded-[20px] bg-[#b9d57a]"
+      />
+      <div
+        aria-hidden="true"
+        class="absolute inset-x-2 inset-y-3 -rotate-[4deg] rounded-[20px] bg-[#eff6da]"
+      />
+      <Transition
+        mode="out-in"
+        enter-active-class="transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+        leave-active-class="transition-opacity duration-150 motion-reduce:transition-none"
+        enter-from-class="translate-y-2 opacity-0 motion-reduce:translate-y-0"
+        leave-to-class="opacity-0"
+      >
+        <router-link
+          :key="currentSlide.id"
+          :to="
+            accountScopedRoute('crm_customer_detail_index', {
+              id: currentSlide.id,
+            })
+          "
+          :aria-label="`查看客户 ${currentSlide.title}`"
+          class="relative flex min-h-0 w-full flex-1 flex-col justify-between gap-2 rounded-2xl bg-white p-3 text-left text-[#242923] no-underline shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7c9c42]"
+        >
+          <div class="flex min-w-0 items-center gap-2">
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-full bg-[#eaf3ce] text-label text-[#30362b]"
+              >{{ currentSlide.title?.slice(0, 2) }}</span>
+            <div class="min-w-0 flex-1">
+              <div
+                class="truncate text-heading-3 font-medium text-[#242923]"
+                :title="currentSlide.title"
+              >
+                {{ currentSlide.title }}
+              </div>
+              <div
+                class="mt-1 truncate text-label-small text-[#949b8c]"
+                :title="currentSlide.detail"
+              >
+                {{ currentSlide.detail }}
+              </div>
+            </div>
+          </div>
+          <div class="flex min-w-0 shrink-0 items-center justify-between gap-2">
+            <span
+              class="min-w-0 truncate rounded-lg border border-[#e4e9db] px-2 py-0.5 text-label-small text-[#77816a]"
+              >{{ currentSlide.badge || '查看客户' }}</span><span class="shrink-0 text-label-small text-[#a1aa91]">最近客户</span>
+          </div>
+        </router-link>
       </Transition>
     </div>
     <div v-else-if="kind === 'mes'" class="relative h-48 overflow-hidden">

@@ -304,7 +304,7 @@ onMounted(async () => {
   <Teleport to="body">
     <div
       :class="{ '!z-[60]': profileMenuOpen || showShortcutModal }"
-      class="wsh-root !font-sans antialiased [&_.text-heading-2]:!font-medium [&_.text-heading-3]:!font-medium !bg-[#f6f7f8] !bg-none md:!p-0 min-[1100px]:!overflow-hidden"
+      class="wsh-root !font-sans antialiased [&_.text-heading-2]:!font-medium [&_.text-heading-3]:!font-medium !bg-[#f6f7f8] !bg-none md:!p-0 min-[1100px]:!overflow-x-hidden min-[1100px]:!overflow-y-auto"
     >
       <img
         v-if="displayedWallpaper"
