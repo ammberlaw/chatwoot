@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_08_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -913,6 +913,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.index ["conversation_id"], name: "index_crm_agent_messages_on_conversation_id"
   end
 
+  create_table "crm_ai_calls", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id"
+    t.string "purpose", null: false
+    t.string "model"
+    t.integer "input_tokens", default: 0, null: false
+    t.integer "output_tokens", default: 0, null: false
+    t.integer "duration_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "created_at"], name: "index_crm_ai_calls_on_account_id_and_created_at"
+    t.index ["account_id", "purpose"], name: "index_crm_ai_calls_on_account_id_and_purpose"
+  end
+
   create_table "crm_ai_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.text "api_key"
@@ -925,6 +939,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.boolean "inquiry_triage_enabled", default: false, null: false
     t.boolean "auto_draft_reply_enabled", default: false, null: false
     t.bigint "auto_draft_user_ids", default: [], null: false, array: true
+    t.integer "apollo_monthly_limit"
+    t.integer "apollo_user_limit"
+    t.jsonb "apollo_user_limits", default: {}, null: false
+    t.text "lead_default_criteria"
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
 
@@ -1172,6 +1190,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.bigint "assigned_by_id"
     t.datetime "bg_checked_at"
     t.text "bg_summary"
+    t.string "vat_no"
+    t.datetime "vat_verified_at"
     t.index "account_id, lower((alibaba_account)::text)", name: "index_crm_customers_on_account_id_and_alibaba_account"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
@@ -1647,6 +1667,69 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.index ["returned_by_id"], name: "index_crm_kpi_sheets_on_returned_by_id"
   end
 
+  create_table "crm_lead_campaigns", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.jsonb "target_markets", default: [], null: false
+    t.string "product_hint"
+    t.string "seed_keywords"
+    t.integer "target_count", default: 60, null: false
+    t.jsonb "profile", default: {}, null: false
+    t.jsonb "keywords", default: [], null: false
+    t.jsonb "evidence", default: {}, null: false
+    t.string "run_model"
+    t.datetime "profiled_at"
+    t.datetime "searched_at"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "screen_criteria"
+    t.string "default_customer_group"
+    t.jsonb "search_cursor", default: {}, null: false
+    t.boolean "auto_run", default: false, null: false
+    t.datetime "auto_run_at"
+    t.jsonb "dead_keywords", default: []
+    t.boolean "shared", default: true, null: false
+    t.index ["account_id", "status"], name: "index_crm_lead_campaigns_on_account_id_and_status"
+    t.index ["owner_id"], name: "index_crm_lead_campaigns_on_owner_id"
+  end
+
+  create_table "crm_leads", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_lead_campaign_id", null: false
+    t.string "status", default: "FOUND", null: false
+    t.string "company_name"
+    t.string "domain"
+    t.string "industry"
+    t.string "country"
+    t.string "city"
+    t.string "person_name"
+    t.string "title"
+    t.string "email"
+    t.string "email_status"
+    t.string "linkedin_url"
+    t.string "apollo_person_id"
+    t.bigint "crm_customer_id"
+    t.bigint "dup_customer_id"
+    t.jsonb "raw", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "unlocked_by_id"
+    t.datetime "unlocked_at"
+    t.bigint "owner_id"
+    t.datetime "claimed_at"
+    t.bigint "discarded_by_id"
+    t.datetime "discarded_at"
+    t.index ["account_id", "crm_lead_campaign_id"], name: "index_crm_leads_on_account_and_campaign"
+    t.index ["account_id", "domain"], name: "index_crm_leads_on_account_id_and_domain"
+    t.index ["account_id", "owner_id"], name: "index_crm_leads_on_account_id_and_owner_id"
+    t.index ["account_id", "status"], name: "index_crm_leads_on_account_id_and_status"
+    t.index ["apollo_person_id"], name: "index_crm_leads_on_apollo_person_id"
+    t.index ["unlocked_by_id", "unlocked_at"], name: "index_crm_leads_on_unlocked_by_id_and_unlocked_at"
+  end
+
   create_table "crm_mail_accounts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1933,10 +2016,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.string "seller_email"
     t.string "company_header"
     t.bigint "handled_by_id"
+    t.bigint "crm_opportunity_id"
     t.index ["account_id", "pi_no"], name: "index_crm_pis_on_account_id_and_pi_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_pis_on_account_id_and_status"
     t.index ["account_id"], name: "index_crm_pis_on_account_id"
     t.index ["crm_customer_id"], name: "index_crm_pis_on_crm_customer_id"
+    t.index ["crm_opportunity_id"], name: "index_crm_pis_on_crm_opportunity_id"
     t.index ["handled_by_id"], name: "index_crm_pis_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_pis_on_owner_id"
   end
@@ -2244,6 +2329,31 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_05_160000) do
     t.index ["account_id", "target_month"], name: "index_crm_sales_targets_on_account_id_and_target_month"
     t.index ["account_id"], name: "index_crm_sales_targets_on_account_id"
     t.index ["owner_id"], name: "index_crm_sales_targets_on_owner_id"
+  end
+
+  create_table "crm_samples", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id", null: false
+    t.bigint "crm_opportunity_id"
+    t.bigint "owner_id"
+    t.string "status", default: "PENDING", null: false
+    t.jsonb "items", default: [], null: false
+    t.string "carrier"
+    t.string "tracking_no"
+    t.string "recipient"
+    t.datetime "sent_at"
+    t.datetime "delivered_at"
+    t.string "feedback_result"
+    t.text "feedback"
+    t.datetime "feedback_at"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_customer_id"], name: "index_crm_samples_on_account_id_and_crm_customer_id"
+    t.index ["account_id", "status"], name: "index_crm_samples_on_account_id_and_status"
+    t.index ["account_id", "tracking_no"], name: "index_crm_samples_on_account_id_and_tracking_no"
+    t.index ["crm_opportunity_id"], name: "index_crm_samples_on_crm_opportunity_id"
+    t.index ["owner_id"], name: "index_crm_samples_on_owner_id"
   end
 
   create_table "crm_schedule_events", force: :cascade do |t|

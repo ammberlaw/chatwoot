@@ -38,6 +38,9 @@ const tailwindConfig = {
   ],
   theme: {
     extend: {
+      boxShadow: {
+        'wintouch-glass': '0 8px 32px -12px rgb(32 36 39 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.65)',
+      },
       fontFamily: {
         sans: defaultSansFonts,
         inter: ['Inter', ...defaultSansFonts],
@@ -209,6 +212,9 @@ const tailwindConfig = {
     colors: {
       transparent: 'transparent',
       white: '#fff',
+      'wintouch-yellow': '#ffca35',
+      'wintouch-yellow-hover': '#f5bd24',
+      'wintouch-ink': '#202427',
       'modal-backdrop-light': 'rgba(0, 0, 0, 0.4)',
       'modal-backdrop-dark': 'rgba(0, 0, 0, 0.6)',
       current: 'currentColor',

@@ -449,15 +449,6 @@ icon="i-lucide-arrow-up-right" class="size-4"
                   {{ tr('DOCS') }}
                 </button>
               </h2>
-              <button
-                v-tooltip.top="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.TITLE')"
-                type="button"
-                :aria-label="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.TITLE')"
-                class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-black/[0.08] bg-white p-0 text-[#737b83] transition-colors hover:border-[#ffca35] hover:bg-[#fff7db] hover:text-[#202427] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#202427]"
-                @click.stop="folderStylePicker.open()"
-              >
-                <span class="i-lucide-palette size-4" aria-hidden="true" />
-              </button>
             </div>
             <div
               class="mt-2 grid min-h-0 flex-1 grid-cols-3 grid-rows-2 gap-x-2 gap-y-1"
