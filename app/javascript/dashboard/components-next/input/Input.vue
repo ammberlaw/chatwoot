@@ -58,7 +58,7 @@ const inputOutlineClass = computed(() => {
     case 'error':
       return 'outline-n-ruby-8 dark:outline-n-ruby-8 hover:outline-n-ruby-9 dark:hover:outline-n-ruby-9 disabled:outline-n-ruby-8 dark:disabled:outline-n-ruby-8';
     default:
-      return 'outline-n-weak dark:outline-n-weak hover:outline-n-slate-6 dark:hover:outline-n-slate-6 disabled:outline-n-weak dark:disabled:outline-n-weak focus:outline-n-brand dark:focus:outline-n-brand';
+      return 'outline-n-weak dark:outline-n-weak hover:outline-n-slate-6 dark:hover:outline-n-slate-6 disabled:outline-n-weak dark:disabled:outline-n-weak focus:outline-n-slate-8 dark:focus:outline-n-slate-8';
   }
 });
 
@@ -118,7 +118,7 @@ onMounted(() => {
     <label
       v-if="label"
       :for="uniqueId"
-      class="mb-0.5 text-heading-3 text-n-slate-12"
+      class="mb-0.5 text-label text-n-slate-12"
     >
       {{ label }}
       <span v-if="required" class="text-n-ruby-11">*</span>
@@ -148,7 +148,7 @@ onMounted(() => {
           ? max
           : undefined
       "
-      class="block w-full reset-base text-sm !mb-0 outline outline-1 border-none border-0 outline-offset-[-1px] rounded-lg bg-n-alpha-black2 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-n-slate-10 dark:placeholder:text-n-slate-10 disabled:cursor-not-allowed disabled:opacity-50 text-n-slate-12 transition-all duration-500 ease-in-out [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      class="block w-full reset-base text-label !font-normal !mb-0 outline outline-1 border-none border-0 outline-offset-[-1px] rounded-xl bg-n-alpha-black2 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-n-slate-10 dark:placeholder:text-n-slate-10 disabled:cursor-not-allowed disabled:opacity-50 text-n-slate-12 transition-colors duration-150 ease-out [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       @input="handleInput"
       @focus="handleFocus"
       @blur="handleBlur"
@@ -157,7 +157,7 @@ onMounted(() => {
     />
     <p
       v-if="message"
-      class="min-w-0 mt-1 mb-0 text-label-small truncate transition-all duration-500 ease-in-out"
+      class="min-w-0 mt-1 mb-0 text-label-small truncate transition-colors duration-150 ease-out"
       :class="messageClass"
     >
       {{ message }}

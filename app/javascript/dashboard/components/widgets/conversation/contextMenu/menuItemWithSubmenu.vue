@@ -40,17 +40,17 @@ const submenuPosition = computed(() => [
 <template>
   <div
     ref="menuRef"
-    class="text-n-slate-12 menu-with-submenu min-width-calc w-full px-2 flex items-center h-8 rounded-xl relative justify-between hover:bg-n-brand/10 cursor-pointer dark:hover:bg-n-solid-3"
+    class="text-white/90 menu-with-submenu min-width-calc w-full px-2 flex items-center h-8 rounded-xl relative justify-between hover:bg-white/10 cursor-pointer"
     :class="!subMenuAvailable ? 'opacity-50 cursor-not-allowed' : ''"
   >
     <div class="flex items-center h-4">
       <fluent-icon :icon="option.icon" size="14" class="menu-icon" />
-      <p class="my-0 mx-2 text-xs">{{ option.label }}</p>
+      <p class="my-0 mx-2 text-label-small">{{ option.label }}</p>
     </div>
     <fluent-icon icon="chevron-right" size="12" />
     <div
       v-if="subMenuAvailable"
-      class="submenu border shadow-xl rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15 p-1.5 absolute hidden max-h-[15rem] overflow-y-auto overflow-x-hidden cursor-pointer"
+      class="submenu border shadow-xl rounded-2xl border-white/15 bg-[#212226]/95 backdrop-blur-2xl backdrop-saturate-150 shadow-black/25 p-1.5 absolute hidden max-h-[15rem] overflow-y-auto overflow-x-hidden cursor-pointer"
       :class="submenuPosition"
     >
       <slot />

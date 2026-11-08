@@ -6,6 +6,7 @@ const state = {
   mineCount: 0,
   unAssignedCount: 0,
   assignedOutCount: 0,
+  waitingCount: 0,
   allCount: 0,
 };
 
@@ -57,6 +58,7 @@ export const mutations = {
       mine_count: mineCount,
       unassigned_count: unAssignedCount,
       assigned_out_count: assignedOutCount,
+      waiting_count: waitingCount,
       all_count: allCount,
     } = {}
   ) {
@@ -64,6 +66,7 @@ export const mutations = {
     $state.allCount = allCount;
     $state.unAssignedCount = unAssignedCount;
     $state.assignedOutCount = assignedOutCount;
+    $state.waitingCount = waitingCount;
     $state.updatedOn = new Date();
   },
 };

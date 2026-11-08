@@ -6,12 +6,19 @@ import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import { useDocFolderStyle } from 'dashboard/composables/useDocFolderStyle';
+import {
+  defaultWorkspaceCardOpacity,
+  workspaceCardBackground,
+} from 'dashboard/helper/workspaceCardOpacity';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import WorkspaceMyOrders from './WorkspaceMyOrders.vue';
 import WorkspaceCardRecords from './WorkspaceCardRecords.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/login-card-wordmark-rounded.png';
 
-const props = defineProps({ context: { type: Object, required: true } });
+const props = defineProps({
+  context: { type: Object, required: true },
+  cardOpacity: { type: Object, default: defaultWorkspaceCardOpacity },
+});
 const emit = defineEmits(['go', 'changeMonth', 'openOrder']);
 const { t } = useI18n();
 const { accountScopedRoute } = useAccount();
@@ -22,7 +29,8 @@ const shortcutStyle = folder =>
   styleForFolder(folder.id ? folderStyleKey('section', folder.id) : '');
 const tr = (key, values) => t(`CRM.WORKSPACE_UI.${key}`, values || {});
 const card =
-  'min-w-0 rounded-[20px] border border-black/[0.06] bg-white p-5 text-[#202427] shadow-sm min-[1100px]:min-h-0 min-[1100px]:p-4';
+  'min-w-0 rounded-[20px] border border-black/[0.06] p-5 text-[#202427] shadow-sm min-[1100px]:min-h-0 min-[1100px]:p-4';
+const cardBackground = id => workspaceCardBackground(props.cardOpacity, id);
 const open = route => emit('go', route);
 const openCard = (event, route, enabled = true) => {
   if (
@@ -82,8 +90,8 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
           class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:grid-rows-[minmax(0,1fr)_100px_minmax(0,0.45fr)]"
         >
           <section
-            :class="card"
-            class="flex min-h-[460px] flex-col !border-[#e2eaf0] !bg-[#f6fafd] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            :class="[card, cardBackground('crm')]"
+            class="flex min-h-[460px] flex-col !border-[#e2eaf0] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             :tabindex="c.canOpenCrmCard ? 0 : -1"
             :aria-disabled="!c.canOpenCrmCard"
@@ -177,7 +185,7 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
             </p>
           </section>
           <section
-            :class="card"
+            :class="[card, cardBackground('oa')]"
             class="min-h-[108px] min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             tabindex="0"
@@ -210,7 +218,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
           </section>
           <button
             type="button"
-            :class="card"
+            :class="[card, cardBackground('hr')]"
             class="flex min-h-[164px] flex-col text-left min-[1100px]:!min-h-0"
             @click="open('crm_org_structure_index')"
           >
@@ -297,13 +305,14 @@ icon="i-lucide-arrow-up-right" class="size-4"
         </div>
         <div class="flex min-h-0 flex-col gap-3 min-[1100px]:h-full">
           <WorkspaceMyOrders
-            class="!min-h-0 !rounded-[20px] !border-black/[0.06] !bg-white !p-4 !shadow-sm min-[1100px]:!min-h-[216px] min-[1100px]:h-[38%] [&_.rounded-full.border]:!border-transparent [&_.text-heading-3]:!text-heading-3 [&_button.block]:!bg-[#f6f7f7] [&_button.block]:!p-3 [&_.my-3]:!my-2 [&_button.block_.gap-3]:!gap-2 [&_.mt-3]:!mt-2"
+            :class="cardBackground('orders')"
+            class="!min-h-0 !rounded-[20px] !border-black/[0.06] !p-4 !shadow-sm min-[1100px]:!min-h-[216px] min-[1100px]:h-[38%] [&_.rounded-full.border]:!border-transparent [&_.text-heading-3]:!text-heading-3 [&_button.block]:!bg-[#f6f7f7] [&_button.block]:!p-3 [&_.my-3]:!my-2 [&_button.block_.gap-3]:!gap-2 [&_.mt-3]:!mt-2"
             @overview="open('mes_dashboard_index')"
             @open="emit('openOrder', $event)"
           />
           <section
             v-if="c.canAccessErp"
-            :class="card"
+            :class="[card, cardBackground('erp')]"
             class="flex min-h-[160px] flex-col min-[1100px]:!min-h-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             tabindex="0"
@@ -368,7 +377,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
         <div class="flex min-h-0 flex-col gap-3 min-[1100px]:h-full">
           <button
             type="button"
-            :class="card"
+            :class="[card, cardBackground('team')]"
             class="flex min-h-[180px] flex-col text-left min-[1100px]:!min-h-0 min-[1100px]:h-[29%]"
             @click="open('crm_team_chat_index')"
           >
@@ -392,7 +401,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
           <button
             v-if="c.canAccessTiktok"
             type="button"
-            :class="card"
+            :class="[card, cardBackground('tiktok')]"
             class="flex min-h-[132px] flex-col justify-center text-left min-[1100px]:!min-h-0 min-[1100px]:h-[22%]"
             @click="open('tiktok_dashboard_index')"
           >
@@ -422,7 +431,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
             </div>
           </button>
           <section
-            :class="card"
+            :class="[card, cardBackground('docs')]"
             class="flex min-h-[188px] flex-col min-[1100px]:!min-h-0 min-[1100px]:h-[32%] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             role="link"
             tabindex="0"
@@ -571,7 +580,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
           </section>
         </div>
         <section
-          :class="card"
+          :class="[card, cardBackground('calendar')]"
           class="flex min-h-[560px] flex-col min-[1100px]:!min-h-0 min-[1100px]:h-[94%]"
           :aria-label="tr('MY_SCHEDULE')"
         >

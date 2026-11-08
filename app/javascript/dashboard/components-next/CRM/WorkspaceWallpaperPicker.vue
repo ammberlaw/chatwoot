@@ -1,35 +1,112 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import WallpaperAPI from 'dashboard/api/workspaceWallpaper';
+import {
+  WORKSPACE_CARDS,
+  copyWorkspaceCardOpacity,
+  defaultWorkspaceCardOpacity,
+  workspaceCardBackground,
+  workspaceCardOpacity,
+} from 'dashboard/helper/workspaceCardOpacity';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
-const props = defineProps({ url: { type: String, default: '' } });
-const emit = defineEmits(['update']);
+const props = defineProps({
+  url: { type: String, default: '' },
+  cardOpacity: { type: Object, default: defaultWorkspaceCardOpacity },
+  cardIds: {
+    type: Array,
+    default: () => WORKSPACE_CARDS.map(card => card.id),
+  },
+});
+const emit = defineEmits(['update', 'preview']);
 const { t } = useI18n();
 const dialog = ref(null);
 const input = ref(null);
 const file = ref(null);
+const removeWallpaper = ref(false);
 const preview = ref('');
 const objectUrl = ref('');
 const saving = ref(false);
-const changed = computed(() => !!file.value || preview.value !== props.url);
-const copy = key => t(`CRM.WORKSPACE_WALLPAPER.${key}`);
+const opened = ref(false);
+const target = ref('all');
+const draftOpacity = ref(defaultWorkspaceCardOpacity());
+const cards = computed(() =>
+  WORKSPACE_CARDS.filter(card => props.cardIds.includes(card.id))
+);
+const wallpaperChanged = computed(() => !!file.value || removeWallpaper.value);
+const changed = computed(
+  () =>
+    wallpaperChanged.value ||
+    JSON.stringify(draftOpacity.value) !== JSON.stringify(props.cardOpacity)
+);
+const copy = (key, values) => t(`CRM.WORKSPACE_WALLPAPER.${key}`, values || {});
+const transparency = computed({
+  get: () => 100 - workspaceCardOpacity(draftOpacity.value, target.value),
+  set: value => {
+    const opacity = 100 - Number(value);
+    draftOpacity.value =
+      target.value === 'all'
+        ? { all: opacity, overrides: {} }
+        : {
+            ...draftOpacity.value,
+            overrides: {
+              ...draftOpacity.value.overrides,
+              [target.value]: opacity,
+            },
+          };
+  },
+});
+const previewPositions = {
+  crm: 'col-start-1 row-start-1 row-span-3',
+  oa: 'col-start-1 row-start-4',
+  hr: 'col-start-1 row-start-5 row-span-2',
+  orders: 'col-start-2 row-start-1 row-span-3',
+  erp: 'col-start-2 row-start-4 row-span-3',
+  team: 'col-start-3 row-start-1 row-span-2',
+  tiktok: 'col-start-3 row-start-3',
+  docs: 'col-start-3 row-start-4 row-span-3',
+  calendar: 'col-start-4 row-start-1 row-span-6',
+};
+watch(
+  [preview, draftOpacity],
+  () => {
+    if (opened.value) {
+      emit('preview', {
+        url: preview.value,
+        cardOpacity: copyWorkspaceCardOpacity(draftOpacity.value),
+      });
+    }
+  },
+  { deep: true }
+);
 
 const releasePreview = () => {
   if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
   objectUrl.value = '';
 };
 const reset = () => {
+  opened.value = false;
+  emit('preview', null);
   releasePreview();
   file.value = null;
+  removeWallpaper.value = false;
   preview.value = '';
 };
 const open = () => {
   reset();
   preview.value = props.url;
+  target.value = 'all';
+  draftOpacity.value = copyWorkspaceCardOpacity(props.cardOpacity);
+  opened.value = true;
   dialog.value.open();
+};
+const restoreWallpaper = () => {
+  releasePreview();
+  file.value = null;
+  removeWallpaper.value = !!props.url;
+  preview.value = '';
 };
 const selectFile = async event => {
   const selected = event.target.files?.[0];
@@ -51,6 +128,7 @@ const selectFile = async event => {
     releasePreview();
     objectUrl.value = candidateUrl;
     file.value = selected;
+    removeWallpaper.value = false;
     preview.value = candidateUrl;
   } catch {
     URL.revokeObjectURL(candidateUrl);
@@ -61,10 +139,11 @@ const save = async () => {
   if (saving.value || !changed.value) return;
   saving.value = true;
   try {
-    const { data } = file.value
-      ? await WallpaperAPI.update(file.value)
-      : await WallpaperAPI.delete();
-    emit('update', data.url || '');
+    const { data } = await WallpaperAPI.update(file.value, {
+      removeWallpaper: removeWallpaper.value,
+      cardOpacity: draftOpacity.value,
+    });
+    emit('update', data);
     dialog.value.close();
   } catch {
     useAlert(copy('ERROR'));
@@ -72,7 +151,7 @@ const save = async () => {
     saving.value = false;
   }
 };
-onBeforeUnmount(releasePreview);
+onBeforeUnmount(reset);
 defineExpose({ open });
 </script>
 
@@ -87,11 +166,12 @@ defineExpose({ open });
     :dismissible="!saving"
     :show-close-button="!saving"
     :show-cancel-button="!saving"
+    overflow-y-auto
     @confirm="save"
     @close="reset"
   >
     <div
-      class="relative aspect-video overflow-hidden rounded-2xl border border-n-weak bg-[#f6f7f8]"
+      class="relative aspect-video overflow-hidden rounded-2xl border border-n-weak bg-[#f6f7f8] sm:aspect-[16/7]"
     >
       <img
         v-if="preview"
@@ -99,18 +179,94 @@ defineExpose({ open });
         :alt="copy('PREVIEW')"
         class="absolute inset-0 size-full object-cover"
       />
-      <div class="absolute inset-0 bg-white/25" />
       <div
-        class="relative grid h-full grid-cols-3 gap-3 p-6"
+        class="relative grid h-full grid-cols-[1.25fr_1fr_1fr_1.15fr] grid-rows-6 gap-1.5 p-3 sm:gap-2 sm:p-4"
         aria-hidden="true"
       >
-        <div class="rounded-xl bg-white/90 shadow-sm" />
-        <div class="grid grid-rows-2 gap-3">
-          <div class="rounded-xl bg-white/90 shadow-sm" />
-          <div class="rounded-xl bg-white/90 shadow-sm" />
+        <div
+          v-for="card in cards"
+          :key="card.id"
+          class="flex min-h-0 items-start overflow-hidden rounded-lg p-1.5 shadow-sm"
+          :class="[
+            previewPositions[card.id],
+            workspaceCardBackground(draftOpacity, card.id),
+            target === card.id ? 'ring-2 ring-[#ffca35]' : '',
+          ]"
+        >
+          <span class="truncate text-label-small text-[#202427]">{{
+            copy(`CARDS.${card.label}`)
+          }}</span>
         </div>
-        <div class="rounded-xl bg-white/90 shadow-sm" />
       </div>
+    </div>
+    <div
+      class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:gap-5"
+    >
+      <div class="min-w-0">
+        <label
+          for="workspace-card-target"
+          class="mb-2 block text-label text-n-slate-12"
+        >
+          {{ copy('TARGET') }}
+        </label>
+        <select
+          id="workspace-card-target"
+          v-model="target"
+          :disabled="saving"
+          class="h-9 w-full rounded-xl border border-n-weak bg-white px-3 py-1 text-label text-[#202427] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffca35]"
+        >
+          <option value="all">{{ copy('ALL_CARDS') }}</option>
+          <option v-for="card in cards" :key="card.id" :value="card.id">
+            {{ copy(`CARDS.${card.label}`) }}
+          </option>
+        </select>
+      </div>
+      <div class="min-w-0">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label
+            for="workspace-card-transparency"
+            class="text-label text-n-slate-12"
+          >
+            {{ copy('TRANSPARENCY') }}
+          </label>
+          <output
+            for="workspace-card-transparency"
+            class="text-label-small tabular-nums text-n-slate-11"
+          >
+            {{ copy('TRANSPARENCY_VALUE', { value: transparency }) }}
+          </output>
+        </div>
+        <input
+          id="workspace-card-transparency"
+          v-model.number="transparency"
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          :disabled="saving"
+          :aria-valuetext="copy('TRANSPARENCY_VALUE', { value: transparency })"
+          class="m-0 h-5 w-full cursor-pointer border-0 bg-transparent p-0 accent-[#ffca35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#202427] disabled:cursor-wait"
+        />
+        <div
+          class="flex items-center justify-between text-label-small text-n-slate-11"
+        >
+          <span>{{ copy('OPAQUE') }}</span>
+          <span>{{ copy('TRANSPARENT') }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <p class="mb-0 flex-1 text-label-small text-n-slate-11">
+        {{ copy('OPACITY_HINT') }}
+      </p>
+      <button
+        type="button"
+        :disabled="saving"
+        class="shrink-0 rounded-lg px-2 py-1 text-label-small text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+        @click="draftOpacity = defaultWorkspaceCardOpacity()"
+      >
+        {{ copy('RESET_OPACITY') }}
+      </button>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <button
@@ -126,7 +282,7 @@ defineExpose({ open });
         type="button"
         :disabled="saving || !preview"
         class="rounded-xl px-3 py-2 text-label text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
-        @click="reset"
+        @click="restoreWallpaper"
       >
         {{ copy('RESET') }}
       </button>

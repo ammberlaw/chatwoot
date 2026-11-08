@@ -16,6 +16,7 @@
     "FILTER_ALL": "所有的",
     "SEARCH_PLACEHOLDER": "搜索客户：名字 / 备注 / 电话",
     "ASSIGNEE_TYPE_TABS": {
+      "waiting": "待回复",
       "me": "我的",
       "unassigned": "未分配",
       "assigned_out": "已分配",

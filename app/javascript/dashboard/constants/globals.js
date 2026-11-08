@@ -3,6 +3,10 @@ export default {
   ASSIGNEE_TYPE: {
     ME: 'me',
     UNASSIGNED: 'unassigned',
+    // 自研页签「已分配」＝我派给别人的（口径见 constants/permissions.js 的 assigned_out）。
+    ASSIGNED_OUT: 'assigned_out',
+    // 自研页签「待回复」＝分给我、客户在等回复的。
+    WAITING: 'waiting',
     ALL: 'all',
   },
   STATUS_TYPE: {

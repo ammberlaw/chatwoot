@@ -16,6 +16,7 @@
     "FILTER_ALL": "All",
     "SEARCH_PLACEHOLDER": "Search customer: name / note / phone",
     "ASSIGNEE_TYPE_TABS": {
+      "waiting": "Awaiting reply",
       "me": "Mine",
       "unassigned": "Unassigned",
       "assigned_out": "Assigned out",

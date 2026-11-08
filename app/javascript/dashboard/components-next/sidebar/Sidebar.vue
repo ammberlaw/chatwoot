@@ -646,9 +646,18 @@ const channelChildren = computed(() =>
 // 管理员看得到全公司的号,所以按「当前用户是不是该收件箱成员」(后端给的 is_member)
 // 拆成「我的」和「业务员的」两组——老板自己的号别埋在十几个业务员的号里。
 // 业务员只看得到自己的号,拆出来另一组是空的,这时按老样子只出一组。
+// 待扫码的号不列进来：那是还没绑成的空壳，点进去什么都没有，还会把
+// 「WhatsApp (1)」显示成「(2)」（2026-11-08 用户反馈，绑第二个号时撞上的）。
+//
+// ⚠️ **只藏 qr，不藏 disconnected。** 掉线的号（手机关机、临时断网）是绑过的，
+// 底下压着历史会话——一并藏掉的话，业务员的聊天记录会凭空消失。
+// 状态由后端单独给（见 _inbox.json.jbuilder），不读 provider_config——那个只给管理员，
+// 业务员读不到就过滤不了。
 const whatsappInboxes = computed(() =>
   sortedInboxes.value.filter(
-    inbox => inbox.channel_type === 'Channel::WhatsappWeb'
+    inbox =>
+      inbox.channel_type === 'Channel::WhatsappWeb' &&
+      inbox.connection_status !== 'qr'
   )
 );
 const myWhatsappLeaves = computed(() =>

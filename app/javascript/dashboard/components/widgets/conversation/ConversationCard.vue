@@ -211,18 +211,44 @@ watch(
           />
         </div>
       </div>
-      <h4
-        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
-        :class="hasUnread ? 'font-semibold' : 'font-medium'"
-      >
-        <Flag
-          v-if="phoneCountry"
-          :country="phoneCountry.iso"
-          :title="phoneCountry.name"
-          class="!w-4 !h-3 rounded-[2px] align-middle inline-block ltr:mr-1 rtl:ml-1 shadow-sm"
-        />
-        {{ currentContact.name }}
-      </h4>
+      <div class="flex items-center gap-2 mx-2 min-w-0">
+        <h4
+          class="conversation--user text-sm my-0 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 text-n-slate-12"
+          :class="hasUnread ? 'font-semibold' : 'font-medium'"
+        >
+          <Flag
+            v-if="phoneCountry"
+            :country="phoneCountry.iso"
+            :title="phoneCountry.name"
+            class="!w-4 !h-3 rounded-[2px] align-middle inline-block ltr:mr-1 rtl:ml-1 shadow-sm"
+          />
+          {{ currentContact.name }}
+        </h4>
+        <span
+          class="flex items-center gap-1 shrink-0 whitespace-nowrap font-normal leading-4 text-xxs"
+        >
+          <TimeAgo
+            :last-activity-timestamp="chat.timestamp"
+            :created-at-timestamp="chat.created_at"
+            :conversation-id="chat.id"
+          />
+          <button
+            class="transition-opacity motion-reduce:transition-none"
+            :class="
+              isPinned
+                ? 'text-n-amber-10'
+                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-n-slate-10 hover:text-n-amber-10'
+            "
+            :title="isPinned ? '取消置顶' : '置顶'"
+            @click.stop="togglePin"
+          >
+            <span
+              class="block size-3.5"
+              :class="isPinned ? 'i-ph-push-pin-fill' : 'i-lucide-pin'"
+            />
+          </button>
+        </span>
+      </div>
       <VoiceCallStatus
         v-if="voiceCallData.status"
         key="voice-status-row"
@@ -254,34 +280,8 @@ watch(
       </p>
       <div
         class="absolute flex flex-col ltr:right-3 rtl:left-3"
-        :class="showMetaSection ? 'top-8' : 'top-4'"
+        :class="showMetaSection ? 'top-12' : 'top-8'"
       >
-        <!-- 图钉和时间同一行：另起一行会把时间整体下推，压到下面那行消息摘要上。
-             图钉放在时间右边贴着卡片右缘，各行时间长短不一（3d / 23d）也不会把图钉顶歪。 -->
-        <span
-          class="flex items-center gap-1 ml-auto font-normal leading-4 text-xxs"
-        >
-          <TimeAgo
-            :last-activity-timestamp="chat.timestamp"
-            :created-at-timestamp="chat.created_at"
-            :conversation-id="chat.id"
-          />
-          <button
-            class="transition-opacity motion-reduce:transition-none"
-            :class="
-              isPinned
-                ? 'text-n-amber-10'
-                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-n-slate-10 hover:text-n-amber-10'
-            "
-            :title="isPinned ? '取消置顶' : '置顶'"
-            @click.stop="togglePin"
-          >
-            <span
-              class="block size-3.5"
-              :class="isPinned ? 'i-ph-push-pin-fill' : 'i-lucide-pin'"
-            />
-          </button>
-        </span>
         <UnreadBadge
           v-if="hasUnread"
           :count="unreadCount"

@@ -78,6 +78,9 @@ class Account < ApplicationRecord
   has_many :crm_quote_request_templates, class_name: 'Crm::QuoteRequestTemplate', dependent: :destroy_async
   has_many :crm_quote_requests, class_name: 'Crm::QuoteRequest', dependent: :destroy_async
   has_many :crm_pis, class_name: 'Crm::Pi', dependent: :destroy_async
+  has_many :crm_samples, class_name: 'Crm::Sample', dependent: :destroy_async
+  has_many :crm_lead_campaigns, class_name: 'Crm::LeadCampaign', dependent: :destroy_async
+  has_many :crm_leads, class_name: 'Crm::Lead', dependent: :destroy_async
   has_many :crm_pi_seller_profiles, class_name: 'Crm::PiSellerProfile', dependent: :destroy_async
   has_many :crm_quotes, class_name: 'Crm::Quote', dependent: :destroy_async
   has_many :crm_quote_line_items, class_name: 'Crm::QuoteLineItem', dependent: :destroy_async

@@ -1,8 +1,10 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useMapGetter } from 'dashboard/composables/store';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
+import types from 'dashboard/store/mutation-types';
 import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
@@ -20,11 +22,17 @@ import wintouchLockup from 'dashboard/assets/images/wintouch/login-card-wordmark
 import WorkspaceDesktop from 'dashboard/components-next/CRM/WorkspaceDesktop.vue';
 import WorkspaceWallpaperPicker from 'dashboard/components-next/CRM/WorkspaceWallpaperPicker.vue';
 import WallpaperAPI from 'dashboard/api/workspaceWallpaper';
+import {
+  WORKSPACE_CARDS,
+  defaultWorkspaceCardOpacity,
+} from 'dashboard/helper/workspaceCardOpacity';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 const router = useRouter();
+const { t } = useI18n();
 const { accountScopedRoute, accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
+const store = useStore();
 
 const stats = ref({ todo: 0, mine: 0, approverView: true, unread: 0 });
 
@@ -32,14 +40,45 @@ const showShortcutModal = ref(false);
 const profileMenuOpen = ref(false);
 const wallpaperPicker = ref(null);
 const wallpaperUrl = ref('');
-onMounted(async () => {
+const cardOpacity = ref(defaultWorkspaceCardOpacity());
+const appearancePreview = ref(null);
+const appearanceLoading = ref(true);
+const appearanceLoaded = ref(false);
+const displayedWallpaper = computed(
+  () => appearancePreview.value?.url ?? wallpaperUrl.value
+);
+const displayedCardOpacity = computed(
+  () => appearancePreview.value?.cardOpacity ?? cardOpacity.value
+);
+const updateWorkspaceAppearance = settings => {
+  wallpaperUrl.value = settings.url || '';
+  cardOpacity.value = settings.card_opacity || defaultWorkspaceCardOpacity();
+  store.commit(types.SET_CURRENT_USER_UI_SETTINGS, {
+    uiSettings: { workspace_card_opacity: cardOpacity.value },
+  });
+};
+const loadWorkspaceAppearance = async () => {
+  appearanceLoading.value = true;
   try {
     const { data } = await WallpaperAPI.get();
-    wallpaperUrl.value = data.url || '';
+    updateWorkspaceAppearance(data);
+    appearanceLoaded.value = true;
   } catch {
-    // A wallpaper loading failure should not prevent using the workspace.
+    appearanceLoaded.value = false;
+  } finally {
+    appearanceLoading.value = false;
   }
-});
+};
+onMounted(loadWorkspaceAppearance);
+const openWallpaperPicker = async () => {
+  if (appearanceLoading.value) return;
+  if (!appearanceLoaded.value) await loadWorkspaceAppearance();
+  if (!appearanceLoaded.value) {
+    useAlert(t('CRM.WORKSPACE_WALLPAPER.LOAD_ERROR'));
+    return;
+  }
+  wallpaperPicker.value.open();
+};
 
 // 首页卡片真实数据（当前用户视角）。
 const homeStats = ref(null);
@@ -85,6 +124,13 @@ const canAccessTiktok = computed(
 // 财务 ERP：仅管理员/副管理员/财务岗可见（后端派生 can_access_erp）。
 // 承载成本/供应商/毛利，销售端连入口都不显示——不是置灰而是整卡不渲染。
 const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
+const visibleWorkspaceCards = computed(() =>
+  WORKSPACE_CARDS.filter(
+    ({ id }) =>
+      (id !== 'erp' || canAccessErp.value) &&
+      (id !== 'tiktok' || canAccessTiktok.value)
+  ).map(({ id }) => id)
+);
 
 const erpDraftCount = ref(null);
 onMounted(async () => {
@@ -261,19 +307,18 @@ onMounted(async () => {
       class="wsh-root !font-sans antialiased [&_.text-heading-2]:!font-medium [&_.text-heading-3]:!font-medium !bg-[#f6f7f8] !bg-none md:!p-0 min-[1100px]:!overflow-hidden"
     >
       <img
-        v-if="wallpaperUrl"
-        :src="wallpaperUrl"
+        v-if="displayedWallpaper"
+        :src="displayedWallpaper"
         alt=""
         class="pointer-events-none fixed inset-0 z-0 h-dvh w-screen object-cover"
-      />
-      <div
-        v-if="wallpaperUrl"
-        class="pointer-events-none fixed inset-0 z-0 bg-white/25"
       />
       <WorkspaceWallpaperPicker
         ref="wallpaperPicker"
         :url="wallpaperUrl"
-        @update="wallpaperUrl = $event"
+        :card-opacity="cardOpacity"
+        :card-ids="visibleWorkspaceCards"
+        @preview="appearancePreview = $event"
+        @update="updateWorkspaceAppearance"
       />
       <div
         class="wsh-actions md:!top-3 md:!right-[max(2rem,calc((100vw-1216px)/2))]"
@@ -282,8 +327,10 @@ onMounted(async () => {
           type="button"
           :aria-label="$t('CRM.WORKSPACE_WALLPAPER.TITLE')"
           :title="$t('CRM.WORKSPACE_WALLPAPER.TITLE')"
-          class="grid size-10 place-items-center rounded-full border border-white/70 bg-white/75 text-[#20241f] backdrop-blur-md hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-          @click="wallpaperPicker.open()"
+          :disabled="appearanceLoading"
+          :aria-busy="appearanceLoading"
+          class="grid size-10 place-items-center rounded-full border border-white/70 bg-white/75 text-[#20241f] backdrop-blur-md hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-50"
+          @click="openWallpaperPicker"
         >
           <Icon icon="i-lucide-image" class="size-4" />
         </button>
@@ -524,6 +571,7 @@ onMounted(async () => {
           </div>
 
           <WorkspaceDesktop
+            :card-opacity="displayedCardOpacity"
             :context="{
               userName,
               greeting,

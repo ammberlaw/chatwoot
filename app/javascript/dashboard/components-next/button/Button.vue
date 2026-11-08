@@ -101,13 +101,13 @@ const STYLE_CONFIG = {
   colors: {
     blue: {
       solid:
-        'bg-n-brand text-white hover:enabled:brightness-110 focus-visible:brightness-110 outline-transparent',
+        'bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:bg-wintouch-yellow-hover outline-transparent',
       faded:
-        'bg-n-brand/10 text-n-blue-11 hover:enabled:bg-n-brand/20 focus-visible:bg-n-brand/20 outline-transparent',
-      outline: 'text-n-blue-11 outline-n-brand',
+        'bg-n-alpha-2 text-n-slate-12 hover:enabled:bg-n-alpha-3 focus-visible:bg-n-alpha-3 outline-transparent',
+      outline: 'text-n-slate-12 outline-n-strong hover:enabled:bg-n-alpha-2',
       ghost:
-        'text-n-blue-11 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
-      link: 'text-n-blue-11 hover:enabled:underline focus-visible:underline outline-transparent',
+        'text-n-slate-12 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
+      link: 'text-n-slate-12 hover:enabled:underline focus-visible:underline outline-transparent',
     },
     ruby: {
       solid:
@@ -122,7 +122,7 @@ const STYLE_CONFIG = {
     },
     amber: {
       solid:
-        'bg-n-amber-9 text-white hover:enabled:bg-n-amber-10 focus-visible:bg-n-amber-10 outline-transparent',
+        'bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:bg-wintouch-yellow-hover outline-transparent',
       faded:
         'bg-n-amber-9/10 text-n-slate-12 hover:enabled:bg-n-amber-9/20 focus-visible:bg-n-amber-9/20 outline-transparent',
       outline:
@@ -133,14 +133,14 @@ const STYLE_CONFIG = {
     },
     iris: {
       solid:
-        'bg-n-iris-9 text-white hover:enabled:bg-n-iris-10 focus-visible:bg-n-iris-10 outline-transparent',
+        'bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:bg-wintouch-yellow-hover outline-transparent',
       faded:
-        'bg-n-iris-9/10 text-n-iris-11 hover:enabled:bg-n-iris-9/20 focus-visible:bg-n-iris-9/20 outline-transparent',
+        'bg-n-alpha-2 text-n-slate-12 hover:enabled:bg-n-alpha-3 focus-visible:bg-n-alpha-3 outline-transparent',
       outline:
-        'text-n-iris-11 hover:enabled:bg-n-iris-9/10 focus-visible:bg-n-iris-9/10 outline-n-iris-9',
-      link: 'text-n-iris-9 hover:enabled:underline focus-visible:underline outline-transparent',
+        'text-n-slate-12 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-n-strong',
+      link: 'text-n-slate-12 hover:enabled:underline focus-visible:underline outline-transparent',
       ghost:
-        'text-n-iris-9 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
+        'text-n-slate-12 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
     },
     slate: {
       solid:
@@ -186,10 +186,10 @@ const STYLE_CONFIG = {
     },
   },
   fontSize: {
-    xs: 'text-xs',
-    sm: 'text-sm',
-    md: 'text-sm font-medium',
-    lg: 'text-base',
+    xs: 'text-label-small',
+    sm: 'text-label',
+    md: 'text-label',
+    lg: 'text-heading-2',
   },
   clickAnimation: {
     xs: 'active:enabled:scale-[0.97]',
@@ -202,7 +202,7 @@ const STYLE_CONFIG = {
     center: 'justify-center',
     end: 'justify-end',
   },
-  base: 'inline-flex items-center min-w-0 gap-2 transition-all duration-100 ease-out border-0 rounded-lg outline-1 outline disabled:opacity-50',
+  base: 'inline-flex items-center min-w-0 gap-2 transition-[background-color,color,box-shadow,transform] duration-150 ease-out border-0 rounded-xl outline-1 outline focus-visible:!outline-2 focus-visible:!outline-wintouch-ink/50 focus-visible:outline-offset-2 aria-selected:!bg-wintouch-ink aria-selected:!text-white disabled:opacity-50 motion-reduce:transition-none',
 };
 
 const variantClasses = computed(() => {

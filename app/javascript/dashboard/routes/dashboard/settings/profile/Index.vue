@@ -97,6 +97,17 @@ export default {
     };
   },
   computed: {
+    localizedHotKeys() {
+      return this.hotKeys.map(hotKey => {
+        const cardKey = hotKey.key === 'enter' ? 'ENTER_KEY' : 'CMD_ENTER_KEY';
+        const prefix = `PROFILE_SETTINGS.FORM.SEND_MESSAGE.CARD.${cardKey}`;
+        return {
+          ...hotKey,
+          title: this.$t(`${prefix}.HEADING`),
+          description: this.$t(`${prefix}.CONTENT`),
+        };
+      });
+    },
     canChangePassword() {
       return this.currentUser?.password_self_service !== false;
     },
@@ -221,6 +232,7 @@ export default {
           @delete="deleteProfilePicture"
         />
         <UserBasicDetails
+          :key="$i18n.locale"
           :name="name"
           :display-name="displayName"
           :email="email"
@@ -258,7 +270,7 @@ export default {
     <SectionLayout
       with-border
       :title="$t('PROFILE_SETTINGS.FORM.MESSAGE_SIGNATURE_SECTION.TITLE')"
-      :description="$t('PROFILE_SETTINGS.FORM.MESSAGE_SIGNATURE_SECTION.NOTE')"
+      description=""
     >
       <MessageSignature
         :message-signature="messageSignature"
@@ -274,7 +286,7 @@ export default {
         class="flex flex-col justify-between w-full gap-5 sm:gap-4 sm:flex-row"
       >
         <RadioCard
-          v-for="hotKey in hotKeys"
+          v-for="hotKey in localizedHotKeys"
           :id="hotKey.key"
           :key="hotKey.key"
           :label="hotKey.title"
@@ -285,12 +297,12 @@ export default {
         >
           <img
             :src="hotKey.lightImage"
-            :alt="`Light themed image for ${hotKey.title}`"
+            :alt="hotKey.title"
             class="block object-cover w-full dark:hidden"
           />
           <img
             :src="hotKey.darkImage"
-            :alt="`Dark themed image for ${hotKey.title}`"
+            :alt="hotKey.title"
             class="hidden object-cover w-full dark:block"
           />
         </RadioCard>
@@ -303,7 +315,7 @@ export default {
       description=""
     >
       <!-- 密码自助仅限超级管理员/管理员/人事部门成员 -->
-      <ChangePassword v-if="canChangePassword" />
+      <ChangePassword v-if="canChangePassword" :key="$i18n.locale" />
       <p v-else class="text-sm text-n-slate-11">
         密码由管理员统一管理，如需修改请联系超级管理员或管理员重置。
       </p>

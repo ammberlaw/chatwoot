@@ -49,6 +49,8 @@
 class User < ApplicationRecord
   include AccessTokenable
   include Avatarable
+
+  has_one_attached :workspace_wallpaper
   # Include default devise modules.
   include DeviseTokenAuth::Concerns::User
   include Pubsubable

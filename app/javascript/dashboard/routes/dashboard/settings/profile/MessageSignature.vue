@@ -42,6 +42,7 @@ const updateSignature = () => {
   <form class="flex flex-col gap-6" @submit.prevent="updateSignature()">
     <WootMessageEditor
       id="message-signature-input"
+      :key="$t('PROFILE_SETTINGS.FORM.MESSAGE_SIGNATURE.PLACEHOLDER')"
       v-model="signature"
       class="message-editor h-[10rem] !px-3"
       is-format-mode

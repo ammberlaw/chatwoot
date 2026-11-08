@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { useAlert } from 'dashboard/composables';
 import authAPI from 'dashboard/api/auth';
 import AnalyticsHelper from 'dashboard/helper/AnalyticsHelper';
@@ -9,13 +10,16 @@ import { SESSION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const sessions = ref([]);
 const loading = ref(false);
 
 const relativeTime = dateStr => {
   if (!dateStr) return '';
-  return formatDistanceToNow(parseISO(dateStr), { addSuffix: true });
+  return formatDistanceToNow(parseISO(dateStr), {
+    addSuffix: true,
+    locale: locale.value.startsWith('zh') ? zhCN : undefined,
+  });
 };
 
 const isUnknown = val => !val || val === 'Unknown' || val === 'Unknown Browser';
@@ -45,10 +49,13 @@ const sessionLabel = session => {
     );
   }
   if (!isUnknown(session.platform_name)) parts.push(session.platform_name);
-  return (
-    parts.join(' on ') ||
-    t('PROFILE_SETTINGS.FORM.SESSIONS_SECTION.UNKNOWN_DEVICE')
-  );
+  if (parts.length === 2) {
+    return t('PROFILE_SETTINGS.FORM.SESSIONS_SECTION.DEVICE_LABEL', {
+      browser: parts[0],
+      platform: parts[1],
+    });
+  }
+  return parts[0] || t('PROFILE_SETTINGS.FORM.SESSIONS_SECTION.UNKNOWN_DEVICE');
 };
 
 const locationLabel = session => {

@@ -83,11 +83,31 @@
       "DESCRIPTION": "选一张喜欢的图片，作为自己的工作台背景。",
       "UPLOAD": "选择图片",
       "RESET": "恢复默认背景",
-      "APPLY": "应用壁纸",
+      "APPLY": "应用设置",
       "PREVIEW": "壁纸效果预览",
+      "TARGET": "调整对象",
+      "ALL_CARDS": "全部卡片",
+      "TRANSPARENCY": "桌面卡片透明度",
+      "TRANSPARENCY_VALUE": "{value}%",
+      "OPAQUE": "不透明",
+      "TRANSPARENT": "全透明",
+      "RESET_OPACITY": "重置透明度",
+      "OPACITY_HINT": "仅调整桌面卡片背景，文字和图标保持清晰。调整全部会统一单独设置。",
+      "CARDS": {
+        "CRM": "客户管理",
+        "OA": "OA 审批",
+        "HR": "组织人事",
+        "ORDERS": "订单与生产",
+        "ERP": "财务 ERP",
+        "TEAM": "团队协同",
+        "TIKTOK": "TikTok 经营",
+        "DOCS": "文档中心",
+        "CALENDAR": "日历与日程"
+      },
       "HINT": "支持 JPG、PNG、WebP，最大 10 MB。建议使用横向图片；壁纸仅对自己生效。",
       "INVALID": "请选择 10 MB 以内的有效 JPG、PNG 或 WebP 图片。",
-      "ERROR": "壁纸暂时没能保存，请稍后再试。"
+      "LOAD_ERROR": "暂时无法读取外观设置，请稍后重试。",
+      "ERROR": "外观设置暂时没能保存，请稍后再试。"
     },
     "COMMISSION": {
       "HEADER": "提成表",

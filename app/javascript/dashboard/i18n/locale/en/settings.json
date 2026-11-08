@@ -95,7 +95,8 @@
         "REVOKE_ERROR": "Unable to revoke session. Please try again.",
         "FETCH_ERROR": "Unable to fetch sessions. Please try again.",
         "LAST_ACTIVE": "Last active",
-        "UNKNOWN_DEVICE": "Unknown device"
+        "UNKNOWN_DEVICE": "Unknown device",
+        "DEVICE_LABEL": "{browser} on {platform}"
       },
       "ACCESS_TOKEN": {
         "TITLE": "Access Token",
@@ -144,7 +145,14 @@
           "CONDITION_TWO": "Send alerts every 30s until all the assigned conversations are read"
         },
         "SOUND_PERMISSION_ERROR": "Autoplay is disabled in your browser. To hear alerts automatically, enable sound permission in your browser settings or interact with the page.",
-        "READ_MORE": "Read more"
+        "READ_MORE": "Read more",
+        "TONES": {
+          "DING": "Ding",
+          "BELL": "Bell",
+          "CHIME": "Chime",
+          "MAGIC": "Magic",
+          "PING": "Ping"
+        }
       },
       "EMAIL_NOTIFICATIONS_SECTION": {
         "TITLE": "Email Notifications",
@@ -448,6 +456,7 @@
     "CRM_MY_TARGETS": "我的目标",
     "CRM_G_CUSTOMERS": "客户",
     "CRM_CUSTOMER_NEW": "客户建档",
+    "CRM_LEAD_CENTER": "新客开发",
     "CRM_PRIVATE_CUSTOMERS": "私海客户",
     "CRM_PUBLIC_POOL": "公海客户",
     "CRM_CUSTOMER_DUPES": "客户查重",
@@ -514,7 +523,7 @@
     "ERP_EXPORT_DOCS": "外贸单证",
     "ERP_SHIPMENT_TRACKINGS": "出运跟踪",
     "ERP_FIXED_ASSETS": "固定资产",
-    "CRM_G_MESSAGES": "客户消息",
+    "CRM_G_MESSAGES": "WhatsApp",
     "CRM_ALL_MESSAGES": "全部消息",
     "CRM_G_MAIL": "邮件中心",
     "CRM_READ_EMAILS": "收发邮件",

@@ -25,7 +25,10 @@ class Channel::WhatsappWeb < ApplicationRecord
 
   validates :phone_number, uniqueness: true, allow_nil: true
 
-  store_accessor :provider_config, :connection_status
+  # disconnected_at：掉线那一刻的时间戳（ISO8601 字符串）。连上时清空。
+  # 给 Crm::WhatsappWebHealthJob 算「掉了几天」用——不记的话只知道现在是断的，
+  # 不知道是刚断还是断了一个月，而这两件事该做的处理完全不同。
+  store_accessor :provider_config, :connection_status, :disconnected_at
 
   def name
     'WhatsApp Web'

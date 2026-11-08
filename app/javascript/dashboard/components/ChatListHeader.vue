@@ -11,6 +11,8 @@ import CrmWhatsappStartChat from 'dashboard/components-next/CRM/CrmWhatsappStart
 
 const props = defineProps({
   pageTitle: { type: String, required: true },
+  isSearchOpen: { type: Boolean, default: false },
+  hasSearchQuery: { type: Boolean, default: false },
   hasAppliedFilters: { type: Boolean, required: true },
   hasActiveFolders: { type: Boolean, required: true },
   // 只给上面那个已隐藏的状态标签用；标签放回来时这个 prop 就又有人读了。
@@ -27,6 +29,7 @@ const emit = defineEmits([
   'resetFilters',
   'basicFilterChange',
   'filtersModal',
+  'toggleSearch',
 ]);
 
 const { uiSettings, updateUISettings } = useUISettings();
@@ -93,7 +96,19 @@ const toggleConversationLayout = () => {
       </span>
       -->
     </div>
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-1 shrink-0">
+      <NextButton
+        v-if="!hasAppliedFiltersOrActiveFolders"
+        v-tooltip.top-end="$t('CHAT_LIST.SEARCH_PLACEHOLDER')"
+        icon="i-lucide-search"
+        :aria-label="$t('CHAT_LIST.SEARCH_PLACEHOLDER')"
+        :aria-expanded="isSearchOpen"
+        :class="{ 'ring-1 ring-n-slate-8': isSearchOpen || hasSearchQuery }"
+        slate
+        xs
+        faded
+        @click="emit('toggleSearch')"
+      />
       <!-- WhatsApp 开聊：输客户手机号直接起一通对话。这个能力原先只长在
            「邮箱 / WhatsApp 绑定」设置页里，业务员要主动联系新客户得先跑去
            设置页，或先在手机上发一条——聊天记录就断在系统外面了

@@ -246,7 +246,7 @@ defineExpose({ open, close, requestClose });
   <TeleportWithDirection to="body">
     <dialog
       ref="dialogRef"
-      class="w-full transition-all duration-300 ease-in-out shadow-xl rounded-xl"
+      class="w-full rounded-3xl shadow-wintouch-glass"
       :class="[
         maxWidthClass,
         positionClass,
@@ -264,7 +264,7 @@ defineExpose({ open, close, requestClose });
       >
         <form
           ref="dialogContentRef"
-          class="relative flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
+          class="relative flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle bg-n-solid-1/85 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-inset ring-n-weak/70 rounded-3xl"
           @submit.prevent="onSubmit"
           @click.stop
         >
@@ -279,7 +279,7 @@ defineExpose({ open, close, requestClose });
             <button
               type="button"
               :aria-label="t('DIALOG.BUTTONS.CANCEL')"
-              class="flex items-center justify-center mr-4 rounded-lg pointer-events-auto size-8 text-n-slate-11 bg-n-alpha-3 backdrop-blur hover:bg-n-alpha-2 hover:text-n-slate-12"
+              class="flex items-center justify-center mr-4 rounded-lg pointer-events-auto size-8 text-n-slate-11 bg-n-solid-1/90 hover:bg-n-alpha-2 hover:text-n-slate-12"
               @click="requestClose"
             >
               <Icon icon="i-lucide-x" class="size-4" />
@@ -297,13 +297,16 @@ defineExpose({ open, close, requestClose });
             <!-- 标题行：左边标题（可塞状态药丸），右边放操作按钮（导出/打印之类），
                  一行放得下就不要再单起一行，否则标题下面空一大片。 -->
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-base font-medium leading-6 text-n-slate-12">
+              <h3 class="text-heading-2 leading-6 text-n-slate-12">
                 <slot name="title">{{ title }}</slot>
               </h3>
               <slot name="headerActions" />
             </div>
             <slot name="description">
-              <p v-if="description" class="mb-0 text-sm text-n-slate-11">
+              <p
+                v-if="description"
+                class="mb-0 text-label-small leading-relaxed text-n-slate-11"
+              >
                 {{ description }}
               </p>
             </slot>
@@ -321,7 +324,7 @@ defineExpose({ open, close, requestClose });
               class="flex items-center justify-between w-full gap-3"
               :class="
                 overflowYAuto
-                  ? 'sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-4 bg-n-alpha-3 backdrop-blur-[100px] rounded-b-xl'
+                  ? 'sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-4 bg-n-solid-1/95 rounded-b-3xl'
                   : ''
               "
             >
@@ -360,10 +363,12 @@ defineExpose({ open, close, requestClose });
               class="flex flex-col w-full gap-5 p-6 shadow-xl max-w-md rounded-xl bg-n-alpha-3 backdrop-blur-[100px]"
             >
               <div class="flex flex-col gap-2">
-                <h3 class="text-base font-medium leading-6 text-n-slate-12">
+                <h3 class="text-heading-2 leading-6 text-n-slate-12">
                   {{ t('DIALOG.UNSAVED.TITLE') }}
                 </h3>
-                <p class="mb-0 text-sm text-n-slate-11">
+                <p
+                  class="mb-0 text-label-small leading-relaxed text-n-slate-11"
+                >
                   {{ t('DIALOG.UNSAVED.DESCRIPTION') }}
                 </p>
               </div>

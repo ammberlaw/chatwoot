@@ -130,6 +130,10 @@ json.bot_name resource.channel.try(:bot_name) if resource.telegram?
 if resource.whatsapp?
   json.message_templates resource.channel.try(:message_templates)
   json.provider_config resource.channel.try(:provider_config) if Current.account_user&.administrator?
+  # 个人 WhatsApp 的连接状态（open 已连 / qr 等待扫码 / disconnected 掉线）。
+  # 单独给一个字段而不是让前端读 provider_config——那个只给管理员，
+  # 业务员读不到就没法把「等待扫码」的号从侧栏里过滤掉。状态本身不含凭据，不敏感。
+  json.connection_status resource.channel.try(:connection_status) if resource.channel.is_a?(Channel::WhatsappWeb)
   # Only show reauthorization for embedded signup; manual flow uses API keys, not OAuth
   json.reauthorization_required(
     (resource.channel.try(:provider_config) || {}).to_h['source'] == 'embedded_signup' &&

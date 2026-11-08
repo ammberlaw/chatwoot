@@ -150,6 +150,12 @@ class ConversationFinder
     # 几乎一模一样；排掉分给自己的才剩下「我交出去的」这批真正要盯的。
     when 'assigned_out'
       @conversations = @conversations.where.not(assignee_id: [nil, current_user.id])
+    # 「待回复」＝分给我、且最后一句是客户说的。waiting_since 由 Chatwoot 自己维护
+    # （客户来消息时置上、我们回了就清掉，见 Message#update_waiting_since），带索引，
+    # 不用现算「最后一条是谁发的」。2026-11-06 拿生产 439 个 WhatsApp 会话对过账：
+    # 它标了 145 个，按消息现算是 143 个，误标 4、漏标 2。
+    when 'waiting'
+      @conversations = @conversations.assigned_to(current_user).where.not(waiting_since: nil)
     end
     @conversations
   end
@@ -217,13 +223,15 @@ class ConversationFinder
   end
 
   def conversation_counts
-    mine, unassigned, assigned_out, all = set_count_for_all_conversations
+    mine, unassigned, assigned_out, waiting, all = set_count_for_all_conversations
     {
       mine_count: mine,
       assigned_count: all - unassigned,
       unassigned_count: unassigned,
       # 「已分配」页签＝我派给别人的（见 filter_by_assignee_type）
       assigned_out_count: assigned_out,
+      # 「待回复」页签＝分给我、客户在等回复的
+      waiting_count: waiting,
       all_count: all
     }
   end
@@ -235,16 +243,19 @@ class ConversationFinder
       Arel.sql("COUNT(*) FILTER (WHERE assignee_id = #{current_user.id})"),
       Arel.sql('COUNT(*) FILTER (WHERE assignee_id IS NULL)'),
       Arel.sql("COUNT(*) FILTER (WHERE assignee_id IS NOT NULL AND assignee_id <> #{current_user.id})"),
+      Arel.sql("COUNT(*) FILTER (WHERE assignee_id = #{current_user.id} AND waiting_since IS NOT NULL)"),
       Arel.sql('COUNT(*)')
     )
-    counts || [0, 0, 0, 0]
+    counts || [0, 0, 0, 0, 0]
   end
 
+  # 顺序必须与 set_count_for_all_conversations 的 pick 一一对应。
   def legacy_count_for_all_conversations
     [
       @conversations.assigned_to(current_user).count,
       @conversations.unassigned.count,
       @conversations.where.not(assignee_id: [nil, current_user.id]).count,
+      @conversations.assigned_to(current_user).where.not(waiting_since: nil).count,
       @conversations.count
     ]
   end

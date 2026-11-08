@@ -1,7 +1,7 @@
 {
   "MFA_SETTINGS": {
     "TITLE": "两步验证",
-    "SUBTITLE": "Protect your account from unauthorized access with TOTP-based authentication. This adds an extra layer of security to your account.",
+    "SUBTITLE": "使用动态验证码保护您的账户，防止未经授权的访问。",
     "DESCRIPTION": "使用基于时间的一次性密码(TOTP)为您的帐户添加额外的一层安全保护",
     "STATUS_TITLE": "验证状态",
     "STATUS_DESCRIPTION": "管理您的二步验证设置和备份码",
@@ -25,7 +25,7 @@
       "ENTER_CODE_PLACEHOLDER": "000000",
       "VERIFY_BUTTON": "验证并继续",
       "CANCEL": "取消",
-      "ERROR_STARTING": "MFA 未启用。请与管理员联系。",
+      "ERROR_STARTING": "两步验证尚未启用，请联系管理员。",
       "INVALID_CODE": "无效的验证码",
       "SECRET_COPIED": "密钥已复制到剪贴板",
       "SUCCESS": "已成功启用两步验证"
@@ -57,12 +57,12 @@
       "OTP_CODE_PLACEHOLDER": "000000",
       "BACKUP_CODE": "备份代码",
       "BACKUP_CODE_PLACEHOLDER": "输入您的备份代码",
-      "USE_BACKUP_CODE": "Lost access to your authenticator? Use a backup code instead",
-      "USE_OTP_CODE": "Use a verification code from your authenticator app",
+      "USE_BACKUP_CODE": "无法使用身份验证器？改用备份码",
+      "USE_OTP_CODE": "使用身份验证器应用中的验证码",
       "CONFIRM": "禁用两步验证",
       "CANCEL": "取消",
       "SUCCESS": "两步验证已禁用",
-      "ERROR": "禁用MFA失败。请检查您的凭据。"
+      "ERROR": "无法关闭两步验证，请检查密码和验证码。"
     },
     "REGENERATE": {
       "TITLE": "重新生成备份代码",

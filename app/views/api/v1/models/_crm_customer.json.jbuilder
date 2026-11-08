@@ -48,6 +48,15 @@ json.contact_phone resource.contact_phone
 json.whats_app resource.whats_app
 json.wechat resource.wechat
 json.alibaba_account resource.alibaba_account
+# 欧盟增值税号。vat_verified_at 有值 = 过了欧盟官方 VIES 验证，
+# 可以直接往形式发票上写；为空说明是人工填的，没验过。
+# 背调摘要：主动开发建档时从线索带过来的（主营/可能采购/AI 判断/规模）。
+# 这两列以前只写不读，2026-11-08 起在客户详情页显示。
+json.labels resource.label_list
+json.bg_summary resource.bg_summary
+json.bg_checked_at resource.bg_checked_at
+json.vat_no resource.vat_no
+json.vat_verified_at resource.vat_verified_at
 json.contact_preference resource.contact_preference
 json.customer_remark resource.customer_remark
 

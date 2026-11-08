@@ -30,6 +30,12 @@ export const REPORTS_PERMISSIONS = 'report_manage';
 export const PORTAL_PERMISSIONS = 'knowledge_base_manage';
 
 export const ASSIGNEE_TYPE_TAB_PERMISSIONS = {
+  // 「待回复」＝分给我、最后一句是客户说的。全员可见——这是业务员每天最该先看的一屏，
+  // 也是唯一一个不用自己翻、系统能替他挑出来的清单。口径见 ConversationFinder。
+  waiting: {
+    count: 'waitingCount',
+    permissions: [...ROLES, ...CONVERSATION_PERMISSIONS],
+  },
   me: {
     count: 'mineCount',
     permissions: [...ROLES, ...CONVERSATION_PERMISSIONS],

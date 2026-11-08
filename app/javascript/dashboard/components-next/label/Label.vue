@@ -47,15 +47,12 @@ const colorClasses = computed(() => COLOR_CLASSES[props.color]);
 <template>
   <div
     :title="labelDescription"
-    class="rounded-lg -outline-offset-1 outline outline-1 inline-flex items-center flex-shrink-0"
-    :class="[
-      colorClasses,
-      compact ? 'px-1.5 h-6 gap-1 rounded-md' : 'px-2.5 h-8 gap-1.5 rounded-lg',
-    ]"
+    class="rounded-full -outline-offset-1 outline outline-1 inline-flex items-center flex-shrink-0"
+    :class="[colorClasses, compact ? 'px-2 h-6 gap-1' : 'px-3 h-8 gap-1.5']"
   >
     <span
       v-if="labelColor"
-      class="rounded-sm flex-shrink-0"
+      class="rounded-full flex-shrink-0"
       :class="compact ? 'size-1.5' : 'size-2'"
       :style="{ background: labelColor }"
     />

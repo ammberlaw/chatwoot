@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Icon from 'next/icon/Icon.vue';
 import * as Sentry from '@sentry/vue';
 import FormSelect from 'v3/components/Form/Select.vue';
@@ -18,27 +19,28 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['change']);
+const { t } = useI18n();
 
 const alertTones = computed(() => [
   {
     value: 'ding',
-    label: 'Ding',
+    label: t('PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.TONES.DING'),
   },
   {
     value: 'bell',
-    label: 'Bell',
+    label: t('PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.TONES.BELL'),
   },
   {
     value: 'chime',
-    label: 'Chime',
+    label: t('PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.TONES.CHIME'),
   },
   {
     value: 'magic',
-    label: 'Magic',
+    label: t('PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.TONES.MAGIC'),
   },
   {
     value: 'ping',
-    label: 'Ping',
+    label: t('PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.TONES.PING'),
   },
 ]);
 

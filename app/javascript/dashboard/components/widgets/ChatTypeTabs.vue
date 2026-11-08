@@ -46,24 +46,24 @@ useKeyboardEvents(keyboardEvents);
 </script>
 
 <template>
-  <!-- 用全站统一的「灰槽 + 深色选中块」页签（见 _next-colors.scss 的 data-tabbar）：
-       容器挂标记、选中项用 aria-selected，颜色走 token，四套主题各取各的。
-       page-block 是撑满容器那一档——会话列表这一栏只有 340px 宽，fit-content
-       放不下 4 个页签会溢出；撑满均分反而每个都看得全。 -->
+  <!-- 保留全站灰槽页签样式；窄栏单行滚动，避免最后一项单独换行。 -->
   <div class="px-3 pb-1 shrink-0">
-    <div data-tabbar="page-block">
+    <div
+      data-tabbar="page-block"
+      class="!flex-nowrap overflow-x-auto"
+    >
       <button
         v-for="(item, index) in items"
         :key="item.key"
         type="button"
         role="tab"
         :aria-selected="item.key === activeTab"
-        class="flex items-center justify-center gap-1 whitespace-nowrap !px-2"
+        class="flex items-center justify-center gap-0.5 whitespace-nowrap !flex-[1_0_auto] !px-1"
         @click="onTabChange(index)"
       >
         {{ item.name }}
         <span
-          class="inline-grid h-4 min-w-4 place-items-center rounded-full px-1 text-xxs leading-none"
+          class="inline-grid h-4 min-w-3.5 place-items-center rounded-full px-0.5 text-xxs leading-none"
         >
           {{ item.count }}
         </span>

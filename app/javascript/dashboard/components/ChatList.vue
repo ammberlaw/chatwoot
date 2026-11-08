@@ -76,6 +76,16 @@ const activeAssigneeTab = ref(wootConstants.ASSIGNEE_TYPE.ME);
 // 列表内搜索：按客户名字/备注名/电话/邮箱找会话（后端 ConversationFinder#filter_by_query）。
 // 线上 185 条会话只能靠滚，想找某个客户得先去全局搜索再跳回来，这里就地解决。
 const searchQuery = ref('');
+const showSearch = ref(false);
+const searchInputRef = ref(null);
+
+async function toggleSearch() {
+  showSearch.value = !showSearch.value;
+  if (showSearch.value) {
+    await nextTick();
+    searchInputRef.value?.focus();
+  }
+}
 const appliedQuery = ref('');
 let searchTimer = null;
 const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
@@ -198,10 +208,14 @@ const assigneeTabItems = computed(() => {
   }));
 });
 
+// 「已分配」整个页签的意思就是「我派给别人的」，派给了谁是这一屏唯一的增量信息，
+// 比「全部」更该显示（口径见 constants/permissions.js 的 assigned_out）。
+// 「我的」「未分配」不显示：前者全是自己，后者按定义没有归属人。
 const showAssigneeInConversationCard = computed(() => {
   return (
     hasAppliedFiltersOrActiveFolders.value ||
-    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL
+    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL ||
+    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ASSIGNED_OUT
   );
 });
 
@@ -308,6 +322,11 @@ const pageTitle = computed(() => {
   return t('CHAT_LIST.TAB_HEADING');
 });
 
+// 「待回复」＝分给我、且客户还在等。waiting_since 由后端维护（客户来消息置上、
+// 我们回了清掉），载荷里是整数时间戳，0 表示不在等。
+const isWaitingOnMe = c =>
+  !!c.waiting_since && c.meta?.assignee?.id === currentUser.value?.id;
+
 function filterByAssigneeTab(conversations) {
   if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ME) {
     return conversations.filter(
@@ -316,6 +335,9 @@ function filterByAssigneeTab(conversations) {
   }
   if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED) {
     return conversations.filter(c => !c.meta?.assignee);
+  }
+  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.WAITING) {
+    return conversations.filter(isWaitingOnMe);
   }
   return [...conversations];
 }
@@ -342,6 +364,12 @@ const conversationList = computed(() => {
       );
     } else if (activeAssigneeTab.value === 'me') {
       localConversationList = [...mineChatsList.value(filters)];
+    } else if (activeAssigneeTab.value === 'waiting') {
+      // store 里攒的是历次拉取的并集，光靠后端按页签过滤不够——不在前端再筛一道，
+      // 这个页签会把别的页签拉回来的会话也一起显示（数字对、列表不对）。
+      localConversationList = mineChatsList
+        .value(filters)
+        .filter(isWaitingOnMe);
     } else if (activeAssigneeTab.value === 'unassigned') {
       localConversationList = [...unAssignedChatsList.value(filters)];
     } else {
@@ -947,6 +975,8 @@ watch(conversationFilters, (newVal, oldVal) => {
     <slot />
     <ChatListHeader
       :page-title="pageTitle"
+      :is-search-open="showSearch"
+      :has-search-query="!!searchQuery.trim()"
       :has-applied-filters="hasAppliedFilters"
       :has-active-folders="hasActiveFolders"
       :active-status="activeStatus"
@@ -958,21 +988,27 @@ watch(conversationFilters, (newVal, oldVal) => {
       @filters-modal="onToggleAdvanceFiltersModal"
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
+      @toggle-search="toggleSearch"
     />
 
     <!-- 列表内搜索客户：线上 185 条会话靠滚找不到人，新进来的询盘更是翻不到。
          搜的是联系人（名字/手机通讯录备注名同一个字段/电话/邮箱）+ 消息正文。 -->
-    <div v-if="!hasAppliedFiltersOrActiveFolders" class="px-3 pb-1 shrink-0">
+    <div
+      v-if="showSearch && !hasAppliedFiltersOrActiveFolders"
+      class="px-3 pb-1 shrink-0"
+    >
       <div class="relative flex items-center">
         <span
           class="absolute i-lucide-search size-3.5 text-n-slate-10 ltr:left-2.5 rtl:right-2.5"
         />
         <input
+          ref="searchInputRef"
           :value="searchQuery"
           type="search"
           :placeholder="$t('CHAT_LIST.SEARCH_PLACEHOLDER')"
           class="w-full h-8 text-sm border rounded-lg reset-base ltr:pl-8 rtl:pr-8 ltr:pr-2 rtl:pl-2 border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           @input="onSearchInput($event.target.value)"
+          @keydown.esc="showSearch = false"
         />
       </div>
     </div>

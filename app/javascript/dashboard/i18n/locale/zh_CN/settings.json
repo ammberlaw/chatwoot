@@ -22,16 +22,16 @@
       },
       "SEND_MESSAGE": {
         "TITLE": "发送消息的快捷键",
-        "NOTE": "您可以根据您的写入偏好选择一个快捷键 (输入或 Cmd/Ctrl+Enter)。",
+        "NOTE": "按您的习惯选择回车或组合键发送消息。",
         "UPDATE_SUCCESS": "您的设置已经更新成功",
         "CARD": {
           "ENTER_KEY": {
-            "HEADING": "Enter (↵)",
-            "CONTENT": "按 Enter 键发送消息，而不是单击发送按钮。"
+            "HEADING": "回车（↵）",
+            "CONTENT": "按回车键发送消息。"
           },
           "CMD_ENTER_KEY": {
-            "HEADING": "Cmd/Ctrl + Enter (⌘ + ↵)",
-            "CONTENT": "按下 Cmd/Ctrl + Enter 发送消息，而不是点击发送按钮。"
+            "HEADING": "组合键（⌘ / Ctrl + ↵）",
+            "CONTENT": "按命令键或控制键与回车键的组合发送消息。"
           }
         }
       },
@@ -69,7 +69,7 @@
         "IMAGE_UPLOAD_ERROR": "无法上传图片！请再试一次",
         "IMAGE_UPLOAD_SUCCESS": "图片添加成功。请点击保存签名。",
         "IMAGE_UPLOAD_SIZE_ERROR": "图片大小应该小于{size}MB",
-        "INLINE_IMAGE_WARNING": "Pasted inline images were removed. Please use the image upload button to add images to your signature."
+        "INLINE_IMAGE_WARNING": "已移除粘贴的内嵌图片。请使用图片上传按钮为签名添加图片。"
       },
       "MESSAGE_SIGNATURE": {
         "LABEL": "消息签名",
@@ -83,8 +83,8 @@
       },
       "SECURITY_SECTION": {
         "TITLE": "安全",
-        "NOTE": "Manage additional security features for your account.",
-        "MFA_BUTTON": "Manage Two-Factor Authentication"
+        "NOTE": "管理您账户的安全设置。",
+        "MFA_BUTTON": "管理两步验证"
       },
       "ACCESS_TOKEN": {
         "TITLE": "访问令牌",
@@ -133,7 +133,14 @@
           "CONDITION_TWO": "每30秒发送一次提醒，直到所有分配的会话被阅读"
         },
         "SOUND_PERMISSION_ERROR": "您的浏览器中禁用了自动播放。要自动听到提醒，请在浏览器设置中启用声音权限或与页面进行交互。",
-        "READ_MORE": "阅读更多"
+        "READ_MORE": "阅读更多",
+        "TONES": {
+          "DING": "叮咚",
+          "BELL": "铃声",
+          "CHIME": "风铃",
+          "MAGIC": "魔法",
+          "PING": "清脆提示"
+        }
       },
       "EMAIL_NOTIFICATIONS_SECTION": {
         "TITLE": "电子邮件通知",
@@ -226,6 +233,18 @@
         "LABEL": "重新输入一次密码",
         "ERROR": "两次密码不一致",
         "PLACEHOLDER": "请重新输入您的新密码"
+      },
+      "SESSIONS_SECTION": {
+        "TITLE": "登录设备",
+        "NOTE": "查看当前登录您账户的设备，并退出不再使用的设备。",
+        "CURRENT": "当前设备",
+        "REVOKE": "退出此设备",
+        "REVOKE_SUCCESS": "已退出此设备",
+        "REVOKE_ERROR": "无法退出此设备，请重试。",
+        "FETCH_ERROR": "无法获取登录设备，请重试。",
+        "LAST_ACTIVE": "最近活跃：",
+        "UNKNOWN_DEVICE": "未知设备",
+        "DEVICE_LABEL": "{browser}（{platform}）"
       }
     }
   },
@@ -250,7 +269,7 @@
     "USER_GUIDE": "用户使用指南",
     "USER_GUIDE_CRM": "CRM 使用指南",
     "USER_GUIDE_MES": "MES 使用指南",
-    "LOGOUT": "注销"
+    "LOGOUT": "退出登录"
   },
   "APP_GLOBAL": {
     "TRIAL_MESSAGE": "剩余试用期天数",
@@ -267,7 +286,7 @@
       "TITLE": "No account found",
       "MESSAGE_CLOUD": "You are not part of any accounts right now. If you think this is a mistake, please reach out to our support team.",
       "MESSAGE_SELF_HOSTED": "You are not part of any accounts right now. Please reach out to your administrator.",
-      "LOGOUT": "注销"
+      "LOGOUT": "退出登录"
     }
   },
   "COMPONENTS": {
