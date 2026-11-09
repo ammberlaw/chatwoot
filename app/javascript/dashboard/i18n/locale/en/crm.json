@@ -85,6 +85,17 @@
       "RESET": "恢复默认背景",
       "APPLY": "应用设置",
       "PREVIEW": "壁纸效果预览",
+      "HEADER_COLOR": "顶部文字颜色",
+      "WORDMARK": "Wintouch",
+      "HEADER_PREVIEW": "您好，开始今天的工作",
+      "HEADER_COLOR_HINT": "调整顶部标志、问候语和说明文字，仅对自己生效。",
+      "HEADER_COLORS": {
+        "DARK": "深色",
+        "WHITE": "白色",
+        "YELLOW": "米黄",
+        "BLUE": "浅蓝",
+        "PINK": "浅粉"
+      },
       "TARGET": "调整对象",
       "ALL_CARDS": "全部卡片",
       "TRANSPARENCY": "桌面卡片透明度",

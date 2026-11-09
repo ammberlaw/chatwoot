@@ -13,11 +13,13 @@ import {
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import WorkspaceMyOrders from './WorkspaceMyOrders.vue';
 import WorkspaceCardRecords from './WorkspaceCardRecords.vue';
-import wintouchLockup from 'dashboard/assets/images/wintouch/login-card-wordmark-rounded.png';
+import WorkspaceWordmark from './WorkspaceWordmark.vue';
+import { workspaceHeaderColor } from 'dashboard/helper/workspaceHeaderColor';
 
 const props = defineProps({
   context: { type: Object, required: true },
   cardOpacity: { type: Object, default: defaultWorkspaceCardOpacity },
+  headerColor: { type: String, default: 'dark' },
 });
 const emit = defineEmits(['go', 'changeMonth', 'openOrder']);
 const { t } = useI18n();
@@ -31,6 +33,9 @@ const tr = (key, values) => t(`CRM.WORKSPACE_UI.${key}`, values || {});
 const card =
   'min-w-0 rounded-[20px] border border-black/[0.06] p-5 text-[#202427] shadow-sm min-[1100px]:min-h-0 min-[1100px]:p-4';
 const cardBackground = id => workspaceCardBackground(props.cardOpacity, id);
+const headerAppearance = computed(() =>
+  workspaceHeaderColor(props.headerColor)
+);
 const open = route => emit('go', route);
 const openCard = (event, route, enabled = true) => {
   if (
@@ -64,13 +69,17 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
     class="mx-auto hidden w-full max-w-[1280px] flex-col px-6 md:flex min-[1100px]:h-dvh min-[1100px]:min-h-[772px] min-[1100px]:px-8"
   >
     <header class="flex h-[52px] shrink-0 items-center gap-10 pr-48">
-      <img :src="wintouchLockup" alt="Wintouch" class="h-auto w-24 shrink-0" />
+      <WorkspaceWordmark
+        class="h-auto w-24 shrink-0"
+        :class="headerAppearance.text"
+      />
     </header>
-    <main class="flex min-h-0 flex-1 flex-col">
+    <main class="flex min-h-0 flex-1 flex-col min-[1100px]:min-h-min">
       <div class="flex shrink-0 items-end justify-between gap-4 py-3">
         <div>
           <h1
-            class="m-0 text-heading-1 !text-[20px] !font-medium !leading-snug text-[#202427]"
+            class="m-0 text-heading-1 !text-[20px] !font-medium !leading-snug"
+            :class="headerAppearance.text"
           >
             {{
               c.userName
@@ -78,16 +87,16 @@ const presentDays = computed(() => workdays.value.filter(day => day.present));
                 : c.greeting
             }}
           </h1>
-          <p class="mt-1 text-label-small text-[#646c73]">
+          <p class="mt-1 text-label-small" :class="headerAppearance.secondary">
             {{ tr('TITLE') }}
           </p>
         </div>
       </div>
       <div
-        class="grid min-h-0 flex-1 grid-cols-2 items-start gap-3 min-[1100px]:grid-cols-[1.25fr_1fr_1fr_1.15fr] min-[1100px]:items-stretch"
+        class="grid min-h-0 flex-1 grid-cols-2 items-start gap-3 min-[1100px]:min-h-min min-[1100px]:grid-cols-[1.25fr_1fr_1fr_1.15fr] min-[1100px]:items-stretch"
       >
         <div
-          class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:grid-rows-[minmax(340px,1fr)_100px_minmax(164px,0.45fr)]"
+          class="grid min-h-0 gap-3 min-[1100px]:h-full min-[1100px]:min-h-min min-[1100px]:grid-rows-[minmax(340px,1fr)_100px_minmax(min-content,0.45fr)]"
         >
           <section
             :class="[card, cardBackground('crm')]"
@@ -219,16 +228,18 @@ icon="i-lucide-arrow-up-right" class="size-4"
           <button
             type="button"
             :class="[card, cardBackground('hr')]"
-            class="flex min-h-[164px] flex-col text-left min-[1100px]:!min-h-0"
+            class="flex !min-h-min flex-col text-left"
             @click="open('crm_org_structure_index')"
           >
-            <h2 class="flex items-center gap-2 text-heading-3 !font-medium">
+            <h2
+              class="m-0 flex shrink-0 items-center gap-2 text-heading-3 !font-medium"
+            >
               <Icon icon="i-lucide-users" class="size-4 shrink-0" />{{
                 tr('HR')
               }}
             </h2>
             <div
-              class="my-auto flex w-full items-center justify-between gap-2 py-1"
+              class="my-auto flex w-full shrink-0 items-center justify-between gap-2 py-1"
             >
               <div class="flex items-baseline gap-2">
                 <strong
@@ -274,7 +285,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
               </svg>
             </div>
             <dl
-              class="grid w-full grid-cols-3 border-t border-black/5 pt-2 text-label-small text-[#858d80]"
+              class="m-0 grid w-full shrink-0 grid-cols-3 border-t border-black/5 pt-2 text-label-small text-[#858d80]"
             >
               <div>
                 <dd
@@ -572,7 +583,7 @@ icon="i-lucide-arrow-up-right" class="size-4"
         </div>
         <section
           :class="[card, cardBackground('calendar')]"
-          class="flex min-h-[560px] flex-col min-[1100px]:!min-h-0 min-[1100px]:h-[94%]"
+          class="flex min-h-[560px] flex-col min-[1100px]:!min-h-0 min-[1100px]:h-[94%] min-[1100px]:[contain:size]"
           :aria-label="tr('MY_SCHEDULE')"
         >
           <div class="flex items-center justify-between gap-2">

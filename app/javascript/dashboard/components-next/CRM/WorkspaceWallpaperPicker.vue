@@ -11,10 +11,16 @@ import {
   workspaceCardOpacity,
 } from 'dashboard/helper/workspaceCardOpacity';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import WorkspaceWordmark from './WorkspaceWordmark.vue';
+import {
+  WORKSPACE_HEADER_COLORS,
+  workspaceHeaderColor,
+} from 'dashboard/helper/workspaceHeaderColor';
 
 const props = defineProps({
   url: { type: String, default: '' },
   cardOpacity: { type: Object, default: defaultWorkspaceCardOpacity },
+  headerColor: { type: String, default: 'dark' },
   cardIds: {
     type: Array,
     default: () => WORKSPACE_CARDS.map(card => card.id),
@@ -32,6 +38,10 @@ const saving = ref(false);
 const opened = ref(false);
 const target = ref('all');
 const draftOpacity = ref(defaultWorkspaceCardOpacity());
+const draftHeaderColor = ref('dark');
+const headerAppearance = computed(() =>
+  workspaceHeaderColor(draftHeaderColor.value)
+);
 const cards = computed(() =>
   WORKSPACE_CARDS.filter(card => props.cardIds.includes(card.id))
 );
@@ -39,6 +49,7 @@ const wallpaperChanged = computed(() => !!file.value || removeWallpaper.value);
 const changed = computed(
   () =>
     wallpaperChanged.value ||
+    draftHeaderColor.value !== props.headerColor ||
     JSON.stringify(draftOpacity.value) !== JSON.stringify(props.cardOpacity)
 );
 const copy = (key, values) => t(`CRM.WORKSPACE_WALLPAPER.${key}`, values || {});
@@ -70,12 +81,13 @@ const previewPositions = {
   calendar: 'col-start-4 row-start-1 row-span-6',
 };
 watch(
-  [preview, draftOpacity],
+  [preview, draftOpacity, draftHeaderColor],
   () => {
     if (opened.value) {
       emit('preview', {
         url: preview.value,
         cardOpacity: copyWorkspaceCardOpacity(draftOpacity.value),
+        headerColor: draftHeaderColor.value,
       });
     }
   },
@@ -99,6 +111,7 @@ const open = () => {
   preview.value = props.url;
   target.value = 'all';
   draftOpacity.value = copyWorkspaceCardOpacity(props.cardOpacity);
+  draftHeaderColor.value = props.headerColor;
   opened.value = true;
   dialog.value.open();
 };
@@ -142,6 +155,7 @@ const save = async () => {
     const { data } = await WallpaperAPI.update(file.value, {
       removeWallpaper: removeWallpaper.value,
       cardOpacity: draftOpacity.value,
+      headerColor: draftHeaderColor.value,
     });
     emit('update', data);
     dialog.value.close();
@@ -180,25 +194,80 @@ defineExpose({ open });
         class="absolute inset-0 size-full object-cover"
       />
       <div
-        class="relative grid h-full grid-cols-[1.25fr_1fr_1fr_1.15fr] grid-rows-6 gap-1.5 p-3 sm:gap-2 sm:p-4"
+        class="relative flex h-full flex-col gap-2 p-3 sm:p-4"
         aria-hidden="true"
       >
         <div
-          v-for="card in cards"
-          :key="card.id"
-          class="flex min-h-0 items-start overflow-hidden rounded-lg p-1.5 shadow-sm"
-          :class="[
-            previewPositions[card.id],
-            workspaceCardBackground(draftOpacity, card.id),
-            target === card.id ? 'ring-2 ring-[#ffca35]' : '',
-          ]"
+          class="flex shrink-0 items-center gap-3"
+          :class="headerAppearance.text"
         >
-          <span class="truncate text-label-small text-[#202427]">{{
-            copy(`CARDS.${card.label}`)
+          <WorkspaceWordmark class="h-auto w-12 shrink-0" />
+          <span class="truncate text-label-small">{{
+            copy('HEADER_PREVIEW')
           }}</span>
+        </div>
+        <div
+          class="grid min-h-0 flex-1 grid-cols-[1.25fr_1fr_1fr_1.15fr] grid-rows-6 gap-1.5 sm:gap-2"
+        >
+          <div
+            v-for="card in cards"
+            :key="card.id"
+            class="flex min-h-0 items-start overflow-hidden rounded-lg p-1.5 shadow-sm"
+            :class="[
+              previewPositions[card.id],
+              workspaceCardBackground(draftOpacity, card.id),
+              target === card.id ? 'ring-2 ring-[#ffca35]' : '',
+            ]"
+          >
+            <span class="truncate text-label-small text-[#202427]">{{
+              copy(`CARDS.${card.label}`)
+            }}</span>
+          </div>
         </div>
       </div>
     </div>
+    <fieldset class="m-0 min-w-0 border-0 p-0" :disabled="saving">
+      <legend class="mb-2 text-label text-n-slate-12">
+        {{ copy('HEADER_COLOR') }}
+      </legend>
+      <div
+        class="flex flex-wrap gap-2"
+        role="group"
+        :aria-label="copy('HEADER_COLOR')"
+      >
+        <button
+          v-for="color in WORKSPACE_HEADER_COLORS"
+          :key="color.id"
+          type="button"
+          :aria-pressed="draftHeaderColor === color.id"
+          :aria-label="copy(`HEADER_COLORS.${color.label}`)"
+          :disabled="saving"
+          class="flex items-center gap-2 rounded-xl border px-3 py-2 text-label-small text-[#202427] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#202427]"
+          :class="
+            draftHeaderColor === color.id
+              ? 'border-[#ffca35] bg-[#fff7db] ring-1 ring-[#ffca35]'
+              : 'border-n-weak bg-white hover:bg-n-alpha-2'
+          "
+          @click="draftHeaderColor = color.id"
+        >
+          <span
+            class="grid size-5 shrink-0 place-items-center rounded-full border border-black/15"
+            :class="color.swatch"
+            aria-hidden="true"
+          >
+            <span
+              v-if="draftHeaderColor === color.id"
+              class="i-lucide-check size-3"
+              :class="color.id === 'dark' ? 'text-white' : 'text-[#202427]'"
+            />
+          </span>
+          {{ copy(`HEADER_COLORS.${color.label}`) }}
+        </button>
+      </div>
+      <p class="mb-0 mt-2 text-label-small text-n-slate-11">
+        {{ copy('HEADER_COLOR_HINT') }}
+      </p>
+    </fieldset>
     <div
       class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:gap-5"
     >

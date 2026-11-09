@@ -3,10 +3,16 @@ class Api::V1::Profile::WorkspaceWallpapersController < Api::BaseController
   MAX_FILE_SIZE = 10.megabytes
   CARD_OPACITY_KEY = 'workspace_card_opacity'.freeze
   CARD_IDS = %w[crm oa hr orders erp team tiktok docs calendar].freeze
+  HEADER_COLOR_KEY = 'workspace_header_color'.freeze
+  HEADER_COLORS = %w[dark white yellow blue pink].freeze
 
   def show
     attachment = current_user.workspace_wallpaper
-    render json: { url: attachment.attached? ? rails_blob_path(attachment, only_path: true) : nil, card_opacity: current_card_opacity }
+    render json: {
+      url: attachment.attached? ? rails_blob_path(attachment, only_path: true) : nil,
+      card_opacity: current_card_opacity,
+      header_color: current_header_color
+    }
   end
 
   def update
@@ -28,9 +34,10 @@ class Api::V1::Profile::WorkspaceWallpapersController < Api::BaseController
     wallpaper = wallpaper_attributes
     remove_wallpaper = remove_wallpaper?
     opacity = card_opacity_params if params.key?(:card_opacity)
+    header_color = header_color_param if params.key?(:header_color)
     raise ArgumentError, 'Choose an image or remove the wallpaper, not both.' if wallpaper && remove_wallpaper
 
-    { wallpaper: wallpaper, remove_wallpaper: remove_wallpaper, opacity: opacity }
+    { wallpaper: wallpaper, remove_wallpaper: remove_wallpaper, opacity: opacity, header_color: header_color }
   rescue ArgumentError => e
     render json: { error: e.message }, status: :unprocessable_entity
     nil
@@ -65,6 +72,17 @@ class Api::V1::Profile::WorkspaceWallpapersController < Api::BaseController
     current_user.ui_settings&.fetch(CARD_OPACITY_KEY, nil) || { 'all' => 100, 'overrides' => {} }
   end
 
+  def current_header_color
+    current_user.ui_settings&.fetch(HEADER_COLOR_KEY, nil) || 'dark'
+  end
+
+  def header_color_param
+    color = params.permit(:header_color)[:header_color]
+    raise ArgumentError, 'Choose a supported header text color.' unless HEADER_COLORS.include?(color)
+
+    color
+  end
+
   def card_opacity_params
     opacity = params[:card_opacity]
     unless opacity.is_a?(ActionController::Parameters) && (opacity.keys - %w[all overrides]).empty?
@@ -92,14 +110,14 @@ class Api::V1::Profile::WorkspaceWallpapersController < Api::BaseController
     raise ArgumentError, 'Card opacity must be an integer from 0 to 100.'
   end
 
-  def save_workspace_settings(wallpaper: nil, remove_wallpaper: false, opacity: nil)
+  def save_workspace_settings(wallpaper: nil, remove_wallpaper: false, opacity: nil, header_color: nil)
     current_user.with_lock do
       current_user.workspace_wallpaper = wallpaper if wallpaper
       current_user.workspace_wallpaper = nil if remove_wallpaper
-      if opacity
-        settings = current_card_opacity.merge(opacity)
-        current_user.ui_settings = (current_user.ui_settings || {}).merge(CARD_OPACITY_KEY => settings)
-      end
+      settings = {}
+      settings[CARD_OPACITY_KEY] = current_card_opacity.merge(opacity) if opacity
+      settings[HEADER_COLOR_KEY] = header_color if header_color
+      current_user.ui_settings = (current_user.ui_settings || {}).merge(settings) if settings.any?
       current_user.save!
     end
   end

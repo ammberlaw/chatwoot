@@ -1428,7 +1428,7 @@ watch(
               <div
                 v-for="folder in sortedFolders"
                 :key="folderKeyOf(folder)"
-                class="relative"
+                class="group/folder-style relative"
                 @mouseenter="hoveredFolderId = folder.id"
                 @mouseleave="hoveredFolderId = null"
               >
@@ -1523,7 +1523,7 @@ watch(
                 <button
                   v-if="isGeneral || isMineView"
                   type="button"
-                  class="absolute left-0 top-0 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 shadow-sm hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8"
+                  class="absolute left-0 top-0 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 opacity-100 shadow-sm transition-opacity duration-150 hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/folder-style:opacity-100 [@media(hover:hover)]:group-focus-within/folder-style:opacity-100 motion-reduce:transition-none"
                   :title="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
                   :aria-label="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
                   @click.stop="folderStylePicker.open({ key: folderStyleKey('category', folder.id), name: folder.name })"

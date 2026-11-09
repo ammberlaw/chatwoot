@@ -18,7 +18,8 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SidebarProfileMenu from 'dashboard/components-next/sidebar/SidebarProfileMenu.vue';
 import WootKeyShortcutModal from 'dashboard/components/widgets/modal/WootKeyShortcutModal.vue';
 import CrmQuickClock from 'dashboard/components-next/CRM/CrmQuickClock.vue';
-import wintouchLockup from 'dashboard/assets/images/wintouch/login-card-wordmark-rounded.png';
+import WorkspaceWordmark from 'dashboard/components-next/CRM/WorkspaceWordmark.vue';
+import { workspaceHeaderColor } from 'dashboard/helper/workspaceHeaderColor';
 import WorkspaceDesktop from 'dashboard/components-next/CRM/WorkspaceDesktop.vue';
 import WorkspaceWallpaperPicker from 'dashboard/components-next/CRM/WorkspaceWallpaperPicker.vue';
 import WallpaperAPI from 'dashboard/api/workspaceWallpaper';
@@ -41,6 +42,7 @@ const profileMenuOpen = ref(false);
 const wallpaperPicker = ref(null);
 const wallpaperUrl = ref('');
 const cardOpacity = ref(defaultWorkspaceCardOpacity());
+const headerColor = ref('dark');
 const appearancePreview = ref(null);
 const appearanceLoading = ref(true);
 const appearanceLoaded = ref(false);
@@ -50,11 +52,21 @@ const displayedWallpaper = computed(
 const displayedCardOpacity = computed(
   () => appearancePreview.value?.cardOpacity ?? cardOpacity.value
 );
+const displayedHeaderColor = computed(
+  () => appearancePreview.value?.headerColor ?? headerColor.value
+);
+const headerAppearance = computed(() =>
+  workspaceHeaderColor(displayedHeaderColor.value)
+);
 const updateWorkspaceAppearance = settings => {
   wallpaperUrl.value = settings.url || '';
   cardOpacity.value = settings.card_opacity || defaultWorkspaceCardOpacity();
+  headerColor.value = settings.header_color || 'dark';
   store.commit(types.SET_CURRENT_USER_UI_SETTINGS, {
-    uiSettings: { workspace_card_opacity: cardOpacity.value },
+    uiSettings: {
+      workspace_card_opacity: cardOpacity.value,
+      workspace_header_color: headerColor.value,
+    },
   });
 };
 const loadWorkspaceAppearance = async () => {
@@ -316,6 +328,7 @@ onMounted(async () => {
         ref="wallpaperPicker"
         :url="wallpaperUrl"
         :card-opacity="cardOpacity"
+        :header-color="headerColor"
         :card-ids="visibleWorkspaceCards"
         @preview="appearancePreview = $event"
         @update="updateWorkspaceAppearance"
@@ -377,19 +390,20 @@ onMounted(async () => {
         <main class="min-w-0">
           <div class="wsh-top !items-center !mb-3 px-4 pt-1 pb-1 md:!hidden">
             <div class="grid min-w-0 grid-cols-1 gap-1 md:pr-80">
-              <img
-                :src="wintouchLockup"
-                alt="Wintouch"
+              <WorkspaceWordmark
                 class="wsh-logo md:!hidden sm:col-span-2 !mb-2 !h-auto !w-[125px] shrink-0"
+                :class="headerAppearance.text"
               />
               <h1
                 class="wsh-hello !m-0 !text-heading-1 !tracking-normal !leading-snug !font-semibold"
+                :class="headerAppearance.text"
               >
                 {{ greeting
                 }}<template v-if="userName">，{{ userName }}</template>
               </h1>
               <div
                 class="wsh-sub !mt-0 !text-label-small !font-normal !leading-relaxed"
+                :class="headerAppearance.secondary"
               >
                 让工作井然有序
               </div>
@@ -572,6 +586,7 @@ onMounted(async () => {
 
           <WorkspaceDesktop
             :card-opacity="displayedCardOpacity"
+            :header-color="displayedHeaderColor"
             :context="{
               userName,
               greeting,

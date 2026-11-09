@@ -5,10 +5,11 @@ export default {
   get() {
     return axios.get(endpoint);
   },
-  update(file, { removeWallpaper = false, cardOpacity } = {}) {
+  update(file, { removeWallpaper = false, cardOpacity, headerColor } = {}) {
     const data = new FormData();
     if (file) data.append('wallpaper', file);
     if (removeWallpaper) data.append('remove_wallpaper', 'true');
+    if (headerColor !== undefined) data.append('header_color', headerColor);
     if (cardOpacity) {
       if (cardOpacity.all !== undefined) {
         data.append('card_opacity[all]', cardOpacity.all);
