@@ -100,6 +100,28 @@ class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
     )
   end
 
+  # 拓客任务可见范围：**共享的任务全员可见**，不共享的只有管得着的人
+  # （管理员/副管=全部，经理=本部门，业务员=自己）。
+  #
+  # ⚠️ 任务列表和线索的单条操作必须走同一个口径。原来 LeadsController 只按
+  # crm_lead_campaigns.owner_id 收口、没放行 shared，于是业务员在共享池里看得见线索、
+  # 点「领取」「建档」一律 404 Resource could not be found（2026-11-09 生产事故，
+  # 5 个任务全是共享的，等于除建任务的人之外全公司都用不了）。口径只留这一处。
+  def visible_lead_campaigns
+    base = Current.account.crm_lead_campaigns
+    ids = crm_visible_owner_ids
+    return base if ids == :all
+
+    base.where(shared: true).or(base.where(owner_id: ids))
+  end
+
+  # 线索可操作范围：跟着所属拓客任务走（见 visible_lead_campaigns）。
+  # 别人已经领走的线索不在这里拦——那由 Crm::LeadClaim 返回「已被谁领走」的提示，
+  # 比 404 讲得清楚。
+  def visible_leads
+    Current.account.crm_leads.where(crm_lead_campaign_id: visible_lead_campaigns.select(:id))
+  end
+
   # 按负责人列限定数据范围；:all 不加限制。默认列 owner_id（客户用 account_owner_id）。
   def scope_by_owner(relation, column: :owner_id)
     ids = crm_visible_owner_ids

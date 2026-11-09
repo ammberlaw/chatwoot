@@ -105,9 +105,10 @@ class Api::V1::Accounts::Crm::LeadsController < Api::V1::Accounts::Crm::BaseCont
     result.ok ? nil : result.message
   end
 
+  # 口径见 Crm::BaseController#visible_leads：跟所属拓客任务的可见性走，
+  # 共享任务的线索全员能动——共享池本来就是给大家领的。
   def fetch_lead
-    @lead = scope_by_owner(Current.account.crm_leads.joins(:campaign),
-                           column: 'crm_lead_campaigns.owner_id').find(params[:id])
+    @lead = visible_leads.find(params[:id])
   end
 
   def check_authorization

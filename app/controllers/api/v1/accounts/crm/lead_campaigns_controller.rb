@@ -188,16 +188,9 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
     @campaign = visible_campaigns.find(params[:id])
   end
 
-  # 共享的任务全员可见；不共享的只有**管得着的人**看得见。
-  # 口径直接用 Crm::AccessScope（管理员/副管=全部，经理=本部门，业务员=自己），
-  # 不另造一套——两套口径一走偏就等于开了后门。
-  def visible_campaigns
-    base = Current.account.crm_lead_campaigns
-    ids = crm_visible_owner_ids
-    return base if ids == :all
-
-    base.where(shared: true).or(base.where(owner_id: ids))
-  end
+  # 口径在 Crm::BaseController#visible_lead_campaigns，线索的单条操作也用同一个，
+  # 不另造一套——两套口径一走偏就等于开了后门，或者看得见点不动。
+  def visible_campaigns = visible_lead_campaigns
 
   def check_authorization
     authorize(Crm::LeadCampaign)
