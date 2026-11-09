@@ -38,11 +38,13 @@ class Crm::OptionItem < ApplicationRecord
   DEFAULTS = {
     'customer_group' => [
       %w[KEY_ACCOUNT_WON 成交重点客户], %w[WON 成交客户], %w[SAMPLE_WON 成交样品客户],
-      %w[NOT_WON 未成交客户], %w[SOCIAL_MEDIA 社媒开发客户]
+      %w[NOT_WON 未成交客户], %w[SOCIAL_MEDIA 社媒开发客户],
+      # 新客开发建档落的分组/来源，code 见 Crm::LeadToCustomer::LEAD_DEV_CODE。
+      %w[LEAD_DEV 新客开发]
     ],
     'customer_source' => [
       %w[ALIBABA 阿里巴巴国际站], %w[WEBSITE 官网], %w[EXHIBITION 展会],
-      %w[REFERRAL 转介绍], %w[EMAIL 邮件开发], %w[OTHER 其他]
+      %w[REFERRAL 转介绍], %w[EMAIL 邮件开发], %w[LEAD_DEV 新客开发], %w[OTHER 其他]
     ],
     # 收款方式（销售订单的「结算方式」下拉）：**照金蝶的结算方式清单**，两边口径一致，
     # 转 ERP 销售订单时这项必填（没填会被拦「收款方式没填」）。

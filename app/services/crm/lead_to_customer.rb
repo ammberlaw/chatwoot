@@ -5,6 +5,10 @@
 class Crm::LeadToCustomer
   Result = Struct.new(:customer, :duplicate, keyword_init: true)
 
+  # 建档落的客户分组 / 客户来源。两个类别下各有一条这个 code 的选项
+  # （「客户设置」里能改显示名，code 别动）。缺了的话客户详情那两格会显示空白。
+  LEAD_DEV_CODE = 'LEAD_DEV'.freeze
+
   # 线索的行业是 NAICS 翻出来的细类目（电子元器件批发、计算机外设制造…），
   # 客户档案的行业却是六选一的枚举，对不上就得翻译一道。
   #
@@ -85,10 +89,11 @@ class Crm::LeadToCustomer
       website: site_url(lead),
       trade_country: country_enum(lead.country),
       industry: industry_enum(lead.industry),
-      # 来源记成「主动开发」——以后要算这条线投入产出，靠的就是它。
-      source_channel: 'OTHER', customer_status: 'PROSPECT',
-      # 任务上配了分组就按任务的来。没配就留空，不替人做主。
-      customer_group: lead.campaign&.default_customer_group.presence,
+      # 来源和分组都钉在「新客开发」上——算这条线的投入产出全靠这两格，
+      # 落进「其他」或者留空，建完就再也拆不出哪些客户是拓客来的了。
+      source_channel: LEAD_DEV_CODE, customer_status: 'PROSPECT',
+      # 任务上单配了分组就听任务的（个别任务要归去别处），没配才落「新客开发」。
+      customer_group: lead.campaign&.default_customer_group.presence || LEAD_DEV_CODE,
       account_owner_id: owner_id, customer_remark: remark_for(lead)
     }.merge(contact_attrs(lead)).merge(bg_attrs(lead)).merge(vat_attrs(lead))
   end
