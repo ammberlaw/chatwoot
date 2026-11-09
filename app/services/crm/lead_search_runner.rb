@@ -60,8 +60,14 @@ class Crm::LeadSearchRunner
     @campaign.update!(status: 'DONE', searched_at: Time.current)
     created
   rescue StandardError => e
-    @campaign.update(status: 'PROFILED', last_error: "#{e.class}: #{e.message}".truncate(300))
+    @campaign.update(status: 'PROFILED', last_error: error_text(e).truncate(300))
     0
+  end
+
+  # 额度耗尽那句原样摆到任务上，不带类名前缀——这句是给人看的，不是异常现场：
+  # 看到「余额用完，X 月 X 日恢复」才不会去翻关键词是不是配错了。
+  def error_text(err)
+    err.is_a?(Crm::ApolloClient::CreditsExhausted) ? err.message : "#{err.class}: #{err.message}"
   end
 
   private

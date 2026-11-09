@@ -20,6 +20,9 @@ class Api::V1::Accounts::Crm::LeadsController < Api::V1::Accounts::Crm::BaseCont
     return render json: { error: '没解锁到邮箱（Apollo 那边可能没有这个人的地址）' }, status: :unprocessable_entity unless ok
 
     render json: lead_json(@lead.reload)
+  rescue Crm::ApolloClient::CreditsExhausted => e
+    # 这不是这条线索的问题，是全公司余额为 0。说清楚人就不会一条条去试。
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 从共享池里**领取**这条线索：保护期内归自己，别人看不见也领不走。

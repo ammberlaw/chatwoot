@@ -10,6 +10,10 @@ class Crm::LeadUnlock
 
     lead.update!(unlocked_attrs(lead, fields).merge(unlocked_by_id: user&.id, unlocked_at: Time.current))
     true
+  # 额度耗尽往上抛，由控制器原样告诉业务员。咽在这里返回 false 的话，
+  # 页面只会说「没解锁到邮箱」，人会换一条再点——全公司余额为 0，换几百条都一样。
+  rescue Crm::ApolloClient::CreditsExhausted
+    raise
   rescue StandardError => e
     Rails.logger.warn("[LeadUnlock] lead=#{lead.id}: #{e.class} #{e.message}")
     false

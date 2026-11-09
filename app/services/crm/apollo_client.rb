@@ -2,6 +2,29 @@
 # 用于客户 AI 背调——官网抓不到或信息稀薄时，Apollo 按域名直接返回结构化公司数据，补上「背调不到」的洞。
 # 无 key 时静默降级（返回 nil），不阻断原有官网+AI 流程。
 class Crm::ApolloClient
+  # Apollo 账户的 credits 这个计费周期用完了。
+  #
+  # ⚠️ 必须和「这个人没有邮箱」分开报。混成一句「没解锁到邮箱」的话，
+  # 业务员会以为是这条线索的问题，换一条再点——全公司额度为 0，换几百条都一样失败。
+  # 2026-11-09 实测：余额 0 时所有搜索/解锁一律 HTTP 422。
+  class CreditsExhausted < StandardError
+    attr_reader :resume_on
+
+    def initialize(resume_on = nil)
+      @resume_on = resume_on
+      super(message_for(resume_on))
+    end
+
+    private
+
+    def message_for(resume_on)
+      return '公司的 Apollo 额度已经用完，挖线索和解锁邮箱暂时都不可用。' if resume_on.blank?
+
+      "公司的 Apollo 额度这个周期已经用完，#{resume_on} 恢复。" \
+        '在那之前挖不了新线索、也解锁不了邮箱——已经挖到的线索照常领取、建档。'
+    end
+  end
+
   BASE_URL = 'https://api.apollo.io/api/v1'.freeze
   TIMEOUT = 8
   # 公司搜索失败最多试几次（见 post_search）。
@@ -80,8 +103,11 @@ class Crm::ApolloClient
 
     resp = HTTParty.post("#{BASE_URL}/people/match",
                          body: { id: apollo_id }.to_json, headers: headers, timeout: TIMEOUT)
+    raise_if_credits_exhausted!(resp)
     person = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['person'] : nil
     person && unlocked_fields(person)
+  rescue CreditsExhausted
+    raise
   rescue StandardError => e
     Rails.logger.info("[Crm::Apollo] unlock failed: #{e.class} #{e.message}")
     nil
@@ -100,17 +126,32 @@ class Crm::ApolloClient
     body[:organization_locations] = [country] if country.present?
     resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
                          body: body.to_json, headers: headers, timeout: TIMEOUT)
+    raise_if_credits_exhausted!(resp)
     total = resp.parsed_response.is_a?(Hash) ? resp.parsed_response.dig('pagination', 'total_entries') : nil
     return total.to_i if total
 
     Rails.logger.info("[Crm::Apollo] count '#{tag}' 没问到: HTTP #{resp.code}")
     nil
+  rescue CreditsExhausted
+    raise
   rescue StandardError => e
     Rails.logger.info("[Crm::Apollo] count failed: #{e.class} #{e.message}")
     nil
   end
 
   private
+
+  # 422 + BILLING.LIMIT.CREDITS_EXHAUSTED = 余额为 0，不是请求写错了。
+  # 响应里带着下个计费周期的日期，一并带给调用方——
+  # 只说「额度没了」，人还是要去 Apollo 后台翻什么时候恢复。
+  def raise_if_credits_exhausted!(resp)
+    return unless resp.code == 422
+
+    details = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['error_details'] : nil
+    return unless details.is_a?(Hash) && details['code'] == 'BILLING.LIMIT.CREDITS_EXHAUSTED'
+
+    raise CreditsExhausted, details.dig('context', 'next_billing_date', 'value')
+  end
 
   # 搜索阶段拿得到的：名 + 遮住的姓 + 职位 + 有没有邮箱。
   def normalize_person(person)
@@ -163,8 +204,13 @@ class Crm::ApolloClient
       attempts += 1
       resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
                            body: body.to_json, headers: headers, timeout: TIMEOUT)
+      # 余额为 0 不能当成「这次没搜到」吞掉：吞了就是整轮挖 0 条、任务显示正常结束，
+      # 下一个人只会以为是关键词配错了（2026-11-09 就白排查了一轮）。重试也没意义。
+      raise_if_credits_exhausted!(resp)
       orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
       Array(orgs).map { |o| normalize_candidate(o) }
+    rescue CreditsExhausted
+      raise
     rescue StandardError => e
       Rails.logger.info("[Crm::Apollo] search failed (第 #{attempts} 次): #{e.class} #{e.message}")
       retry if attempts < SEARCH_ATTEMPTS
