@@ -35,17 +35,53 @@ const loading = ref(false);
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
 
+// 材料成本取数：手工维护的值优先，没维护的拿「按 BOM 现查料价算出来的单台成本」兜底。
+// 两套数据在生产上基本不重叠——有数字的那批没做过 BOM，做过 BOM 的那批材料成本是 0，
+// 所以兜底之后这栏才第一次对得上「这个产品到底有没有成本」。兜底值不落库，列表上标出来。
+const materialMicros = row =>
+  Number(row.material_cost_micros) > 0
+    ? Number(row.material_cost_micros)
+    : Number(row.bom_material_cost_micros || 0);
+const isBomMaterial = row =>
+  Number(row.material_cost_micros) <= 0 &&
+  Number(row.bom_material_cost_micros || 0) > 0;
+// 合计单价要跟着兜底值走，否则材料成本有数、合计还是只有人工费，看着像算错了。
+const unitCostMicros = row =>
+  materialMicros(row) +
+  Number(row.process_fee_micros || 0) +
+  Number(row.overhead_fee_micros || 0) +
+  Number(row.packaging_cost_micros || 0);
+// 料价覆盖率在生产上是 55%，缺价行记 0——缺得越多这个数越偏低，所以缺口要摆在数字旁边。
+// 有 BOM、但一行料价都查不到 → 算出来是 0。这种要和「没做过 BOM」区分开，
+// 前者补料价就有数，后者得先做 BOM，是两件不同的事。
+const bomPriceless = row =>
+  Number(row.material_cost_micros) <= 0 &&
+  Number(row.bom_item_count || 0) > 0 &&
+  Number(row.bom_material_cost_micros || 0) <= 0;
+const bomTag = row => {
+  if (bomPriceless(row)) return 'BOM 无料价';
+  return row.bom_unpriced_count > 0
+    ? `按 BOM·缺${row.bom_unpriced_count}行价`
+    : '按 BOM';
+};
+const bomHint = row => {
+  if (bomPriceless(row))
+    return `BOM ${row.bom_no || ''} 有 ${row.bom_item_count} 行料，一行都没查到价`;
+  if (!isBomMaterial(row)) return '';
+  const base = `按 BOM ${row.bom_no || ''} 现查料价算的单台材料成本`;
+  return row.bom_unpriced_count > 0
+    ? `${base}；${row.bom_item_count} 行料里 ${row.bom_unpriced_count} 行没查到价，这个数偏低`
+    : base;
+};
+
 // 点开一行看这个成品编码下的物料与料价。按需拉取——161 个编码各带几十行物料，
 // 塞进列表接口一次响应就几兆。同一时间只展开一行，省得整页都是明细表。
 const expanded = ref(null);
 const materials = ref({ items: [] });
 const materialsLoading = ref(false);
-const materialTotal = computed(() =>
-  materials.value.items.reduce(
-    (sum, m) => sum + Number(m.amount_micros || 0),
-    0
-  )
-);
+// 整单料金额与单台材料成本都由后端算（口径同生产任务单成本导出：单台 = 整单 ÷ 基准用量），
+// 前端不再自己 reduce——除以基准用量这一步两边各算一次迟早会对不上。
+const materialTotal = computed(() => Number(materials.value.total_micros || 0));
 
 const toggleMaterials = async row => {
   if (expanded.value === row.id) {
@@ -105,6 +141,16 @@ const exportList = async () => {
     const all = await fetchAllRows(params => ErpBomCostAPI.get(params), {
       q: keyword.value.trim() || undefined,
     });
+    // 导出要和屏幕上看到的一致：材料成本栏在界面上会用 BOM 现算值兜底，
+    // 导出只认 material_cost_micros 的话，同一行屏幕有数、Excel 是 0。
+    const exportRows = all.map(r => ({
+      ...r,
+      material_cost_micros: materialMicros(r),
+      unit_cost_micros: unitCostMicros(r),
+      cost_source_label: isBomMaterial(r)
+        ? `按BOM${r.bom_unpriced_count > 0 ? `（缺${r.bom_unpriced_count}行价）` : ''}`
+        : r.cost_source_label,
+    }));
     exportRowsToExcel(
       {
         title: 'BOM 成本表',
@@ -130,7 +176,7 @@ const exportList = async () => {
           { label: '备注', key: 'remark' },
           { label: '最近修改', key: 'updated_by_name' },
         ],
-        rows: all,
+        rows: exportRows,
       },
       `BOM成本表_${new Date().toLocaleDateString('sv')}`
     );
@@ -466,8 +512,21 @@ onMounted(load);
               <td class="px-3 py-2 text-n-slate-11">
                 {{ row.specification || '—' }}
               </td>
-              <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
-                {{ money(row.material_cost_micros) }}
+              <td
+                class="px-3 py-2 text-right tabular-nums text-n-slate-12"
+                :title="bomHint(row)"
+              >
+                {{ money(materialMicros(row)) }}
+                <span
+                  v-if="isBomMaterial(row) || bomPriceless(row)"
+                  class="ml-1 text-label-small"
+                  :class="
+                    row.bom_unpriced_count > 0
+                      ? 'text-n-amber-11'
+                      : 'text-n-slate-10'
+                  "
+                  >{{ bomTag(row) }}</span
+                >
               </td>
               <td class="px-3 py-2 text-right tabular-nums text-n-slate-12">
                 {{ money(row.process_fee_micros) }}
@@ -481,7 +540,7 @@ onMounted(load);
               <td
                 class="px-3 py-2 font-medium text-right tabular-nums text-n-slate-12"
               >
-                {{ money(row.unit_cost_micros) }}
+                {{ money(unitCostMicros(row)) }}
               </td>
               <td class="px-3 py-2 text-n-slate-11">{{ row.remark || '—' }}</td>
               <td class="px-3 py-2 text-n-slate-11">
@@ -524,10 +583,16 @@ onMounted(load);
                   <div class="mb-1 text-xs text-n-slate-10">
                     来自 {{ materials.bom_no || 'BOM' }}
                     <span v-if="materials.base_qty"
-                      >（基准用量 {{ materials.base_qty }}）</span
+                      >（基准用量 {{ Number(materials.base_qty) }}）</span
                     >
                     <span v-if="!materials.is_default"
                       >· 非默认 BOM，仅供参考</span
+                    >
+                    <span
+                      v-if="materials.unpriced_count"
+                      class="text-n-amber-11"
+                      >·
+                      {{ materials.unpriced_count }} 行没查到价，合计偏低</span
                     >
                   </div>
                   <table class="w-full text-xs">
@@ -541,6 +606,7 @@ onMounted(load);
                         <th class="px-2 py-1 font-medium text-right">用量</th>
                         <th class="px-2 py-1 font-medium text-right">单价</th>
                         <th class="px-2 py-1 font-medium text-right">金额</th>
+                        <th class="px-2 py-1 font-medium">价源</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -569,12 +635,25 @@ onMounted(load);
                         >
                           {{ money(m.amount_micros) }}
                         </td>
+                        <td class="px-2 py-1 whitespace-nowrap text-n-slate-11">
+                          {{ m.price_source_label || '无价' }}
+                        </td>
                       </tr>
                       <tr class="font-medium">
-                        <td class="px-2 py-1" colspan="5">材料合计</td>
+                        <td class="px-2 py-1" colspan="5">
+                          材料合计（这张 BOM 按 {{ Number(materials.base_qty) }} 台）
+                        </td>
                         <td class="px-2 py-1 text-right tabular-nums">
                           {{ money(materialTotal) }}
                         </td>
+                        <td class="px-2 py-1" />
+                      </tr>
+                      <tr class="font-medium text-n-slate-12">
+                        <td class="px-2 py-1" colspan="5">单台材料成本</td>
+                        <td class="px-2 py-1 text-right tabular-nums">
+                          {{ money(materials.unit_micros) }}
+                        </td>
+                        <td class="px-2 py-1" />
                       </tr>
                     </tbody>
                   </table>
