@@ -630,6 +630,55 @@ class Mes::ProductionOrder < ApplicationRecord
     pos.all? { |po| po.status == 'RECEIVED' }
   end
 
+  # 这张单采购了哪些料、各到了多少（原料入库弹窗的「更多明细」）。
+  #
+  # 为什么要有：入库弹窗按**入库单**分组，看得到「这次收了什么」，看不出
+  # 「这张单的料齐了没、还差哪几样」——而后者才是车间和 PMC 真正要问的
+  #（用户 2026-11-10：「增加一个更多明细，显示所有物料、物料数量和到料数量」）。
+  #
+  # 一个料号可能分散在几张采购单里（主料辅料分开下、或补单），所以按料号合并，
+  # 不按采购行列——列成十几行同名料，看的人还得自己心算。
+  def purchase_arrivals
+    rows = purchase_item_rows
+    return [] if rows.empty?
+
+    rows.group_by { |r| r[:code].presence || "##{r[:crm_product_id]}" }
+        .map { |_code, group| merge_arrival_rows(group) }
+        .sort_by { |r| [r[:shortage] <= 0 ? 1 : 0, r[:name].to_s] }
+  end
+
+  def purchase_item_rows
+    account.mes_purchase_items
+           .joins(:purchase_order)
+           .where(mes_purchase_orders: { production_order_id: id })
+           .where.not(mes_purchase_orders: { status: 'CANCELLED' })
+           .includes(:crm_product, :mes_supplier)
+           .map { |item| arrival_row(item) }
+  end
+
+  def arrival_row(item)
+    product = item.crm_product
+    { crm_product_id: item.crm_product_id, code: product&.sku, name: product&.name,
+      specification: product&.specification, unit: item.unit,
+      qty: item.qty.to_d, received_qty: item.received_qty.to_d,
+      supplier_name: item.mes_supplier&.name, po_no: item.purchase_order&.po_no,
+      arrival_date: item.arrival_date }
+  end
+
+  # 同一个料号跨几张采购单的，数量相加；单号和供应商各列出来，
+  # 便于追「这一样料是从哪几张单来的」。
+  def merge_arrival_rows(group)
+    first = group.first
+    qty = group.sum { |r| r[:qty] }
+    received = group.sum { |r| r[:received_qty] }
+    first.merge(
+      qty: qty.to_f, received_qty: received.to_f, shortage: (qty - received).to_f,
+      po_nos: group.filter_map { |r| r[:po_no] }.uniq,
+      supplier_names: group.filter_map { |r| r[:supplier_name] }.uniq,
+      arrival_date: group.filter_map { |r| r[:arrival_date] }.max
+    ).except(:po_no, :supplier_name)
+  end
+
   # 这张单的料卡在哪（汇总 BOM 行上的卡点）。
   # 用户原话：「这也不能是我这边没做生产单，也不能是采购不下单的原因……
   # 其余相关的人怎么看到这个单问题点是卡在哪里呢？」

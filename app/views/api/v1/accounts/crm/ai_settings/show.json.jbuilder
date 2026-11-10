@@ -28,10 +28,12 @@ json.apollo_user_limit @setting.apollo_user_limit
 json.apollo_user_limits @setting.apollo_user_limits
 json.apollo_usage do
   json.unlocked_this_month @apollo.used
-  # 背调查企业库的次数：是否计费 Apollo 没说死，只摆数不设限。
+  # 背调家数。2026-11-10 对账实证：只有官网抓不到时才走企业库扣 1 credit，
+  # 官网抓得到的走 DeepSeek 一分不花——所以这个数是上限，不是实际花费。
   json.bg_checks_this_month @apollo.bg_checks_this_month
-  json.by_user Current.account.crm_leads.where(unlocked_at: Time.current.all_month)
-                      .where.not(unlocked_by_id: nil).group(:unlocked_by_id).count
+  # 按人列：谁解了多少、领取时抓了多少联系人、手动点了多少次背调，各人额度多少。
+  # 原来只给 { user_id => 解锁数 }，页面上连名字都没有，管理员得自己对 id。
+  json.by_user @apollo.by_user_rows
 end
 
 # 公司级默认初筛条件：新建拓客任务时自动带上（见 LeadCampaignsController#create）。

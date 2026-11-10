@@ -736,7 +736,16 @@ class Mes::StockEntry < ApplicationRecord
       return production_order.enter_stage!('FG_INBOUND', at: timestamp)
     end
 
-    return if production_order.stage != from_stage
+    # ⚠️ 领料（MATERIAL_ISSUE）不能要求「正好在原料入库阶段」。
+    # 2026-11-10 把领料闸从「原料入库」降到「采购原料」之后，车间可以在采购阶段就领料了
+    # （料早到仓库、单子还挂在采购中是常态），但这里仍然卡着 stage == MATERIAL_INBOUND，
+    # 于是领了料阶段不推进 → 永远到不了 PICKING → **报工彻底做不了**。
+    # 改成「还没走到目标阶段就推上去」：领料本身就是开工的信号。
+    if purpose == 'MATERIAL_ISSUE'
+      return if production_order.stage_reached?(to_stage)
+    else
+      return if production_order.stage != from_stage
+    end
 
     # 齐套闸：采购原料→原料入库，需本单所有关联采购单都到料齐（一单多采购单主料/辅料分采购）。
     # 未齐套则先按料到料回写、订单留在「采购原料」，等最后一张采购单到齐才推进。

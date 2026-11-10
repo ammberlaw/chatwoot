@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :skip_purchasing, :requirement, :handoff,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :skip_purchasing, :requirement, :arrivals, :handoff,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced,
                        :return_to_sales, :resolve_sales_return, :confirm_bom]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
@@ -160,6 +160,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     rows = @production_order.material_requirements(category: category)
     # 供应商信息只对 MES 人员可见；销售等非 MES 角色隐去 mes_supplier_id（与 jbuilder 同门禁）。
     rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
+    render json: { payload: rows }
+  end
+
+  # 到料明细：这张单采购了哪些料、各到了多少、还差多少。
+  # 原料入库弹窗按入库单分组，答不了「料齐了没」，这里按料号合并给出全貌。
+  def arrivals
+    rows = @production_order.purchase_arrivals
+    # 供应商只对 MES 人员可见（口径同 requirement）。
+    rows.each { |r| r.delete(:supplier_names) } unless Current.account_user&.mes_staff?
     render json: { payload: rows }
   end
 

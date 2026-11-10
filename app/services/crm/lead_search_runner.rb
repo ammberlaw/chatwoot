@@ -62,8 +62,16 @@ class Crm::LeadSearchRunner
   # 背调读的是官网。背调回来再由 Crm::LeadRescreen 重判一次。
   #
   # yes 排在前面：额度有限时先保证最可能成的那批。
+  # 只给判 yes 的自动排背调（2026-11-10 起，Amber 定）。
+  #
+  # 原来 yes + unsure 一起排、上限 90 家。但 unsure 的均分只有 31，业务员在列表里
+  # 本来就翻不到它们，给它们背调等于白花——而背调是**除解锁之外唯一按次扣 Apollo
+  # credits 的动作**（官网抓不到时走企业库兜底）。一轮 128 家公司里 yes 约 43 家，
+  # 砍掉 unsure 等于省掉三分之二，省的全是没人会看的那部分。
+  #
+  # unsure 的仍然可以背调——业务员在列表上点那颗按钮，一次一家，花得明明白白。
   def enqueue_bg_checks
-    picked = (bg_candidates('yes') + bg_candidates('unsure')).uniq(&:domain).first(BG_CHECK_CAP)
+    picked = bg_candidates('yes').uniq(&:domain).first(BG_CHECK_CAP)
     picked.each { |lead| Crm::LeadBgCheckJob.perform_later(lead.id) }
     # 背调要跑十几二十分钟，重判得跟在后面自己续（见 Crm::LeadRescreenJob）。
     Crm::LeadRescreenJob.set(wait: 5.minutes).perform_later(@campaign.id) if picked.any?

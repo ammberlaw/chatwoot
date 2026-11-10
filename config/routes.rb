@@ -775,6 +775,8 @@ Rails.application.routes.draw do
                 post :skip_purchasing
                 post :mark_outsourced
                 get :requirement
+                # 到料明细：采购了哪些料、各到了多少（原料入库弹窗的「更多明细」）。
+                get :arrivals
                 get :issue_plan
                 post :acknowledge
                 post :handoff

@@ -97,6 +97,17 @@ const tokenText = n => {
 const apolloKeyHint = ref(null);
 // Apollo 积分用量。Apollo 没有查余额的接口，这是我们自己记的账。
 const apolloUsage = ref({});
+
+// 按人用量：{ user_id => { unlocked, contact_fetch, bg_check, limit } }。
+// 后端原来只给 { id => 解锁数 }，页面上既没名字也看不出抓了多少联系人、
+// 点了多少次背调——而那两项一旦 Apollo 改计费规则就是下一个窟窿（用户 2026-11-10）。
+const usageByUser = computed(() => {
+  const map = {};
+  (apolloUsage.value.by_user || []).forEach(r => {
+    map[r.user_id] = r;
+  });
+  return map;
+});
 // 本月 AI 用量，按用途分（初筛/背调/简报/画像）。只摆 token 数不折钱——
 // 单价随模型变，折算出来很快过期。
 const aiUsage = ref({});
@@ -520,11 +531,27 @@ const fieldCls =
                     class="min-w-0 truncate text-label-small text-n-slate-12"
                   >
                     {{ m.crm_name || m.name }}
-                    <span
-                      v-if="apolloUsage.by_user && apolloUsage.by_user[m.id]"
-                      class="text-n-slate-10"
-                    >
-                      · {{ apolloUsage.by_user[m.id] }}
+                    <span v-if="usageByUser[m.id]" class="text-n-slate-10">
+                      ·
+                      {{
+                        copy('APOLLO_U_UNLOCK', {
+                          n: usageByUser[m.id].unlocked,
+                        })
+                      }}
+                      <template v-if="usageByUser[m.id].contact_fetch">
+                        ·
+                        {{
+                          copy('APOLLO_U_CONTACT', {
+                            n: usageByUser[m.id].contact_fetch,
+                          })
+                        }}
+                      </template>
+                      <template v-if="usageByUser[m.id].bg_check">
+                        ·
+                        {{
+                          copy('APOLLO_U_BG', { n: usageByUser[m.id].bg_check })
+                        }}
+                      </template>
                     </span>
                   </span>
                   <input

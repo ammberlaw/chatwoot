@@ -35,6 +35,10 @@ client.markOutsourced = (id, payload) =>
 // 按 BOM 推料需求（生产领料预填）。
 client.requirement = id => axios.get(`${client.url}/${id}/requirement`);
 
+// 到料明细：这张单采购了哪些料、各到了多少、还差多少（原料入库弹窗的「更多明细」）。
+// 按料号合并——同一样料常常分几张采购单、几次到货，按行列会让人自己心算。
+client.arrivals = id => axios.get(`${client.url}/${id}/arrivals`);
+
 // 生产领料计划：BOM 推料 + 每行已领量/实时库存/待领量（warehouseId 传入算该仓库存）。
 client.issuePlan = (id, warehouseId) =>
   axios.get(`${client.url}/${id}/issue_plan`, {

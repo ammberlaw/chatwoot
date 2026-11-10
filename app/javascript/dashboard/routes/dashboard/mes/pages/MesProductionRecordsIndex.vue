@@ -87,10 +87,22 @@ const viewFields = computed(() => {
 const productionOrders = ref([]);
 // 流程锁：报工只对「自制且已完成领料（进入生产领料/生产及以后）」的订单开单。
 // 外购订单不报工、未领料的订单不可越级报工——都不出现在可选项里。
-const RECORD_ELIGIBLE_STAGES = ['PICKING', 'PRODUCTION', 'FG_INBOUND'];
+// 报工要求订单已经走到「生产领料」之后（后端 Mes::ProductionRecord 同口径）。
+// 还没领料的不列——列出来也只是让人填完一单再被拦下。
+// 已出货的也不列：那单早走完了。
+const RECORD_TOO_EARLY = [
+  'SALES_CONFIRMED',
+  'BOM_READY',
+  'PURCHASING',
+  'MATERIAL_INBOUND',
+];
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    p => !p.is_outsourced && RECORD_ELIGIBLE_STAGES.includes(p.stage)
+    p =>
+      !p.is_outsourced &&
+      p.status === 'IN_PROGRESS' &&
+      p.stage !== 'SHIPPED' &&
+      !RECORD_TOO_EARLY.includes(p.stage)
   )
 );
 const productionOrderOptions = computed(() => [

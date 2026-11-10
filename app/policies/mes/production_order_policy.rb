@@ -4,6 +4,7 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def cost_export? = @account_user.can_view_material_cost?
   def show? = true
   def requirement? = true
+  def arrivals? = true
   def issue_plan? = true
   def inbox? = true
   def audits? = true
