@@ -8,7 +8,12 @@ api.buildProfile = id => axios.post(`${api.url}/${id}/build_profile`);
 
 // 按关键词搜潜在客户。搜索阶段不扣 credits（只拿到公司 + 名字半遮的联系人），
 // 真邮箱要人点了才解锁。一次跑三五分钟，前端要给足等待提示。
+// 排队跑，立刻返回 { queued: true }。一次三到五分钟，在请求里等必然被 15 秒超时
+// 掐成 Internal Server Error，而且任务会卡在 SEARCHING 再也点不动（2026-11-10 踩过）。
 api.search = id => axios.post(`${api.url}/${id}/search`);
+
+// 轮询搜索进度用：status 从 SEARCHING 变成 DONE/PROFILED 就是跑完了。
+api.show = id => axios.get(`${api.url}/${id}`);
 api.leads = id => axios.get(`${api.url}/${id}/leads`);
 
 // 获客效果：搜索词 → 线索 → 建档 → 成交额。不带 campaign_id 就是全部任务的累计。

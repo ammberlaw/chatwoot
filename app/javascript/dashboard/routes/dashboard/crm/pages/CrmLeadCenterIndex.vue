@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import LeadCampaignsAPI from 'dashboard/api/crm/leadCampaigns';
@@ -129,16 +129,24 @@ const leads = ref([]);
 const searching = ref(false);
 const busyLeadId = ref(null);
 
+// 切任务/切池子时，前一个请求可能比后一个晚回来，把列表盖成上一个任务的
+// （2026-11-10：点进「医疗一体机」，标题是它、列表却是「数字标牌」那 119 条）。
+// 每次取数发一个号，回来时对不上就丢弃。
+let leadsRequestId = 0;
+
 const loadLeads = async id => {
+  leadsRequestId += 1;
+  const req = leadsRequestId;
   leads.value = [];
   if (!id) return;
   try {
     const { data } = await LeadCampaignsAPI.leads(id);
+    if (req !== leadsRequestId) return;
     leads.value = data.payload || [];
     heldCount.value = data.held_count || 0;
     holdLimit.value = data.hold_limit || 0;
   } catch {
-    leads.value = [];
+    if (req === leadsRequestId) leads.value = [];
   }
 };
 
@@ -333,19 +341,51 @@ const facts = computed(() => current.value?.facts || {});
 
 // 搜索一次要跑三五分钟（每个关键词一次 Apollo 调用，再逐家公司抽联系人），
 // 所以按钮要一直转，不能让人以为卡死了。
+// 后端排队跑（一次三到五分钟，在请求里等必然被 15 秒超时掐断），这里轮询任务状态。
+// 轮询而不是一直转圈：页面刷新、换台电脑打开，照样能接着看进度。
+const SEARCH_POLL_MS = 8000;
+const SEARCH_POLL_MAX = 60; // 8 分钟还没完就不再等了，任务自己会把 last_error 写上
+
+let searchTimer = null;
+
+const stopSearchPoll = () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = null;
+  searching.value = false;
+};
+
+const pollSearch = async (id, tries = 0) => {
+  if (tries >= SEARCH_POLL_MAX) return stopSearchPoll();
+  try {
+    const { data } = await LeadCampaignsAPI.show(id);
+    const c = data.payload || data;
+    if (c.status !== 'SEARCHING') {
+      stopSearchPoll();
+      if (c.last_error) useAlert(c.last_error);
+      await loadLeads(id);
+      return undefined;
+    }
+  } catch {
+    // 单次轮询失败不算数，下一轮再问
+  }
+  searchTimer = setTimeout(() => pollSearch(id, tries + 1), SEARCH_POLL_MS);
+  return undefined;
+};
+
 const runSearch = async () => {
   if (!current.value) return;
+  const id = current.value.id;
   searching.value = true;
   try {
-    const { data } = await LeadCampaignsAPI.search(current.value.id);
-    useAlert(`搜到 ${data.created} 条新线索`);
-    await loadLeads(current.value.id);
+    await LeadCampaignsAPI.search(id);
+    pollSearch(id);
   } catch (e) {
-    useAlert(e?.response?.data?.error || '搜索失败，请重试');
-  } finally {
     searching.value = false;
+    useAlert(e?.response?.data?.error || '搜索失败，请重试');
   }
 };
+
+onBeforeUnmount(stopSearchPoll);
 
 // 丢弃原因。点一下就走，不打字——原因不是给人看的记录，
 // 是给初筛学的方向：没有原因，系统只能学到「这家不要」，学不到「这类不要」。
@@ -461,20 +501,24 @@ const POOL_VIEWS = [
 ];
 const poolView = ref('pool');
 const selectPool = async scope => {
+  leadsRequestId += 1;
+  const req = leadsRequestId;
   poolView.value = scope;
   current.value = null;
   leads.value = [];
   try {
     const { data } = await LeadCampaignsAPI.pool(scope);
+    if (req !== leadsRequestId) return;
     leads.value = data.payload || [];
     heldCount.value = data.held_count || 0;
     holdLimit.value = data.hold_limit || 0;
   } catch {
-    leads.value = [];
+    if (req === leadsRequestId) leads.value = [];
   }
 };
 
 const selectCampaign = c => {
+  stopSearchPoll();
   poolView.value = null;
   current.value = c;
   loadLeads(c.id);
@@ -1756,24 +1800,38 @@ onMounted(() => {
                                点一下复制——业务员要的就是把它贴进收件人框。 -->
                           <div
                             v-if="l.bg.emails && l.bg.emails.length"
-                            class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"
+                            class="mt-2 flex min-w-0 flex-wrap items-center gap-2"
                           >
-                            <span class="text-n-slate-10">
+                            <span
+                              class="shrink-0 text-label-small text-n-slate-10"
+                            >
                               {{ t('CRM.LEAD_CENTER_UI.BG_SITE_EMAILS') }}
                             </span>
                             <button
                               v-for="m in l.bg.emails"
                               :key="m"
                               type="button"
-                              class="reset-base rounded px-1.5 py-0.5 font-mono text-n-teal-11 bg-n-teal-3 hover:bg-n-teal-4"
+                              class="reset-base group/email inline-flex min-h-7 min-w-0 max-w-full items-center gap-1.5 whitespace-normal rounded-sm bg-transparent px-0 py-1 text-label text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50"
                               :title="
+                                t('CRM.LEAD_CENTER_UI.BG_EMAIL_COPY_TIP', {
+                                  mail: m,
+                                })
+                              "
+                              :aria-label="
                                 t('CRM.LEAD_CENTER_UI.BG_EMAIL_COPY_TIP', {
                                   mail: m,
                                 })
                               "
                               @click.stop="copyEmail(m)"
                             >
-                              {{ m }}
+                              <span class="min-w-0 break-all text-left">{{
+                                m
+                              }}</span>
+                              <Icon
+                                icon="i-lucide-copy"
+                                class="size-3 shrink-0 text-n-slate-10 opacity-0 transition-opacity group-hover/email:opacity-100 group-focus-visible/email:opacity-100 [@media(hover:none)]:opacity-100 motion-reduce:transition-none"
+                                aria-hidden="true"
+                              />
                             </button>
                           </div>
                           <div

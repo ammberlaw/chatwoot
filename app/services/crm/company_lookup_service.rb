@@ -33,8 +33,12 @@ class Crm::CompanyLookupService
     return lookup_by_name(query) if domain.blank?
     return { status: 'public_domain', domain: domain } if PUBLIC_DOMAINS.include?(domain)
 
-    enrichment = apollo.organization(domain: domain)
-
+    # ⚠️ **官网抓得到就不要买企业库那份**（2026-11-10 实测：organizations/enrich
+    # 每调一次扣 1 个 Apollo credit，1:1，而挖公司和探词表一分不扣）。
+    # 原来这一行写在抓官网之前、无条件先调——1219 次背调里 1194 次（98%）官网是抓得到的，
+    # 那 98% 的 credits 买的是一份「锦上添花」：营收、行业代码、电话、领英在搜索阶段
+    # 早就白给了，enrich 的边际价值只剩员工数和一条对账提示。
+    # 真正需要它的是官网抓不到的那 2%，所以挪进 else 分支按需调。
     site = Crm::CompanySiteFetcher.new.call(domain)
     if site[:text].present?
       profile = Crm::EmailAiService.new(account: @account, purpose: 'lead_bg')
@@ -42,11 +46,14 @@ class Crm::CompanyLookupService
       # 官网上的业务邮箱：和 VAT 一样从已经抓下来的正文里提，不额外发请求、不花 Apollo 的钱。
       # 解锁一个个人邮箱要一个 credit，而 sales@ 这类公开信箱是白给的（见 SiteContactFinder）。
       contacts = Crm::SiteContactFinder.call(site, domain: domain)
-      { status: 'ok', domain: domain, url: site[:url], profile: profile, enrichment: enrichment,
-        vat: Crm::VatLookup.for(site[:legal_text].presence || site[:text], domain: domain),
-        site_status: site[:status], site_emails: contacts.emails, contact_url: contacts.contact_url,
-        enrichment_warning: enrichment_warning(enrichment, site[:text], profile) }
-    elsif enrichment
+      return { status: 'ok', domain: domain, url: site[:url], profile: profile, enrichment: nil,
+               vat: Crm::VatLookup.for(site[:legal_text].presence || site[:text], domain: domain),
+               site_status: site[:status], site_emails: contacts.emails,
+               contact_url: contacts.contact_url, enrichment_warning: nil }
+    end
+
+    enrichment = apollo.organization(domain: domain)
+    if enrichment
       # 官网抓不到，但 Apollo 有这家公司 → 用企业库数据兜底，避免「背调不到」的死胡同。
       { status: 'ok', domain: domain, url: enrichment[:website], profile: profile_from_enrichment(enrichment), enrichment: enrichment }
     else

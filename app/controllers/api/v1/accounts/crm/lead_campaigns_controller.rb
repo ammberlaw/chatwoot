@@ -49,14 +49,21 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
     end
   end
 
-  # 按画像生成的关键词去 Apollo 搜潜在客户。搜索阶段不扣 credits
-  # （只拿到公司 + 名字半遮的联系人），真邮箱要人点了才解锁。
+  # 按画像生成的关键词去 Apollo 搜潜在客户。挖公司和探词表都不扣 credits
+  #（2026-11-10 实测对账），真邮箱要人点「解锁」那一下才扣。
+  #
+  # ⚠️ **排队跑，不在请求里等**。一次搜索要三到五分钟（十几个关键词各翻几页，
+  # 再整批送 AI 初筛），而请求 15 秒就被 Rack::Timeout 掐断——
+  # 界面自己写着「通常需要三到五分钟」，却在 15 秒时弹 Internal Server Error，
+  # 而且 status 已经改成 SEARCHING 没机会改回来，这个任务从此卡死
+  #（2026-11-10 肖天海那个医疗一体机任务就是这么卡住的）。
+  # 现在点完立刻返回，前端轮询 show 看 status 变成 DONE 没有。
   def search
     return render json: { error: '先生成客户画像' }, status: :unprocessable_entity if @campaign.keywords.blank?
+    return render json: { error: '这个任务正在搜索中，等它跑完再点' }, status: :unprocessable_entity if @campaign.status == 'SEARCHING'
 
-    created = Crm::LeadSearchRunner.new(campaign: @campaign).call
-    @campaign.reload
-    render json: { created: created, status: @campaign.status, error: @campaign.last_error }
+    Crm::LeadSearchJob.perform_later(@campaign.id)
+    render json: { queued: true, status: 'SEARCHING' }
   end
 
   # 获客效果:搜索词 → 线索 → 建档 → 成交额。
