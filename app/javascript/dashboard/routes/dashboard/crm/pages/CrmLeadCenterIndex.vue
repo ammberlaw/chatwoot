@@ -500,15 +500,36 @@ const foldedKinds = computed(() => {
   // 最多列四个，还有更多就加个「等」——列不全又不说，看着像只折了这几类。
   return kinds.slice(0, 4).join('、') + (kinds.length > 4 ? ' 等' : '');
 });
+// 按「现在能不能发信」筛。业务员打开池子第一个问题就是这个，
+// 而官网邮箱是不花 Apollo 额度拿到的（见 Crm::SiteContactFinder），
+// 其中 sales@ / 真人邮箱（a.schmidt@ 这种）质量接近解锁出来的，info@ 那类只能算兜底。
+const MAIL_FILTERS = [
+  { key: 'all', label: 'MAIL_FILTER_ALL' },
+  { key: 'any', label: 'MAIL_FILTER_ANY' },
+  { key: 'good', label: 'MAIL_FILTER_GOOD' },
+];
+const mailFilter = ref('all');
+const GOOD_MAIL =
+  /^(sales|vertrieb|ventas|commercial|enquir|inquir|insidesales)|^[a-z]+\.[a-z]+@/i;
+const mailsOf = l => (l.bg && l.bg.emails) || [];
+const matchesMailFilter = l => {
+  if (mailFilter.value === 'all') return true;
+  const mails = mailsOf(l);
+  if (mailFilter.value === 'any') return mails.length > 0;
+  return mails.some(m => GOOD_MAIL.test(m));
+};
+
 const visibleLeads = computed(() => {
-  if (showNotBuyers.value) return liveLeads.value;
-  const folded = new Set(foldedLeads.value.map(l => l.id));
-  return liveLeads.value.filter(l => !folded.has(l.id));
+  const base = showNotBuyers.value
+    ? liveLeads.value
+    : liveLeads.value.filter(
+        l => !new Set(foldedLeads.value.map(x => x.id)).has(l.id)
+      );
+  return base.filter(matchesMailFilter);
 });
 const leadPage = ref(1);
 const leadPageSize = 10;
 const leadList = ref(null);
-// 按公司归并。一家公司有几个采购就占几行的话，首页十行只剩七家公司——
 // 官网邮箱点一下就复制——业务员拿到它就是要贴进收件人框，
 // 让他手动选中一串 sales@xxx.de 纯属添堵。
 const copyEmail = async mail => {
@@ -520,6 +541,7 @@ const copyEmail = async mail => {
   }
 };
 
+// 按公司归并。一家公司有几个采购就占几行的话，首页十行只剩七家公司——
 // Newegg 一家吃掉三行（用户 2026-11-08 反馈）。
 // 所以分页按**公司**算，同一家的后续联系人只留人名那一行，公司信息不重复。
 const leadGroups = computed(() => {
@@ -1444,6 +1466,26 @@ onMounted(() => {
                           class="!size-4 shrink-0"
                         />
                       </button>
+                      <!-- 「现在能不能发信」的筛子。官网邮箱不花 Apollo 额度，
+                           销售口/真人邮箱那一档质量接近解锁出来的，优先发那批。 -->
+                      <span
+                        class="ml-2 inline-flex rounded-lg bg-n-alpha-1 p-0.5"
+                      >
+                        <button
+                          v-for="f in MAIL_FILTERS"
+                          :key="f.key"
+                          type="button"
+                          class="reset-base rounded-md px-2 py-1 text-label-small transition-colors"
+                          :class="
+                            mailFilter === f.key
+                              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+                              : 'text-n-slate-11 hover:text-n-slate-12'
+                          "
+                          @click="mailFilter = f.key"
+                        >
+                          {{ t(`CRM.LEAD_CENTER_UI.${f.label}`) }}
+                        </button>
+                      </span>
                     </h3>
                     <div
                       class="flex items-center gap-3 text-label-small text-n-slate-11"
