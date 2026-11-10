@@ -155,14 +155,22 @@ class Mes::StockEntry < ApplicationRecord
   # ── 流程硬锁 ──：下游库存单必须等生产订单走到对应阶段才能开单，前面工序没做完后端直接拒绝。
   #   原料入库→须已采购；生产领料→须原料已入库；成品入库→须已领料+进入生产(报工)。
   #   外购订单只走 采购→收货入成品仓→出库，禁止生产领料/成品入库。
+  # 开这张单之前，生产订单最少要走到哪一步。
+  #
+  # ⚠️ 领料（MATERIAL_ISSUE）2026-11-10 从「原料入库」降到「采购原料」：
+  # 阶段推进常常滞后于实物——料早到仓库了，单子还挂在「采购原料」。卡在原来那条线上，
+  # 42 张在产订单里 27 张开不了领料单，而车间手里的料是实实在在的。
+  # 真正的保护是 stock_shortages（按仓实际结存逐行校验），不是这道流程闸：
+  # 库存不够照样过不了账，所以降这一档不会放出负库存。
+  # 再往前（待工程接单 / 生产任务单）不降——那时候连 BOM 都没有，不知道该领什么料。
   FLOW_MIN_STAGE = {
     'MATERIAL_RECEIPT' => 'PURCHASING',
-    'MATERIAL_ISSUE' => 'MATERIAL_INBOUND',
+    'MATERIAL_ISSUE' => 'PURCHASING',
     'MANUFACTURE' => 'PRODUCTION'
   }.freeze
   FLOW_PREREQ_LABEL = {
     'MATERIAL_RECEIPT' => '采购下单',
-    'MATERIAL_ISSUE' => '原料入库',
+    'MATERIAL_ISSUE' => '采购下单',
     'MANUFACTURE' => '生产领料、生产报工'
   }.freeze
   OUTSOURCE_FORBIDDEN_PURPOSES = %w[MATERIAL_ISSUE MANUFACTURE].freeze

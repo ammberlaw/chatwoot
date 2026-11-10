@@ -179,9 +179,16 @@ const productionOrders = ref([]);
 //
 // 仍然排掉：委外单（短版脊柱跳过领料）、已出货的。
 // 字段是 is_outsourced / status（裸 axios 取数，不走 camelcaseKeys）。
+// 还没出生产任务单的不列：那时候连 BOM 都没有，不知道该领什么料，
+// 列出来也只是让人填完一整单再被后端拦下（口径同 Mes::StockEntry::FLOW_MIN_STAGE）。
+const ISSUE_TOO_EARLY = ['SALES_CONFIRMED', 'BOM_READY'];
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    p => !p.is_outsourced && p.status === 'IN_PROGRESS' && p.stage !== 'SHIPPED'
+    p =>
+      !p.is_outsourced &&
+      p.status === 'IN_PROGRESS' &&
+      p.stage !== 'SHIPPED' &&
+      !ISSUE_TOO_EARLY.includes(p.stage)
   )
 );
 const productionOrderOptions = computed(() => [

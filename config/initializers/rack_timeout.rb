@@ -31,6 +31,11 @@ module RackTimeoutAiPaths
     # 展会邀约撰写。
     %r{/crm/exhibition_invites/compose\z},
     %r{/crm/exhibitions/\d+/invites/compose\z},
+    # 拓客任务的客户画像：一个市场要出十个本地化关键词，市场越多越慢。
+    # 实测 4~5 个市场 8 秒、13 个市场 16 秒——正好跨过 15 秒的默认闸，
+    # 用户看到的是「Internal Server Error」，而画像其实在后台跑完了
+    # （2026-11-10 肖天海建「欧洲及加拿大医疗一体机」选了 13 个市场）。
+    %r{/crm/lead_campaigns/\d+/build_profile\z},
     # 兜底：CRM 下任何 ai_xxx 动作都按 AI 接口放宽。
     %r{/crm/.*\bai_[a-z_]+\z}
   ).freeze

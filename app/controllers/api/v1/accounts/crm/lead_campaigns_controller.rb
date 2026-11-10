@@ -62,7 +62,11 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   # 获客效果:搜索词 → 线索 → 建档 → 成交额。
   # 默认看全部任务的累计(效果是跨任务攒出来的),带 campaign_id 就只看那一个。
   def outcomes
-    campaigns = scope_by_owner(Current.account.crm_lead_campaigns)
+    # 和列表、线索走同一个口径（visible_lead_campaigns）。
+    # 原来这里单独写 scope_by_owner：业务员看得见共享任务的线索、领得走、建得了档，
+    # 回头看「我挖的这些带来了什么」却是一片空白——和 2026-11-09 那个 404 同一个根子，
+    # 可见范围在两处各写一遍，迟早一处放行另一处没放行。
+    campaigns = visible_lead_campaigns
     campaigns = campaigns.where(id: params[:campaign_id]) if params[:campaign_id].present?
     stats = Crm::LeadOutcomeStats.new(campaigns: campaigns)
     memory = Crm::LeadScreenMemory.new(account: Current.account)
@@ -125,7 +129,7 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   # scope=pool 还没人领的（默认）；scope=mine 我领的。
   def pool
     scope = params[:scope].to_s == 'mine' ? my_leads : pool_leads
-    @leads = scope.order(Arel.sql(ORDER_SQL)).limit(300).to_a
+    @leads = top_leads_by_company(scope)
     @dupes = Crm::LeadDuplicate.new(account: Current.account).find_many(@leads.map(&:domain))
     @held_count = Crm::LeadClaim.new(account: Current.account, user: current_user).held_count
     @holders = {}
@@ -141,6 +145,21 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   end
 
   private
+
+  # 取前 N **家公司**的全部线索，而不是前 N 条线索。
+  #
+  # 前端是按公司折叠显示的（一家公司一行，底下挂它的几个联系人），
+  # 而这里按条数截断——3896 条线索只对应 3048 家公司，848 条是同一家公司的重复行，
+  # 于是「前 300 条」折叠完可能只剩两百出头家，真正的新公司被挤在看不见的地方。
+  POOL_COMPANY_LIMIT = 300
+
+  def top_leads_by_company(scope)
+    ordered = scope.order(Arel.sql(ORDER_SQL))
+    names = ordered.limit(POOL_COMPANY_LIMIT * 3).pluck(:company_name).uniq.first(POOL_COMPANY_LIMIT)
+    return [] if names.empty?
+
+    ordered.where(company_name: names).to_a
+  end
 
   # 池子里能领的：共享任务里没人领的 + 保护期已过的。
   # 不共享任务的线索只有负责人看得见，所以单独并进来。
