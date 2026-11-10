@@ -313,6 +313,13 @@ const ITEM_COLUMN_DEFS = [
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
   },
   { key: 'status', label: '状态', tdClass: 'px-3 py-2' },
+  // 按单视图早就有这列，明细视图一直缺——仓管按明细查「这批料哪天到的」只能一单单点开。
+  // 和按单视图同一个口径：过账那一刻就是货真正入库的时间（审核和入库不一定同一天）。
+  {
+    key: 'posted',
+    label: '入库时间',
+    tdClass: 'px-3 py-2 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'remark',
     label: '备注',
@@ -380,6 +387,7 @@ const itemRows = computed(() =>
         unitPrice: money(it.unitPriceMicros),
         amount: money(it.amountMicros),
         status: e.status,
+        posted: day(e.postedAt),
         remark: it.remark || '—',
       }))
     )

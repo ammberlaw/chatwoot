@@ -2,6 +2,9 @@
 # 用于客户 AI 背调——官网抓不到或信息稀薄时，Apollo 按域名直接返回结构化公司数据，补上「背调不到」的洞。
 # 无 key 时静默降级（返回 nil），不阻断原有官网+AI 流程。
 class Crm::ApolloClient
+  # 字段映射拆到 Crm::ApolloNormalizer，这里只管调用与记账。
+  include Crm::ApolloNormalizer
+
   # Apollo 账户的 credits 这个计费周期用完了。
   #
   # ⚠️ 必须和「这个人没有邮箱」分开报。混成一句「没解锁到邮箱」的话，
@@ -30,8 +33,12 @@ class Crm::ApolloClient
   # 公司搜索失败最多试几次（见 post_search）。
   SEARCH_ATTEMPTS = 2
 
-  def initialize(account:)
+  # scene / user 只为记账（Crm::ApolloCall）：Apollo 后台只给「某天烧了多少」，
+  # 对不到动作上就永远查不清钱花在哪。调用方尽量传，不传也能跑。
+  def initialize(account:, scene: nil, user: nil)
     @account = account
+    @scene = scene || 'unknown'
+    @user = user
   end
 
   def configured?
@@ -42,10 +49,12 @@ class Crm::ApolloClient
   def organization(domain:)
     return if domain.blank? || !configured?
 
+    started = Time.current
     resp = HTTParty.get("#{BASE_URL}/organizations/enrich",
                         query: { domain: domain },
                         headers: headers, timeout: TIMEOUT)
     org = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organization'] : nil
+    log_call('organizations_enrich', started, org.present? ? 1 : 0, resp)
     normalize_org(org) if org.present?
   rescue StandardError => e
     Rails.logger.info("[Crm::Apollo] organization #{domain} failed: #{e.class} #{e.message}")
@@ -88,9 +97,13 @@ class Crm::ApolloClient
 
     body = { page: 1, per_page: limit, q_organization_domains_list: [domain] }
     body[:person_titles] = Array(titles) if titles.present?
+    started = Time.current
     resp = HTTParty.post("#{BASE_URL}/mixed_people/api_search",
                          body: body.to_json, headers: headers, timeout: TIMEOUT)
     people = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['people'] : nil
+    # 记的是 Apollo **返回**的条数，不是我们过滤后留下的：
+    # 没邮箱的那些照样被导出、照样计费（2026-11-09 约占三成）。
+    log_call('mixed_people_search', started, Array(people).size, resp)
     Array(people).map { |person| normalize_person(person) }
   rescue StandardError => e
     Rails.logger.info("[Crm::Apollo] people search failed: #{e.class} #{e.message}")
@@ -101,10 +114,12 @@ class Crm::ApolloClient
   def unlock_person(apollo_id)
     return nil unless configured? && apollo_id.present?
 
+    started = Time.current
     resp = HTTParty.post("#{BASE_URL}/people/match",
                          body: { id: apollo_id }.to_json, headers: headers, timeout: TIMEOUT)
     raise_if_credits_exhausted!(resp)
     person = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['person'] : nil
+    log_call('people_match', started, person.present? ? 1 : 0, resp)
     person && unlocked_fields(person)
   rescue CreditsExhausted
     raise
@@ -124,10 +139,13 @@ class Crm::ApolloClient
 
     body = { page: 1, per_page: 1, q_organization_keyword_tags: [tag] }
     body[:organization_locations] = [country] if country.present?
+    started = Time.current
     resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
                          body: body.to_json, headers: headers, timeout: TIMEOUT)
     raise_if_credits_exhausted!(resp)
     total = resp.parsed_response.is_a?(Hash) ? resp.parsed_response.dig('pagination', 'total_entries') : nil
+    # per_page 只要 1 条，但仍然记一笔——「探词表到底扣不扣」正是要对账的问题之一。
+    log_call('mixed_companies_count', started, total ? 1 : 0, resp)
     return total.to_i if total
 
     Rails.logger.info("[Crm::Apollo] count '#{tag}' 没问到: HTTP #{resp.code}")
@@ -141,6 +159,15 @@ class Crm::ApolloClient
 
   private
 
+  # 每个端点都要记，一个不漏——漏掉的那个就是下次又对不上账的那个。
+  # 记的是**返回了几条记录**：Apollo 按导出的记录数计费，条数才是对账的锚。
+  def log_call(endpoint, started_at, count, resp = nil)
+    Crm::ApolloCall.log(account: @account, endpoint: endpoint, scene: @scene, user: @user,
+                        returned_count: count, http_status: resp&.code,
+                        duration_ms: ((Time.current - started_at) * 1000).round)
+    count
+  end
+
   # 422 + BILLING.LIMIT.CREDITS_EXHAUSTED = 余额为 0，不是请求写错了。
   # 响应里带着下个计费周期的日期，一并带给调用方——
   # 只说「额度没了」，人还是要去 Apollo 后台翻什么时候恢复。
@@ -151,29 +178,6 @@ class Crm::ApolloClient
     return unless details.is_a?(Hash) && details['code'] == 'BILLING.LIMIT.CREDITS_EXHAUSTED'
 
     raise CreditsExhausted, details.dig('context', 'next_billing_date', 'value')
-  end
-
-  # 搜索阶段拿得到的：名 + 遮住的姓 + 职位 + 有没有邮箱。
-  def normalize_person(person)
-    org = person['organization'] || {}
-    {
-      apollo_id: person['id'],
-      name: [person['first_name'], person['last_name_obfuscated']].compact_blank.join(' '),
-      title: person['title'],
-      has_email: person['has_email'],
-      company_name: org['name']
-    }.compact
-  end
-
-  # 解锁之后才有的：真名、真邮箱、领英、公司官网。
-  def unlocked_fields(person)
-    org = person['organization'] || {}
-    {
-      name: person['name'], title: person['title'],
-      email: person['email'], email_status: person['email_status'],
-      linkedin_url: person['linkedin_url'],
-      company_name: org['name'], domain: org['primary_domain'] || org['website_url']
-    }.compact
   end
 
   # 拼公司搜索请求体（国家 + 关键词标签）；国家与关键词都空则返回 nil（不搜）。
@@ -202,12 +206,14 @@ class Crm::ApolloClient
     attempts = 0
     begin
       attempts += 1
+      started = Time.current
       resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
                            body: body.to_json, headers: headers, timeout: TIMEOUT)
       # 余额为 0 不能当成「这次没搜到」吞掉：吞了就是整轮挖 0 条、任务显示正常结束，
       # 下一个人只会以为是关键词配错了（2026-11-09 就白排查了一轮）。重试也没意义。
       raise_if_credits_exhausted!(resp)
       orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
+      log_call('mixed_companies_search', started, Array(orgs).size, resp)
       Array(orgs).map { |o| normalize_candidate(o) }
     rescue CreditsExhausted
       raise
@@ -225,60 +231,5 @@ class Crm::ApolloClient
 
   def api_key
     @api_key ||= Crm::AiSetting.for_account(@account).apollo_api_key.presence || ENV['APOLLO_API_KEY'].presence
-  end
-
-  def normalize_org(org)
-    {
-      name: org['name'],
-      website: org['website_url'],
-      linkedin: org['linkedin_url'],
-      phone: org['phone'] || org.dig('primary_phone', 'number'),
-      industry: org['industry'],
-      founded_year: org['founded_year'],
-      employees: org['estimated_num_employees'],
-      revenue: org['annual_revenue_printed'],
-      # 原始营收：0 与「没这个数」在界面上要区分开（annual_revenue_printed 两种情况都是空）
-      revenue_raw: org['organization_revenue'],
-      # 各部门人数：判断对方是贸易公司还是工厂、销售团队多大，比一个总人数有用
-      departments: Array(org['departmental_head_count']).to_h.reject { |_k, v| v.to_i.zero? },
-      languages: Array(org['languages']),
-      retail_locations: org['retail_location_count'],
-      country: org['country'],
-      city: org['city'],
-      address: org['raw_address'],
-      description: org['short_description'] || org['seo_description'],
-      keywords: Array(org['keywords']).first(8)
-    }.compact
-  end
-
-  # 搜索阶段（mixed_companies/search）**不扣 credits**，但它返回的字段和
-  # organization 那个接口不是一套：industry / city / country / estimated_num_employees
-  # 这几个它根本不给（2026-11-07 实测 115 条线索这三列 100% 为空，不是数据缺，是问错了）。
-  #
-  # 下面这些才是它真给、而且白给的（98 家真实样本实测覆盖率）：
-  #   linkedin 100% · naics 100% · website 89% · sic 85% · phone 71%
-  #   revenue 53% · 人数增长 46% · 门店数 13% · 上市 3%
-  # 电话尤其实用——解锁邮箱要花 credits，电话不要钱。
-  def normalize_candidate(org)
-    {
-      name: org['name'],
-      domain: org['primary_domain'],
-      logo: org['logo_url'],
-      apollo_org_id: org['id'],
-      website: org['website_url'],
-      linkedin: org['linkedin_url'],
-      phone: org['phone'] || org.dig('primary_phone', 'number'),
-      revenue: org['organization_revenue_printed'],
-      # 门店数：卖广告机给连锁零售时，这个数就约等于订单量。
-      # 0 和「没这个数」要分开，所以原样保留不 compact 掉。
-      retail_locations: org['num_retail_locations'],
-      # 行业代码：比 industry 字符串硬。实测德国几家杂志全是 513120（期刊出版），
-      # 招聘公司是 561311/561320，而买家侧清一色 334xxx（电子制造）/423690（电子批发）。
-      naics: Array(org['naics_codes']),
-      sic: Array(org['sic_codes']),
-      # 上市代码：有这个的基本是巨头，不是我们这档供应商直接对的买家。
-      listed: org['publicly_traded_symbol'],
-      headcount_growth: org['organization_headcount_twelve_month_growth']
-    }.compact
   end
 end

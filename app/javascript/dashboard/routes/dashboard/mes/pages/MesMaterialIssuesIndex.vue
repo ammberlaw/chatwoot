@@ -172,19 +172,16 @@ watch(currentPage, fetchList);
 
 const productionOrders = ref([]);
 // 流程锁：生产领料只对「自制且原料已入库（进入原料入库/领料/生产及以后）」的订单开单。
-// 外购订单不领料、原料未入库的订单不可越级领料——都不出现在可选项里。
-const ISSUE_ELIGIBLE_STAGES = [
-  'MATERIAL_INBOUND',
-  'PICKING',
-  'PRODUCTION',
-  'FG_INBOUND',
-];
+// 在产的单都要能搜到。原先只放 MATERIAL_INBOUND 之后的四个阶段，理由是「原料没入库
+// 不能越级领料」，但阶段推进常常滞后于实物——料早到了仓库，单子还停在「采购中」。
+// 2026-11-09 实测：生产 42 张在产单里 38 张因此选不到，车间只剩 4 张可开。
+// 反过来按阶段筛还会把已完工的单列进来（当时有 4 张）。改按生命周期筛。
+//
+// 仍然排掉：委外单（短版脊柱跳过领料）、已出货的。
+// 字段是 is_outsourced / status（裸 axios 取数，不走 camelcaseKeys）。
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    // 字段是 is_outsourced（裸 axios 取数，不走 camelcaseKeys）。
-    // 原先写成 p.isOutsourced 恒为 undefined，「委外不领料」这条过滤从来没生效，
-    // 生产上 6 张可选订单里 4 张是委外单。
-    p => !p.is_outsourced && ISSUE_ELIGIBLE_STAGES.includes(p.stage)
+    p => !p.is_outsourced && p.status === 'IN_PROGRESS' && p.stage !== 'SHIPPED'
   )
 );
 const productionOrderOptions = computed(() => [

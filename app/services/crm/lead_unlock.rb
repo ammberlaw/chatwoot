@@ -5,7 +5,7 @@ class Crm::LeadUnlock
   def self.call(lead, user = nil)
     return false if lead.apollo_person_id.blank? || lead.status == 'CLAIMED'
 
-    fields = Crm::ApolloClient.new(account: lead.account).unlock_person(lead.apollo_person_id)
+    fields = Crm::ApolloClient.new(account: lead.account, scene: 'unlock', user: user).unlock_person(lead.apollo_person_id)
     return false if fields.blank? || fields[:email].blank?
 
     lead.update!(unlocked_attrs(lead, fields).merge(unlocked_by_id: user&.id, unlocked_at: Time.current))

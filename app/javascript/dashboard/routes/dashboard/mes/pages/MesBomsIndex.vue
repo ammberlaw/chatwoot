@@ -1020,10 +1020,6 @@ onMounted(async () => {
                 >
                   <template v-if="col.key === 'no'">
                     {{ bomNoOf(b) }}
-                    <!-- 填了投单单号时，把系统自动号作为副号附在下面，便于跟历史单据对照 -->
-                    <div v-if="b.docNo" class="text-[11px] text-n-slate-10">
-                      {{ b.bomNo }}
-                    </div>
                   </template>
                   <template v-else-if="col.key === 'model'">
                     <div class="text-n-slate-12">

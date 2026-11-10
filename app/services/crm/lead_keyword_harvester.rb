@@ -47,7 +47,7 @@ class Crm::LeadKeywordHarvester
   def initialize(campaign:, client: nil)
     @campaign = campaign
     @account = campaign.account
-    @client = client || Crm::ApolloClient.new(account: @account)
+    @client = client || Crm::ApolloClient.new(account: @account, scene: 'keyword_harvest')
   end
 
   # 返回新学到的词 [{ text:, from: 哪家公司贡献的 }]，并写进任务的关键词里。

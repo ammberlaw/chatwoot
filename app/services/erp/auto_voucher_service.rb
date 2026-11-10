@@ -286,6 +286,11 @@ class Erp::AutoVoucherService
   # 该出应付凭证却还没有的入库单名单（应付台账的「补出凭证」面板用）。
   # 每行带上供应商、能补出多少钱、出不了的原因——财务要先看清再决定补哪几张，
   # 不是一按就全补（2026-10-21 用户：「一个月的入库单核对好了后，怎么选中入库单生成凭证」）。
+  # 一张入库/退货单按「存货科目 × 供应商」拆出来的金额行（本次入库数量 × 采购单价）。
+  # 供应商对账单（Erp::SupplierStatementService）复用这里，不另算一套——
+  # 两边各写一遍口径，迟早出现「对账单说欠 8 万、总账凭证记了 7 万」而谁都说不清哪个对。
+  def receipt_rows(entry) = stock_receipt_rows(entry)
+
   def pending_stock_receipts
     issued = @account.erp_vouchers.where(source_type: 'Mes::StockEntry').select(:source_id)
     @account.mes_stock_entries

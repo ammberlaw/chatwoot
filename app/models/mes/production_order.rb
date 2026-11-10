@@ -98,6 +98,14 @@ class Mes::ProductionOrder < ApplicationRecord
   # 只走 销售订单确定 → 采购 → 成品入库 → 出库（用于时间线展示与阶段推进）。
   OUTSOURCE_STAGES = %w[SALES_CONFIRMED PURCHASING FG_INBOUND SHIPPED].freeze
 
+  # 备货单到成品入库就结束，没有「销售出库」这一步（Amber 2026-11-09）：
+  # 备货是给公司建共享库存，卖给谁、什么时候卖是另一轨（库存出库单）的事，
+  # 不挂在这张生产订单上。留着那一步，时间线上永远吊着一个到不了的灰节点。
+  def self.spine_for(outsourced:, stock:)
+    spine = outsourced ? OUTSOURCE_STAGES : STAGES
+    stock ? spine - ['SHIPPED'] : spine
+  end
+
   # 生命周期（与 stage 正交）。
   STATUSES = %w[IN_PROGRESS COMPLETED STOPPED CANCELLED].freeze
 
@@ -275,6 +283,11 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 备货生产订单（全业务共享库存）。
   def stock? = order_kind == 'STOCK'
+
+  # 这张单自己的阶段脊柱与终点。外购、备货各有短版，别写死 STAGES。
+  def stage_spine = self.class.spine_for(outsourced: is_outsourced, stock: stock?)
+  def final_stage = stage_spine.last
+  def at_final_stage? = stage == final_stage
 
   # 进度 = 已产 / 计划产量（0..1）。
   def progress_ratio
@@ -1221,8 +1234,8 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 拒收打回：退回上一阶段并记原因；上一阶段重新计时、需重新接单，责任明确回上游。
   def reject_to_previous!(actor:, reason:)
-    # 外购订单按短版脊柱(OUTSOURCE_STAGES)算上一阶段，避免退回到它根本不存在的自制阶段(如 PRODUCTION)而卡死。
-    spine = is_outsourced ? OUTSOURCE_STAGES : STAGES
+    # 按这张单自己的脊柱算上一阶段，避免退回到它根本不存在的阶段（外购单的 PRODUCTION）而卡死。
+    spine = stage_spine
     idx = spine.index(stage)
     raise StandardError, '已是初始阶段，无法退回' if idx.nil? || idx.zero?
 

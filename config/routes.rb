@@ -497,6 +497,9 @@ Rails.application.routes.draw do
               collection do
                 get :open_list
                 get :supplier_statement
+                # 按月、按单据算的供应商对账单（和上面那个按台账汇总余额的不是一回事）。
+                get :monthly_statement
+                get :monthly_statement_detail
                 get :aging
                 get :monthly
                 # 应付凭证是入库过账时出的，补出的入口只能放在台账这边（财务不进 MES）。

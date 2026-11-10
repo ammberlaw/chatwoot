@@ -158,6 +158,15 @@ const open = async record => {
       // 并记进别名记忆，下次同样的客户叫法自动命中，不用再搜一遍产品档案。
       row: li.row,
       name: li.name || '',
+      // 型号那一列：品名常是客户的泛称（UK charger），型号才认得出是哪个产品。
+      // 一张单上三行都叫 UK charger 的情况真实发生过，不显示型号没法核对选得对不对。
+      spec: li.spec || '',
+      // 后端拿不准时带回来的候选（Crm::ConvertPreview）。原来前端没接，
+      // 于是后端算好的 2～3 个候选被丢掉，人要从四千多条产品里自己搜。
+      candidates: li.candidates || [],
+      // 匹配来源：memory = 按别人上次的选法自动填的，不是精确命中，要让人看得见。
+      // 生产上「Q75x」被记成「欧规电源线」，静默填错 2 次没人发现。
+      source: li.source || '',
       qty: li.quantity ?? '',
       unit: li.unit || '',
       productId: li.crm_product_id || '',
@@ -169,8 +178,10 @@ const open = async record => {
   });
   // 已匹配到的产品先进选项，下拉不搜也能回显名字；同时进底库，后面搜别的行不会把它挤掉。
   const matched = rows.map(r => r.product).filter(Boolean);
-  rememberProducts(matched);
-  products.value = matched;
+  // 候选也一并进底库：选项里有了，人点开下拉就看得到，不用再去搜一遍。
+  const candidates = rows.flatMap(r => r.candidates);
+  rememberProducts([...matched, ...candidates]);
+  products.value = [...matched, ...candidates];
   // 明细为空的订单（老单/没填明细）给一行空的，手动选产品填数量也能转。
   if (!rows.length)
     rows.push({
@@ -336,18 +347,41 @@ defineExpose({ open });
           class="flex items-center gap-2"
           :class="{ 'opacity-55': row.convertedOrderNo }"
         >
-          <span class="flex-[3] text-sm truncate text-n-slate-11">
-            {{ row.name || '—' }}
+          <span class="flex-[3] min-w-0">
+            <span class="block text-sm truncate text-n-slate-11">
+              {{ row.name || '—' }}
+            </span>
+            <span
+              v-if="row.spec"
+              class="block text-label-small truncate text-n-slate-10"
+            >
+              {{ row.spec }}
+            </span>
           </span>
-          <ComboBox
-            v-model="row.productId"
-            class="flex-[3]"
-            :options="productOptions"
-            :disabled="!!row.convertedOrderNo"
-            placeholder="搜索产品名称 / SKU"
-            use-api-results
-            @search="searchProducts"
-          />
+          <span class="flex-[3] min-w-0">
+            <ComboBox
+              v-model="row.productId"
+              :options="productOptions"
+              :disabled="!!row.convertedOrderNo"
+              placeholder="搜索产品名称 / SKU"
+              use-api-results
+              @search="searchProducts"
+            />
+            <!-- 按别人上次的选法自动填的，不是精确命中。标出来人才会去核一眼——
+                 生产上「Q75x」被记成「欧规电源线」，静默填错 2 次没人发现。 -->
+            <span
+              v-if="row.source === 'memory' && row.productId"
+              class="block text-label-small text-n-amber-11"
+            >
+              按上次选法填的，核一下
+            </span>
+            <span
+              v-else-if="!row.productId && row.candidates.length"
+              class="block text-label-small text-n-slate-10"
+            >
+              {{ row.candidates.length }} 个相近的，点开下拉选
+            </span>
+          </span>
           <Input
             v-model="row.qty"
             type="number"

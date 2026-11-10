@@ -127,6 +127,19 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/payables/supplier_statement'
   end
 
+  # 供应商**月度**对账单（和上面那个按台账汇总余额的不是一回事）：
+  # 按**单据**算这个月进了多少货、退了多少、该付多少，列到物料级，导出给供应商签字。
+  # 为什么不按台账：「先对账再建账」上线后台账停在 59 行、11 月整月 0 行，
+  # 按台账算对账单会是一片 0，而货实实在在收了（见 Erp::SupplierStatementService）。
+  def monthly_statement
+    render json: { payload: statement_service.summary }
+  end
+
+  # 单家明细：按单据列，每单带物料行、已出的凭证号。
+  def monthly_statement_detail
+    render json: { payload: statement_service.detail(params[:mes_supplier_id]) }
+  end
+
   # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。
   def aging
     @aging = Erp::AgingService.new(Current.account).payables(as_of: aging_as_of, basis: aging_basis)
@@ -144,6 +157,10 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   end
 
   private
+
+  def statement_service
+    Erp::SupplierStatementService.new(account: Current.account, month: params[:month])
+  end
 
   FILTER_COLUMNS = { status: :status, mes_supplier_id: :mes_supplier_id, currency: :currency,
                      settle_type: :settle_type }.freeze

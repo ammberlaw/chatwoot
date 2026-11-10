@@ -287,19 +287,17 @@ const purchaseNote = p => {
   const short = ov.short_lines ? ` · 还差 ${ov.short_lines} 项料` : '';
   return `已下 ${ov.po_count} 张采购单${short}`;
 };
-// 采购是「为某张生产任务单上的料」下的，所以这里按生产任务单的说法摆：
-// 标签带上该订单的 BOM 号（bom_no），采购员一眼看到这单对应哪张任务单。
-// ⚠️ 底层关联仍是 production_order_id，没改——采购单建单会把生产订单从 BOM_READY
+// 一律用生产订单号（WT 开头）打头，和下面「再关联一张」、和建单后的回显同一个说法。
+// 原先出了 BOM 的挂 BOM 号打头、没出的挂 WT 号打头，一个下拉里两种号混排，
+// 采购员对不上自己手里那张单（Amber 2026-11-09）。BOM 号仍进 searchText，照样搜得到。
+// ⚠️ 底层关联本来就是 production_order_id——采购单建单会把生产订单从 BOM_READY
 // 推进到 PURCHASING（PurchaseOrder#advance_production_order），而且成本归集/领料/
-// 入库/质检/出货十来处都顺着这条关联找上去。改挂 BOM 会把这些全断掉，
-// 还有 25 张没做 BOM 的生产订单直接无单可挂（长周期料常常先下单后出 BOM）。
+// 入库/质检/出货十来处都顺着这条关联找上去。这次只动标签，关联一个字没改。
 const productionOrderOptions = computed(() => [
   { value: '', label: '不关联生产任务单' },
   ...selectableOrders.value.map(p => ({
     value: String(p.id),
-    label: p.bom_no
-      ? `${p.bom_no} · ${p.order_no} · ${p.product_name}`
-      : `${p.order_no} · ${p.product_name}（未出任务单）`,
+    label: `${p.order_no} · ${p.product_name}${p.bom_no ? '' : '（未出任务单）'}`,
     note: purchaseNote(p),
     searchText: [orderSearchText(p), p.bom_no].filter(Boolean).join(' '),
   })),

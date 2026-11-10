@@ -179,10 +179,17 @@ const OUTSOURCE_STAGE_VALUES = [
 //
 // 点数按**这张单自己的脊柱**算：外购单走短流程（销售订单确定→采购→成品入库→出库，
 // 跳过 BOM/领料/报工/质检），写死 8 个点会让外购单永远显示「跳了 4 步」，看着像卡住。
-const stageFlowOf = po =>
-  po?.isOutsourced
+// 备货单到成品入库就结束，没有「销售出库」（口径同后端 ProductionOrder.spine_for）：
+// 备货是给公司建共享库存，卖给谁、什么时候卖走另一轨（库存出库单），不挂这张单。
+// 留着那一步，时间线上永远吊着一个到不了的灰节点，看着像卡在最后一环没人管。
+const stageFlowOf = po => {
+  const flow = po?.isOutsourced
     ? STAGES.filter(st => OUTSOURCE_STAGE_VALUES.includes(st.value))
     : STAGES;
+  return po?.orderKind === 'STOCK'
+    ? flow.filter(st => st.value !== 'SHIPPED')
+    : flow;
+};
 
 // 当前阶段在本单脊柱里的位置（0 基）。找不到按 -1，全部显示为未到。
 const stageIndexOf = po =>
@@ -515,12 +522,9 @@ const removeFeedback = async item => {
     useAlert(error?.message || '删除失败');
   }
 };
-// 外购单时间线用短版脊柱（依赖 selected，故定义在其后）。
-const timelineStages = computed(() =>
-  selected.value?.isOutsourced
-    ? STAGES.filter(s => OUTSOURCE_STAGE_VALUES.includes(s.value))
-    : STAGES
-);
+// 详情面板的时间线和列表的进度点必须同一套脊柱，否则一边画 8 个点一边画 7 个。
+// 复用 stageFlowOf（外购短版 + 备货去掉销售出库）。
+const timelineStages = computed(() => stageFlowOf(selected.value));
 const timelineStageIndex = value =>
   timelineStages.value.findIndex(s => s.value === value);
 

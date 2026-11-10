@@ -82,6 +82,15 @@ const materialsLoading = ref(false);
 // 整单料金额与单台材料成本都由后端算（口径同生产任务单成本导出：单台 = 整单 ÷ 基准用量），
 // 前端不再自己 reduce——除以基准用量这一步两边各算一次迟早会对不上。
 const materialTotal = computed(() => Number(materials.value.total_micros || 0));
+// 单价合计：这张 BOM 的料各算一个的价钱之和。和「材料合计」不是一回事——
+// 用量不是 1 的行两边就会差，这个数看的是「整套料清单单价加起来多少」。
+// 查不到价的行是 null，加起来当 0，所以上面那句「N 行没查到价，合计偏低」对它同样成立。
+const rateTotal = computed(() =>
+  (materials.value.items || []).reduce(
+    (sum, m) => sum + Number(m.rate_micros || 0),
+    0
+  )
+);
 
 const toggleMaterials = async row => {
   if (expanded.value === row.id) {
@@ -640,8 +649,11 @@ onMounted(load);
                         </td>
                       </tr>
                       <tr class="font-medium">
-                        <td class="px-2 py-1" colspan="5">
+                        <td class="px-2 py-1" colspan="4">
                           材料合计（这张 BOM 按 {{ Number(materials.base_qty) }} 台）
+                        </td>
+                        <td class="px-2 py-1 text-right tabular-nums">
+                          {{ money(rateTotal) }}
                         </td>
                         <td class="px-2 py-1 text-right tabular-nums">
                           {{ money(materialTotal) }}

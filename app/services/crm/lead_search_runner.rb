@@ -12,31 +12,10 @@ class Crm::LeadSearchRunner
   # 2026-11-08 从 60 提到 90：unsure 也要排了（见 enqueue_bg_checks），需求翻了一倍。
   # 背调跑在 deferred（最低优先级），占半小时不影响任何业务队列。
   BG_CHECK_CAP = 90
-  PEOPLE_PER_COMPANY = 3
-
-  # 优先找这些岗位的人。搜出一堆工程师和前台没用，要找拍板买的。
-  # 第一档：采购口。主力市场在欧洲，所以带上当地职位词——
-  # 德国中小企业的采购岗常常就写 Einkauf / Einkaufsleiter，不写英文。
-  TARGET_TITLES = ['purchasing manager', 'procurement manager', 'buyer',
-                   'sourcing manager', 'category manager', 'owner', 'ceo',
-                   'head of purchasing', 'purchasing director', 'procurement director',
-                   'einkaufsleiter', 'einkauf', 'responsable achats', 'acheteur',
-                   'responsabile acquisti', 'director de compras', 'inkoop'].freeze
-
-  # 第二档：采购口一个人都搜不到时才用。
-  # 2026-11-07 实测：42 家值得跟的公司里 19 家（45%）按采购职位搜回来是空的——
-  # 不是没人，是小公司根本没人挂「采购经理」的头衔，老板自己拍板
-  # （lcd-module.com 三个 Managing Director、brightav.com 一个 President）。
-  # ⚠️ 绝不退到「完全不限职位」：那样 mvix.com 搜回来的头两个是 HR 和用户体验总监。
-  FALLBACK_TITLES = ['managing director', 'geschäftsführer', 'general manager',
-                     'president', 'vice president', 'country manager',
-                     'sales director', 'head of sales', 'business development manager',
-                     'product manager', 'operations manager'].freeze
-
   def initialize(campaign:)
     @campaign = campaign
     @account = campaign.account
-    @client = Crm::ApolloClient.new(account: @account)
+    @client = Crm::ApolloClient.new(account: @account, scene: 'lead_search')
   end
 
   # 返回新建的线索条数。
@@ -109,13 +88,6 @@ class Crm::LeadSearchRunner
     ACRONYMS[key] || key.split('_').map(&:capitalize).join(' ')
   end
 
-  # 判「不是买家」：已经有线索的只更新结论就够了，再建一条空占位只会多一行废话。
-  def skip_contacts(company, dup_id, verdict)
-    return 0 if company_leads(company).exists?
-
-    create_lead(company, nil, dup_id, verdict)
-  end
-
   # 把这一轮的初筛结论同步到已有线索。人工动过的（已建档／已丢弃）一律不碰——
   # 人的判断优先级高于模型，这是整套东西的一条底线。
   def refresh_verdict(company, verdict)
@@ -133,12 +105,6 @@ class Crm::LeadSearchRunner
     company[:domain].present? ? scope.where(domain: company[:domain]) : scope.where(company_name: company[:name])
   end
 
-  # 只删「没有联系人」的那条占位，人工动过的（已建档/已丢弃）一律不碰。
-  def drop_placeholder(domain)
-    @account.crm_leads.where(crm_lead_campaign_id: @campaign.id, domain: domain,
-                             person_name: nil, status: %w[FOUND UNLOCKED]).delete_all
-  end
-
   # 送去初筛的一行料。行业从 NAICS 代码翻过来（Apollo 的 industry 字段搜索接口不给）。
   def screen_items(companies)
     companies.map do |c|
@@ -147,39 +113,17 @@ class Crm::LeadSearchRunner
     end
   end
 
-  # 一家公司 → 若干条线索（一个联系人一条）。没有域名就搜不了人，
-  # 只留公司本身当线索（业务员可以自己去查官网）。
-  #
-  # 判「不是买家」的**不抓联系人**，但仍然建一条线索：
-  # 留着业务员能看见、能翻案，也是 AI 判例库的料（见 Crm::LeadScreenMemory）。
-  # 界面上这类默认折叠，眼不见为净。
+  # 一家公司 → 一条线索。**搜索阶段不抓联系人**（2026-11-09 起，见 Crm::LeadContactFetch）：
+  # 挨家抓的那套一轮烧掉 2157 个 credits 换 1516 个联系人，业务员实际用上 2 个，
+  # 其中 64% 还抓在 50 分以下、没人会翻到的公司上。联系人改到**领取那一刻**才抓。
   def harvest_company(company, verdict)
     dup_id = existing_customer_id(company[:domain], company[:name])
     # 重跑时新结论要盖到已有线索上。模型不是每次都给同一个答案，不同步的话
     # 同一家公司底下会老行写「像买家」、新行写「不是」，自相矛盾。
     refresh_verdict(company, verdict)
-    return skip_contacts(company, dup_id, verdict) if verdict&.dig(:verdict) == 'no'
+    return 0 if company_leads(company).exists?
 
-    people = company[:domain].present? ? find_people(company[:domain]) : []
-    return create_lead(company, nil, dup_id, verdict) if people.empty?
-
-    # 上一轮没搜到人、建过一条「只有公司」的占位线索；这轮搜到人了就把占位清掉，
-    # 否则同一家公司会出现一条没联系人的空行挨着几条正常线索。
-    drop_placeholder(company[:domain])
-
-    people.sum { |person| create_lead(company, person, dup_id, verdict) }
-  end
-
-  # 先找采购口，找不到再退一档找决策层。多出来的那次调用只发生在第一档落空时，
-  # 而且搜索不扣 credits（扣的是后面人工点「解锁邮箱」那一步）。
-  def find_people(domain)
-    people = people_by_titles(domain, TARGET_TITLES)
-    people.presence || people_by_titles(domain, FALLBACK_TITLES)
-  end
-
-  def people_by_titles(domain, titles)
-    @client.search_people(domain: domain, titles: titles, limit: PEOPLE_PER_COMPANY)
-           .select { |person| person[:has_email] }
+    create_lead(company, nil, dup_id, verdict)
   end
 
   # 这家公司是不是我们早就在跟的。搜出一堆自家客户是这类工具最常见的浪费，

@@ -14,9 +14,14 @@ class Crm::CompanyLookupService
   # 抓取总预算：agent 那条路径放宽到 90 秒，但那是整轮（含十几次模型往返）的额度，
   # 背调一个人不能把它吃光。超预算就用已经抓到的内容作答，不是报错。
 
-  def initialize(account:)
+  # scene 进 Apollo 台账：背调会走一次企业库（organizations/enrich），
+  # 而「背调到底扣不扣 credits」正是要对账的问题之一，不标场景就查不出来。
+  def initialize(account:, scene: 'bg_check')
     @account = account
+    @scene = scene
   end
+
+  def apollo = Crm::ApolloClient.new(account: @account, scene: @scene)
 
   # 返回 { status:, domain:, url:, profile:, enrichment: } —— status 取 invalid / public_domain / no_site / ok。
   # query 可为邮箱 / 域名 / 网址，统一解析出企业域名；enrichment 来自 Apollo 企业库（按域名，不依赖官网可爬）。
@@ -28,7 +33,7 @@ class Crm::CompanyLookupService
     return lookup_by_name(query) if domain.blank?
     return { status: 'public_domain', domain: domain } if PUBLIC_DOMAINS.include?(domain)
 
-    enrichment = Crm::ApolloClient.new(account: @account).organization(domain: domain)
+    enrichment = apollo.organization(domain: domain)
 
     site = Crm::CompanySiteFetcher.new.call(domain)
     if site[:text].present?
@@ -55,7 +60,7 @@ class Crm::CompanyLookupService
     name = query.to_s.strip
     return { status: 'invalid' } if name.length < 2
 
-    candidates = Crm::ApolloClient.new(account: @account).search_organizations(name: name)
+    candidates = apollo.search_organizations(name: name)
     return { status: 'name_not_found', name: name } if candidates.blank?
 
     picked = confident_match(name, candidates)

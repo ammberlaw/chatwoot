@@ -32,11 +32,39 @@ class Crm::ConvertPreview
   end
 
   # 只有没存关联的行才需要匹配——已选过的不该被猜测覆盖。
+  #
+  # **先拿型号匹，匹不到再拿品名。** PI 识别出来的明细，品名是客户的叫法
+  # （「UK charger」「7 inch kids tablet」），型号那一列才是能对上产品档案的东西。
+  # 2026-11-09 生产 SO-20261109-01 实测：只按品名匹，5 行全部落空；
+  # 而型号 K81pro / A10 / K714 在档案里都是唯一的产品名，一匹就中。
+  # 更要命的是那张单上三行品名都叫「UK charger」，型号却是三个不同的产品——
+  # 只按品名匹，中了也是三行一起中同一个。
+  #
+  # 返回按**行号**索引，不按文字：同名不同型号的行必须各认各的。
   def matches
     @matches ||= begin
-      texts = items.reject { |i| i['crm_product_id'].present? }.map { |i| i['name'].to_s }
-      texts.empty? ? {} : Crm::LineItemProductMatcher.new(@account).match_all(texts)
+      pending = items.each_with_index.reject { |item, _| item['crm_product_id'].present? }
+      by_spec = match_texts(pending.map { |item, _| item['spec'].to_s })
+      by_name = match_texts(pending.map { |item, _| item['name'].to_s })
+      pending.to_h { |item, index| [index, pick_match(item, by_spec, by_name)] }
     end
+  end
+
+  def match_texts(texts)
+    usable = texts.compact_blank
+    usable.empty? ? {} : Crm::LineItemProductMatcher.new(@account).match_all(usable)
+  end
+
+  # 型号命中了就用型号的；型号匹不到（或这张单的规格栏写的是真规格、不是型号）才回落品名。
+  # 只有「唯一命中」才算赢——型号给的是一堆候选、品名却能精确命中时，该听品名的。
+  # 两边都没唯一命中时优先摆型号的候选：型号比客户那句泛称准得多。
+  def pick_match(item, by_spec, by_name)
+    spec_hit = by_spec[item['spec'].to_s] || {}
+    name_hit = by_name[item['name'].to_s] || {}
+    return spec_hit if spec_hit[:product]
+    return name_hit if name_hit[:product]
+
+    spec_hit[:candidates].present? ? spec_hit : name_hit
   end
 
   def row(item, index)
@@ -45,7 +73,7 @@ class Crm::ConvertPreview
     row = if linked_product
             base(item, index, name).merge(product_fields(linked_product)).merge(source: 'linked')
           else
-            hit = matches[name] || {}
+            hit = matches[index] || {}
             base(item, index, name)
               .merge(product_fields(hit[:product]))
               .merge(source: hit[:source], fee: hit[:fee], candidates: candidates(hit[:candidates]))

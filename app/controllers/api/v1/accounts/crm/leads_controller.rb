@@ -104,7 +104,11 @@ class Api::V1::Accounts::Crm::LeadsController < Api::V1::Accounts::Crm::BaseCont
   def ensure_mine
     return nil if @lead.holder_id == current_user.id
 
-    result = Crm::LeadClaim.new(account: Current.account, user: current_user).call(@lead)
+    # 不抓联系人：这里是「建档/丢弃/背调顺带领一下」，不是人点的领取。
+    # 抓联系人要花 Apollo 的钱，而且抓不到会把这条退回池子——
+    # 那样点「建档」会变成「档没建成、线索还被退了」。
+    result = Crm::LeadClaim.new(account: Current.account, user: current_user)
+                           .call(@lead, fetch_contacts: false)
     result.ok ? nil : result.message
   end
 

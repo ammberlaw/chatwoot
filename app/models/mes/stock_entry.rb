@@ -747,6 +747,18 @@ class Mes::StockEntry < ApplicationRecord
     return unless po.stage == 'FG_INBOUND' && po.fg_inbound_complete?
 
     po.update_columns(status: 'COMPLETED', updated_at: timestamp)
+    finish_stock_order(po)
+  end
+
+  # 备货单到这里就是走完了——没有「销售出库」那一步（见 ProductionOrder.spine_for）。
+  # 定制单的收尾动作挂在进 SHIPPED 时（on_stage_changed），备货单到不了那里，
+  # 不补这一下的话：残留待办销不掉（人家待办里一直挂着「待接单：成品入库」），
+  # 成本也归集不进 ERP。
+  def finish_stock_order(production_order)
+    return unless production_order.stock? && production_order.at_final_stage?
+
+    production_order.resolve_open_todos
+    production_order.rollup_erp_cost
   end
 
   # 成品出库过账 → 订单已发货交付，置「已完成」（SHIPPED 为终态，退出「进行中」）。

@@ -73,7 +73,7 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     name = params[:name].to_s.strip
     return render json: { message: '请输入公司名' }, status: :unprocessable_entity if name.blank?
 
-    candidates = Crm::ApolloClient.new(account: Current.account).search_organizations(name: name)
+    candidates = Crm::ApolloClient.new(account: Current.account, scene: 'name_lookup', user: current_user).search_organizations(name: name)
     render json: { candidates: candidates }
   end
 

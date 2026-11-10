@@ -57,7 +57,7 @@ class Api::V1::Accounts::Crm::ExhibitionsController < Api::V1::Accounts::Crm::Ba
 
   # 从 Apollo 企业库找新买家（突破自有客户池）：按国家 + 行业/产品关键词搜，滤掉 CRM 已有的公司。
   def apollo_search
-    client = Crm::ApolloClient.new(account: Current.account)
+    client = Crm::ApolloClient.new(account: Current.account, scene: 'exhibition', user: current_user)
     return render(json: { error: '还没配置 Apollo：请到「邮件中心 → AI 设置」填入 Apollo API Key' }, status: :unprocessable_entity) unless client.configured?
 
     results = client.search_companies(country: params[:country], keywords: params[:keywords])

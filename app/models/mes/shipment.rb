@@ -537,9 +537,24 @@ class Mes::Shipment < ApplicationRecord
   end
 
   # 提交预占校验：可用（物理结存 − 其他待出库单已预占）≥ 本单出库量，否则拦截，防多人抢同一批现货。
+  #
+  # ⚠️ 「这个仓根本没有这批货」和「有货但被别人占了」必须分开说。
+  # 原来一律报「已被其他待出库单预占」，而外购样品这类压根没入过库的产品
+  # 结存就是 0——人会去翻是谁占了货，翻半天发现根本没有这回事
+  # （2026-11-09 生产 SO-20261109-04 外购样品单）。
   def ensure_available_for_reservation!
-    shortages = reservation_shortages.map { |s| "#{s[:product_name]}（可用 #{fnum(s[:available])}，需 #{fnum(s[:need])}）" }
-    raise StandardError, "可用现货不足（已被其他待出库单预占），无法提交：#{shortages.join('；')}" if shortages.any?
+    shortages = reservation_shortages
+    return if shortages.empty?
+
+    raise StandardError, "无法提交：#{shortages.map { |s| shortage_text(s) }.join('；')}"
+  end
+
+  def shortage_text(row)
+    name = row[:product_name]
+    return "#{name}（这个仓没有现货，需 #{fnum(row[:need])}——还没入过库的货要先采购入库）" if row[:on_hand] <= 0
+
+    "#{name}（现货 #{fnum(row[:on_hand])}，已被其他待出库单占掉 #{fnum(row[:on_hand] - row[:available])}，" \
+      "可用 #{fnum(row[:available])}，需 #{fnum(row[:need])}）"
   end
 
   # ── 两本账出库（2026-10-28）────────────────────────────────────────────────
@@ -585,11 +600,12 @@ class Mes::Shipment < ApplicationRecord
   end
 
   def reservation_shortage(item, reserved)
-    available = book_qty(item).values.sum - reserved[[item.crm_product_id, warehouse_id]].to_d
+    on_hand = book_qty(item).values.sum
+    available = on_hand - reserved[[item.crm_product_id, warehouse_id]].to_d
     return if available >= item.qty.to_d
 
     { item: item, product_name: item.crm_product&.name || "成品##{item.crm_product_id}",
-      available: available, need: item.qty.to_d }
+      on_hand: on_hand, available: available, need: item.qty.to_d }
   end
 
   # 现货出库审核人=业务员所属（主）部门负责人；本人即负责人则向上找上级部门负责人。

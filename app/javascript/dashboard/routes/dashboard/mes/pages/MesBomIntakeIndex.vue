@@ -539,12 +539,22 @@ const copyForKingdee = async () => {
   }
 };
 
+// 各阶段预估天数必填（2026-11-09 起）。0 是合法值（这一单真不用采购就填 0），
+// 空才是没填——判空不能用 falsy，否则填了 0 会被当成没填。
+const leadDaysWerePresent = ref(true);
+const missingLeadStages = computed(() =>
+  leadDaysWerePresent.value
+    ? LEAD_STAGES.filter(st => form[st.key] === '' || form[st.key] === null)
+    : []
+);
+
 const invalid = computed(
   () =>
     !form.productLine || // 产线必填：漏了这条单子切到任何产线都看不见
     !form.crmProductId || // 产成品必须选自产品档案：只填文本等于没关联，下游按 id 对不上
     filledRows.value.length === 0 || // 至少一条实质用料
-    filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
+    filledRows.value.some(r => !isRowComplete(r)) || // 已填的行必须完整
+    missingLeadStages.value.length > 0 // 各阶段预估天数必填
 );
 
 // ── 未保存提醒 ──────────────────────────────────────────────
@@ -890,6 +900,7 @@ const resetAttachments = () => {
 const openCreate = async (preOrder = null) => {
   editingId.value = null;
   editingStatus.value = null;
+  leadDaysWerePresent.value = true; // 新建一律必填
   baseQtyTouched.value = false; // 新建：基准产量跟着投单数量走
   changeReason.value = '';
   removedItemIds.value = [];
@@ -937,6 +948,12 @@ const openCreate = async (preOrder = null) => {
 const openEdit = bom => {
   editingId.value = bom.id;
   editingStatus.value = bom.status;
+  // 打开时就缺天数的旧单不强制补（口径同后端 Mes::Bom#require_lead_days?）：
+  // 存量 35 张活单建单时没这条要求，回头改用料/换附件不该被这条卡住。
+  leadDaysWerePresent.value = LEAD_STAGES.every(
+    st =>
+      bom[st.key] !== null && bom[st.key] !== undefined && bom[st.key] !== ''
+  );
   baseQtyTouched.value = true; // 编辑已存生产任务单：存下来的基准产量不许被投单数量冲掉
   changeReason.value = '';
   removedItemIds.value = [];
@@ -1185,6 +1202,7 @@ const onProductSaved = saved => {
 const applyTemplate = t => {
   editingId.value = null;
   editingStatus.value = null;
+  leadDaysWerePresent.value = true; // 新建一律必填
   removedItemIds.value = [];
   // 模版自带的基准产量就是它那批用料的口径（如 3500 台的料），
   // 必须按住不让「数量」的联动把它冲成新数量——冲掉了就算不出缩放比例。
@@ -1702,7 +1720,10 @@ onBeforeUnmount(() =>
 
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <span class="text-heading-2 text-n-slate-12">各阶段预估天数</span>
+            <span class="text-heading-2 text-n-slate-12">
+              各阶段预估天数
+              <span v-if="leadDaysWerePresent" class="text-n-ruby-11">*</span>
+            </span>
             <span class="text-xs text-n-slate-11">
               预估周期合计：<span class="font-medium text-n-slate-12">{{
                 totalLeadDays
@@ -1719,7 +1740,12 @@ onBeforeUnmount(() =>
               <label class="text-heading-3 text-n-slate-12">{{
                 s.label
               }}</label>
-              <Input v-model="form[s.key]" type="number" placeholder="天" />
+              <Input
+                v-model="form[s.key]"
+                type="number"
+                min="0"
+                :placeholder="leadDaysWerePresent ? '天（不需要填 0）' : '天'"
+              />
             </div>
           </div>
         </div>

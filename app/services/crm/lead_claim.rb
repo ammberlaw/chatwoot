@@ -14,7 +14,11 @@ class Crm::LeadClaim
   end
 
   # 整家公司一起领：同一家公司名下的几个联系人分给两个人跟，等于内部撞单。
-  def call(lead)
+  #
+  # fetch_contacts：只有业务员**显式点「领取」**时才去抓联系人（要花 Apollo 的钱）。
+  # 建档、丢弃、背调也会顺带把线索领到自己名下（见 LeadsController#ensure_mine），
+  # 那几步传 false——建一家只有公司信息的档案是正当操作，不该因为搜不到联系人被拦住。
+  def call(lead, fetch_contacts: true)
     return Result.new(ok: false, message: '这条线索属于不共享的任务，只有负责人能跟。') unless reachable?(lead)
 
     holder = lead.holder_id
@@ -23,7 +27,36 @@ class Crm::LeadClaim
     return Result.new(ok: false, message: over_limit_text) if over_limit?
 
     stamp(lead)
-    Result.new(ok: true, message: "已领取 #{lead.company_name}，#{Crm::Lead::HOLD_DAYS} 天内归你跟进", lead: lead.reload)
+    return Result.new(ok: true, message: "已领取 #{lead.company_name}，#{hold_text}", lead: lead.reload) unless fetch_contacts
+
+    claimed_result(lead)
+  end
+
+  def hold_text = "#{Crm::Lead::HOLD_DAYS} 天内归你跟进"
+
+  # 领取 = 我要跟这家 = 这时候才值得为它花 Apollo 的钱去抓联系人
+  #（搜索阶段不抓了，见 Crm::LeadContactFetch 开头那笔账）。
+  #
+  # 抓不到人就**退回池子、不占名额**：28% 的公司一个联系人都搜不到，
+  # 让人白占 14 天保护期去跟一家联系不上的公司，比不给他领还糟。
+  def claimed_result(lead)
+    fetched = Crm::LeadContactFetch.new(lead.reload, user: @user).call
+    if fetched.positive?
+      return Result.new(ok: true, lead: lead.reload,
+                        message: "已领取 #{lead.company_name}，找到 #{fetched} 个联系人，#{hold_text}")
+    end
+
+    release(lead)
+    Result.new(ok: false, lead: lead.reload,
+               message: "#{lead.company_name} 这家搜不到可联系的人，已退回池子（没占你的名额）。" \
+                        '可以先做 AI 背调看看官网上有没有留联系方式。')
+  end
+
+  # 退回池子：口径同 LeadsController#release，整家公司一起退（领的时候也是整家领的）。
+  def release(lead)
+    @account.crm_leads.where(company_name: lead.company_name, owner_id: @user.id,
+                             status: %w[FOUND UNLOCKED])
+            .update_all(owner_id: nil, claimed_at: nil, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
   end
 
   # 手上压着多少条没处理完的（领了还没建档/丢弃的）。

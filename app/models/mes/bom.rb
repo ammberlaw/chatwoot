@@ -72,6 +72,10 @@ class Mes::Bom < ApplicationRecord
 
   # 按阶段预估天数（工程/PMC 分部门填），求和 = 预计生产周期（不含销售出库/物流）。
   LEAD_DAY_COLUMNS = %i[purchasing_days material_inbound_days picking_days production_days fg_inbound_days].freeze
+  # 报错时要说清缺的是哪个阶段，光说「预估天数没填」人还得挨个框去找。
+  LEAD_DAY_LABELS = { purchasing_days: '采购原料', material_inbound_days: '原料入库',
+                      picking_days: '生产领料', production_days: '生产',
+                      fg_inbound_days: '成品入库' }.freeze
 
   # 草稿/下发：草稿可反复编辑、对下游隐藏；下发后才可被生产订单挂用。
   STATUSES = %w[DRAFT RELEASED].freeze
@@ -79,6 +83,7 @@ class Mes::Bom < ApplicationRecord
   validates :bom_no, presence: true, uniqueness: { scope: :account_id }
   validates :base_qty, numericality: { greater_than: 0 }
   validates :status, inclusion: { in: STATUSES }
+  validate :lead_days_filled, if: :require_lead_days?
 
   # 生产任务单上补了成品之后，把它带到挂着本单的生产订单上。
   # 挂 BOM 与填成品不一定同时发生（工程常先挂单、过后才补产成品代码），
@@ -94,6 +99,24 @@ class Mes::Bom < ApplicationRecord
 
   def self.document_number_prefix = 'BOM'
   def self.document_number_column = :bom_no
+
+  # 各阶段预估天数必填（2026-11-09 起）。
+  #
+  # 只管新建的，以及本来就填齐了的：存量 35 张活单建单时没这个要求，
+  # 回头改用料、换附件不该被这条卡住（Amber 2026-11-09 定）。
+  # 填齐过的单不许再清空——否则补过的数据会被一次编辑悄悄抹回去。
+  def require_lead_days?
+    new_record? || LEAD_DAY_COLUMNS.all? { |col| public_send(:"#{col}_was").present? }
+  end
+
+  # 0 是合法值（这一单确实不用采购就填 0），nil 才是没填。
+  # 错误挂 :base 不挂字段——挂字段的话 full_messages 会前缀英文列名（Purchasing days ...）。
+  def lead_days_filled
+    missing = LEAD_DAY_COLUMNS.reject { |col| public_send(col).present? }
+    return if missing.empty?
+
+    errors.add(:base, "这几个阶段的预估天数要填：#{missing.map { |c| LEAD_DAY_LABELS[c] }.join('、')}（确实不需要就填 0）")
+  end
 
   # 各阶段预估天数求和；无填写则回退旧的整体预估交期。
   def total_lead_days

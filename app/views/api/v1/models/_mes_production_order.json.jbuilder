@@ -101,6 +101,9 @@ json.bom_revisions do
   end
 end
 json.stage resource.stage
+# 生命周期（与 stage 正交）：IN_PROGRESS/COMPLETED/STOPPED/CANCELLED。
+# 领料单的订单下拉要按它筛「在产的」——只按 stage 筛会把已完工的单也列进去。
+json.status resource.status
 json.stage_events do
   json.array! resource.stage_events.order(:entered_at) do |ev|
     json.stage ev.stage

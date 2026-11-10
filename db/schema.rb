@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_08_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_10_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -944,6 +944,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_08_190000) do
     t.jsonb "apollo_user_limits", default: {}, null: false
     t.text "lead_default_criteria"
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
+  end
+
+  create_table "crm_apollo_calls", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id"
+    t.string "endpoint", null: false
+    t.string "scene", null: false
+    t.integer "returned_count", default: 0, null: false
+    t.integer "http_status"
+    t.integer "duration_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "created_at"], name: "index_crm_apollo_calls_on_account_id_and_created_at"
+    t.index ["account_id", "scene", "created_at"], name: "index_crm_apollo_calls_on_account_id_and_scene_and_created_at"
   end
 
   create_table "crm_attendance_groups", force: :cascade do |t|
