@@ -62,6 +62,12 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
     return render json: { error: '先生成客户画像' }, status: :unprocessable_entity if @campaign.keywords.blank?
     return render json: { error: '这个任务正在搜索中，等它跑完再点' }, status: :unprocessable_entity if @campaign.status == 'SEARCHING'
 
+    # 挖客户的额度（2026-11-10 起）。挖公司是主要成本，不是只有解锁花钱——
+    # 两个业务员各建了选 11~13 个国家的任务，一下午烧掉 400 多 credits，
+    # 而他们并不知道点这个按钮要花钱。额度按任务负责人算。
+    quota = Crm::ApolloQuota.new(account: Current.account).search_status_for(@campaign.owner)
+    return render json: { error: search_quota_message(quota) }, status: :unprocessable_entity unless quota.allowed?
+
     Crm::LeadSearchJob.perform_later(@campaign.id)
     render json: { queued: true, status: 'SEARCHING' }
   end
@@ -152,6 +158,13 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   end
 
   private
+
+  # 拦下来要说清是谁的额度、用了多少、什么时候清零——只说「不让搜」会让人以为系统坏了。
+  def search_quota_message(quota)
+    "#{@campaign.owner&.crm_display_name || '这个任务的负责人'}本月挖客户的额度已用完" \
+      "（#{quota.user_used}/#{quota.user_limit} 家）。下个月 1 号自动清零，" \
+      '急用让管理员在「AI 设置」里单独调高。'
+  end
 
   # 取前 N **家公司**的全部线索，而不是前 N 条线索。
   #

@@ -1240,6 +1240,8 @@
       "AI_USAGE_ROW": "{calls} 次 · {tokens}k tokens",
       "APOLLO_PER_USER": "给个别人单独配额（留空＝跟随每人上限，数字＝本月已用）",
       "APOLLO_USED": "本月已解锁 {unlocked} 条联系方式，背调查企业库 {checks} 次",
+      "APOLLO_SEARCH_LIMIT": "每人每月挖客户上限（家）",
+      "APOLLO_U_SEARCH": "挖客 {n}",
       "APOLLO_U_UNLOCK": "解锁 {n}",
       "APOLLO_U_CONTACT": "抓联系人 {n}",
       "APOLLO_U_BG": "背调 {n}",

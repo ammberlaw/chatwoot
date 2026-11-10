@@ -68,9 +68,9 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
     params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key,
                                     :inquiry_triage_enabled,
                                     :auto_draft_reply_enabled,
-                                    :apollo_monthly_limit, :apollo_user_limit, :lead_default_criteria,
+                                    :apollo_monthly_limit, :apollo_user_limit, :apollo_search_limit, :lead_default_criteria,
                                     agent_user_ids: [], auto_draft_user_ids: [],
                                     # 个别人的单独额度 { 用户id => 条数 }，留空表示跟默认走。
-                                    apollo_user_limits: {})
+                                    apollo_user_limits: {}, apollo_search_limits: {})
   end
 end

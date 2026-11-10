@@ -46,6 +46,8 @@ const form = reactive({
   apolloKey: '',
   apolloMonthlyLimit: null,
   apolloUserLimit: null,
+  apolloSearchLimit: null,
+  apolloSearchLimits: {},
   // 个别人的单独额度 { 用户id(字符串) => 条数 }。留空＝跟随「每人上限」。
   apolloUserLimits: {},
   // 公司级默认初筛条件：新建拓客任务时自动带上。
@@ -157,6 +159,8 @@ onMounted(async () => {
     apolloUsage.value = data.apollo_usage || {};
     form.apolloMonthlyLimit = data.apollo_monthly_limit;
     form.apolloUserLimit = data.apollo_user_limit;
+    form.apolloSearchLimit = data.apollo_search_limit;
+    form.apolloSearchLimits = { ...(data.apollo_search_limits || {}) };
     form.apolloUserLimits = { ...(data.apollo_user_limits || {}) };
     form.leadDefaultCriteria = data.lead_default_criteria || '';
     aiUsage.value = data.ai_usage || {};
@@ -194,6 +198,8 @@ const save = async () => {
         // 留空 = 不限额。别写 0，0 是「一条都不让解」。
         apollo_monthly_limit: form.apolloMonthlyLimit || null,
         apollo_user_limit: form.apolloUserLimit || null,
+        apollo_search_limit: form.apolloSearchLimit || null,
+        apollo_search_limits: form.apolloSearchLimits,
         // 清掉空值再提交，否则会把「跟随默认」存成 0（0 = 一条都不让解）。
         lead_default_criteria: form.leadDefaultCriteria.trim(),
         apollo_user_limits: Object.fromEntries(
@@ -475,6 +481,20 @@ const fieldCls =
                   :class="fieldCls"
                 />
               </label>
+              <!-- 挖客户的额度：挖公司才是主要成本，不是只有解锁花钱。
+                   一个选 13 个国家的任务点下搜索，一轮就是几百次 Apollo 调用。 -->
+              <label class="flex flex-col gap-2">
+                <span class="text-label text-n-slate-12">{{
+                  copy('APOLLO_SEARCH_LIMIT')
+                }}</span>
+                <input
+                  v-model.number="form.apolloSearchLimit"
+                  type="number"
+                  min="0"
+                  :placeholder="copy('APOLLO_LIMIT_BLANK')"
+                  :class="fieldCls"
+                />
+              </label>
             </div>
             <label class="mt-4 flex flex-col gap-2 border-t border-n-weak pt-4">
               <span class="text-label text-n-slate-12">{{
@@ -534,6 +554,12 @@ const fieldCls =
                     <span v-if="usageByUser[m.id]" class="text-n-slate-10">
                       ·
                       {{
+                        copy('APOLLO_U_SEARCH', {
+                          n: usageByUser[m.id].searched,
+                        })
+                      }}
+                      ·
+                      {{
                         copy('APOLLO_U_UNLOCK', {
                           n: usageByUser[m.id].unlocked,
                         })
@@ -554,13 +580,24 @@ const fieldCls =
                       </template>
                     </span>
                   </span>
-                  <input
-                    v-model.number="form.apolloUserLimits[String(m.id)]"
-                    type="number"
-                    min="0"
-                    :placeholder="String(form.apolloUserLimit || '')"
-                    class="h-8 w-20 shrink-0 rounded-lg border border-n-weak bg-n-alpha-black2 px-2 text-right text-label-small"
-                  />
+                  <span class="flex shrink-0 items-center gap-1">
+                    <input
+                      v-model.number="form.apolloUserLimits[String(m.id)]"
+                      type="number"
+                      min="0"
+                      :title="copy('APOLLO_USER_LIMIT')"
+                      :placeholder="String(form.apolloUserLimit || '')"
+                      class="h-8 w-16 rounded-lg border border-n-weak bg-n-alpha-black2 px-2 text-right text-label-small"
+                    />
+                    <input
+                      v-model.number="form.apolloSearchLimits[String(m.id)]"
+                      type="number"
+                      min="0"
+                      :title="copy('APOLLO_SEARCH_LIMIT')"
+                      :placeholder="String(form.apolloSearchLimit || '')"
+                      class="h-8 w-20 rounded-lg border border-n-weak bg-n-alpha-black2 px-2 text-right text-label-small"
+                    />
+                  </span>
                 </label>
               </div>
             </details>

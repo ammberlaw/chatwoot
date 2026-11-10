@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_10_090000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_10_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -943,6 +943,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_090000) do
     t.integer "apollo_user_limit"
     t.jsonb "apollo_user_limits", default: {}, null: false
     t.text "lead_default_criteria"
+    t.integer "apollo_search_limit"
+    t.jsonb "apollo_search_limits", default: {}, null: false
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
 
@@ -958,6 +960,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_090000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "created_at"], name: "index_crm_apollo_calls_on_account_id_and_created_at"
     t.index ["account_id", "scene", "created_at"], name: "index_crm_apollo_calls_on_account_id_and_scene_and_created_at"
+  end
+
+  create_table "crm_apollo_tags", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "phrase", null: false
+    t.string "tag"
+    t.integer "total"
+    t.integer "probes", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "phrase"], name: "index_crm_apollo_tags_on_account_id_and_phrase", unique: true
   end
 
   create_table "crm_attendance_groups", force: :cascade do |t|

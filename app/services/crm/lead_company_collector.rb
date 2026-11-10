@@ -20,6 +20,9 @@ class Crm::LeadCompanyCollector
   # 单个关键词的保底额度。词多的时候均分下来每个只剩两三家就没意义了，
   # 但也不能太大——太大第一个词又会把别人的份吃掉。
   MIN_PER_KEYWORD = 6
+  # 一个词在全公司范围内挖够这么多家、一家都没过初筛，就认定是废词，新任务不再用它。
+  # 15 是实测的分水岭：本月 0% 通过率的词最少的也挖了 17 家。
+  PROVEN_DEAD_MIN = 15
   # 没搜过的词的权重（同 LeadOutcomeStats 的先验 1/5）。
   DEFAULT_WEIGHT = 0.2
   # 一个关键词一轮最多往下翻几页。翻太深相关性就掉了，留给下一轮。
@@ -38,7 +41,7 @@ class Crm::LeadCompanyCollector
     @campaign = campaign
     @account = campaign.account
     @client = client
-    @resolver = Crm::ApolloTagResolver.new(client: client)
+    @resolver = Crm::ApolloTagResolver.new(client: client, account: @account)
     # 词表里查不到的搜索词，记下来给调用方（跑完要让人看见哪些词是白写的）。
     @dead_keywords = []
   end
@@ -112,11 +115,9 @@ class Crm::LeadCompanyCollector
     weights = screen_weights
     # 废词直接不上场（评级见 Crm::KeywordGrade）：搜够了一个都不过初筛的词，
     # 留着只会把额度从好词那里分走。词还在列表里，人想救可以手动改。
-    live = words.reject { |k| k['grade'] == 'dead' }
-    live = words if live.empty?
-    ranked = live.sort_by { |k| -weights.fetch(k['text'], DEFAULT_WEIGHT) }
-                 .first(MAX_KEYWORDS)
-                 .first([quota / MIN_PER_KEYWORD, 1].max)
+    ranked = usable_words(words).sort_by { |k| -weights.fetch(k['text'], DEFAULT_WEIGHT) }
+                                .first(MAX_KEYWORDS)
+                                .first([quota / MIN_PER_KEYWORD, 1].max)
     total = ranked.sum { |k| weights.fetch(k['text'], DEFAULT_WEIGHT) }
     ranked.map do |keyword|
       weight = weights.fetch(keyword['text'], DEFAULT_WEIGHT)
@@ -124,11 +125,33 @@ class Crm::LeadCompanyCollector
     end
   end
 
+  # 剔掉废词：本任务内判死的，加上全公司验证过的。
+  # 全砍光就退回原列表——宁可挖一轮没用的，也不要一家都挖不到让人以为功能坏了。
+  def usable_words(words)
+    dead_words = proven_dead_words
+    live = words.reject { |k| k['grade'] == 'dead' || dead_words.include?(k['text'].to_s.downcase) }
+    live.presence || words
+  end
+
   # 每个搜索词过往的初筛通过率，按词缓存一轮。
+  #
+  # ⚠️ **看全公司的战绩，不是只看这个任务自己的**（2026-11-10 改）。
+  # 只看自己的话，新建的任务没有历史，所有词一视同仁从零开始挖——
+  # 而一个词在别的任务里早就挖了上百家、一家都不像买家。
+  # 实测本月：children electronics brand 挖到 178 家、通过率 0%，
+  # 另有 11 个词各挖 15~32 家、同样 0%，这几百家全是白挖的。
+  # 等它在本任务内自己学会「这是废词」，钱已经花完了。
   def screen_weights
-    @screen_weights ||= Crm::LeadOutcomeStats.new(
-      campaigns: @account.crm_lead_campaigns.where(id: @campaign.id)
-    ).screen_weights
+    @screen_weights ||= Crm::LeadOutcomeStats.new(campaigns: @account.crm_lead_campaigns).screen_weights
+  end
+
+  # 全公司验证过的废词：搜够样本量、一家都没过初筛的。
+  # 这类词在哪个任务里都是废的，新任务不该再花钱验一遍。
+  def proven_dead_words
+    @proven_dead_words ||= Crm::LeadOutcomeStats.new(campaigns: @account.crm_lead_campaigns)
+                                                .by_keyword
+                                                .select { |r| r[:leads] >= PROVEN_DEAD_MIN && r[:screened].zero? }
+                                                .to_set { |r| r[:keyword].to_s.downcase }
   end
 
   # 先把搜索词翻成 Apollo 真实存在的标签（见 Crm::ApolloTagResolver）。

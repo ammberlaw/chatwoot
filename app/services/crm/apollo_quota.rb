@@ -35,6 +35,33 @@ class Crm::ApolloQuota
 
   def allow?(user) = status_for(user).allowed?
 
+  # 挖客户的额度。和解锁那套对称：统一默认值 + 个别人单独配。
+  #
+  # 为什么挖客户也要限（2026-11-10 对账实证）：挖公司是**主要成本**，
+  # 一轮选 13 个国家的任务能调掉几百次 mixed_companies_search。
+  # 业务员不知道点一次「搜索潜在客户」要花钱，两个人一下午烧掉 400 多个 credits。
+  #
+  # 口径按**任务负责人**算：谁建的任务，挖回来的公司算谁头上——
+  # 搜索是后台 Job 跑的，拿不到「谁点的按钮」，而任务归属是稳定且公平的。
+  def search_status_for(user)
+    # 全公司总闸只设一个（apollo_monthly_limit），解锁和挖客各自按人限额。
+    # 两个总闸管理员记不住，而真正要防的是「某个人一下午挖掉几百家」。
+    Status.new(user_limit: search_limit_for(user), user_used: searched(user_id: user&.id),
+               account_limit: nil, account_used: 0)
+  end
+
+  def allow_search?(user) = search_status_for(user).allowed?
+
+  # 本月挖到多少家公司（按公司去重——同一家被几个关键词搜到只算一次）。
+  def searched(user_id: nil)
+    scope = @account.crm_leads.where(created_at: Time.current.all_month)
+    if user_id
+      owned = @account.crm_lead_campaigns.where(owner_id: user_id).select(:id)
+      scope = scope.where(crm_lead_campaign_id: owned)
+    end
+    scope.distinct.count(:company_name)
+  end
+
   # 每个业务员本月用了多少（AI 设置页的用量表）。
   #
   # 为什么不只看解锁：解锁是唯一硬扣 credits 的动作，但业务员真正的活动量
@@ -80,9 +107,18 @@ class Crm::ApolloQuota
   def user_row(uid, name, unlocked, calls)
     { user_id: uid, name: name,
       limit: @setting.apollo_user_limits.to_h[uid.to_s].presence&.to_i || @setting.apollo_user_limit,
+      searched: searched(user_id: uid),
+      search_limit: @setting.apollo_search_limits.to_h[uid.to_s].presence&.to_i || @setting.apollo_search_limit,
       unlocked: unlocked[uid].to_i,
       contact_fetch: calls[[uid, 'contact_fetch']].to_i,
       bg_check: calls[[uid, 'lead_bg_check']].to_i + calls[[uid, 'bg_check']].to_i }
+  end
+
+  def search_limit_for(user)
+    return nil if user.nil?
+
+    override = @setting.apollo_search_limits.to_h[user.id.to_s]
+    override.presence&.to_i || @setting.apollo_search_limit
   end
 
   # 个别人单独配了就用他的，否则用统一的默认值。

@@ -17,6 +17,9 @@ const L = {
   add: '添加号码',
   reconnect: '重新连接',
   logout: '解绑',
+  remove: '移除这个号',
+  removeConfirm: '这个号还没扫码连上，移除它？以后要用再点「添加号码」重新扫。',
+  removeDone: '已移除',
   scanHint: '用手机 WhatsApp → 设置 → 已关联的设备 → 关联新设备,扫描二维码',
   waiting: '正在生成二维码…',
   connecting: '连接中…',
@@ -141,6 +144,23 @@ const logout = async card => {
   }
 };
 
+// 还没扫码连上的卡片也得有个退出口。
+// 之前只有「已连接」的卡片有「解绑」，卡在「等待扫码」的那张既扫不了也关不掉，
+// 侧栏就一直显示 WhatsApp (2)，其中一个点进去什么都没有（用户 2026-11-10）。
+// 复用同一个 disconnect 接口——后端那边就是解绑，只是这里的说法该是「移除」。
+const removeCard = async card => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(L.removeConfirm)) return;
+  card.busy = true;
+  try {
+    await WhatsappWebAPI.disconnect(card.inbox_id);
+    numbers.value = numbers.value.filter(n => n.inbox_id !== card.inbox_id);
+    useAlert(L.removeDone);
+  } finally {
+    card.busy = false;
+  }
+};
+
 // ---- 输入手机号直接开聊 ----
 // 手机 WhatsApp 不需要「加好友」,知道号码就能聊。系统里以前只能等对方先发消息过来,
 // 业务主动联系新客户只能先去手机上发一条,聊天记录就断在系统外面了。
@@ -216,9 +236,9 @@ onBeforeUnmount(stopPolling);
         :key="card.inbox_id"
         class="flex flex-col items-center gap-3 p-4 border rounded-2xl bg-n-solid-1 border-n-weak"
       >
-        <div class="flex items-center self-start gap-2">
+        <div class="flex w-full items-center gap-2">
           <span
-            class="inline-block rounded-full size-2.5"
+            class="inline-block rounded-full size-2.5 shrink-0"
             :class="
               card.status === 'open'
                 ? 'bg-n-teal-9'
@@ -230,6 +250,19 @@ onBeforeUnmount(stopPolling);
           <span class="text-sm font-medium text-n-slate-12">
             {{ statusLabel(card.status) }}
           </span>
+          <!-- 没连上的卡片给个关闭口。已连接的不给——那个要走下面的「解绑」，
+               带确认文案，免得手滑点掉一个正在收发消息的号。 -->
+          <button
+            v-if="card.status !== 'open'"
+            type="button"
+            class="reset-base ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded-full text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-8"
+            :title="L.remove"
+            :aria-label="L.remove"
+            :disabled="card.busy"
+            @click="removeCard(card)"
+          >
+            <Icon icon="i-lucide-x" class="size-4" />
+          </button>
         </div>
 
         <!-- Connected -->

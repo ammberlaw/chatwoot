@@ -26,6 +26,10 @@ json.usage @usage || {}
 json.apollo_monthly_limit @setting.apollo_monthly_limit
 json.apollo_user_limit @setting.apollo_user_limit
 json.apollo_user_limits @setting.apollo_user_limits
+# 挖客户的额度（2026-11-10 起）。挖公司才是主要成本，不是只有解锁花钱——
+# 业务员建一个选 13 个国家的任务点下搜索，一轮能调掉几百次 Apollo。
+json.apollo_search_limit @setting.apollo_search_limit
+json.apollo_search_limits @setting.apollo_search_limits
 json.apollo_usage do
   json.unlocked_this_month @apollo.used
   # 背调家数。2026-11-10 对账实证：只有官网抓不到时才走企业库扣 1 credit，

@@ -10,6 +10,8 @@
 #  api_key                  :text
 #  apollo_api_key           :text
 #  apollo_monthly_limit     :integer
+#  apollo_search_limit      :integer
+#  apollo_search_limits     :jsonb            not null
 #  apollo_user_limit        :integer
 #  apollo_user_limits       :jsonb            not null
 #  auto_draft_reply_enabled :boolean          default(FALSE), not null

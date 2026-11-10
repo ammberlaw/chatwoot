@@ -42,9 +42,14 @@ class Crm::ApolloTagResolver
   RETRY_WAIT = 1
 
   Result = Struct.new(:tag, :total, keyword_init: true)
+  # 「词表里确实没有这个词」也是结论，要能被缓存命中。
+  # 用 nil 做不到——那分不清「没查过」和「查过且没有」，后者会每轮重探，
+  # 而查无此词的正是最该省的那部分。
+  NOT_FOUND = :not_in_tag_list
 
-  def initialize(client:)
+  def initialize(client:, account: nil)
     @client = client
+    @account = account
     @cache = {}
   end
 
@@ -56,10 +61,40 @@ class Crm::ApolloTagResolver
     key = phrase.to_s.downcase.strip
     return @cache[key] if @cache.key?(key)
 
-    @cache[key] = resolve(key)
+    # 先查落库的词表缓存：探词和挖公司走同一个 Apollo 端点，重探就是重花钱。
+    # 原来只有进程内缓存，每轮任务新建一个 resolver、之前探过的全部重探——
+    # 同一个 digital signage 在 11 个任务里探了 11 遍（2026-11-10 台账 406 次探词调用）。
+    cached = stored_lookup(key)
+    return @cache[key] = (cached == NOT_FOUND ? nil : cached) unless cached.nil?
+
+    result = resolve(key)
+    remember(key, result)
+    @cache[key] = result
   end
 
   private
+
+  # tag 为 nil 也是有效结论（「词表里确实没有」），同样要缓存——
+  # 否则那些查无此词的反而每轮都重探，正是最该省的部分。
+  def stored_lookup(key)
+    return nil if @account.nil?
+
+    row = Crm::ApolloTag.lookup(@account.id, key)
+    return nil if row.nil?
+
+    tag, total = row
+    tag.nil? ? NOT_FOUND : Result.new(tag: tag, total: total)
+  end
+
+  def remember(key, result)
+    return if @account.nil?
+    # total 为 nil 表示这次没问到（限流/超时），不是结论，别缓存。
+    return if result.is_a?(Result) && result.total.nil?
+
+    tag = result.is_a?(Result) ? result.tag : nil
+    total = result.is_a?(Result) ? result.total : nil
+    Crm::ApolloTag.remember(@account.id, key, tag, total)
+  end
 
   def resolve(phrase)
     candidates(phrase).first(MAX_PROBES).each do |cand|
