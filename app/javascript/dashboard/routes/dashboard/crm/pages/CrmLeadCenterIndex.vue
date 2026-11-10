@@ -509,6 +509,17 @@ const leadPage = ref(1);
 const leadPageSize = 10;
 const leadList = ref(null);
 // 按公司归并。一家公司有几个采购就占几行的话，首页十行只剩七家公司——
+// 官网邮箱点一下就复制——业务员拿到它就是要贴进收件人框，
+// 让他手动选中一串 sales@xxx.de 纯属添堵。
+const copyEmail = async mail => {
+  try {
+    await navigator.clipboard.writeText(mail);
+    useAlert(t('CRM.LEAD_CENTER_UI.BG_EMAIL_COPIED', { mail }));
+  } catch {
+    useAlert(t('CRM.LEAD_CENTER_UI.BG_EMAIL_COPY_FAILED'));
+  }
+};
+
 // Newegg 一家吃掉三行（用户 2026-11-08 反馈）。
 // 所以分页按**公司**算，同一家的后续联系人只留人名那一行，公司信息不重复。
 const leadGroups = computed(() => {
@@ -1699,9 +1710,46 @@ onMounted(() => {
                               >
                             </span>
                           </div>
+                          <!-- 官网上公开的业务邮箱：不用解锁、不花 Apollo 积分就能发信。
+                               点一下复制——业务员要的就是把它贴进收件人框。 -->
+                          <div
+                            v-if="l.bg.emails && l.bg.emails.length"
+                            class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"
+                          >
+                            <span class="text-n-slate-10">
+                              {{ t('CRM.LEAD_CENTER_UI.BG_SITE_EMAILS') }}
+                            </span>
+                            <button
+                              v-for="m in l.bg.emails"
+                              :key="m"
+                              type="button"
+                              class="reset-base rounded px-1.5 py-0.5 font-mono text-n-teal-11 bg-n-teal-3 hover:bg-n-teal-4"
+                              :title="
+                                t('CRM.LEAD_CENTER_UI.BG_EMAIL_COPY_TIP', {
+                                  mail: m,
+                                })
+                              "
+                              @click.stop="copyEmail(m)"
+                            >
+                              {{ m }}
+                            </button>
+                          </div>
                           <div
                             class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-n-slate-9"
                           >
+                            <!-- 提不到邮箱时，联系表单链接是业务员唯一的入口，比一片空白强 -->
+                            <a
+                              v-if="
+                                l.bg.contact_url &&
+                                !(l.bg.emails && l.bg.emails.length)
+                              "
+                              :href="l.bg.contact_url"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="inline-flex items-center gap-1 hover:text-n-slate-12 hover:underline"
+                            >
+                              {{ t('CRM.LEAD_CENTER_UI.BG_CONTACT_FORM') }}
+                            </a>
                             <span v-if="l.bg.employees">
                               {{ t('CRM.LEAD_CENTER_UI.BG_SIZE') }} ·
                               {{

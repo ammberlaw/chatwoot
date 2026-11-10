@@ -1701,6 +1701,11 @@
       "BG_NO_SITE": "官网抓不到，查不出这家公司的背景",
       "BG_FAILED": "背调失败，稍后再试",
       "BG_SITE": "官网",
+      "BG_SITE_EMAILS": "官网邮箱",
+      "BG_CONTACT_FORM": "联系表单",
+      "BG_EMAIL_COPIED": "已复制 {mail}",
+      "BG_EMAIL_COPY_FAILED": "复制失败，请手动选中",
+      "BG_EMAIL_COPY_TIP": "点击复制 {mail}",
       "KIND_CATEGORY": "产品类别"
     }
   }

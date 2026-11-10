@@ -44,6 +44,9 @@ class Crm::LeadBackgroundCheck
       'employees' => result.dig(:enrichment, :employees),
       # 欧盟官方税号验证：三方证据里唯一官方的那一方。
       # 验不过的也存——官网印着个验不过的号，比查不到更该让人看见。
+      # 官网上公开的业务邮箱 + 联系表单链接。不解锁也能发信的那条路（Crm::SiteContactFinder）：
+      # 实测 50 分以上的公司约 45% 能提到，提到的多是 sales@ / contact@ 这类业务口。
+      'emails' => result[:site_emails].presence, 'contact_url' => result[:contact_url],
       'vat' => result.dig(:vat, :number), 'vat_status' => result.dig(:vat, :status),
       # 意大利这类成员国连官方注册名都给，可以和官网的说法对账（德国不给）。
       'vat_name' => clip(result.dig(:vat, :name)),

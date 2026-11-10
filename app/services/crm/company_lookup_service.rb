@@ -39,9 +39,12 @@ class Crm::CompanyLookupService
     if site[:text].present?
       profile = Crm::EmailAiService.new(account: @account, purpose: 'lead_bg')
                                    .company_profile(domain: domain, site_text: site[:text])
+      # 官网上的业务邮箱：和 VAT 一样从已经抓下来的正文里提，不额外发请求、不花 Apollo 的钱。
+      # 解锁一个个人邮箱要一个 credit，而 sales@ 这类公开信箱是白给的（见 SiteContactFinder）。
+      contacts = Crm::SiteContactFinder.call(site, domain: domain)
       { status: 'ok', domain: domain, url: site[:url], profile: profile, enrichment: enrichment,
         vat: Crm::VatLookup.for(site[:legal_text].presence || site[:text], domain: domain),
-        site_status: site[:status],
+        site_status: site[:status], site_emails: contacts.emails, contact_url: contacts.contact_url,
         enrichment_warning: enrichment_warning(enrichment, site[:text], profile) }
     elsif enrichment
       # 官网抓不到，但 Apollo 有这家公司 → 用企业库数据兜底，避免「背调不到」的死胡同。
