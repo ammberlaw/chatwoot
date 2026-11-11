@@ -405,68 +405,80 @@ onMounted(() => {
 
     <MesBoardOwnerBar board-key="mes_material_issues_index" />
 
-    <div class="overflow-x-auto border rounded-lg border-n-weak">
+    <div class="overflow-x-auto">
       <!-- 同采购退料：w-max 按内容撑开（写 w-full 的话列一多中文会被逐字折成竖排），
            min-w-full 保证数据少时也铺满。弹窗里那张明细表不改——它在定宽容器里，列就该铺满。 -->
       <table class="w-max min-w-full text-sm">
-        <!-- 表头沿用采购退料的小字号、灰字白底和细分隔线，正文保持原有字号。 -->
-        <thead class="text-label-small text-n-slate-11">
+        <!-- 表头与销售订单一致：灰字白底，标题和筛选箭头居中对齐。 -->
+        <thead class="text-label !leading-5 text-n-slate-11">
           <tr
             class="text-left [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
           >
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              单号
-              <MesColumnFilter
-                v-model="colFilters[filterOf('no').key]"
-                :placeholder="filterOf('no').placeholder"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                单号
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('no').key]"
+                  :placeholder="filterOf('no').placeholder"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              生产任务单
-              <MesColumnFilter
-                v-model="colFilters[filterOf('mo').key]"
-                :placeholder="filterOf('mo').placeholder"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                生产任务单
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('mo').key]"
+                  :placeholder="filterOf('mo').placeholder"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              型号
-              <MesColumnFilter
-                v-model="colFilters[filterOf('model').key]"
-                :placeholder="filterOf('model').placeholder"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                型号
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('model').key]"
+                  :placeholder="filterOf('model').placeholder"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
               {{ detailLabels.title }}
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              退回仓库
-              <MesColumnFilter
-                v-model="colFilters[filterOf('warehouse').key]"
-                :placeholder="filterOf('warehouse').placeholder"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                退回仓库
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('warehouse').key]"
+                  :placeholder="filterOf('warehouse').placeholder"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              状态
-              <MesColumnFilter
-                v-model="colFilters[filterOf('status').key]"
-                type="select"
-                :options="filterOf('status').options"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                状态
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('status').key]"
+                  type="select"
+                  :options="filterOf('status').options"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              过账时间
-              <MesColumnFilter
-                v-model="colFilters[filterOf('posted').key]"
-                type="date"
-                @change="onColFilterChange"
-              />
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                过账时间
+                <MesColumnFilter
+                  v-model="colFilters[filterOf('posted').key]"
+                  type="date"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
-            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               操作
             </th>
           </tr>
