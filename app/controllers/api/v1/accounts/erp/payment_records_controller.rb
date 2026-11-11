@@ -7,7 +7,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
     scope = filtered_scope
     @payments_count = scope.count
     @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::PaymentRecord::BASE_AMOUNT_MICROS_SQL)) }
-    @payments = scope.includes(:mes_supplier, :recorded_by, allocations: :payable)
+    @payments = scope.includes(:mes_supplier, :cash_account, :recorded_by, allocations: :payable)
                      .order(paid_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
@@ -27,15 +27,15 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   end
 
   def update
-    return render json: { error: '已作废的付款单不能修改' }, status: :unprocessable_entity unless @payment.voidable?
+    @payment.with_lock do
+      raise Erp::AllocationService::Error, '已作废的付款单不能修改' unless @payment.voidable?
 
-    # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了（原期间与新期间都查）。
-    closed = closed_period_for(@payment.paid_at, payment_params[:paid_at])
-    return render json: { error: "该单据所属期间 #{closed} 已结账，不能修改" }, status: :unprocessable_entity if closed
+      # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了（原期间与新期间都查）。
+      closed = closed_period_for(@payment.paid_at, payment_params[:paid_at])
+      raise Erp::AllocationService::Error, "该单据所属期间 #{closed} 已结账，不能修改" if closed
 
-    # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
-    # 原来任何一步抛错都会把单据留在改了一半的状态。
-    ActiveRecord::Base.transaction do
+      # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
+      # 原来任何一步抛错都会把单据留在改了一半的状态。
       @payment.update!(payment_params)
       allocate!
       sync_side_effects
@@ -46,28 +46,33 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   end
 
   def void
-    # 已结账期间的单据不许作废(见 receipt void)：防冻结期总账↔台账永久失衡。
-    period = @payment.paid_at&.to_date&.strftime('%Y-%m')
-    if period && Erp::FiscalPeriod.closed?(Current.account, period)
-      return render json: { error: "该单据所属期间 #{period} 已结账，不能作废" }, status: :unprocessable_entity
-    end
-
-    # 三副作用包同一事务+账套锁(见 receipt void)：整体回滚防账实分离,并发/重复作废串行化。
     Erp::AccountLock.with_account_lock(Current.account.id, "payment:#{@payment.id}") do
-      Erp::AllocationService.new(@payment, :payment).void!
-      Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payment)
-      @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payment)
+      @payment.with_lock do
+        # 已结账期间的单据不许作废(见 receipt void)：防冻结期总账↔台账永久失衡。
+        period = @payment.paid_at&.to_date&.strftime('%Y-%m')
+        closed = period && Erp::FiscalPeriod.closed?(Current.account, period)
+        raise Erp::AllocationService::Error, "该单据所属期间 #{period} 已结账，不能作废" if closed
+
+        # 三副作用包同一事务+账套锁(见 receipt void)：整体回滚防账实分离,并发/重复作废串行化。
+        @payment.ensure_voucher_reversed!
+        Erp::AllocationService.new(@payment, :payment).void!
+        Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payment)
+        @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payment)
+      end
     end
     render 'api/v1/accounts/erp/payment_records/show'
-  rescue Erp::AllocationService::Error => e
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def destroy
     return render json: { error: '已核销的付款单不能删除，请作废' }, status: :unprocessable_entity if @payment.allocations.exists?
 
-    @payment.destroy!
-    head :ok
+    if @payment.destroy
+      head :ok
+    else
+      render json: { error: @payment.errors.full_messages.join('；') }, status: :unprocessable_entity
+    end
   end
 
   private
@@ -118,7 +123,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   end
 
   def fetch_payment
-    @payment = Current.account.erp_payment_records.includes(allocations: :payable).find(params[:id])
+    @payment = Current.account.erp_payment_records.includes(:cash_account, allocations: :payable).find(params[:id])
   end
 
   def check_authorization

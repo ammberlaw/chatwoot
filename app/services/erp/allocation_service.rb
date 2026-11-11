@@ -16,10 +16,12 @@ class Erp::AllocationService
   # allocations: [{ ledger_id:, amount_micros: }]，整单覆盖式重设（先清后建，保证幂等）。
   def apply!(allocations)
     rows = normalize(allocations)
-    ActiveRecord::Base.transaction do
+    @record.with_lock do
+      ensure_record_active!
+
       touched = @record.allocations.map(&ledger_key).uniq
       # 先对涉及的台账行加 FOR UPDATE 行锁：串行化并发核销同一台账，杜绝两单各读旧余额都通过校验→超额核销。
-      ledger_scope.lock.where(id: (touched + rows.map { |r| r[:ledger_id] }).uniq).to_a
+      lock_ledgers!(touched + rows.pluck(:ledger_id))
       @record.allocations.destroy_all
       # 删核销行只是删了明细，台账的已收/已付是**缓存字段**，得先刷一遍把本单占用的额度还回去，
       # 再去校验新的核销额。不刷的话 outstanding_excluding_self 读到的还是含本单的旧值，
@@ -34,11 +36,11 @@ class Erp::AllocationService
 
   # 作废：回滚核销与台账余额，单据留痕。
   def void!
-    raise Error, '该单据已作废' unless @record.voidable?
+    @record.with_lock do
+      ensure_record_active!
 
-    ActiveRecord::Base.transaction do
       touched = @record.allocations.map(&ledger_key).uniq
-      ledger_scope.lock.where(id: touched).to_a # 行锁台账,与并发核销/作废串行
+      lock_ledgers!(touched) # 行锁台账,与并发核销/作废串行
       @record.allocations.destroy_all
       @record.update!(status: void_status)
       touched.each { |id| refresh_ledger!(id) }
@@ -47,6 +49,14 @@ class Erp::AllocationService
   end
 
   private
+
+  def ensure_record_active!
+    raise Error, '该单据已作废，不能核销' unless @record.voidable?
+  end
+
+  def lock_ledgers!(ids)
+    ledger_scope.order(:id).lock.where(id: ids.uniq).to_a
+  end
 
   def receipt?
     @kind == :receipt
@@ -65,12 +75,15 @@ class Erp::AllocationService
   end
 
   def normalize(allocations)
-    Array(allocations).filter_map do |row|
+    rows = Array(allocations).filter_map do |row|
       amount = row[:amount_micros].to_i
       next if amount <= 0
 
       { ledger_id: row[:ledger_id].to_i, amount_micros: amount }
     end
+    raise Error, '同一台账不能重复核销，请合并为一行后提交' if rows.pluck(:ledger_id).uniq.size != rows.size
+
+    rows
   end
 
   def create_allocation!(row)
@@ -103,15 +116,13 @@ class Erp::AllocationService
     ledger.total_amount_micros - paid
   end
 
-  # 上限是**毛额**（到账净额＋银行手续费）：客户还 1000、银行扣 3、到账 997，
-  # 自动凭证按 1000 贷应收，核销也必须能核到 1000——按净额 997 卡的话，
-  # 每张带手续费的收款单都会在台账上留一笔等于手续费的假「未收」，总账与台账永远差手续费累计额。
+  # 收款可核销到账净额＋手续费；付款只核销供应商实收，手续费另记费用。
   def validate_record_total!
     total = @record.allocations.sum(:amount_micros)
-    gross = @record.amount_micros + @record.bank_charge_micros.to_i
-    return if total <= gross
+    limit = @record.allocatable_micros
+    return if total <= limit
 
-    raise Error, "核销合计 #{fmt(total)} 超出单据金额 #{fmt(gross)}（含手续费）"
+    raise Error, "核销合计 #{fmt(total)} 超出本单可核销金额 #{fmt(limit)}"
   end
 
   # 台账余额 = 该台账上所有核销之和；状态由余额派生。

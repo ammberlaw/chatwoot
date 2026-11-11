@@ -30,6 +30,7 @@
 #  index_erp_payment_records_on_mes_supplier_id            (mes_supplier_id)
 #
 class Erp::PaymentRecord < ApplicationRecord
+  include Erp::SettlementRecord
   NORMAL = 'NORMAL'.freeze
   VOID = 'VOID'.freeze
   METHODS = Erp::ReceiptRecord::METHODS
@@ -65,8 +66,12 @@ class Erp::PaymentRecord < ApplicationRecord
   end
 
   def unallocated_micros
-    amount_micros - allocated_micros
+    allocatable_micros - allocated_micros
   end
+
+  # 付款金额指供应商实收；银行手续费不冲供应商应付。
+  def allocatable_micros = amount_micros
+  def cash_amount_micros = amount_micros + bank_charge_micros.to_i
 
   def voidable?
     status == NORMAL

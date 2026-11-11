@@ -1,5 +1,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import ErpSettlementCashAccount from 'dashboard/components-next/erp/ErpSettlementCashAccount.vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
@@ -36,6 +38,7 @@ import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeader
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
 const { erpCan } = useErpRole();
+const { t } = useI18n();
 const canLedger = computed(() => erpCan('payable'));
 const canSettle = computed(() => erpCan('payment'));
 
@@ -430,7 +433,9 @@ const editingPayment = ref(null);
 const openPayables = ref([]);
 const allocationRows = ref([]);
 const supplierOptions = ref([]);
+const settlementCashRef = ref(null);
 const paymentForm = reactive({
+  cashAccountId: '',
   mesSupplierId: '',
   amount: '',
   currency: 'CNY',
@@ -450,10 +455,8 @@ const allocationLedgers = computed(() =>
     outstanding_micros: p.outstanding_micros,
   }))
 );
-// 可核销上限是毛额（付出净额＋手续费），与后端 AllocationService 口径一致
-const paymentAmountMicros = computed(
-  () => toMicros(paymentForm.amount) + toMicros(paymentForm.bankCharge)
-);
+// 供应商实收可核销；手续费另记费用，不冲应付。
+const paymentAmountMicros = computed(() => toMicros(paymentForm.amount));
 
 const searchSuppliers = async q => {
   const { data } = await MesSupplierAPI.get({ q, active: 'true', per_page: 50 });
@@ -483,6 +486,7 @@ const openPayment = async (record = null) => {
       }))
     : [];
   Object.assign(paymentForm, {
+    cashAccountId: record?.cash_account_id || '',
     mesSupplierId: record?.mes_supplier_id || '',
     amount: record ? (record.amount_micros / 1_000_000).toFixed(2) : '',
     currency: record?.currency || 'CNY',
@@ -507,7 +511,13 @@ const onSupplierChange = () => {
 };
 
 const paymentInvalid = computed(
-  () => !paymentForm.mesSupplierId || !paymentForm.amount || !paymentForm.paidAt
+  () =>
+    settlementCashRef.value?.invalid ||
+    !paymentForm.mesSupplierId ||
+    !(Number(paymentForm.amount) > 0) ||
+    Number(paymentForm.bankCharge) < 0 ||
+    !(Number(paymentForm.exchangeRate) > 0) ||
+    !paymentForm.paidAt
 );
 
 const submitPayment = async () => {
@@ -515,7 +525,8 @@ const submitPayment = async () => {
   const payload = {
     payment: {
       mes_supplier_id: paymentForm.mesSupplierId,
-      amount_micros: paymentAmountMicros.value,
+      amount_micros: toMicros(paymentForm.amount),
+      cash_account_id: paymentForm.cashAccountId || null,
       currency: paymentForm.currency,
       exchange_rate: paymentForm.exchangeRate,
       bank_charge_micros: toMicros(paymentForm.bankCharge),
@@ -1348,6 +1359,15 @@ onMounted(() => {
             </td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-12">
               {{ row.currency }} {{ money(row.amount_micros) }}
+              <span
+                v-if="row.status !== 'VOID'"
+                class="block text-label-small font-normal text-n-slate-11"
+              >
+                {{
+                  row.cash_account_name ||
+                  t('CRM.ERP_SETTLEMENT.PENDING_ACCOUNT')
+                }}
+              </span>
             </td>
             <td class="px-3 py-2 text-xs text-n-slate-11">
               {{ row.method_label }}
@@ -1615,6 +1635,14 @@ onMounted(() => {
       @save="submitPayment"
     >
       <div class="flex flex-col gap-4">
+        <ErpSettlementCashAccount
+          ref="settlementCashRef"
+          v-model="paymentForm.cashAccountId"
+          :currency="paymentForm.currency"
+        />
+        <p class="mb-0 text-label-small text-n-slate-11">
+          {{ t('CRM.ERP_SETTLEMENT.PAYMENT_HINT') }}
+        </p>
         <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">

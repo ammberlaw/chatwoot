@@ -1,5 +1,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import ErpSettlementCashAccount from 'dashboard/components-next/erp/ErpSettlementCashAccount.vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
@@ -34,6 +36,7 @@ import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeader
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
 // 台账的「已收」只由核销维护，页面不提供直接改的入口——改了账就不准了。
 const { erpCan } = useErpRole();
+const { t } = useI18n();
 const canLedger = computed(() => erpCan('receivable'));
 const canSettle = computed(() => erpCan('payment'));
 
@@ -733,7 +736,9 @@ const receiptDialogRef = ref(null);
 const editingReceipt = ref(null);
 const openReceivables = ref([]);
 const allocationRows = ref([]);
+const settlementCashRef = ref(null);
 const receiptForm = reactive({
+  cashAccountId: '',
   crmCustomerId: '',
   amount: '',
   currency: 'CNY',
@@ -788,6 +793,7 @@ const openReceipt = async (record = null) => {
       }))
     : [];
   Object.assign(receiptForm, {
+    cashAccountId: record?.cash_account_id || '',
     crmCustomerId: record?.crm_customer_id || '',
     amount: record ? (record.amount_micros / 1_000_000).toFixed(2) : '',
     currency: record?.currency || 'CNY',
@@ -814,7 +820,12 @@ const onCustomerChange = () => {
 
 const receiptInvalid = computed(
   () =>
-    !receiptForm.crmCustomerId || !receiptForm.amount || !receiptForm.receivedAt
+    settlementCashRef.value?.invalid ||
+    !receiptForm.crmCustomerId ||
+    !(Number(receiptForm.amount) > 0) ||
+    Number(receiptForm.bankCharge) < 0 ||
+    !(Number(receiptForm.exchangeRate) > 0) ||
+    !receiptForm.receivedAt
 );
 
 const submitReceipt = async () => {
@@ -822,7 +833,8 @@ const submitReceipt = async () => {
   const payload = {
     receipt: {
       crm_customer_id: receiptForm.crmCustomerId,
-      amount_micros: receiptAmountMicros.value,
+      amount_micros: toMicros(receiptForm.amount),
+      cash_account_id: receiptForm.cashAccountId || null,
       currency: receiptForm.currency,
       exchange_rate: receiptForm.exchangeRate,
       bank_charge_micros: toMicros(receiptForm.bankCharge),
@@ -1919,6 +1931,15 @@ onMounted(() => {
             </td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-12">
               {{ row.currency }} {{ money(row.amount_micros) }}
+              <span
+                v-if="row.status !== 'VOID'"
+                class="block text-label-small font-normal text-n-slate-11"
+              >
+                {{
+                  row.cash_account_name ||
+                  t('CRM.ERP_SETTLEMENT.PENDING_ACCOUNT')
+                }}
+              </span>
             </td>
             <td class="px-3 py-2 text-xs text-n-slate-11">
               {{ row.method_label }}
@@ -2115,6 +2136,14 @@ onMounted(() => {
       @save="submitReceipt"
     >
       <div class="flex flex-col gap-4">
+        <ErpSettlementCashAccount
+          ref="settlementCashRef"
+          v-model="receiptForm.cashAccountId"
+          :currency="receiptForm.currency"
+        />
+        <p class="mb-0 text-label-small text-n-slate-11">
+          {{ t('CRM.ERP_SETTLEMENT.RECEIPT_HINT') }}
+        </p>
         <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">

@@ -7,7 +7,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
     scope = filtered_scope
     @receipts_count = scope.count
     @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::ReceiptRecord::BASE_AMOUNT_MICROS_SQL)) }
-    @receipts = scope.includes(:crm_customer, :recorded_by, allocations: :receivable)
+    @receipts = scope.includes(:crm_customer, :cash_account, :recorded_by, allocations: :receivable)
                      .order(received_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
@@ -27,16 +27,16 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   end
 
   def update
-    return render json: { error: '已作废的收款单不能修改' }, status: :unprocessable_entity unless @receipt.voidable?
+    @receipt.with_lock do
+      raise Erp::AllocationService::Error, '已作废的收款单不能修改' unless @receipt.voidable?
 
-    # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了，改了就是总账↔台账永久失衡。
-    # 原期间与改后的新期间都要查（把单据挪进/挪出冻结期同样不行）。
-    closed = closed_period_for(@receipt.received_at, receipt_params[:received_at])
-    return render json: { error: "该单据所属期间 #{closed} 已结账，不能修改" }, status: :unprocessable_entity if closed
+      # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了，改了就是总账↔台账永久失衡。
+      # 原期间与改后的新期间都要查（把单据挪进/挪出冻结期同样不行）。
+      closed = closed_period_for(@receipt.received_at, receipt_params[:received_at])
+      raise Erp::AllocationService::Error, "该单据所属期间 #{closed} 已结账，不能修改" if closed
 
-    # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
-    # 原来任何一步抛错都会把单据留在改了一半的状态。
-    ActiveRecord::Base.transaction do
+      # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
+      # 原来任何一步抛错都会把单据留在改了一半的状态。
       @receipt.update!(receipt_params)
       allocate!
       sync_side_effects
@@ -48,29 +48,34 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
 
   # 作废：回滚核销与台账余额，单据留痕（已核销的单不许删，只许作废）。
   def void
-    # 已结账期间的单据不许作废：会动已冻结的应收/资金台账却改不了已过账凭证，导致总账↔台账在冻结期永久失衡。
-    period = @receipt.received_at&.to_date&.strftime('%Y-%m')
-    if period && Erp::FiscalPeriod.closed?(Current.account, period)
-      return render json: { error: "该单据所属期间 #{period} 已结账，不能作废" }, status: :unprocessable_entity
-    end
-
-    # 三副作用(核销回滚+资金冲回+凭证冲销)包同一事务+账套锁：中途失败整体回滚不留账实分离，
-    # 并发/重复作废被串行化(第二次进来 void! 见已作废即报错)。
     Erp::AccountLock.with_account_lock(Current.account.id, "receipt:#{@receipt.id}") do
-      Erp::AllocationService.new(@receipt, :receipt).void!
-      Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@receipt)
-      @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@receipt)
+      @receipt.with_lock do
+        # 已结账期间的单据不许作废：会动已冻结的应收/资金台账却改不了已过账凭证，导致总账↔台账在冻结期永久失衡。
+        period = @receipt.received_at&.to_date&.strftime('%Y-%m')
+        closed = period && Erp::FiscalPeriod.closed?(Current.account, period)
+        raise Erp::AllocationService::Error, "该单据所属期间 #{period} 已结账，不能作废" if closed
+
+        # 三副作用(核销回滚+资金冲回+凭证冲销)包同一事务+账套锁：中途失败整体回滚不留账实分离，
+        # 并发/重复作废被串行化(第二次进来 void! 见已作废即报错)。
+        @receipt.ensure_voucher_reversed!
+        Erp::AllocationService.new(@receipt, :receipt).void!
+        Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@receipt)
+        @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@receipt)
+      end
     end
     render 'api/v1/accounts/erp/receipt_records/show'
-  rescue Erp::AllocationService::Error => e
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def destroy
     return render json: { error: '已核销的收款单不能删除，请作废' }, status: :unprocessable_entity if @receipt.allocations.exists?
 
-    @receipt.destroy!
-    head :ok
+    if @receipt.destroy
+      head :ok
+    else
+      render json: { error: @receipt.errors.full_messages.join('；') }, status: :unprocessable_entity
+    end
   end
 
   private
@@ -122,7 +127,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   end
 
   def fetch_receipt
-    @receipt = Current.account.erp_receipt_records.includes(allocations: :receivable).find(params[:id])
+    @receipt = Current.account.erp_receipt_records.includes(:cash_account, allocations: :receivable).find(params[:id])
   end
 
   def check_authorization

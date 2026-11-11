@@ -15,9 +15,11 @@ class Erp::CashLedgerService
     reverse_for(record, reason: '单据修改')
     return if record.cash_account_id.blank?
 
+    # 收付款单使用各自的银行实收/实付；报销打款沿用其原有金额。
+    amount = record.respond_to?(:cash_amount_micros) ? record.cash_amount_micros : record.amount_micros
     create_transaction(
       cash_account_id: record.cash_account_id, direction: direction,
-      amount_micros: record.amount_micros, currency: record.currency, exchange_rate: record.exchange_rate,
+      amount_micros: amount, currency: record.currency, exchange_rate: record.exchange_rate,
       happened_at: record_date(record), source_type: record.class.name, source_id: record.id,
       summary: "#{record.method_label} #{document_no(record)}", counterparty: counterparty(record)
     )

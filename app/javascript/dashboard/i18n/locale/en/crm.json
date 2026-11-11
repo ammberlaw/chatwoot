@@ -1,5 +1,15 @@
 {
   "CRM": {
+    "ERP_SETTLEMENT": {
+      "CASH_ACCOUNT": "资金账户",
+      "PENDING_ACCOUNT": "资金账户待确认",
+      "PENDING_HINT": "暂未关联：本单尚未记入资金流水，可编辑补选账户后补记。",
+      "NO_LEDGER": "未绑定会计科目：可记资金流水，绑定科目后重新保存可补出凭证。",
+      "ACCOUNTS_ERROR": "资金账户加载失败，请关闭后重试",
+      "CURRENCY_MISMATCH": "请选择与单据币种一致的资金账户",
+      "RECEIPT_HINT": "到账金额不含手续费；可核销金额＝到账金额＋银行手续费。",
+      "PAYMENT_HINT": "付款金额为供应商实收；银行支出＝付款金额＋手续费，手续费不核销应付。"
+    },
     "SEARCH_VISIBILITY": {
       "OWNER_QUOTA": "挖客额度 · {owner}",
       "USED": "本月已挖 {used} 家",

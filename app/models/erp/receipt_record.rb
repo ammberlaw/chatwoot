@@ -33,6 +33,7 @@
 #  index_erp_receipt_records_on_crm_customer_id              (crm_customer_id)
 #
 class Erp::ReceiptRecord < ApplicationRecord
+  include Erp::SettlementRecord
   NORMAL = 'NORMAL'.freeze
   VOID = 'VOID'.freeze
   METHODS = %w[TT LC WESTERN_UNION PAYPAL RMB OTHER].freeze
@@ -72,8 +73,12 @@ class Erp::ReceiptRecord < ApplicationRecord
 
   # 尚未核销到台账的金额（预收/待认领）。
   def unallocated_micros
-    amount_micros - allocated_micros
+    allocatable_micros - allocated_micros
   end
+
+  # 到账金额不含手续费；可核销按客户实际偿付的毛额。
+  def allocatable_micros = amount_micros + bank_charge_micros.to_i
+  def cash_amount_micros = amount_micros
 
   def voidable?
     status == NORMAL

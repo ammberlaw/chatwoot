@@ -3,6 +3,9 @@ json.payment_no resource.payment_no
 json.mes_supplier_id resource.mes_supplier_id
 json.supplier_name resource.mes_supplier&.name
 json.cash_account_id resource.cash_account_id
+json.cash_account_name resource.cash_account&.name
+json.cash_amount_micros resource.cash_amount_micros
+json.allocatable_micros resource.allocatable_micros
 json.amount_micros resource.amount_micros
 json.currency resource.currency
 json.exchange_rate resource.exchange_rate
