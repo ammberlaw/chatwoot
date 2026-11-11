@@ -1907,6 +1907,7 @@ useRouteQueryReentry(async query => {
       ref="viewDialogRef"
       width="full"
       :title="viewing ? `采购单 ${viewing.poNo}` : '采购单明细'"
+      :brand-header="false"
       :fields="viewFields"
       items-title="采购明细"
       :item-columns="VIEW_ITEM_COLS"

@@ -25,7 +25,7 @@ const PLIES = ['一 存根白联', '二 客户红联', '三 财务黄联'];
       font-size: 12px;
     "
   >
-    <div style="flex: 1; min-width: 0">
+    <div data-print-brand-content style="flex: 1; min-width: 0">
       <slot name="header" />
       <div
         style="

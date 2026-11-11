@@ -77,7 +77,7 @@ const viewFields = computed(() => {
     { label: '备注', value: e.remark },
   ];
 });
-// 领料单票面（1:1 对标旧系统那张）：A4 纵向激光打印，不是三联纸，也不加 Wintouch 字标。
+// 领料单票面：A4 纵向激光打印，内部单据由打印助手加 Wintouch Logo。
 const printSheetRef = ref(null);
 const printRows = computed(() =>
   (viewing.value?.stockEntryItems || []).map(it => ({
@@ -94,7 +94,7 @@ const printIssue = () =>
   printElement(
     printSheetRef.value?.$el || printSheetRef.value,
     `生产领料单 ${viewing.value?.entryNo || ''}`,
-    { page: '@page{size:A4;margin:12mm}', brandHeader: false }
+    { page: '@page{size:A4;margin:12mm}' }
   );
 
 const VIEW_ITEM_COLS = [

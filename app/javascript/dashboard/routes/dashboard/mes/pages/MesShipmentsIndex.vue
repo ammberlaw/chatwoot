@@ -155,8 +155,7 @@ const viewFields = computed(() => {
     { label: '备注', value: s.remark },
   ];
 });
-// 销售出库单票面（1:1 对标旧系统那张）：套打在 9.5×5.5 英寸三联复写纸上（针式打印机），
-// 纸张写死、不加 Wintouch 字标——加了会把版心顶下去，套打压到预印格线上。
+// 销售出库沿用 9.5×5.5 英寸纸张，打印助手为每份票面加 Wintouch Logo。
 const printSheetRef = ref(null);
 const printRows = computed(() =>
   (viewing.value?.shipmentItems || []).map(it => ({
@@ -176,7 +175,7 @@ const printShipment = () =>
     printSheetRef.value?.$el || printSheetRef.value,
     `销售出库单 ${viewing.value?.shipmentNo || ''}`,
     // 方向由打印对话框自己选（同采购入库单）；混写 landscape 浏览器也不认。
-    { page: '@page{size:9.5in 5.5in;margin:8mm}', brandHeader: false }
+    { page: '@page{size:9.5in 5.5in;margin:8mm}' }
   );
 
 // 照金蝶那张单的信息量：仓管拣货要的是料号、规格、颜色和这一行的特殊交代，
@@ -757,7 +756,6 @@ const printSelected = async () => {
     await nextTick();
     printElement(printAreaRef.value, `销售出库单 ${rows.length} 张`, {
       page: '@page{size:9.5in 5.5in;margin:8mm}',
-      brandHeader: false,
     });
     // 打印对话框是浏览器自己弹的，点没点「打印」我们收不到——以「送去打印」记一次。
     await MesShipmentAPI.markPrinted(rows.map(s => s.id));

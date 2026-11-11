@@ -606,8 +606,7 @@ const printRows = computed(() =>
 const printSupplier = computed(() =>
   (viewing.value?.supplierNames || []).join('、')
 );
-// 套打在 9.5×5.5 英寸三联复写纸上（针式打印机），所以纸张写死、也不加 Wintouch 字标——
-// 加了会把版心顶下去，套打直接压到预印格线上。
+// 采购入库沿用 9.5×5.5 英寸纸张，内部票面由打印助手逐单加 Wintouch Logo。
 // 纸张只给尺寸、不写方向：横/纵由打印对话框里自己选（她那边每次打印手动选）。
 // 另外 `size: 9.5in 5.5in landscape` 本来就不是合法写法——CSS 要么给两个长度、
 // 要么给纸名+方向关键字，混着写浏览器会忽略方向，对话框里照样显示「纵向」。
@@ -616,7 +615,7 @@ const printEntry = () =>
   printElement(
     printSheetRef.value?.$el || printSheetRef.value,
     `采购入库单 ${viewing.value?.entryNo || ''}`,
-    { page: TRIPLICATE_PAGE, brandHeader: false }
+    { page: TRIPLICATE_PAGE }
   );
 
 // ── 批量打印 ──
@@ -668,7 +667,6 @@ const printSelected = async () => {
     await nextTick();
     printElement(printAreaRef.value, `采购入库单 ${rows.length} 张`, {
       page: TRIPLICATE_PAGE,
-      brandHeader: false,
     });
     // 打印对话框是浏览器自己弹的，点没点「打印」收不到回执——以「送去打印」记一次。
     await MesStockEntryAPI.markPrinted(rows.map(e => e.id));

@@ -89,12 +89,43 @@ function inlineComputedStyles(src, dst) {
   });
 }
 
+// 每份票面各带一枚 Logo，批量打印时也不会只在整叠的第一页出现。
+export function addPrintBrandHeader(root) {
+  const sheets = Array.from(
+    root.querySelectorAll('.mes-print-sheet, .erp-print-sheet')
+  );
+  const targets = sheets.length
+    ? sheets.map(
+        sheet => sheet.querySelector('[data-print-brand-content]') || sheet
+      )
+    : [root];
+  targets.forEach(target => {
+    const header = document.createElement('div');
+    header.setAttribute('data-wintouch-print-brand', '');
+    header.setAttribute(
+      'style',
+      'display:block;margin:0 0 8px;line-height:0;break-inside:avoid;'
+    );
+    const logo = document.createElement('img');
+    logo.src = new URL(
+      '/brand-assets/wintouch-print-logo.png',
+      window.location.origin
+    ).href;
+    logo.alt = 'Wintouch';
+    logo.setAttribute(
+      'style',
+      'display:block;height:28px;width:auto;max-width:120px;object-fit:contain;'
+    );
+    header.appendChild(logo);
+    target.prepend(header);
+  });
+}
+
 // options:
 //   page        '@page{...}' 整条规则。单据票面按公司实际用的纸走——
 //               采购入库单/销售出库单印在 9.5×5.5 英寸三联复写纸上（针式打印机），
 //               生产领料单是 A4 激光打印；不给就按内容宽度自动选 A4 竖/横。
-//   brandHeader 是否在最上面加 Wintouch 字标。对账用的制式票面不要（金蝶原版就没有，
-//               加了会把三联复写纸的版心顶下去，套打直接错位）。
+//   brandHeader 内部单据默认加 Wintouch Logo；给供应商/加工厂的单据显式传 false。
 export function printElement(el, title = '', options = {}) {
   if (!el) return;
 
@@ -120,22 +151,8 @@ export function printElement(el, title = '', options = {}) {
   const portal = document.createElement('div');
   portal.setAttribute('data-crm-print-portal', '');
 
-  // 顶部品牌头：左上角 Wintouch 橙色字标（与 PI 单据同一 logo），尺寸用内联样式保证生效。
-  if (options.brandHeader !== false) {
-    const header = document.createElement('div');
-    header.setAttribute(
-      'style',
-      'display:flex;align-items:center;margin-bottom:16px;'
-    );
-    const logo = document.createElement('img');
-    logo.src = '/brand-assets/pi-logo.png';
-    logo.alt = 'Wintouch';
-    logo.setAttribute('style', 'height:40px;width:auto;');
-    header.appendChild(logo);
-    portal.appendChild(header);
-  }
-
   portal.appendChild(clone);
+  if (options.brandHeader !== false) addPrintBrandHeader(portal);
   document.body.appendChild(portal);
 
   // 宽表（提成表 20+ 列）按 A4 竖版排会直接掉到纸外——浏览器打印不会自动缩放。
@@ -157,11 +174,14 @@ export function printElement(el, title = '', options = {}) {
   // 屏幕上藏起克隆；打印时藏掉 body 其余直接子节点、只留克隆，并保留背景/渐变配色。
   const style = document.createElement('style');
   style.setAttribute('data-crm-print-style', '');
+  const portalPadding = options.page ? '0' : '16px';
   style.textContent =
     pageRule +
     '@media screen{[data-crm-print-portal]{display:none!important}}' +
-    '@media print{body>*:not([data-crm-print-portal]){display:none!important}' +
-    '[data-crm-print-portal]{display:block!important;padding:16px}' +
+    '@media print{body{margin:0!important}body>*:not([data-crm-print-portal]){display:none!important}' +
+    `[data-crm-print-portal]{display:block!important;padding:${portalPadding}}` +
+    // 制式纸张已有页边距，不再叠加内边距；票面宽度随实际可打印区域收口，避免右侧切列。
+    '[data-crm-print-portal] .mes-print-sheet,[data-crm-print-portal] .erp-print-sheet{max-width:100%;box-sizing:border-box}' +
     // 克隆里任何一层带 overflow（滚动容器、圆角裁切）都会把右边的列切掉，打印一律放开。
     '[data-crm-print-portal] *{overflow:visible!important}' +
     '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}';

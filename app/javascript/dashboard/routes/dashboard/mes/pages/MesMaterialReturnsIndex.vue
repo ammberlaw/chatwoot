@@ -353,18 +353,28 @@ const viewFields = computed(() => {
 });
 const viewColumns = [
   { label: '物料编码', key: 'materialNo' },
-  { label: '物料名称', key: 'name' },
+  { label: '物料名称', key: 'name', wrap: true },
+  { label: '规格型号', key: 'specification', wrap: true },
   { label: '退回量', key: 'qty', align: 'right' },
   { label: '单位', key: 'unit' },
+  { label: '备注', key: 'remark', wrap: true },
 ];
-const viewItems = computed(() =>
-  (viewing.value?.stockEntryItems || []).map(it => ({
-    materialNo: it.materialNo,
-    name: it.materialName || it.productName,
+const returnItems = entry =>
+  (entry?.stockEntryItems || []).map(it => ({
+    id: it.id,
+    materialNo: it.materialNo || '—',
+    name: it.materialName || it.productName || '—',
+    specification: it.specification,
     qty: it.qty,
     unit: it.unit,
-  }))
-);
+    remark: it.remark,
+  }));
+const viewItems = computed(() => returnItems(viewing.value));
+const detailLabels = {
+  title: '退料明细',
+  empty: '暂无退料明细',
+  all: count => `查看全部 ${count} 项`,
+};
 
 onMounted(() => {
   fetchList();
@@ -430,6 +440,9 @@ onMounted(() => {
               />
             </th>
             <th class="px-3 py-2 font-medium whitespace-nowrap">
+              {{ detailLabels.title }}
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">
               退回仓库
               <MesColumnFilter
                 v-model="colFilters[filterOf('warehouse').key]"
@@ -478,6 +491,40 @@ onMounted(() => {
               {{ e.productName || '—' }}
             </td>
             <td class="px-3 py-3 whitespace-nowrap">
+              <div
+                class="flex min-w-72 max-w-md flex-col gap-2 whitespace-normal"
+              >
+                <div
+                  v-for="item in returnItems(e).slice(0, 2)"
+                  :key="item.id"
+                  class="flex items-start gap-2 text-label-small"
+                >
+                  <span class="shrink-0 font-mono text-n-slate-11">{{
+                    item.materialNo
+                  }}</span>
+                  <span class="min-w-0 flex-1 break-words text-n-slate-12">{{
+                    item.name
+                  }}</span>
+                  <span class="shrink-0 tabular-nums text-n-slate-11"
+                    >{{ item.qty }} {{ item.unit }}</span
+                  >
+                </div>
+                <button
+                  v-if="returnItems(e).length > 2"
+                  type="button"
+                  class="w-fit text-label-small text-n-iris-11 hover:underline"
+                  @click="openView(e)"
+                >
+                  {{ detailLabels.all(returnItems(e).length) }}
+                </button>
+                <span
+                  v-if="!returnItems(e).length"
+                  class="text-label-small text-n-slate-10"
+                  >{{ detailLabels.empty }}</span
+                >
+              </div>
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">
               {{ whName(e.toWarehouseId) }}
             </td>
             <td class="px-3 py-3">
@@ -513,7 +560,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="!records.length && !isFetching">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               暂无退料单
             </td>
           </tr>
@@ -682,9 +729,11 @@ onMounted(() => {
 
     <MesViewDialog
       ref="viewDialogRef"
-      title="退料单"
+      :title="viewing ? `退料单 ${viewing.entryNo}` : '退料单'"
+      width="4xl"
       :fields="viewFields"
-      :columns="viewColumns"
+      :items-title="detailLabels.title"
+      :item-columns="viewColumns"
       :items="viewItems"
     />
   </div>

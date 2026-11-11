@@ -1,5 +1,6 @@
 import { toJpeg } from 'html-to-image';
 import * as XLSX from 'xlsx';
+import { addPrintBrandHeader } from './printHelper';
 
 const safeName = n =>
   String(n || 'export')
@@ -212,7 +213,7 @@ export function exportDataToExcel(
 
 // DOM 节点 → 直接打印：隐藏 iframe 复制单据内容 + 页面样式，调起系统打印对话框。
 // 标了 .export-skip 的节点（操作按钮等）不进打印。
-export function printNode(node, title) {
+export function printNode(node, title, options = {}) {
   if (!node) return;
   const iframe = document.createElement('iframe');
   Object.assign(iframe.style, {
@@ -232,20 +233,35 @@ export function printNode(node, title) {
     .join('\n');
   const clone = node.cloneNode(true);
   clone.querySelectorAll('.export-skip').forEach(el => el.remove());
+  const content = document.createElement('div');
+  content.appendChild(clone);
+  if (options.brandHeader !== false) addPrintBrandHeader(content);
 
   const doc = iframe.contentDocument;
   doc.open();
   doc.write(
     `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeName(title)}</title>${headStyles}` +
       '<style>body{background:#fff;margin:0;padding:16px}@page{margin:12mm}</style>' +
-      `</head><body>${clone.outerHTML}</body></html>`
+      `</head><body>${content.outerHTML}</body></html>`
   );
   doc.close();
 
-  // 等样式表/字体就绪再打印；打印后回收 iframe。
-  setTimeout(() => {
+  // iframe 加载完成包含 Logo/附件图片和样式表；字体就绪后再调打印。
+  const printFrame = async () => {
+    await Promise.all(
+      Array.from(doc.images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+        });
+      })
+    );
+    await doc.fonts.ready;
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
     setTimeout(() => iframe.remove(), 1500);
-  }, 500);
+  };
+  if (doc.readyState === 'complete') printFrame();
+  else iframe.addEventListener('load', printFrame, { once: true });
 }

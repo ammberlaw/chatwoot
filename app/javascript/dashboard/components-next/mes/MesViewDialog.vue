@@ -30,6 +30,7 @@ const props = defineProps({
   // 藏掉通用「打印」。入库单/领料单/出库单各自有照原版做的票面（打印入库单…），
   // 通用打印只是把弹窗内容照搬出来，两个按钮并排会让人印错那张。
   hidePrint: { type: Boolean, default: false },
+  brandHeader: { type: Boolean, default: true },
 });
 
 const dialogRef = ref(null);
@@ -101,7 +102,8 @@ const exportExcel = () =>
     props.title
   );
 const exportJpg = () => exportNodeToJpg(contentRef.value, props.title);
-const printDoc = () => printNode(contentRef.value, props.title);
+const printDoc = () =>
+  printNode(contentRef.value, props.title, { brandHeader: props.brandHeader });
 </script>
 
 <template>
