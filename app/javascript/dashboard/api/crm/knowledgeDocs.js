@@ -43,4 +43,19 @@ client.download = ({ docIds = [], categoryIds = [], ...params }) => {
   form.remove();
 };
 
+client.uploaders = params =>
+  axios.get(`${client.url}/uploaders?${new URLSearchParams(params)}`);
+client.versions = id => axios.get(`${client.url}/${id}/versions`);
+client.restoreVersion = (id, versionId) =>
+  axios.post(`${client.url}/${id}/restore_version`, { version_id: versionId });
+client.replaceFile = (id, data) =>
+  axios.post(`${client.url}/${id}/replace_file`, data);
+client.retryExtraction = id =>
+  axios.post(`${client.url}/${id}/retry_extraction`);
+client.preference = (id, favorite) =>
+  axios.post(`${client.url}/${id}/preference`, { favorite });
+client.opened = id => axios.post(`${client.url}/${id}/opened`);
+client.maintainers = id => axios.get(`${client.url}/${id}/maintainers`);
+client.bulk = payload => axios.post(`${client.url}/bulk`, payload);
+
 export default client;

@@ -8,6 +8,10 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     index?
   end
 
+  %i[versions restore_version replace_file retry_extraction preference opened bulk maintainers uploaders].each do |action|
+    define_method("#{action}?") { true }
+  end
+
   def show?
     true
   end
@@ -37,7 +41,7 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
   end
 
   # 把知识库文件复制一份发给客户：能看见文档就能发，复制范围由
-  # Crm::KnowledgeDocSnapshot 卡在本账号的知识库附件内。
+  # Crm::KnowledgeDocSnapshot 只接受当前用户可见的文档。
   def snapshot_files?
     true
   end

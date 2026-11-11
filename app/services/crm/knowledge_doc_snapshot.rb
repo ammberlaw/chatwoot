@@ -5,7 +5,7 @@
 # 为什么在后端复制而不是前端下载再上传：产品目录、报价单动辄几十 MB，走一趟浏览器
 # 既慢又白耗业务员的上行带宽。
 class Crm::KnowledgeDocSnapshot
-  pattr_initialize [:account!, :file_ids!]
+  pattr_initialize [:docs!, :file_ids!]
 
   def perform
     source_attachments.map { |att| copy(att) }
@@ -13,14 +13,17 @@ class Crm::KnowledgeDocSnapshot
 
   private
 
-  # 只认本账号知识库文档上的附件，防止拿别处的 attachment id 来套文件。
+  # 复制源由调用者限定为当前用户可见、未删除的文档。
   def source_attachments
     ids = Array(file_ids).map(&:to_i).uniq
     return ActiveStorage::Attachment.none if ids.empty?
 
-    ActiveStorage::Attachment.where(
-      id: ids, record_type: 'Crm::KnowledgeDoc', record_id: account.crm_knowledge_docs.select(:id)
+    attachments = ActiveStorage::Attachment.where(
+      id: ids, record_type: 'Crm::KnowledgeDoc', record_id: docs.select(:id)
     ).includes(:blob)
+    raise ActiveRecord::RecordNotFound unless attachments.size == ids.size
+
+    attachments
   end
 
   def copy(att)

@@ -6,38 +6,33 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   before_action :ensure_admin, only: [:recycle_bin, :restore, :purge, :purge_all]
   before_action :fetch_discarded_doc, only: [:restore, :purge]
 
+  include Crm::KnowledgeWorkflow
+
   RESULTS_PER_PAGE = 20
 
   def index
     @docs_scope = filtered_docs
     @docs_count = @docs_scope.count
     # 一次拉多（上限 5000）时预载附件，避免 files 逐条查 ActiveStorage 造成 N+1。
-    @docs = @docs_scope.order(updated_at: :desc)
-                       .includes(files_attachments: :blob)
+    order = if params[:filter] == 'recent'
+              'crm_knowledge_preferences.last_opened_at DESC, crm_knowledge_docs.id DESC'
+            else
+              'crm_knowledge_docs.updated_at DESC, crm_knowledge_docs.id DESC'
+            end
+    @docs = @docs_scope.order(Arel.sql(order)).includes(:owner, :created_by, :updated_by, :section, files_attachments: :blob)
                        .page(params[:page] || 1).per(per_page)
+    prepare_doc_metadata(@docs)
   end
 
-  def show; end
+  def show
+    prepare_doc_metadata([@doc])
+  end
 
   # 图库：给报价单/PI 的明细行挑产品图用。
   # 只回图片类附件，走和列表同一套 filtered_docs——权限口径必须一致，
   # 否则这个接口会成为绕过分区可见性的后门。
   def image_library
-    docs = filtered_docs.includes(files_attachments: :blob)
-    rows = []
-    docs.find_each do |doc|
-      doc.files.each do |f|
-        next unless f.blob.content_type.to_s.start_with?('image/')
-
-        rows << { doc_id: doc.id, attachment_id: f.id, blob_id: f.blob.id, signed_id: f.signed_id,
-                  name: doc.name, category: doc.category,
-                  section_name: doc.section&.name, byte_size: f.blob.byte_size,
-                  url: rails_blob_path(f, only_path: true) }
-      end
-    end
-    render json: { payload: rows.first(400), count: rows.size,
-                   categories: rows.map { |r| r[:category] }.compact.uniq.sort,
-                   sections: rows.map { |r| r[:section_name] }.compact.uniq.sort }
+    render json: Crm::KnowledgeImageLibrary.new(docs: filtered_docs, account: Current.account, params: params).perform
   end
 
   # 个人文档任何人可建（归属自己）；公司文档需相应创建权（见 company_docs_creatable?）。
@@ -45,14 +40,32 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     attrs = doc_params
     return render_forbidden if attrs[:scope] == 'COMPANY' && !company_docs_creatable?(attrs[:library].presence || 'SALES', attrs[:section_id])
 
-    @doc = Current.account.crm_knowledge_docs.create!(
-      with_folder_name(sync_sales_section(attrs)).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
-    )
+    Current.account.with_lock do
+      @doc = Current.account.crm_knowledge_docs.create!(
+        with_folder_name(sync_sales_section(attrs)).merge(owner_id: current_user.id, created_by: current_user,
+                                                          updated_by: current_user, scope: attrs[:scope].presence || 'PERSONAL')
+      )
+      @doc.record_version!(user: current_user, note: params.dig(:doc, :version_note).presence || '创建文档')
+      @doc.invalidate_extraction!
+    end
     extract_text_later(@doc)
+    prepare_doc_metadata([@doc])
   end
 
   def update
-    @doc.update!(with_folder_name(update_params))
+    attrs = with_folder_name(update_params.except(:files))
+    target_scope = attrs[:scope] || @doc.scope
+    target_library = attrs[:library] || @doc.library
+    target_section = attrs.key?(:section_id) ? attrs[:section_id] : @doc.section_id
+    return render_forbidden if target_scope == 'COMPANY' && !company_docs_creatable?(target_library, target_section)
+    return render_forbidden if target_scope == 'PERSONAL' && (attrs[:owner_id] || @doc.owner_id).to_i != current_user.id
+
+    raise ActiveRecord::RecordNotFound if attrs[:owner_id].present? && !Current.account.account_users.exists?(user_id: attrs[:owner_id])
+
+    Current.account.with_lock do
+      @doc.revise!(user: current_user, note: params.dig(:doc, :version_note).presence || '编辑文档') { @doc.update!(attrs) }
+    end
+    prepare_doc_metadata([@doc])
   end
 
   # 删除=移入回收站（软删除）；彻底删除由超级管理员/管理员在回收站执行。
@@ -63,7 +76,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   # 选中的知识库文件复制一份，返回 signed_id 给前端当附件挂（见 Crm::KnowledgeDocSnapshot）。
   def snapshot_files
-    render json: { payload: Crm::KnowledgeDocSnapshot.new(account: Current.account, file_ids: params[:file_ids]).perform }
+    render json: { payload: Crm::KnowledgeDocSnapshot.new(docs: section_scoped(visible_docs), file_ids: params[:file_ids]).perform }
   end
 
   # ── 回收站（超级管理员与管理员）──
@@ -74,7 +87,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def restore
-    @doc.restore!
+    Crm::KnowledgeTrash.restore_document!(@doc, current_user.id)
     head :ok
   end
 
@@ -84,22 +97,32 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def purge_all
-    Current.account.crm_knowledge_docs.discarded.destroy_all
+    Current.account.with_lock do
+      Current.account.crm_knowledge_docs.discarded.destroy_all
+      Current.account.crm_knowledge_categories.discarded.destroy_all
+    end
     head :ok
   end
 
   # 附件上传（追加，不覆盖已有）
   def attach
-    @doc.files.attach(params[:files])
+    @doc.revise!(user: current_user, note: params[:note].presence || '添加附件') do
+      @doc.files.attach(params[:files])
+      @doc.invalidate_extraction!
+    end
     extract_text_later(@doc)
+    prepare_doc_metadata([@doc])
     render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
   # 删除单个附件
   def detach
-    @doc.files.find(params[:attachment_id]).purge
-    # 删了附件也要重抽：否则被删那份的正文还留在搜索里，AI 会答一份已经不存在的资料。
+    @doc.revise!(user: current_user, note: '删除附件') do
+      @doc.files.find(params[:attachment_id]).destroy!
+      @doc.invalidate_extraction!
+    end
     extract_text_later(@doc)
+    prepare_doc_metadata([@doc])
     render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
@@ -122,7 +145,10 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   # 个人文档账号间严格隔离：任何人（含管理员）只能看到公司文档 + 自己的个人文档。回收站的不在列。
   def visible_docs
     base = Current.account.crm_knowledge_docs.kept
-    base.company_docs.or(base.personal_of(current_user.id))
+    base = base.company_docs.or(base.personal_of(current_user.id))
+    return base if admin_like?
+
+    base.where.not(library: 'GENERAL').or(base.where(section_id: [nil] + visible_section_ids + managed_section_ids))
   end
 
   def fetch_doc
@@ -212,10 +238,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   # 视图：公司文档 / 我的知识库 / 文档看板按分类。
   def filtered_docs
-    scope = section_scoped(visible_docs)
-    scope = scope.company_docs if params[:filter] == 'company'
-    scope = scope.personal_of(current_user.id) if params[:filter] == 'mine'
-    search_and_category(scope)
+    Crm::KnowledgeQuery.new(docs: section_scoped(visible_docs), user_id: current_user.id, params: params).resolve
   end
 
   # 资料库隔离 + 文档中心板块部门可见性（无板块的旧文档全员可见；管理员/副管理员/负责人不受限）+ 板块筛选。
@@ -249,14 +272,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     @sales_section_id = Current.account.crm_doc_sections.find_by(name: '销售资料')&.id
   end
 
-  def search_and_category(scope)
-    scope = scope.where(category: params[:category]) if params[:category].present?
-    scope = scope.where('name ILIKE :q OR summary ILIKE :q', q: "%#{params[:q]}%") if params[:q].present?
-    scope
-  end
-
   def doc_params
-    params.require(:doc).permit(:name, :category, :category_id, :summary, :scope, :library, :section_id, :body, files: [])
+    params.require(:doc).permit(:name, :category, :category_id, :summary, :scope, :library, :section_id, :body, :owner_id, files: [])
   end
 
   # 附件抽文字（异步、失败不影响存档）：抽出来的正文是 AI 回答产品问题的唯一来源，
@@ -264,9 +281,15 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   def extract_text_later(doc)
     return if doc.blank? || !doc.files.attached?
 
-    Crm::KnowledgeExtractJob.perform_later(doc.id)
+    revision = doc.extract_revision
+    Crm::KnowledgeExtractJob.perform_later(doc.id, revision)
   rescue StandardError => e
     Rails.logger.warn("[kb extract] 入队失败 doc=#{doc&.id}: #{e.message}")
+    doc.with_lock do
+      if doc.extract_revision == revision && doc.extract_state == 'pending'
+        doc.update_columns(extract_state: 'failed', extract_error: '解析任务排队失败，请重试') # rubocop:disable Rails/SkipsModelValidations
+      end
+    end
   end
 
   # 文档按 category_id 归属；同步冗余 category 名（供展示/搜索），传了文件夹则以其名为准，根目录清空。
@@ -281,7 +304,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   def update_params
     return doc_params if @doc.scope == 'COMPANY'
 
-    doc_params.except(:scope, :library)
+    doc_params.except(:scope, :library, :owner_id)
   end
 
   # 文档中心按板块一次拉全（文档仅元数据行，视频不预载）；上限放到 5000 防极端情况打爆内存。

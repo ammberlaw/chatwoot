@@ -32,3 +32,22 @@ json.files resource.files.map { |f|
   }
 }
 json.updated_at resource.updated_at
+
+json.owner_name resource.owner&.crm_display_name
+json.created_by_id resource.created_by_id
+json.created_by_name resource.created_by&.crm_display_name
+json.updated_by_name resource.updated_by&.crm_display_name
+json.created_at resource.created_at
+json.extract_state resource.extract_state
+json.extract_error resource.extract_error
+json.extracted_at resource.extracted_at
+json.favorite !!@doc_preferences&.dig(resource.id)&.favorite
+json.last_opened_at @doc_preferences&.dig(resource.id)&.last_opened_at
+json.version_number @doc_versions&.dig(resource.id)
+json.folder_path [resource.section&.name, @folder_paths&.dig(resource.category_id)].compact_blank.join(' / ')
+if params[:q].present?
+  needle = params[:q].to_s.downcase
+  text = [resource.summary, resource.body, resource.extracted_text].compact.find { |part| part.downcase.include?(needle) }.to_s
+  position = text.downcase.index(needle) || 0
+  json.search_snippet text[[position - 50, 0].max, 200]
+end

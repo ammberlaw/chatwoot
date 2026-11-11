@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1573,8 +1573,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
     t.bigint "user_id"
     t.bigint "section_id"
     t.bigint "parent_id"
-    t.index "account_id, COALESCE(section_id, (0)::bigint), COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
-    t.index "account_id, user_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
+    t.datetime "discarded_at"
+    t.bigint "discarded_by_id"
+    t.string "trash_batch"
+    t.index "account_id, COALESCE(section_id, (0)::bigint), COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_kept", unique: true, where: "((user_id IS NULL) AND (discarded_at IS NULL))"
+    t.index "account_id, user_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_personal_kept", unique: true, where: "((user_id IS NOT NULL) AND (discarded_at IS NULL))"
+    t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_categories_on_account_id_and_discarded_at"
     t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
     t.index ["parent_id"], name: "index_crm_knowledge_categories_on_parent_id"
     t.index ["section_id"], name: "index_crm_knowledge_categories_on_section_id"
@@ -1600,6 +1604,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
     t.datetime "extracted_at"
     t.string "extract_state"
     t.string "extract_error"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.integer "extract_revision", default: 0, null: false
+    t.string "trash_batch"
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
     t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_docs_on_account_id_and_discarded_at"
     t.index ["account_id", "extract_state"], name: "index_crm_knowledge_docs_on_account_id_and_extract_state"
@@ -1608,7 +1616,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
     t.index ["account_id", "section_id"], name: "index_crm_knowledge_docs_on_account_id_and_section_id"
     t.index ["account_id"], name: "index_crm_knowledge_docs_on_account_id"
     t.index ["category_id"], name: "index_crm_knowledge_docs_on_category_id"
+    t.index ["created_by_id"], name: "index_crm_knowledge_docs_on_created_by_id"
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
+    t.index ["updated_by_id"], name: "index_crm_knowledge_docs_on_updated_by_id"
+  end
+
+  create_table "crm_knowledge_preferences", force: :cascade do |t|
+    t.bigint "doc_id", null: false
+    t.bigint "user_id", null: false
+    t.boolean "favorite", default: false, null: false
+    t.datetime "last_opened_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["doc_id", "user_id"], name: "idx_knowledge_preferences_doc_user", unique: true
+    t.index ["doc_id"], name: "index_crm_knowledge_preferences_on_doc_id"
+    t.index ["user_id"], name: "index_crm_knowledge_preferences_on_user_id"
+  end
+
+  create_table "crm_knowledge_versions", force: :cascade do |t|
+    t.bigint "doc_id", null: false
+    t.bigint "user_id"
+    t.integer "number", null: false
+    t.string "note"
+    t.string "name", null: false
+    t.string "summary"
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["doc_id", "number"], name: "index_crm_knowledge_versions_on_doc_id_and_number", unique: true
+    t.index ["doc_id"], name: "index_crm_knowledge_versions_on_doc_id"
+    t.index ["user_id"], name: "index_crm_knowledge_versions_on_user_id"
   end
 
   create_table "crm_kpi_schemes", force: :cascade do |t|
@@ -4553,9 +4590,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
   add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_categories", "accounts"
+  add_foreign_key "crm_knowledge_categories", "users", column: "discarded_by_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "crm_doc_sections", column: "section_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "crm_knowledge_categories", column: "category_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_docs", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_docs", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_preferences", "crm_knowledge_docs", column: "doc_id", on_delete: :cascade
+  add_foreign_key "crm_knowledge_preferences", "users", on_delete: :cascade
+  add_foreign_key "crm_knowledge_versions", "crm_knowledge_docs", column: "doc_id", on_delete: :cascade
+  add_foreign_key "crm_knowledge_versions", "users", on_delete: :nullify
   add_foreign_key "crm_kpi_schemes", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_kpi_sheet_items", "crm_kpi_sheets", on_delete: :cascade
   add_foreign_key "crm_kpi_sheets", "crm_kpi_schemes", on_delete: :nullify

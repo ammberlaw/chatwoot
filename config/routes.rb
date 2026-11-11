@@ -325,17 +325,29 @@ Rails.application.routes.draw do
                 get :image_library
                 get :recycle_bin
                 post :purge_all
+                get :uploaders
                 post :snapshot_files
+                post :bulk
               end
               member do
                 get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
+                get :versions
+                get :maintainers
+                post :restore_version
+                post :replace_file
+                post :retry_extraction
+                post :preference
+                post :opened
                 post :restore
                 post :purge
               end
             end
-            resources :knowledge_categories, only: [:index, :create, :update, :destroy]
+            resources :knowledge_categories, only: [:index, :create, :update, :destroy] do
+              collection { get :recycle_bin }
+              member { post :restore }
+            end
             resources :teams
             resources :sales_targets do
               # 目标体检：谁没设、谁低于保本线。一键补按保本线铺当年剩余月份。

@@ -48,6 +48,44 @@ class Crm::KnowledgeDoc < ApplicationRecord
   LIBRARIES = %w[SALES GENERAL].freeze
 
   belongs_to :account
+  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :updated_by, class_name: 'User', optional: true
+  has_many :versions, class_name: 'Crm::KnowledgeVersion', foreign_key: :doc_id, dependent: :destroy, inverse_of: :doc
+  has_many :preferences, class_name: 'Crm::KnowledgePreference', foreign_key: :doc_id, dependent: :destroy, inverse_of: :doc
+  validate :folder_matches_document, if: lambda {
+    will_save_change_to_category_id? || will_save_change_to_section_id? || will_save_change_to_scope? || will_save_change_to_owner_id?
+  }
+
+  def revise!(user:, note:)
+    with_lock do
+      record_version!(user: nil, note: '历史版本') unless versions.exists?
+      yield
+      update!(updated_by: user)
+      record_version!(user: user, note: note)
+    end
+  end
+
+  def record_version!(user:, note:)
+    version = versions.create!(number: versions.maximum(:number).to_i + 1, user: user, note: note.to_s.truncate(255),
+                               name: name, summary: summary, body: body)
+    version.files.attach(files_blobs.reload.to_a)
+    version
+  end
+
+  # Clear stale text immediately; a previous worker must not republish it.
+  def invalidate_extraction!
+    update!(extract_revision: extract_revision + 1, extracted_text: nil, extracted_at: nil,
+            extract_error: nil, extract_state: files_attachments.exists? ? 'pending' : 'empty')
+  end
+
+  def folder_matches_document
+    return if category_id.nil?
+
+    target = folder
+    valid = target && target.discarded_at.nil? && target.account_id == account_id && target.section_id == section_id &&
+            (scope == 'PERSONAL' ? target.user_id == owner_id : target.user_id.nil?)
+    errors.add(:category_id, '文件夹与文档的板块或归属不一致') unless valid
+  end
   belongs_to :owner, class_name: 'User', optional: true
   # 文档中心资料板块（GENERAL 库使用）；板块可按部门配置可见性。
   belongs_to :section, class_name: 'Crm::DocSection', optional: true
@@ -83,10 +121,12 @@ class Crm::KnowledgeDoc < ApplicationRecord
   scope :discarded, -> { where.not(discarded_at: nil) }
 
   def discard!(user_id)
-    update!(discarded_at: Time.current, discarded_by_id: user_id)
+    update!(discarded_at: Time.current, discarded_by_id: user_id, updated_by_id: user_id)
   end
 
-  def restore!
-    update!(discarded_at: nil, discarded_by_id: nil)
+  def restore!(user_id = nil)
+    attrs = { discarded_at: nil, discarded_by_id: nil, trash_batch: nil }
+    attrs[:updated_by_id] = user_id if user_id
+    update!(attrs)
   end
 end

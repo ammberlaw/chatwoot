@@ -1,7 +1,16 @@
 <script setup>
 import CrmFolderArtwork from 'dashboard/components-next/CRM/CrmFolderArtwork.vue';
 /* global axios */
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
+import camelcaseKeys from 'camelcase-keys';
+import CrmKnowledgeDocumentTools from 'dashboard/components-next/CRM/CrmKnowledgeDocumentTools.vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -214,6 +223,14 @@ const PREVIEW_KINDS = {
 // 超过此大小不在线转换（大文件前端解析会卡死/撑爆浏览器），直接提示下载。
 const PREVIEW_SIZE_LIMIT = 20 * 1024 * 1024;
 const previewDoc = ref(null);
+let previewRequest = 0;
+watch(
+  previewDoc,
+  () => {
+    previewRequest += 1;
+  },
+  { flush: 'sync' }
+);
 const excelHtml = ref('');
 const excelLoading = ref(false);
 const wordHtml = ref('');
@@ -244,21 +261,28 @@ const previewTooLarge = computed(
 );
 // Excel 前端解析成 HTML 表格预览（不用后端、不用公开文件）
 const loadExcel = async () => {
+  previewRequest += 1;
+  const request = previewRequest;
+  const url = previewUrl.value;
   excelLoading.value = true;
   excelHtml.value = '';
   try {
-    const buf = await (await fetch(previewUrl.value)).arrayBuffer();
+    const buf = await (await fetch(url)).arrayBuffer();
+    if (request !== previewRequest) return;
     const wb = XLSX.read(buf, { type: 'array' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     excelHtml.value = sheet ? XLSX.utils.sheet_to_html(sheet) : '';
   } catch {
-    excelHtml.value = '';
+    if (request === previewRequest) excelHtml.value = '';
   } finally {
-    excelLoading.value = false;
+    if (request === previewRequest) excelLoading.value = false;
   }
 };
 // Word(docx) 前端用 mammoth 转 HTML，DOMPurify 消毒后展示。
 const loadWord = async () => {
+  previewRequest += 1;
+  const request = previewRequest;
+  const url = previewUrl.value;
   wordLoading.value = true;
   wordHtml.value = '';
   try {
@@ -266,16 +290,18 @@ const loadWord = async () => {
       import('mammoth'),
       import('dompurify'),
     ]);
-    const buf = await (await fetch(previewUrl.value)).arrayBuffer();
+    const buf = await (await fetch(url)).arrayBuffer();
     const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
-    wordHtml.value = DOMPurify.sanitize(value || '');
+    if (request === previewRequest)
+      wordHtml.value = DOMPurify.sanitize(value || '');
   } catch {
-    wordHtml.value = '';
+    if (request === previewRequest) wordHtml.value = '';
   } finally {
-    wordLoading.value = false;
+    if (request === previewRequest) wordLoading.value = false;
   }
 };
 const openPreview = doc => {
+  KnowledgeDocsAPI.opened(doc.id).catch(() => {});
   previewDoc.value = doc;
   excelHtml.value = '';
   wordHtml.value = '';
@@ -313,7 +339,42 @@ const scopeOptions = [
 // ── 三级目录导航：path 栈（板块 → 分类 → 子分类）。当前节点决定显示的子文件夹与文档 ──
 // path 元素：{ type:'section'|'category'|'orphan'|'uncategorized', id, name }
 const pathStack = ref([]); // 空=根
-const isSearching = computed(() => !!searchQuery.value.trim());
+const fileTypeFilter = ref('');
+const uploaderFilter = ref('');
+const updatedAfter = ref('');
+const isSearching = computed(
+  () =>
+    !!searchQuery.value.trim() ||
+    !!fileTypeFilter.value ||
+    !!uploaderFilter.value ||
+    !!updatedAfter.value ||
+    ['favorites', 'recent'].includes(activeFilter.value)
+);
+const uploaderOptions = ref([]);
+let uploaderRequest = 0;
+const fetchUploaders = async () => {
+  uploaderRequest += 1;
+  const request = uploaderRequest;
+  try {
+    const { data } = await KnowledgeDocsAPI.uploaders({
+      library: currentLibrary.value,
+      ...(activeSectionId.value ? { section_id: activeSectionId.value } : {}),
+    });
+    if (request === uploaderRequest)
+      uploaderOptions.value = (data.payload || []).map(user => ({
+        value: user.id,
+        label: user.name,
+      }));
+  } catch {
+    if (request === uploaderRequest) uploaderOptions.value = [];
+  }
+};
+const fileTypeOptions = computed(() =>
+  ['all', 'image', 'video', 'pdf', 'office'].map(value => ({
+    value: value === 'all' ? '' : value,
+    label: t(`CRM.KNOWLEDGE_WORKFLOW.TYPE_${value.toUpperCase()}`),
+  }))
+);
 // 已加载数 < 真实总数 = 超一次拉取上限被截断，显式提示，绝不静默吞掉文档。
 const isTruncated = computed(
   () => !isSearching.value && totalCount.value > records.value.length
@@ -344,8 +405,10 @@ const descendantIds = catId => {
   const ids = [catId];
   const walk = id =>
     childrenOf(id).forEach(c => {
-      ids.push(c.id);
-      walk(c.id);
+      if (!ids.includes(c.id)) {
+        ids.push(c.id);
+        walk(c.id);
+      }
     });
   walk(catId);
   return ids;
@@ -368,6 +431,7 @@ const buildCatFolders = parentId =>
 
 // 当前节点下的子文件夹（根层=顶层文件夹）
 const currentFolders = computed(() => {
+  if (isSearching.value) return [];
   const n = currentNode.value;
   if (!n) return buildCatFolders(null);
   if (n.type === 'category') return buildCatFolders(n.id);
@@ -390,6 +454,38 @@ const checkedCategoryIds = ref([]);
 const checkedCount = computed(
   () => checkedDocIds.value.length + checkedCategoryIds.value.length
 );
+const bulkOperation = ref('');
+const bulkTarget = ref(null);
+const bulkBusy = ref(false);
+const bulkError = ref('');
+const bulkConfirmed = ref(false);
+const bulkTargetOptions = computed(() =>
+  categoryOptions.value.filter(
+    option =>
+      !checkedCategoryIds.value.some(id =>
+        descendantIds(id).includes(option.value)
+      )
+  )
+);
+const canManageSelection = computed(
+  () =>
+    checkedCount.value > 0 &&
+    records.value
+      .filter(
+        d =>
+          checkedDocIds.value.includes(d.id) ||
+          checkedCategoryIds.value.some(id =>
+            descendantIds(id).includes(d.categoryId)
+          )
+      )
+      .every(canManageDoc)
+);
+const startBulk = operation => {
+  bulkOperation.value = operation;
+  bulkTarget.value = null;
+  bulkError.value = '';
+  bulkConfirmed.value = false;
+};
 const selectableFolders = computed(() =>
   isSearching.value ? [] : currentFolders.value
 );
@@ -405,6 +501,7 @@ const clearSelection = () => {
 };
 const exitSelection = () => {
   selectionMode.value = false;
+  if (!bulkBusy.value) bulkOperation.value = '';
   clearSelection();
 };
 const toggleChecked = (type, id) => {
@@ -515,6 +612,8 @@ const sortedFolders = computed(() => {
 // 文档中心（GENERAL）没有「我的文档」——个人资料在 CRM 知识库维护；此处只有公司文档（+管理员回收站）。
 const filterTabs = computed(() => [
   { key: 'company', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.COMPANY') },
+  { key: 'favorites', label: t('CRM.KNOWLEDGE_WORKFLOW.FAVORITES') },
+  { key: 'recent', label: t('CRM.KNOWLEDGE_WORKFLOW.RECENT') },
   ...(isGeneral.value ? [{ key: 'vault', label: '账号密码' }] : []),
   ...(isGeneral.value
     ? []
@@ -530,28 +629,62 @@ const isVault = computed(() => activeFilter.value === 'vault');
 // ── 文档回收站（仅管理员）：删除的文档进这里，可恢复或彻底删除 ──
 const isRecycle = computed(() => activeFilter.value === 'recycle');
 const recycleDocs = ref([]);
+const recycleFolders = ref([]);
+let recycleRequest = 0;
 const loadingRecycle = ref(false);
 const pendingPurgeId = ref(null);
 const pendingPurgeAll = ref(false);
 const recycleUrl = path =>
   `/api/v1/accounts/${accountId.value}/crm/knowledge_docs${path}`;
 const fetchRecycleBin = async () => {
+  recycleRequest += 1;
+  const request = recycleRequest;
   loadingRecycle.value = true;
   pendingPurgeId.value = null;
   pendingPurgeAll.value = false;
   try {
-    const { data } = await axios.get(recycleUrl('/recycle_bin'));
-    recycleDocs.value = data.payload || [];
+    const [docs, folders] = await Promise.all([
+      axios.get(recycleUrl('/recycle_bin')),
+      axios.get(
+        `${crmBase()}/knowledge_categories/recycle_bin?library=GENERAL`
+      ),
+    ]);
+    if (request !== recycleRequest) return;
+    recycleDocs.value = docs.data.payload || [];
+    recycleFolders.value = folders.data.payload || [];
   } catch {
-    recycleDocs.value = [];
+    if (request === recycleRequest) {
+      recycleDocs.value = [];
+      recycleFolders.value = [];
+    }
   } finally {
-    loadingRecycle.value = false;
+    if (request === recycleRequest) loadingRecycle.value = false;
+  }
+};
+const restoringFolderIds = ref([]);
+const restoreFolder = async folder => {
+  if (restoringFolderIds.value.includes(folder.id)) return;
+  restoringFolderIds.value.push(folder.id);
+  try {
+    await axios.post(
+      `${crmBase()}/knowledge_categories/${folder.id}/restore?library=GENERAL`
+    );
+    fetchRecycleBin();
+    fetchCategories();
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
+  } finally {
+    restoringFolderIds.value = restoringFolderIds.value.filter(
+      id => id !== folder.id
+    );
   }
 };
 const restoreDoc = async doc => {
   try {
     await axios.post(recycleUrl(`/${doc.id}/restore`));
-    recycleDocs.value = recycleDocs.value.filter(d => d.id !== doc.id);
+    fetchRecycleBin();
+    fetchCategories();
     useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORED'));
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
@@ -581,6 +714,7 @@ const purgeAll = async () => {
   try {
     await axios.post(recycleUrl('/purge_all'));
     recycleDocs.value = [];
+    recycleFolders.value = [];
     useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGED_ALL'));
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
@@ -588,10 +722,13 @@ const purgeAll = async () => {
 };
 
 const fetchRecords = () => {
+  fetchUploaders();
   if (isRecycle.value) {
     fetchRecycleBin();
     return;
   }
+  recycleRequest += 1;
+  loadingRecycle.value = false;
   store.get({
     library: currentLibrary.value,
     filter: activeFilter.value,
@@ -600,8 +737,50 @@ const fetchRecords = () => {
         ? activeSectionId.value
         : undefined,
     q: searchQuery.value.trim() || undefined,
+    file_type: fileTypeFilter.value || undefined,
+    uploader_id: uploaderFilter.value || undefined,
+    updated_after: updatedAfter.value || undefined,
     per_page: 5000,
   });
+};
+
+const resetSearch = () => {
+  searchQuery.value = '';
+  fileTypeFilter.value = '';
+  uploaderFilter.value = '';
+  updatedAfter.value = '';
+  fetchRecords();
+};
+
+const runBulk = async () => {
+  if (bulkBusy.value) return;
+  if (bulkOperation.value === 'discard' && !bulkConfirmed.value) {
+    bulkConfirmed.value = true;
+    return;
+  }
+  const payload = {
+    operation: bulkOperation.value,
+    doc_ids: [...checkedDocIds.value],
+    category_ids: [...checkedCategoryIds.value],
+    target_id: bulkTarget.value,
+    library: currentLibrary.value,
+    filter: activeFilter.value,
+    section_id: activeSectionId.value,
+  };
+  bulkBusy.value = true;
+  try {
+    await KnowledgeDocsAPI.bulk(payload);
+    bulkOperation.value = '';
+    exitSelection();
+    fetchCategories();
+    fetchRecords();
+    useAlert(t('CRM.KNOWLEDGE_WORKFLOW.BULK_DONE'));
+  } catch (error) {
+    bulkError.value =
+      error?.response?.data?.error || t('CRM.KNOWLEDGE_WORKFLOW.BULK_ERROR');
+  } finally {
+    bulkBusy.value = false;
+  }
 };
 
 // 在两个资料库路由间切换时（同组件复用），重新拉取对应库的文档。
@@ -649,6 +828,7 @@ const isForm = computed(
 );
 const isCreate = computed(() => panelMode.value === 'create');
 const selectedDoc = ref(null);
+let panelRequest = 0;
 const panelTab = ref('detail');
 const panelAudits = ref([]);
 const panelAttachments = ref([]);
@@ -656,6 +836,15 @@ const pendingFiles = ref([]);
 const saving = ref(false);
 const uploading = ref(false);
 const panelFileInput = ref(null);
+watch(
+  () => [panelMode.value, selectedDoc.value?.id],
+  () => {
+    panelRequest += 1;
+    uploading.value = false;
+    saving.value = false;
+  },
+  { flush: 'sync' }
+);
 const editForm = reactive({
   name: '',
   categoryId: null,
@@ -681,11 +870,40 @@ const auditMessage = audit => {
 };
 
 const openPanel = doc => {
+  KnowledgeDocsAPI.opened(doc.id).catch(() => {});
   selectedDoc.value = doc;
   panelMode.value = 'view';
   panelTab.value = 'detail';
   panelAudits.value = [];
   panelAttachments.value = doc.files || [];
+};
+const onDocumentUpdated = doc => {
+  if (selectedDoc.value?.id !== doc.id) return;
+  selectedDoc.value = doc;
+  panelAttachments.value = doc.files || [];
+  panelAudits.value = [];
+  fetchRecords();
+};
+const openPreviewDetails = () => {
+  const doc = previewDoc.value;
+  previewDoc.value = null;
+  openPanel(doc);
+};
+const locateDocument = doc => {
+  activeFilter.value = doc.scope === 'PERSONAL' ? 'mine' : 'company';
+  resetSearch();
+  pathStack.value = [];
+  const seen = new Set();
+  let folder = categoryById(doc.categoryId);
+  while (folder && !seen.has(folder.id)) {
+    seen.add(folder.id);
+    pathStack.value.unshift({
+      type: 'category',
+      id: folder.id,
+      name: folder.name,
+    });
+    folder = categoryById(folder.parentId);
+  }
 };
 const closePanel = () => {
   panelMode.value = null;
@@ -693,13 +911,15 @@ const closePanel = () => {
 };
 
 const fetchAudits = async () => {
+  const request = panelRequest;
+  const id = selectedDoc.value.id;
   try {
     const { data } = await axios.get(
-      `${crmBase()}/knowledge_docs/${selectedDoc.value.id}/audits`
+      `${crmBase()}/knowledge_docs/${id}/audits`
     );
-    panelAudits.value = data.payload || [];
+    if (request === panelRequest) panelAudits.value = data.payload || [];
   } catch {
-    panelAudits.value = [];
+    if (request === panelRequest) panelAudits.value = [];
   }
 };
 const setPanelTab = key => {
@@ -723,6 +943,9 @@ const cancelForm = () => {
 
 const saveForm = async () => {
   if (!editForm.name.trim()) return;
+  const request = panelRequest;
+  const id = selectedDoc.value?.id;
+  const creating = isCreate.value;
   saving.value = true;
   const payload = {
     name: editForm.name.trim(),
@@ -733,21 +956,25 @@ const saveForm = async () => {
     body: editForm.body || null,
   };
   try {
-    if (isCreate.value) {
+    if (creating) {
       const created = await store.create({
         ...payload,
-        sectionId: isGeneral.value ? activeSectionId.value : undefined,
+        sectionId:
+          categoryById(editForm.categoryId)?.sectionId ??
+          (isGeneral.value ? activeSectionId.value : undefined),
         __files: pendingFiles.value,
       });
       useAlert(t('CRM.KNOWLEDGE_DOCS.CREATE.SUCCESS'));
       fetchRecords();
+      if (request !== panelRequest) return;
       if (created) openPanel(created);
       else closePanel();
     } else {
       const updated = await store.update({
-        id: selectedDoc.value.id,
+        id,
         ...payload,
       });
+      if (request !== panelRequest) return;
       selectedDoc.value = updated || selectedDoc.value;
       panelMode.value = 'view';
       panelAudits.value = [];
@@ -755,13 +982,14 @@ const saveForm = async () => {
       useAlert(t('CRM.KNOWLEDGE_DOCS.EDIT.SUCCESS'));
     }
   } catch {
+    if (request !== panelRequest) return;
     useAlert(
-      isCreate.value
+      creating
         ? t('CRM.KNOWLEDGE_DOCS.CREATE.ERROR')
         : t('CRM.KNOWLEDGE_DOCS.EDIT.ERROR')
     );
   } finally {
-    saving.value = false;
+    if (request === panelRequest) saving.value = false;
   }
 };
 
@@ -777,35 +1005,45 @@ const onPanelFiles = async event => {
     return;
   }
 
+  const request = panelRequest;
+  const id = selectedDoc.value.id;
   uploading.value = true;
   const fd = new FormData();
   files.forEach(f => fd.append('files[]', f));
   try {
     const { data } = await axios.post(
-      `${crmBase()}/knowledge_docs/${selectedDoc.value.id}/attach`,
+      `${crmBase()}/knowledge_docs/${id}/attach`,
       fd,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
-    panelAttachments.value = data.files || [];
     fetchRecords();
+    if (request !== panelRequest) return;
+    selectedDoc.value = camelcaseKeys(data, { deep: true });
+    panelAttachments.value = selectedDoc.value.files || [];
   } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.ATTACH.UPLOAD_ERROR'));
+    if (request === panelRequest)
+      useAlert(t('CRM.KNOWLEDGE_DOCS.ATTACH.UPLOAD_ERROR'));
   } finally {
-    uploading.value = false;
+    if (request === panelRequest) uploading.value = false;
   }
 };
 const removePending = index => {
   pendingFiles.value = pendingFiles.value.filter((_, i) => i !== index);
 };
 const removeAttachment = async id => {
+  const request = panelRequest;
+  const docId = selectedDoc.value.id;
   try {
     const { data } = await axios.delete(
-      `${crmBase()}/knowledge_docs/${selectedDoc.value.id}/attach/${id}`
+      `${crmBase()}/knowledge_docs/${docId}/attach/${id}`
     );
-    panelAttachments.value = data.files || [];
     fetchRecords();
+    if (request !== panelRequest) return;
+    selectedDoc.value = camelcaseKeys(data, { deep: true });
+    panelAttachments.value = selectedDoc.value.files || [];
   } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.ATTACH.DELETE_ERROR'));
+    if (request === panelRequest)
+      useAlert(t('CRM.KNOWLEDGE_DOCS.ATTACH.DELETE_ERROR'));
   }
 };
 
@@ -822,44 +1060,79 @@ const defaultDocScope = () =>
 
 const triggerDirectUpload = () => directFileInput.value?.click();
 
-const uploadFilesAsDocs = async fileList => {
-  const files = Array.from(fileList || []).filter(Boolean);
-  if (!files.length) return;
-  if (!canCreateDocsHere.value) {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.NO_PERMISSION'));
-    return;
-  }
+const uploadTasks = ref([]);
+const showUploadTasks = ref(false);
+const uploadError = error =>
+  error?.response?.data?.error ||
+  error?.response?.data?.message ||
+  t('CRM.KNOWLEDGE_WORKFLOW.UPLOAD_FAILED');
+const runUploadTasks = async tasks => {
+  if (directUploading.value) return;
   directUploading.value = true;
-  directProgress.total = files.length;
+  directProgress.total = tasks.length;
   directProgress.done = 0;
-  let ok = 0;
-  // 逐个建档：复用 create（含权限/板块/分类校验 + multipart 附件）。
+  // Files upload sequentially so failures and pending cancellation remain per file.
   // eslint-disable-next-line no-restricted-syntax
-  for (const file of files) {
+  for (const task of tasks) {
+    if (task.state === 'cancelled') {
+      directProgress.done += 1;
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    task.state = 'uploading';
     try {
-      // eslint-disable-next-line no-await-in-loop
-      await store.create({
-        name: file.name,
-        categoryId: currentCategoryId.value,
-        sectionId: isGeneral.value ? activeSectionId.value : undefined,
-        scope: defaultDocScope(),
-        library: currentLibrary.value,
-        summary: null,
-        body: null,
-        __files: [file],
+      const fd = new FormData();
+      Object.entries(task.target).forEach(([key, value]) => {
+        if (value !== null && value !== undefined)
+          fd.append(`doc[${key}]`, value);
       });
-      ok += 1;
-    } catch {
-      // 单个失败不中断，继续传其余文件
+      fd.append('doc[name]', task.file.name);
+      fd.append('doc[files][]', task.file);
+      // eslint-disable-next-line no-await-in-loop
+      await KnowledgeDocsAPI.createWithFiles(fd);
+      task.state = 'done';
+      task.error = '';
+    } catch (error) {
+      task.state = 'failed';
+      task.error = uploadError(error);
     }
     directProgress.done += 1;
   }
   directUploading.value = false;
   fetchRecords();
-  const fail = files.length - ok;
-  if (!fail) useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.SUCCESS', { count: ok }));
-  else if (ok) useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.PARTIAL', { ok, fail }));
-  else useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.ERROR'));
+};
+const uploadFilesAsDocs = fileList => {
+  if (!canCreateDocsHere.value || directUploading.value) return;
+  const folder = categoryById(currentCategoryId.value);
+  const target = {
+    category_id: currentCategoryId.value,
+    section_id:
+      folder?.sectionId ?? (isGeneral.value ? activeSectionId.value : null),
+    scope: defaultDocScope(),
+    library: currentLibrary.value,
+  };
+  uploadTasks.value = Array.from(fileList || []).map(file => ({
+    file,
+    target: { ...target },
+    path: breadcrumb.value.map(n => n.label).join(' / ') || rootLabel.value,
+    state: 'pending',
+    error: '',
+  }));
+  if (!uploadTasks.value.length) return;
+  showUploadTasks.value = true;
+  runUploadTasks(uploadTasks.value);
+};
+const cancelPendingUploads = () => {
+  uploadTasks.value.forEach(task => {
+    if (task.state === 'pending') task.state = 'cancelled';
+  });
+};
+const retryFailedUploads = () => {
+  const failed = uploadTasks.value.filter(task => task.state === 'failed');
+  failed.forEach(task => {
+    task.state = 'pending';
+  });
+  runUploadTasks(failed);
 };
 
 const onDirectFiles = event => {
@@ -1025,6 +1298,14 @@ watch(
     fetchCategories();
   }
 );
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer);
+  previewRequest += 1;
+  uploaderRequest += 1;
+  recycleRequest += 1;
+  panelRequest += 1;
+  cancelPendingUploads();
+});
 </script>
 
 <template>
@@ -1086,6 +1367,48 @@ watch(
             @click="setFilter(tab.key)"
           />
         </div>
+        <SelectCard
+          v-if="!isRecycle && !isVault"
+          v-model="fileTypeFilter"
+          :options="fileTypeOptions"
+          trigger-class="w-28 h-9"
+          @update:model-value="fetchRecords"
+        />
+        <select
+          v-if="!isRecycle && !isVault"
+          v-model="uploaderFilter"
+          class="h-9 max-w-36 rounded-xl border border-n-weak bg-n-solid-1 px-2 text-label-small"
+          :aria-label="t('CRM.KNOWLEDGE_WORKFLOW.UPLOADER')"
+          @change="fetchRecords"
+        >
+          <option value="">
+            {{ t('CRM.KNOWLEDGE_WORKFLOW.ALL_UPLOADERS') }}
+          </option>
+          <option
+            v-for="person in uploaderOptions"
+            :key="person.value"
+            :value="person.value"
+          >
+            {{ person.label }}
+          </option>
+        </select>
+        <input
+          v-if="!isRecycle && !isVault"
+          v-model="updatedAfter"
+          type="date"
+          class="h-9 max-w-36 rounded-xl border border-n-weak bg-n-solid-1 px-2 text-label-small"
+          :aria-label="t('CRM.KNOWLEDGE_WORKFLOW.UPDATED_AFTER')"
+          :title="t('CRM.KNOWLEDGE_WORKFLOW.UPDATED_AFTER')"
+          @change="fetchRecords"
+        />
+        <Button
+          v-if="fileTypeFilter || uploaderFilter || updatedAfter"
+          :label="t('CRM.KNOWLEDGE_WORKFLOW.RESET')"
+          size="sm"
+          variant="ghost"
+          color="slate"
+          @click="resetSearch"
+        />
         <!-- Filter：文件夹排序 -->
         <SelectCard
           v-if="!isRecycle && !isVault"
@@ -1123,7 +1446,7 @@ watch(
             {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.HINT') }}
           </p>
           <button
-            v-if="recycleDocs.length"
+            v-if="recycleDocs.length || recycleFolders.length"
             type="button"
             class="px-3 py-1.5 text-xs font-medium transition-colors rounded-full shrink-0"
             :class="
@@ -1141,15 +1464,42 @@ watch(
           </button>
         </div>
 
+        <div v-if="recycleFolders.length" class="mb-4 space-y-2">
+          <div
+            v-for="folder in recycleFolders"
+            :key="folder.id"
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-n-weak bg-n-solid-1 p-3"
+          >
+            <span class="i-lucide-folder size-5 text-n-slate-10" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-label">{{ folder.name }}</p>
+              <p class="text-label-small text-n-slate-10">
+                {{
+                  folder.discarded_by_name ||
+                  t('CRM.KNOWLEDGE_WORKFLOW.HISTORY_UNKNOWN')
+                }}
+                · {{ fmtDateTime(folder.discarded_at) }}
+              </p>
+            </div>
+            <Button
+              :disabled="restoringFolderIds.includes(folder.id)"
+              :label="t('CRM.KNOWLEDGE_WORKFLOW.RESTORE_FOLDER')"
+              size="sm"
+              variant="outline"
+              color="slate"
+              @click="restoreFolder(folder)"
+            />
+          </div>
+        </div>
         <div
-          v-if="!recycleDocs.length"
+          v-if="!recycleDocs.length && !recycleFolders.length"
           class="flex flex-col items-center gap-2 mt-20 text-n-slate-10"
         >
           <span class="i-lucide-trash-2 size-8 opacity-40" />
           <p class="text-sm">{{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.EMPTY') }}</p>
         </div>
 
-        <template v-else>
+        <template v-else-if="recycleDocs.length">
           <!-- 手机卡片 -->
           <div class="flex flex-col gap-2 md:hidden">
             <div
@@ -1308,7 +1658,7 @@ watch(
             class="flex items-center justify-center rounded-lg size-7 shrink-0 text-n-slate-11 hover:bg-n-alpha-1"
             :title="t('CRM.KNOWLEDGE_DOCS.VIEW.BACK')"
             @click="
-              isSearching ? (searchQuery = '') : goToDepth(pathStack.length - 2)
+              isSearching ? resetSearch() : goToDepth(pathStack.length - 2)
             "
           >
             <span class="i-lucide-arrow-left size-4" />
@@ -1414,6 +1764,16 @@ watch(
             class="flex min-h-9 flex-wrap items-center justify-end gap-2 mb-3 text-label-small"
           >
             <template v-if="selectionMode">
+              <Button
+                v-for="operation in ['move', 'copy', 'discard']"
+                :key="operation"
+                :label="t(`CRM.KNOWLEDGE_WORKFLOW.${operation.toUpperCase()}`)"
+                size="sm"
+                variant="outline"
+                color="slate"
+                :disabled="!canManageSelection || bulkBusy"
+                @click="startBulk(operation)"
+              />
               <label
                 class="mr-auto inline-flex items-center gap-2 cursor-pointer text-n-slate-11"
               >
@@ -1503,6 +1863,97 @@ watch(
               </template>
             </template>
           </div>
+          <div
+            v-if="bulkOperation"
+            class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-n-weak bg-n-alpha-1 p-3"
+          >
+            <span class="text-label"
+              >{{
+                t(`CRM.KNOWLEDGE_WORKFLOW.${bulkOperation.toUpperCase()}`)
+              }}
+              · {{ checkedCount }}</span
+            >
+            <SelectCard
+              v-if="bulkOperation !== 'discard'"
+              v-model="bulkTarget"
+              :options="bulkTargetOptions"
+              :disabled="bulkBusy"
+              trigger-class="w-64 h-9"
+            />
+            <Button
+              :label="
+                t(
+                  bulkConfirmed
+                    ? 'CRM.KNOWLEDGE_WORKFLOW.CONFIRM_DISCARD'
+                    : 'CRM.KNOWLEDGE_WORKFLOW.CONFIRM'
+                )
+              "
+              size="sm"
+              :disabled="bulkBusy"
+              @click="runBulk"
+            />
+            <Button
+              :label="t('CRM.KNOWLEDGE_WORKFLOW.CANCEL')"
+              size="sm"
+              variant="ghost"
+              color="slate"
+              :disabled="bulkBusy"
+              @click="bulkOperation = ''"
+            />
+            <p
+              v-if="bulkError"
+              role="alert"
+              class="w-full text-label-small text-n-ruby-11"
+            >
+              {{ bulkError }}
+            </p>
+          </div>
+          <details
+            v-if="uploadTasks.length"
+            :open="showUploadTasks"
+            class="mb-4 rounded-xl border border-n-weak p-3"
+          >
+            <summary class="cursor-pointer text-label">
+              {{ t('CRM.KNOWLEDGE_WORKFLOW.UPLOAD_TASKS') }} ·
+              {{ directProgress.done }}/{{ directProgress.total }}
+            </summary>
+            <div class="my-2 flex gap-2">
+              <Button
+                v-if="directUploading"
+                :label="t('CRM.KNOWLEDGE_WORKFLOW.CANCEL_PENDING')"
+                size="sm"
+                color="slate"
+                variant="outline"
+                @click="cancelPendingUploads"
+              />
+              <Button
+                v-else-if="uploadTasks.some(task => task.state === 'failed')"
+                :label="t('CRM.KNOWLEDGE_WORKFLOW.RETRY_FAILED')"
+                size="sm"
+                color="slate"
+                variant="outline"
+                @click="retryFailedUploads"
+              />
+            </div>
+            <ul class="max-h-48 space-y-2 overflow-y-auto">
+              <li
+                v-for="(task, index) in uploadTasks"
+                :key="index"
+                class="text-label-small"
+              >
+                <span class="font-medium">{{ task.file.name }}</span> ·
+                {{
+                  t(`CRM.KNOWLEDGE_WORKFLOW.UPLOAD_${task.state.toUpperCase()}`)
+                }}
+                <span class="block truncate text-n-slate-10">{{
+                  task.path
+                }}</span>
+                <span v-if="task.error" class="block text-n-ruby-11">{{
+                  task.error
+                }}</span>
+              </li>
+            </ul>
+          </details>
           <!-- 空态 -->
           <div
             v-if="
@@ -1606,14 +2057,51 @@ watch(
                   "
                 >
                   <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白/黄纸扇形探出 + 前袋写名 -->
-                  <div v-if="(isGeneral || isMineView) && styleForFolder(folderStyleKey('category', folder.id)).image" class="flex flex-col items-center gap-2 p-2">
-                    <CrmFolderArtwork :image="styleForFolder(folderStyleKey('category', folder.id)).image" :animated="styleForFolder(folderStyleKey('category', folder.id)).animated" class="aspect-square w-full rounded-xl" />
+                  <div
+                    v-if="
+                      (isGeneral || isMineView) &&
+                      styleForFolder(folderStyleKey('category', folder.id))
+                        .image
+                    "
+                    class="flex flex-col items-center gap-2 p-2"
+                  >
+                    <CrmFolderArtwork
+                      :image="
+                        styleForFolder(folderStyleKey('category', folder.id))
+                          .image
+                      "
+                      :animated="
+                        styleForFolder(folderStyleKey('category', folder.id))
+                          .animated
+                      "
+                      class="aspect-square w-full rounded-xl"
+                    />
                     <div class="w-full min-w-0 text-center">
-                      <div class="truncate text-label text-n-slate-12" :title="folder.name">{{ folder.name }}</div>
-                      <div class="mt-1 truncate text-label-small text-n-slate-10">
-                        {{ t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', { count: folder.docs.length }) }}
-                        <template v-if="folder.childCount"> · {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', { count: folder.childCount }) }}</template>
-                        <template v-if="folderBytes(folder)"> · {{ fmtSize(folderBytes(folder)) }}</template>
+                      <div
+                        class="truncate text-label text-n-slate-12"
+                        :title="folder.name"
+                      >
+                        {{ folder.name }}
+                      </div>
+                      <div
+                        class="mt-1 truncate text-label-small text-n-slate-10"
+                      >
+                        {{
+                          t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                            count: folder.docs.length,
+                          })
+                        }}
+                        <template v-if="folder.childCount">
+                          ·
+                          {{
+                            t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
+                              count: folder.childCount,
+                            })
+                          }}</template
+                        >
+                        <template v-if="folderBytes(folder)">
+                          · {{ fmtSize(folderBytes(folder)) }}</template
+                        >
                       </div>
                     </div>
                   </div>
@@ -1680,9 +2168,22 @@ watch(
                   v-if="(isGeneral || isMineView) && !selectionMode"
                   type="button"
                   class="absolute left-0 top-0 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 opacity-100 shadow-sm transition-opacity duration-150 hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/folder-style:opacity-100 [@media(hover:hover)]:group-focus-within/folder-style:opacity-100 motion-reduce:transition-none"
-                  :title="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
-                  :aria-label="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
-                  @click.stop="folderStylePicker.open({ key: folderStyleKey('category', folder.id), name: folder.name })"
+                  :title="
+                    t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', {
+                      name: folder.name,
+                    })
+                  "
+                  :aria-label="
+                    t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', {
+                      name: folder.name,
+                    })
+                  "
+                  @click.stop="
+                    folderStylePicker.open({
+                      key: folderStyleKey('category', folder.id),
+                      name: folder.name,
+                    })
+                  "
                 >
                   <span class="i-lucide-palette size-3.5" aria-hidden="true" />
                 </button>
@@ -1811,6 +2312,18 @@ watch(
                   >
                     {{ doc.name }}
                   </span>
+                  <span
+                    v-if="isSearching && doc.searchSnippet"
+                    class="w-full text-label-small text-n-slate-11 line-clamp-2"
+                    >{{ doc.searchSnippet }}</span
+                  >
+                  <span
+                    class="w-full truncate text-label-small text-n-slate-10"
+                    >{{
+                      doc.createdByName ||
+                      t('CRM.KNOWLEDGE_WORKFLOW.HISTORY_UNKNOWN')
+                    }}</span
+                  >
                   <span class="w-full text-xs truncate text-n-slate-10">
                     <template v-if="isSearching && doc.category">
                       {{ doc.category }}
@@ -1820,6 +2333,15 @@ watch(
                     </template>
                     <template v-else>{{ fmtDate(doc.updatedAt) }}</template>
                   </span>
+                </button>
+                <button
+                  v-if="!selectionMode"
+                  type="button"
+                  class="absolute right-1 bottom-0 grid size-7 place-items-center rounded-full bg-n-solid-1 text-n-slate-11 hover:text-n-iris-11"
+                  :title="t('CRM.KNOWLEDGE_WORKFLOW.DETAILS')"
+                  @click.stop="openPanel(doc)"
+                >
+                  <span class="i-lucide-info size-4" />
                 </button>
                 <!-- 悬停：改名 / 删除 -->
                 <div
@@ -1922,6 +2444,13 @@ watch(
         <!-- 详情 / 编辑 / 新建 -->
         <div v-if="panelTab === 'detail'" class="flex flex-col gap-4 p-5">
           <template v-if="!isForm">
+            <CrmKnowledgeDocumentTools
+              :key="selectedDoc.id"
+              :doc="selectedDoc"
+              :can-manage="canManageDoc(selectedDoc)"
+              @updated="onDocumentUpdated"
+              @locate="locateDocument(selectedDoc)"
+            />
             <div class="flex items-center gap-2">
               <span
                 class="px-2 py-0.5 text-label-small rounded-full"
@@ -2191,6 +2720,13 @@ watch(
             <span class="text-sm font-medium truncate text-n-slate-12">
               {{ previewDoc.name }}
             </span>
+            <Button
+              :label="t('CRM.KNOWLEDGE_WORKFLOW.DETAILS')"
+              size="sm"
+              color="slate"
+              variant="ghost"
+              @click="openPreviewDetails"
+            />
             <button
               type="button"
               class="inline-flex items-center gap-1 px-2.5 py-1 ml-auto text-xs font-medium rounded-md shrink-0 text-n-slate-11 hover:bg-n-alpha-2"
@@ -2358,7 +2894,10 @@ watch(
       </div>
     </Teleport>
 
-    <CrmFolderStylePicker v-if="isGeneral || isMineView" ref="folderStylePicker" />
+    <CrmFolderStylePicker
+      v-if="isGeneral || isMineView"
+      ref="folderStylePicker"
+    />
 
     <CrmDocSectionManager
       :show="showSectionManager"

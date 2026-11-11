@@ -2,11 +2,11 @@
 # 否则为公司分类，增删改仅限超级管理员/管理员/部门负责人。
 class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_category, only: [:update, :destroy]
+  before_action :fetch_category, only: [:update, :destroy, :restore]
   before_action :ensure_manageable, only: [:update, :destroy]
 
   def index
-    scope = Current.account.crm_knowledge_categories
+    scope = Current.account.crm_knowledge_categories.kept
     scope = if params[:view] == 'mine'
               scope.personal_of(current_user.id)
             elsif (params[:library] || params.dig(:category, :library)) == 'GENERAL'
@@ -20,24 +20,49 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   def create
-    if personal_request?
-      @category = Current.account.crm_knowledge_categories.create!(category_params.merge(user_id: current_user.id))
-    else
-      section_id = create_section_id
-      return render_forbidden unless company_manageable? || manages_section?(section_id)
+    attrs = if personal_request?
+              category_params.merge(user_id: current_user.id)
+            else
+              section_id = create_section_id
+              return render_forbidden unless company_manageable? || manages_section?(section_id)
 
-      @category = Current.account.crm_knowledge_categories.create!(category_params.merge(section_id: section_id))
-    end
+              category_params.merge(section_id: section_id)
+            end
+    Current.account.with_lock { @category = Current.account.crm_knowledge_categories.create!(attrs) }
   end
 
   def update
-    @category.update!(category_params)
+    Current.account.with_lock { @category.update!(category_params) }
     # 同步归属该文件夹的文档冗余分类名（文档按 category_id 认路，此名仅供展示/搜索）。
     Current.account.crm_knowledge_docs.where(category_id: @category.id).update_all(category: @category.name)
   end
 
   def destroy
-    @category.destroy!
+    Current.account.with_lock do
+      if @category.children.exists? || Current.account.crm_knowledge_docs.exists?(category_id: @category.id)
+        @category.errors.add(:base, '请先移走文件夹内的资料和子文件夹')
+        raise ActiveRecord::RecordInvalid, @category
+      end
+      @category.destroy!
+    end
+    head :ok
+  end
+
+  def recycle_bin
+    return render_forbidden unless Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+
+    rows = Current.account.crm_knowledge_categories.discarded.includes(:discarded_by, :parent).order(discarded_at: :desc)
+    payload = rows.reject { |folder| folder.parent&.discarded_at }.map do |folder|
+      { id: folder.id, name: folder.name, discarded_at: folder.discarded_at, discarded_by_name: folder.discarded_by&.crm_display_name }
+    end
+    render json: { payload: payload }
+  end
+
+  def restore
+    return render_forbidden unless Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+    raise ActiveRecord::RecordNotFound if @category.discarded_at.nil?
+
+    Crm::KnowledgeTrash.restore_folder!(@category, current_user.id)
     head :ok
   end
 
@@ -52,7 +77,9 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   def fetch_category
-    @category = Current.account.crm_knowledge_categories.find(params[:id])
+    scope = Current.account.crm_knowledge_categories
+    scope = scope.kept unless action_name == 'restore'
+    @category = scope.find(params[:id])
   end
 
   def ensure_manageable

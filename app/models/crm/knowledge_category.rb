@@ -28,6 +28,9 @@
 #
 class Crm::KnowledgeCategory < ApplicationRecord
   belongs_to :account
+  belongs_to :discarded_by, class_name: 'User', optional: true
+  scope :kept, -> { where(discarded_at: nil) }
+  scope :discarded, -> { where.not(discarded_at: nil) }
   # 空=公司分类（管理员/负责人维护）；非空=个人分类（本人自建自管）。
   belongs_to :user, optional: true
   # 自嵌套：parent 为空=板块下顶层分类；非空=子分类。支持任意层级（像电脑文件夹逐级下钻）。
@@ -35,7 +38,29 @@ class Crm::KnowledgeCategory < ApplicationRecord
   has_many :children, class_name: 'Crm::KnowledgeCategory', foreign_key: :parent_id, dependent: :destroy, inverse_of: :parent
 
   # 名字仅在「同一父文件夹内」唯一：不同父/不同层可重名（与 DB 唯一索引一致）。
-  validates :name, presence: true, uniqueness: { scope: [:account_id, :user_id, :section_id, :parent_id] }
+  validates :name, presence: true
+  validates :name, uniqueness: { scope: [:account_id, :user_id, :section_id, :parent_id], conditions: -> { kept } },
+                   if: -> { discarded_at.nil? }
+
+  validate :valid_parent, if: :will_save_change_to_parent_id?
+
+  def valid_parent
+    return if parent_id.nil?
+
+    node = parent
+    if !node || node.discarded_at || node.account_id != account_id || node.user_id != user_id || node.section_id != section_id
+      errors.add(:parent_id, '目标文件夹与当前板块或归属不一致')
+      return
+    end
+    seen = Set.new([id].compact)
+    while node
+      unless seen.add?(node.id)
+        errors.add(:parent_id, '不能移动到自身或子文件夹')
+        break
+      end
+      node = node.parent
+    end
+  end
 
   scope :ordered, -> { order(:position, :id) }
   scope :company_scope, -> { where(user_id: nil) }

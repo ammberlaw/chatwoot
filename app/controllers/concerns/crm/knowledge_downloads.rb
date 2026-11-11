@@ -15,7 +15,7 @@ module Crm::KnowledgeDownloads
   private
 
   def downloadable_categories
-    scope = Current.account.crm_knowledge_categories
+    scope = Current.account.crm_knowledge_categories.kept
     scope = case params[:filter]
             when 'mine' then scope.personal_of(current_user.id)
             when 'company' then scope.company_scope

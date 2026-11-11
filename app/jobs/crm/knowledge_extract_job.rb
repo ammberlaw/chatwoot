@@ -16,16 +16,22 @@ class Crm::KnowledgeExtractJob < ApplicationJob
   # 少于这个字数当没抽到：PDF 里零星几个字符多半是页眉页脚，不是正文。
   MIN_USEFUL = 30
 
-  def perform(doc_id)
-    doc = Crm::KnowledgeDoc.find_by(id: doc_id)
+  def perform(doc_id, revision = nil)
+    doc = Crm::KnowledgeDoc.kept.find_by(id: doc_id)
     return if doc.nil?
 
+    revision ||= doc.extract_revision
+    return unless revision == doc.extract_revision
+
     texts, errors, skipped = collect(doc)
-    apply(doc, texts, errors, skipped)
+    doc.with_lock { apply(doc, texts, errors, skipped) if doc.discarded_at.nil? && doc.extract_revision == revision }
   rescue StandardError => e
     Rails.logger.error("[kb extract] doc=#{doc_id} 失败：#{e.class} #{e.message}")
-    doc&.update_columns(extract_state: 'failed', extract_error: "#{e.class}: #{e.message}".truncate(200), # rubocop:disable Rails/SkipsModelValidations
-                        extracted_at: Time.current)
+    doc&.with_lock do
+      if doc.extract_revision == revision && doc.discarded_at.nil?
+        doc.update_columns(extract_state: 'failed', extract_error: "#{e.class}: #{e.message}".truncate(200), extracted_at: Time.current)
+      end
+    end
   end
 
   private
@@ -69,7 +75,8 @@ class Crm::KnowledgeExtractJob < ApplicationJob
     state = if texts.any? then 'done'
             elsif errors.any? then 'failed'
             elsif skipped.positive? then 'skipped'
-            else 'empty'
+            else
+              'empty'
             end
     doc.update_columns( # rubocop:disable Rails/SkipsModelValidations
       extracted_text: texts.join("\n\n").truncate(MAX_CHARS).presence,
