@@ -3,14 +3,9 @@ import snakecaseKeys from 'snakecase-keys';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import { createStore } from 'dashboard/store/storeFactory';
 import { throwErrorMessage } from 'dashboard/store/utils/api';
+import { fetchCrmList } from './_crmStoreFactory';
 
 const camelize = data => camelcaseKeys(data || {}, { deep: true });
-
-const normalizeMeta = meta => ({
-  ...camelcaseKeys(meta || {}),
-  count: Number(meta?.count || 0),
-  currentPage: Number(meta?.current_page || meta?.currentPage || 1),
-});
 
 export const useCrmCustomersStore = createStore({
   name: 'crmCustomers',
@@ -20,18 +15,8 @@ export const useCrmCustomersStore = createStore({
     getCustomers: state => state.records,
   },
   actions: () => ({
-    async get(params = {}) {
-      this.setUIFlag({ fetchingList: true });
-      try {
-        const { data } = await CrmCustomerAPI.get(params);
-        this.records = camelize(data.payload);
-        this.meta = normalizeMeta(data.meta);
-        return this.records;
-      } catch (error) {
-        return throwErrorMessage(error);
-      } finally {
-        this.setUIFlag({ fetchingList: false });
-      }
+    get(params = {}) {
+      return fetchCrmList(this, () => CrmCustomerAPI.get(params));
     },
 
     async create(obj) {

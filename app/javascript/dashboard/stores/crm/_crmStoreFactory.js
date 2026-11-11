@@ -17,6 +17,30 @@ const normalizeMeta = meta => ({
   currentPage: Number(meta?.current_page || meta?.currentPage || 1),
 });
 
+// 不同列表视图共用同一份 records；旧请求的成功、错误和收尾都不能覆盖新请求。
+const latestListRequests = new WeakMap();
+export const fetchCrmList = async (store, load) => {
+  const request = {};
+  latestListRequests.set(store, request);
+  store.setUIFlag({ fetchingList: true });
+  try {
+    const { data } = await load();
+    if (latestListRequests.get(store) !== request) return store.records;
+
+    store.records = camelize(data.payload);
+    store.meta = normalizeMeta(data.meta);
+    return store.records;
+  } catch (error) {
+    if (latestListRequests.get(store) !== request) return store.records;
+
+    return throwErrorMessage(error);
+  } finally {
+    if (latestListRequests.get(store) === request) {
+      store.setUIFlag({ fetchingList: false });
+    }
+  }
+};
+
 // CRM 资源通用 Pinia store：list/create/update/delete，payload 按 paramKey 包装。
 export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
   createStore({
@@ -27,48 +51,18 @@ export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
       getRecords: state => state.records,
     },
     actions: () => ({
-      async get(params = {}) {
-        this.setUIFlag({ fetchingList: true });
-        try {
-          const { data } = await API.get(params);
-          this.records = camelize(data.payload);
-          this.meta = normalizeMeta(data.meta);
-          return this.records;
-        } catch (error) {
-          return throwErrorMessage(error);
-        } finally {
-          this.setUIFlag({ fetchingList: false });
-        }
+      get(params = {}) {
+        return fetchCrmList(this, () => API.get(params));
       },
 
       // 「分发给我的」列表：走 API.distributed（仅邮件 store 用）；载入格式与 get 一致。
-      async getDistributed(params = {}) {
-        this.setUIFlag({ fetchingList: true });
-        try {
-          const { data } = await API.distributed(params);
-          this.records = camelize(data.payload);
-          this.meta = normalizeMeta(data.meta);
-          return this.records;
-        } catch (error) {
-          return throwErrorMessage(error);
-        } finally {
-          this.setUIFlag({ fetchingList: false });
-        }
+      getDistributed(params = {}) {
+        return fetchCrmList(this, () => API.distributed(params));
       },
 
       // 「我分发的」列表：走 API.distributedByMe（主管/管理员，仅邮件 store 用）。
-      async getDistributedByMe(params = {}) {
-        this.setUIFlag({ fetchingList: true });
-        try {
-          const { data } = await API.distributedByMe(params);
-          this.records = camelize(data.payload);
-          this.meta = normalizeMeta(data.meta);
-          return this.records;
-        } catch (error) {
-          return throwErrorMessage(error);
-        } finally {
-          this.setUIFlag({ fetchingList: false });
-        }
+      getDistributedByMe(params = {}) {
+        return fetchCrmList(this, () => API.distributedByMe(params));
       },
 
       async create(obj) {

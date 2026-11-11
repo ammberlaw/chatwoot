@@ -273,9 +273,13 @@ const stats = ref({
   openOpportunities: 0,
   withOrders: 0,
 });
-const fetchStats = async () => {
+let statsRequestId = 0;
+const fetchStats = async params => {
+  statsRequestId += 1;
+  const requestId = statsRequestId;
   try {
-    const { data } = await CustomerAPI.stats(currentFilterParams());
+    const { data } = await CustomerAPI.stats(params);
+    if (requestId !== statsRequestId) return;
     stats.value = {
       customers: data.customers || 0,
       newThisMonth: data.new_this_month || 0,
@@ -326,11 +330,12 @@ const statCards = computed(() => [
 ]);
 
 const fetchCustomers = () => {
-  fetchStats();
+  const filters = currentFilterParams();
+  fetchStats(filters);
   return customersStore.get({
     page: currentPage.value,
     per_page: pageSize.value,
-    ...currentFilterParams(),
+    ...filters,
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
   });
@@ -707,12 +712,16 @@ const openEditDialog = record => createDialogRef.value?.open(record);
 
 // 右侧详情面板：点行选中展开，编辑仍走弹窗。
 const selectedCustomer = ref(null);
+let panelSelectionId = 0;
+const isSelectedCustomer = (id, selectionId) =>
+  selectedCustomer.value?.id === id && panelSelectionId === selectionId;
 
 // 面板内「下次跟进 + 加入日程」——不用点进详情页。
 const nextDate = ref('');
 const nextTime = ref('09:00');
 const addToSchedule = ref(true);
 const savingNext = ref(false);
+let nextSaveRequestId = 0;
 const pad2 = n => String(n).padStart(2, '0');
 const timeOptions = (() => {
   const out = [];
@@ -724,9 +733,9 @@ const timeOptions = (() => {
   return out;
 })();
 watch(selectedCustomer, c => {
-  if (c?.next_follow_up_at) {
-    nextDate.value = c.next_follow_up_at.slice(0, 10);
-    nextTime.value = c.next_follow_up_at.slice(11, 16) || '09:00';
+  if (c?.nextFollowUpAt) {
+    nextDate.value = c.nextFollowUpAt.slice(0, 10);
+    nextTime.value = c.nextFollowUpAt.slice(11, 16) || '09:00';
   } else {
     nextDate.value = '';
     nextTime.value = '09:00';
@@ -737,21 +746,34 @@ const saveNextFollowUp = async () => {
     useAlert('请选择下次跟进日期');
     return;
   }
+  const customer = selectedCustomer.value;
+  const selectionId = panelSelectionId;
+  nextSaveRequestId += 1;
+  const requestId = nextSaveRequestId;
+  const shouldAddToSchedule = addToSchedule.value;
   const startAt = `${nextDate.value}T${nextTime.value}:00`;
   savingNext.value = true;
   try {
     await axios.post(
-      `${crmBase()}/customers/${selectedCustomer.value.id}/schedule_follow_up`,
-      { next_follow_up_at: startAt, add_to_schedule: addToSchedule.value }
+      `${crmBase()}/customers/${customer.id}/schedule_follow_up`,
+      { next_follow_up_at: startAt, add_to_schedule: shouldAddToSchedule }
     );
-    selectedCustomer.value.next_follow_up_at = startAt;
+    customer.nextFollowUpAt = startAt;
+    if (!isSelectedCustomer(customer.id, selectionId)) return;
+
+    selectedCustomer.value.nextFollowUpAt = startAt;
     useAlert(
-      addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存'
+      shouldAddToSchedule ? '下次跟进已保存并加入日程' : '下次跟进已保存'
     );
   } catch {
-    useAlert('保存失败');
+    if (isSelectedCustomer(customer.id, selectionId)) useAlert('保存失败');
   } finally {
-    savingNext.value = false;
+    if (
+      requestId === nextSaveRequestId &&
+      isSelectedCustomer(customer.id, selectionId)
+    ) {
+      savingNext.value = false;
+    }
   }
 };
 const PANEL_TABS = [
@@ -810,35 +832,48 @@ const auditMessage = a => {
 };
 const newNote = ref('');
 const tabLoading = ref(false);
+let tabRequestId = 0;
+const panelLoads = new Map();
 
 const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 
-const fetchNotes = async () => {
-  const { data } = await axios.get(`${crmBase()}/follow_up_notes`, {
-    params: { customer_id: selectedCustomer.value.id },
-  });
-  panelNotes.value = data.payload || [];
+// 同一客户可重复加载、也可切走后再回来，分别核对请求和选中上下文。
+const fetchPanelRecords = async (target, load) => {
+  const id = selectedCustomer.value?.id;
+  if (!id) return;
+
+  const selectionId = panelSelectionId;
+  const request = {};
+  panelLoads.set(target, request);
+  const isCurrent = () =>
+    isSelectedCustomer(id, selectionId) && panelLoads.get(target) === request;
+  try {
+    const { data } = await load(id);
+    if (isCurrent()) target.value = data.payload || [];
+  } catch (error) {
+    if (isCurrent()) throw error;
+  }
 };
-const fetchEmails = async () => {
-  const { data } = await axios.get(`${crmBase()}/emails`, {
-    params: { customer_id: selectedCustomer.value.id },
-  });
-  panelEmails.value = data.payload || [];
-};
-const fetchAudits = async () => {
-  const { data } = await axios.get(
-    `${crmBase()}/customers/${selectedCustomer.value.id}/audits`
+const fetchNotes = () =>
+  fetchPanelRecords(panelNotes, id =>
+    axios.get(`${crmBase()}/follow_up_notes`, { params: { customer_id: id } })
   );
-  panelAudits.value = data.payload || [];
-};
-const fetchContacts = async () => {
-  const { data } = await axios.get(`${crmBase()}/contacts`, {
-    params: { customer_id: selectedCustomer.value.id },
-  });
-  panelContacts.value = data.payload || [];
-};
+const fetchEmails = () =>
+  fetchPanelRecords(panelEmails, id =>
+    axios.get(`${crmBase()}/emails`, { params: { customer_id: id } })
+  );
+const fetchAudits = () =>
+  fetchPanelRecords(panelAudits, id =>
+    axios.get(`${crmBase()}/customers/${id}/audits`)
+  );
+const fetchContacts = () =>
+  fetchPanelRecords(panelContacts, id =>
+    axios.get(`${crmBase()}/contacts`, { params: { customer_id: id } })
+  );
 
 const setTab = async key => {
+  tabRequestId += 1;
+  const requestId = tabRequestId;
   activeTab.value = key;
   if (!selectedCustomer.value) return;
   tabLoading.value = true;
@@ -849,11 +884,21 @@ const setTab = async key => {
   } catch {
     /* 忽略：面板内容加载失败留空 */
   } finally {
-    tabLoading.value = false;
+    if (requestId === tabRequestId) tabLoading.value = false;
   }
 };
 
+const invalidatePanelRequests = () => {
+  panelSelectionId += 1;
+  tabRequestId += 1;
+  nextSaveRequestId += 1;
+  panelLoads.clear();
+  tabLoading.value = false;
+  savingNext.value = false;
+};
 const selectCustomer = customer => {
+  invalidatePanelRequests();
+  const selectionId = panelSelectionId;
   selectedCustomer.value = customer;
   activeTab.value = 'fields';
   panelNotes.value = [];
@@ -863,10 +908,11 @@ const selectCustomer = customer => {
   newNote.value = '';
   // 字段是默认 tab，其他联系人随详情直接展示，故进面板即拉取。
   fetchContacts().catch(() => {
-    panelContacts.value = [];
+    if (isSelectedCustomer(customer.id, selectionId)) panelContacts.value = [];
   });
 };
 const closePanel = () => {
+  invalidatePanelRequests();
   selectedCustomer.value = null;
 };
 // 跳转到客户全页详情。
@@ -881,21 +927,30 @@ const openDetailPage = () => {
 const addNote = async () => {
   const title = newNote.value.trim();
   if (!title || !selectedCustomer.value) return;
+  const customerId = selectedCustomer.value.id;
+  const selectionId = panelSelectionId;
   try {
     await axios.post(`${crmBase()}/follow_up_notes`, {
-      note: { title, crm_customer_id: selectedCustomer.value.id },
+      note: { title, crm_customer_id: customerId },
     });
+    if (!isSelectedCustomer(customerId, selectionId)) return;
+
     newNote.value = '';
     useAlert('跟进已保存');
-    fetchNotes();
+    fetchNotes().catch(() => {});
   } catch {
-    useAlert('跟进保存失败，请重试');
+    if (isSelectedCustomer(customerId, selectionId)) {
+      useAlert('跟进保存失败，请重试');
+    }
   }
 };
 // 文件上传/删除后重取列表并重新定位选中客户（保证 files 为最新 camelCase）。
-const resyncSelected = async () => {
-  const id = selectedCustomer.value?.id;
+const resyncSelected = async (id, selectionId) => {
+  if (!isSelectedCustomer(id, selectionId)) return;
+
   await fetchCustomers();
+  if (!isSelectedCustomer(id, selectionId)) return;
+
   const found = customers.value.find(c => c.id === id);
   if (found) selectedCustomer.value = found;
 };
@@ -903,25 +958,35 @@ const uploadFiles = async event => {
   const files = Array.from(event.target.files || []);
   event.target.value = '';
   if (!files.length || !selectedCustomer.value) return;
+  const customerId = selectedCustomer.value.id;
+  const selectionId = panelSelectionId;
+  tabRequestId += 1;
+  const requestId = tabRequestId;
   const fd = new FormData();
   files.forEach(f => fd.append('files[]', f));
   tabLoading.value = true;
   try {
-    await axios.post(
-      `${crmBase()}/customers/${selectedCustomer.value.id}/attach`,
-      fd,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    await resyncSelected();
+    await axios.post(`${crmBase()}/customers/${customerId}/attach`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    await resyncSelected(customerId, selectionId);
+  } catch (error) {
+    if (isSelectedCustomer(customerId, selectionId)) throw error;
   } finally {
-    tabLoading.value = false;
+    if (requestId === tabRequestId) tabLoading.value = false;
   }
 };
 const removeFile = async fileId => {
-  await axios.delete(
-    `${crmBase()}/customers/${selectedCustomer.value.id}/attach/${fileId}`
-  );
-  resyncSelected();
+  const customerId = selectedCustomer.value?.id;
+  if (!customerId) return;
+
+  const selectionId = panelSelectionId;
+  try {
+    await axios.delete(`${crmBase()}/customers/${customerId}/attach/${fileId}`);
+    await resyncSelected(customerId, selectionId);
+  } catch (error) {
+    if (isSelectedCustomer(customerId, selectionId)) throw error;
+  }
 };
 
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
@@ -941,7 +1006,9 @@ const updateCustomer = async customer => {
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.CUSTOMERS.EDIT.SUCCESS'));
     const updated = customers.value.find(x => x.id === customer.id);
-    if (updated) selectedCustomer.value = updated;
+    if (updated && selectedCustomer.value?.id === customer.id) {
+      selectedCustomer.value = updated;
+    }
   } catch {
     useAlert(t('CRM.CUSTOMERS.EDIT.ERROR'));
   }
@@ -1521,7 +1588,12 @@ onMounted(() => {
     now.value = new Date();
   }, 60000);
 });
-onBeforeUnmount(() => clearInterval(clockTimer));
+onBeforeUnmount(() => {
+  clearInterval(clockTimer);
+  clearTimeout(searchTimer);
+  statsRequestId += 1;
+  invalidatePanelRequests();
+});
 watch(
   () => route.query.filter,
   value => {
