@@ -276,6 +276,7 @@ Rails.application.routes.draw do
             post 'whatsapp_web/:inbox_id/start_chat', to: 'whatsapp_web#start_chat'
             get 'whatsapp_web/:inbox_id/status', to: 'whatsapp_web#status'
             delete 'whatsapp_web/:inbox_id', to: 'whatsapp_web#logout'
+            delete 'whatsapp_web/:inbox_id/remove', to: 'whatsapp_web#destroy'
             resources :emails do
               collection do
                 get :counts
@@ -320,6 +321,7 @@ Rails.application.routes.draw do
             resources :follow_up_tasks
             resources :knowledge_docs do
               collection do
+                post :download
                 get :image_library
                 get :recycle_bin
                 post :purge_all

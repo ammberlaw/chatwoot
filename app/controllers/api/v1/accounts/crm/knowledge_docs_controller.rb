@@ -1,4 +1,5 @@
 class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::BaseController
+  include Crm::KnowledgeDownloads
   before_action :check_authorization
   before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach, :audits]
   before_action :ensure_doc_manageable, only: [:update, :destroy, :attach, :detach]

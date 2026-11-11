@@ -12,6 +12,10 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  def download?
+    index?
+  end
+
   def create?
     true
   end

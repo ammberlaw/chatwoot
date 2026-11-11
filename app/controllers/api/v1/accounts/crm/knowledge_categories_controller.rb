@@ -11,7 +11,7 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
               scope.personal_of(current_user.id)
             elsif (params[:library] || params.dig(:category, :library)) == 'GENERAL'
               # 文档中心：传 section_id 则按板块过滤；不传则全部公司文件夹（「全公司文档」视图）
-              s = scope.company_scope
+              s = visible_general_categories(scope.company_scope)
               params[:section_id].present? ? s.for_section(params[:section_id]) : s
             else
               scope.company_scope.for_section(scoped_section_id)
@@ -42,6 +42,14 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   private
+
+  # 文件夹列表与文档下载采用同一板块门禁，避免「全选」选中不可下载的空壳目录。
+  def visible_general_categories(scope)
+    return scope if Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+
+    visible = Crm::DocSection.visible_ids_for(Current.account, current_user.id)
+    scope.where(section_id: [nil] + visible + managed_section_ids)
+  end
 
   def fetch_category
     @category = Current.account.crm_knowledge_categories.find(params[:id])

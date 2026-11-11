@@ -61,6 +61,8 @@ gem 'image_processing'
 ##-- 读取 PI 文件（销售订单自动填单）：pdf-reader 抽 PDF 文字，roo 读 Excel 单元格 --##
 gem 'pdf-reader', '~> 2.12'
 gem 'roo', '~> 2.10'
+# 文档中心：非 seek 的 ZIP 流，大附件无需落盘或整体读入内存。
+gem 'zip_kit', '~> 6.4'
 
 ##-- for actionmailbox --##
 gem 'aws-actionmailbox-ses', '~> 0'

@@ -1057,6 +1057,7 @@ GEM
       activesupport (>= 3.2)
       tzinfo
     zeitwerk (2.7.5)
+    zip_kit (6.4.1)
 
 PLATFORMS
   arm64-darwin-20
@@ -1224,6 +1225,7 @@ DEPENDENCIES
   webmock
   wisper (= 2.0.0)
   working_hours
+  zip_kit (~> 6.4)
 
 RUBY VERSION
    ruby 3.4.4p34

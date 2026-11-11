@@ -7,8 +7,10 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useRouter } from 'vue-router';
+import { useStore } from 'dashboard/composables/store';
 
 const router = useRouter();
+const store = useStore();
 // 经典灰下主行动用 amber(金黄)，与其它 CRM 页面一致。
 const isClassic = ref(isClassicTheme());
 const goColor = computed(() => (isClassic.value ? 'amber' : 'teal'));
@@ -20,6 +22,7 @@ const L = {
   remove: '移除这个号',
   removeConfirm: '这个号还没扫码连上，移除它？以后要用再点「添加号码」重新扫。',
   removeDone: '已移除',
+  removeError: '移除失败，请稍后重试',
   scanHint: '用手机 WhatsApp → 设置 → 已关联的设备 → 关联新设备,扫描二维码',
   waiting: '正在生成二维码…',
   connecting: '连接中…',
@@ -147,15 +150,18 @@ const logout = async card => {
 // 还没扫码连上的卡片也得有个退出口。
 // 之前只有「已连接」的卡片有「解绑」，卡在「等待扫码」的那张既扫不了也关不掉，
 // 侧栏就一直显示 WhatsApp (2)，其中一个点进去什么都没有（用户 2026-11-10）。
-// 复用同一个 disconnect 接口——后端那边就是解绑，只是这里的说法该是「移除」。
+// 移除使用独立接口；解绑接口刻意保留收件箱和会话，不能用来移除空号。
 const removeCard = async card => {
   // eslint-disable-next-line no-alert
   if (!window.confirm(L.removeConfirm)) return;
   card.busy = true;
   try {
-    await WhatsappWebAPI.disconnect(card.inbox_id);
+    await WhatsappWebAPI.remove(card.inbox_id);
     numbers.value = numbers.value.filter(n => n.inbox_id !== card.inbox_id);
+    await store.dispatch('inboxes/get');
     useAlert(L.removeDone);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || L.removeError);
   } finally {
     card.busy = false;
   }
@@ -253,9 +259,9 @@ onBeforeUnmount(stopPolling);
           <!-- 没连上的卡片给个关闭口。已连接的不给——那个要走下面的「解绑」，
                带确认文案，免得手滑点掉一个正在收发消息的号。 -->
           <button
-            v-if="card.status !== 'open'"
+            v-if="card.status !== 'open' && !card.phone_number"
             type="button"
-            class="reset-base ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded-full text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-8"
+            class="reset-base ml-auto inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-n-weak text-n-slate-11 hover:border-n-ruby-8 hover:bg-n-ruby-3 hover:text-n-ruby-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-slate-8"
             :title="L.remove"
             :aria-label="L.remove"
             :disabled="card.busy"

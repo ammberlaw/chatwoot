@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
+import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 import { useDocFolderStyle } from 'dashboard/composables/useDocFolderStyle';
 import CrmFolderStylePicker from 'dashboard/components-next/CRM/CrmFolderStylePicker.vue';
 
@@ -381,6 +382,50 @@ const currentDocs = computed(() => {
   if (n.type === 'category')
     return records.value.filter(d => d.categoryId === n.id);
   return [];
+});
+
+const checkedDocIds = ref([]);
+const checkedCategoryIds = ref([]);
+const checkedCount = computed(
+  () => checkedDocIds.value.length + checkedCategoryIds.value.length
+);
+const selectableFolders = computed(() =>
+  isSearching.value ? [] : currentFolders.value
+);
+const allChecked = computed(
+  () =>
+    currentDocs.value.length + selectableFolders.value.length > 0 &&
+    currentDocs.value.every(d => checkedDocIds.value.includes(d.id)) &&
+    selectableFolders.value.every(f => checkedCategoryIds.value.includes(f.id))
+);
+const clearSelection = () => {
+  checkedDocIds.value = [];
+  checkedCategoryIds.value = [];
+};
+const toggleAllChecked = () => {
+  if (allChecked.value) {
+    clearSelection();
+  } else {
+    checkedDocIds.value = currentDocs.value.map(d => d.id);
+    checkedCategoryIds.value = selectableFolders.value.map(f => f.id);
+  }
+};
+const downloadSelection = (categoryIds = null) => {
+  KnowledgeDocsAPI.download({
+    library: currentLibrary.value,
+    filter: activeFilter.value,
+    section_id: activeSectionId.value,
+    docIds: categoryIds ? [] : checkedDocIds.value,
+    categoryIds: categoryIds || checkedCategoryIds.value,
+  });
+};
+watch(
+  [currentNode, currentLibrary, activeSectionId, activeFilter, searchQuery],
+  clearSelection
+);
+watch(records, () => {
+  const ids = new Set(records.value.map(d => d.id));
+  checkedDocIds.value = checkedDocIds.value.filter(id => ids.has(id));
 });
 
 // 面包屑
@@ -1346,6 +1391,54 @@ watch(
             class="hidden"
             @change="onDirectFiles"
           />
+          <div
+            v-if="
+              currentDocs.length || currentFolders.length || currentCategoryId
+            "
+            class="flex flex-wrap items-center gap-3 mb-3 text-label-small"
+          >
+            <label
+              class="inline-flex items-center gap-2 cursor-pointer text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                class="reset-base size-4 accent-current"
+                :checked="allChecked"
+                :indeterminate="checkedCount > 0 && !allChecked"
+                @change="toggleAllChecked"
+              />
+              {{ t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECT_ALL') }}
+            </label>
+            <Button
+              v-if="checkedCount"
+              :label="
+                t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECTED', {
+                  count: checkedCount,
+                })
+              "
+              icon="i-lucide-download"
+              size="sm"
+              variant="outline"
+              @click="downloadSelection()"
+            />
+            <button
+              v-if="checkedCount"
+              type="button"
+              class="text-n-slate-11 hover:text-n-slate-12"
+              @click="clearSelection"
+            >
+              {{ t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.CLEAR') }}
+            </button>
+            <Button
+              v-if="currentCategoryId && !isSearching"
+              class="ml-auto"
+              :label="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER')"
+              icon="i-lucide-download"
+              size="sm"
+              variant="ghost"
+              @click="downloadSelection([currentCategoryId])"
+            />
+          </div>
           <!-- 空态 -->
           <div
             v-if="
@@ -1432,6 +1525,31 @@ watch(
                 @mouseenter="hoveredFolderId = folder.id"
                 @mouseleave="hoveredFolderId = null"
               >
+                <input
+                  v-model="checkedCategoryIds"
+                  type="checkbox"
+                  :value="folder.id"
+                  :aria-label="
+                    t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECT_ITEM', {
+                      name: folder.name,
+                    })
+                  "
+                  class="reset-base absolute left-8 top-0 z-20 size-4 cursor-pointer accent-current"
+                  @click.stop
+                />
+                <button
+                  type="button"
+                  class="absolute right-0 top-8 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 shadow-sm hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8"
+                  :title="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER')"
+                  :aria-label="
+                    t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER_NAME', {
+                      name: folder.name,
+                    })
+                  "
+                  @click.stop="downloadSelection([folder.id])"
+                >
+                  <span class="i-lucide-download size-4" aria-hidden="true" />
+                </button>
                 <!-- 重命名内联输入 -->
                 <input
                   v-if="editingId === folder.id"
@@ -1583,6 +1701,18 @@ watch(
                 @mouseenter="hoveredDocId = doc.id"
                 @mouseleave="hoveredDocId = null"
               >
+                <input
+                  v-model="checkedDocIds"
+                  type="checkbox"
+                  :value="doc.id"
+                  :aria-label="
+                    t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECT_ITEM', {
+                      name: doc.name,
+                    })
+                  "
+                  class="reset-base absolute left-0 top-0 z-20 size-4 cursor-pointer accent-current"
+                  @click.stop
+                />
                 <button
                   type="button"
                   class="flex flex-col items-center w-full gap-1.5 px-1 py-2 text-center transition-colors rounded-xl hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"

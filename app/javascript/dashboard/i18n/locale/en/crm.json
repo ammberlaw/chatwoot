@@ -659,6 +659,14 @@
       }
     },
     "KNOWLEDGE_DOCS": {
+      "DOWNLOAD": {
+        "SELECT_ALL": "全选本层",
+        "SELECTED": "下载选中（{count} 项）",
+        "CLEAR": "取消选择",
+        "FOLDER": "下载整个文件夹",
+        "FOLDER_NAME": "下载文件夹：{name}（含子文件夹）",
+        "SELECT_ITEM": "选择：{name}"
+      },
       "FOLDER_STYLE": {
         "TITLE": "文件夹样式",
         "DESCRIPTION": "设置默认样式，单独设置过的文件夹会保留自己的样式，仅对自己生效。",

@@ -29,6 +29,10 @@ class WhatsappWebAPI extends ApiClient {
     return axios.delete(`${this.url}/${inboxId}`);
   }
 
+  remove(inboxId) {
+    return axios.delete(`${this.url}/${inboxId}/remove`);
+  }
+
   // 输入手机号直接开聊：后端先查该号是否注册了 WhatsApp，再建/复用会话。
   startChat(inboxId, phone, name) {
     return axios.post(`${this.url}/${inboxId}/start_chat`, { phone, name });

@@ -66,7 +66,26 @@ class Api::V1::Accounts::Crm::WhatsappWebController < Api::V1::Accounts::Crm::Ba
     render json: serialize(inbox, { 'status' => 'disconnected' })
   end
 
+  # 只移除从未绑定号码、没有历史数据的空收件箱。解绑仍保留历史。
+  def destroy
+    inbox = target_inbox
+    return head :not_found unless inbox
+
+    return render json: { error: '这个号已有绑定或历史记录，请使用「解绑」保留历史。' }, status: :unprocessable_entity unless removable_inbox?(inbox)
+    return render json: { error: '这个号已连接，请先解绑。' }, status: :unprocessable_entity if bridge.status(inbox.id)['status'] == 'open'
+
+    bridge.logout(inbox.id)
+    inbox.destroy!
+    head :ok
+  rescue Whatsapp::BaileysBridgeClient::BridgeError
+    render json: { error: '暂时无法连接 WhatsApp 服务，请稍后重试移除。' }, status: :unprocessable_entity
+  end
+
   private
+
+  def removable_inbox?(inbox)
+    inbox.channel.phone_number.blank? && [inbox.conversations, inbox.contact_inboxes, inbox.messages].none?(&:exists?)
+  end
 
   def bridge
     @bridge ||= Whatsapp::BaileysBridgeClient.new
