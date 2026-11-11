@@ -10,6 +10,7 @@
 // 返修跟踪留着（这页本来的主角）：退出去多久、回来多少、还有几件在外面；
 // **2026-10-29 起登记返回会真的把货入回库**，不再是只改数字的台账。
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -29,9 +30,11 @@ import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import MesSupplierReturnPrintSheet from 'dashboard/components-next/mes/MesSupplierReturnPrintSheet.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import { printElement } from 'dashboard/helper/printHelper';
 
 const store = useMesSupplierReturnsStore();
+const { t } = useI18n();
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
 const canWrite = computed(() => mesCan('purchase') || mesCan('stock'));
@@ -444,6 +447,77 @@ const removeRecord = async record => {
   }
 };
 
+// 列表已经带完整物料明细，只读查看不触发退出或登记返回。
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const detailLabel = key => t(`CRM.SUPPLIER_RETURN_DETAILS.${key}`);
+const formatDetailQty = value =>
+  Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 3 });
+const formatDetailAmount = value =>
+  (Number(value || 0) / 1e6).toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+const openView = record => {
+  viewing.value = record;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const r = viewing.value;
+  if (!r) return [];
+  return [
+    ['SUPPLIER', r.supplierName],
+    ['STATUS', r.statusLabel],
+    ['RETURN_KIND', r.returnKindLabel],
+    ['WAREHOUSE', r.warehouseName],
+    ['PURCHASE_ORDER', r.purchaseOrderNo],
+    ['SOURCE_ENTRY', r.sourceEntryNo],
+    ['OUT_ENTRY', r.outEntryNo],
+    ['PRODUCTION_ORDER', r.productionOrderNo],
+    ['SENT_ON', r.sentOn],
+    ['RETURNED_ON', r.returnedOn],
+    ['OWNER', r.ownerName],
+    ['TOTAL_AMOUNT', formatDetailAmount(r.totalAmountMicros)],
+    ['REASON', r.reason],
+    ['REMARK', r.remark],
+  ].map(([key, value]) => ({ label: detailLabel(key), value }));
+});
+const viewColumns = computed(() =>
+  [
+    ['MATERIAL_CODE', 'productSku'],
+    ['MATERIAL_NAME', 'productName'],
+    ['SPECIFICATION', 'specification', 'wrap'],
+    ['QTY', 'qty', 'right'],
+    ['RETURNED_QTY', 'returnedQty', 'right'],
+    ['OUTSTANDING_QTY', 'outstandingQty', 'right'],
+    ['UNIT', 'unit'],
+    ['UNIT_PRICE', 'unitPrice', 'right'],
+    ['AMOUNT', 'amount', 'right'],
+    ['REMARK', 'remark', 'wrap'],
+  ].map(([label, key, layout]) => ({
+    label: detailLabel(label),
+    key,
+    align: layout === 'right' ? 'right' : undefined,
+    wrap: layout === 'wrap',
+  }))
+);
+const viewItems = computed(() =>
+  (viewing.value?.items || []).map(item => ({
+    ...item,
+    qty: formatDetailQty(item.qty),
+    returnedQty:
+      viewing.value.returnKind === 'REFUND'
+        ? detailLabel('NOT_APPLICABLE')
+        : formatDetailQty(item.returnedQty),
+    outstandingQty:
+      viewing.value.returnKind === 'REFUND'
+        ? detailLabel('NOT_APPLICABLE')
+        : formatDetailQty(item.outstandingQty),
+    unitPrice: formatDetailAmount(item.unitPriceMicros),
+    amount: formatDetailAmount(item.amountMicros),
+  }))
+);
+
 // ── 打印 ──
 // 供应商那边要一张纸跟着货走（退了什么、多少钱、对应哪张采购单），仓管和财务各留一份。
 const printing = ref(null);
@@ -619,7 +693,13 @@ onMounted(() => {
             class="border-b border-n-weak/60 hover:bg-n-alpha-1"
           >
             <td class="px-3 py-2 whitespace-nowrap text-n-slate-12">
-              {{ r.returnNo }}
+              <button
+                type="button"
+                class="reset-base rounded-sm text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-slate-9"
+                @click="openView(r)"
+              >
+                {{ r.returnNo }}
+              </button>
             </td>
             <td
               class="px-3 py-2 max-w-[13rem] truncate text-n-slate-11"
@@ -685,6 +765,13 @@ onMounted(() => {
                 class="flex items-center justify-end gap-1 whitespace-nowrap"
               >
                 <Button
+                  :label="detailLabel('VIEW')"
+                  variant="ghost"
+                  color="slate"
+                  size="xs"
+                  @click="openView(r)"
+                />
+                <Button
                   v-if="canWrite && !r.sentOn"
                   label="退出"
                   color="iris"
@@ -738,6 +825,33 @@ onMounted(() => {
       :items-per-page="ITEMS_PER_PAGE"
       @update:current-page="onPage"
     />
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      width="full"
+      :title="
+        t('CRM.SUPPLIER_RETURN_DETAILS.TITLE', {
+          no: viewing?.returnNo || '',
+        })
+      "
+      :fields="viewFields"
+      :items-title="detailLabel('ITEMS')"
+      :item-columns="viewColumns"
+      :items="viewItems"
+      hide-print
+      :brand-header="false"
+    >
+      <template #headerActions>
+        <Button
+          v-if="viewing"
+          :label="detailLabel('PRINT')"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="printReturn(viewing)"
+        />
+      </template>
+    </MesViewDialog>
 
     <!-- 新建 -->
     <Dialog
