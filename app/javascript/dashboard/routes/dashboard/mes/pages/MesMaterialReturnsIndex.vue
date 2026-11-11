@@ -409,12 +409,11 @@ onMounted(() => {
       <!-- 同采购退料：w-max 按内容撑开（写 w-full 的话列一多中文会被逐字折成竖排），
            min-w-full 保证数据少时也铺满。弹窗里那张明细表不改——它在定宽容器里，列就该铺满。 -->
       <table class="w-max min-w-full text-sm">
-        <!-- 表头白底吸顶，与原料入库/销售订单一致。原来写的是 bg-n-alpha-1 灰底块，
-             全站只有这一页是灰条（2026-10-31 反馈「这个 ui 设计怎么和其它板块的不一样」）。 -->
-        <thead
-          class="text-left text-n-slate-11 [&>tr>th]:sticky [&>tr>th]:top-0 [&>tr>th]:z-10 [&>tr>th]:bg-n-solid-1 [&>tr>th]:border-b [&>tr>th]:border-n-weak"
-        >
-          <tr>
+        <!-- 表头沿用采购退料的小字号、灰字白底和细分隔线，正文保持原有字号。 -->
+        <thead class="text-label-small text-n-slate-11">
+          <tr
+            class="text-left [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+          >
             <th class="px-3 py-2 font-medium whitespace-nowrap">
               单号
               <MesColumnFilter
