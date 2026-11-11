@@ -39,6 +39,7 @@ class Mes::ProductionRecord < ApplicationRecord
 
   before_validation :inherit_account
   before_validation :stamp_recorded_at, on: :create
+  before_create :lock_and_recheck_order!
   after_create :apply_to_production_order
   after_destroy :revert_from_production_order
 
@@ -57,6 +58,14 @@ class Mes::ProductionRecord < ApplicationRecord
   def returnable? = true
 
   private
+
+  # save 的事务持有订单锁直至提交，重新校验和累加产量不能被另一条报工穿插。
+  def lock_and_recheck_order!
+    production_order.lock!
+    within_order_remaining
+    enforce_stage_prerequisite
+    raise ActiveRecord::RecordInvalid, self if errors.any?
+  end
 
   def inherit_account
     self.account_id ||= production_order&.account_id

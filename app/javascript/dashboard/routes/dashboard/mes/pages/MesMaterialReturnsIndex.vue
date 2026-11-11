@@ -9,7 +9,14 @@
 // · 方向反过来：退回哪个仓（to_warehouse_id），不是从哪个仓领（from_warehouse_id）；
 // · 可退的量有上限：这张工单**已领 − 已退**。按 BOM 用量算没有意义——
 //   退的是实际领出去那批，领了 100 退 120 是账对不上，不是省料。
-import { ref, computed, reactive, onMounted, watch } from 'vue';
+import {
+  ref,
+  computed,
+  reactive,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
 /* global axios */
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -151,9 +158,27 @@ const orderOptions = computed(() => [
 // 拿它算上限会让人退出一个仓库里根本没有的数。
 const issuedRows = ref([]);
 const loadingRows = ref(false);
+// ── 建单 ──
+const dialogRef = ref(null);
+const editId = ref(null);
+const form = reactive({
+  productionOrderId: '',
+  warehouseId: '',
+  remark: '',
+  rows: [],
+});
+const { isDirty, markPristine } = useDirtyGuard(() => form);
+
+let rowsRequestId = 0;
 const loadIssued = async orderId => {
+  rowsRequestId += 1;
+  const requestId = rowsRequestId;
+  loadingRows.value = false;
   issuedRows.value = [];
-  if (!orderId) return;
+  if (!orderId) {
+    loadingRows.value = false;
+    return false;
+  }
 
   loadingRows.value = true;
   try {
@@ -188,24 +213,22 @@ const loadIssued = async orderId => {
       });
     walk(issued.data?.payload, 1);
     walk(returned.data?.payload, -1);
+    if (
+      requestId !== rowsRequestId ||
+      String(form.productionOrderId) !== String(orderId)
+    )
+      return false;
     issuedRows.value = [...tally.values()].filter(
       r => r.issued - r.returned > 0
     );
+    return requestId;
+  } catch (error) {
+    if (requestId === rowsRequestId) useAlert(error.message);
+    return false;
   } finally {
-    loadingRows.value = false;
+    if (requestId === rowsRequestId) loadingRows.value = false;
   }
 };
-
-// ── 建单 ──
-const dialogRef = ref(null);
-const editId = ref(null);
-const form = reactive({
-  productionOrderId: '',
-  warehouseId: '',
-  remark: '',
-  rows: [],
-});
-const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const warehouseOptions = computed(() =>
   (warehousesStore.getRecords || []).map(w => ({
@@ -235,12 +258,22 @@ const rowError = row => {
 };
 const invalid = computed(
   () =>
+    loadingRows.value ||
     !form.warehouseId ||
     !picked.value.length ||
     form.rows.some(r => rowError(r))
 );
 
+const invalidateRows = () => {
+  rowsRequestId += 1;
+  loadingRows.value = false;
+  issuedRows.value = [];
+  form.rows = [];
+};
+onBeforeUnmount(invalidateRows);
+
 const openCreate = async () => {
+  invalidateRows();
   editId.value = null;
   Object.assign(form, {
     productionOrderId: '',
@@ -256,7 +289,13 @@ const openCreate = async () => {
 watch(
   () => form.productionOrderId,
   async id => {
-    await loadIssued(id);
+    form.rows = [];
+    const loaded = await loadIssued(id);
+    if (
+      loaded !== rowsRequestId ||
+      String(form.productionOrderId) !== String(id)
+    )
+      return;
     // 推料：默认全不勾、数量留空。不预勾也不预填可退量——
     // 退料是「这次实际退回多少」，替人填一个数等于诱导他直接点保存。
     form.rows = issuedRows.value.map(r => ({
@@ -588,6 +627,7 @@ onMounted(() => {
 
     <Dialog
       ref="dialogRef"
+      @close="invalidateRows"
       width="3xl"
       overflow-y-auto
       :dismissible="false"

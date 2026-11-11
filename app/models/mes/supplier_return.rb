@@ -108,11 +108,11 @@ class Mes::SupplierReturn < ApplicationRecord
   # 用户要的是「从不良品仓退回供应商」，那就得真扣——否则不良品仓的 183 行结存
   # 永远只进不出。
   def send_out!(on: nil, actor: nil)
-    raise StandardError, '这张单已经退出去了' if sent_on.present?
-    raise StandardError, '请先填退料明细' if items.empty?
-    raise StandardError, '请先选从哪个仓退出' if warehouse_id.blank?
+    with_lock do
+      raise StandardError, '这张单已经退出去了' if sent_on.present?
+      raise StandardError, '请先填退料明细' if items.empty?
+      raise StandardError, '请先选从哪个仓退出' if warehouse_id.blank?
 
-    transaction do
       entry = build_out_entry(actor)
       entry.save!
       entry.post!
@@ -130,10 +130,10 @@ class Mes::SupplierReturn < ApplicationRecord
   #
   # 退掉不要了（REFUND）的单不该有返回——货都不要了还回来什么，拦住。
   def receive_back!(rows, on: nil, warehouse_id: nil, actor: nil)
-    raise StandardError, '这张单还没退出去' if sent_on.blank?
-    raise StandardError, '退货单不会有返回，请另开退换单' if refund?
+    with_lock do
+      raise StandardError, '这张单还没退出去' if sent_on.blank?
+      raise StandardError, '退货单不会有返回，请另开退换单' if refund?
 
-    transaction do
       applied = apply_returned_rows(rows)
       raise StandardError, '没有填任何返回数量' if applied.empty?
 

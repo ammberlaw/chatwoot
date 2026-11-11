@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionRecordsStore } from 'dashboard/stores/mes/productionRecords';
 
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -40,8 +41,13 @@ const FILTERABLE = {
   recorded: { type: 'date', key: 'recorded' },
 };
 const filterOf = key => FILTERABLE[key];
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => Number(store.getMeta?.count || 0));
 const fetchList = () =>
   store.get({
+    page: currentPage.value,
+    per_page: ITEMS_PER_PAGE,
     q: searchQuery.value.trim() || undefined,
     col_mo: colFilters.col_mo.trim() || undefined,
     col_owner: colFilters.col_owner.trim() || undefined,
@@ -50,8 +56,14 @@ const fetchList = () =>
     from: colFilters.recorded.from || undefined,
     to: colFilters.recorded.to || undefined,
   });
-const onSearch = () => fetchList();
-const onColFilterChange = () => fetchList();
+const resetList = () => {
+  if (currentPage.value === 1) return fetchList();
+  currentPage.value = 1;
+  return undefined;
+};
+const onSearch = resetList;
+const onColFilterChange = resetList;
+watch(currentPage, fetchList);
 const { mesCan } = useMesRole();
 const { isMyDoc } = useMesDocOwner();
 // 报工的制单人是报工人本人（operatorId），别人删不了。
@@ -189,7 +201,7 @@ const submit = async () => {
     });
     useAlert('报工已录入');
     dialogRef.value?.close();
-    fetchList();
+    resetList();
     fetchOrders();
   } catch (e) {
     useAlert(e?.message || '报工失败，请重试');
@@ -208,6 +220,8 @@ const confirmDelete = async () => {
     await store.delete(pendingDelete.value.id);
     useAlert('报工已删除，已回退该订单的已产数量');
     deleteDialogRef.value?.close();
+    if (!records.value.length && currentPage.value > 1) currentPage.value -= 1;
+    else fetchList();
     fetchOrders();
   } catch (e) {
     useAlert(e?.message || '删除失败，请重试');
@@ -221,7 +235,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div class="flex flex-col w-full h-full min-h-0 overflow-hidden">
     <div
       class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
@@ -434,6 +448,15 @@ onMounted(() => {
         </table>
       </template>
     </div>
+
+    <PaginationFooter
+      v-if="totalCount > 0"
+      class="relative shrink-0 md:!pl-32 md:!pr-32"
+      :current-page="currentPage"
+      :total-items="totalCount"
+      :items-per-page="ITEMS_PER_PAGE"
+      @update:current-page="page => (currentPage = page)"
+    />
 
     <Dialog
       ref="dialogRef"

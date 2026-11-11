@@ -9,7 +9,15 @@
 //
 // 返修跟踪留着（这页本来的主角）：退出去多久、回来多少、还有几件在外面；
 // **2026-10-29 起登记返回会真的把货入回库**，不再是只改数字的台账。
-import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import {
+  ref,
+  reactive,
+  computed,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -258,12 +266,19 @@ const rowError = row => {
   return qty > row.remain ? `最多 ${row.remain}` : '';
 };
 
+let rowsRequestId = 0;
 const loadReturnable = async entryId => {
+  rowsRequestId += 1;
+  const requestId = rowsRequestId;
+  loadingRows.value = false;
   pushedRows.value = [];
-  if (!entryId) return;
+  if (!entryId) {
+    loadingRows.value = false;
+    return false;
+  }
 
   const entry = sourceEntryRows.get(String(entryId));
-  if (!entry) return;
+  if (!entry) return false;
 
   loadingRows.value = true;
   try {
@@ -283,6 +298,11 @@ const loadReturnable = async entryId => {
       });
     });
 
+    if (
+      requestId !== rowsRequestId ||
+      String(form.sourceStockEntryId) !== String(entryId)
+    )
+      return false;
     pushedRows.value = (entry.stock_entry_items || [])
       .filter(it => it.crm_product_id)
       .map(it => {
@@ -300,15 +320,25 @@ const loadReturnable = async entryId => {
         };
       })
       .filter(r => r.remain > 0);
+    return requestId;
+  } catch (error) {
+    if (requestId === rowsRequestId) useAlert(error.message);
+    return false;
   } finally {
-    loadingRows.value = false;
+    if (requestId === rowsRequestId) loadingRows.value = false;
   }
 };
 
 watch(
   () => form.sourceStockEntryId,
   async id => {
-    await loadReturnable(id);
+    form.rows = id ? [] : [blankRow()];
+    const loaded = await loadReturnable(id);
+    if (
+      loaded !== rowsRequestId ||
+      String(form.sourceStockEntryId) !== String(id)
+    )
+      return;
     // 没选来源单（或这张单没剩可退的）就回到手敲模式，别把人卡死。
     form.rows = pushedRows.value.length
       ? pushedRows.value.map(r => ({ ...r, checked: false, qty: '', remark: '' }))
@@ -324,6 +354,7 @@ const onProductPicked = (row, product) => {
 
 const invalid = computed(
   () =>
+    loadingRows.value ||
     !form.mesSupplierId ||
     !form.warehouseId ||
     // 退掉不要了必须挂采购单，否则到货量和应付都冲不了（后端也校验，这里先拦住省一次往返）
@@ -334,7 +365,16 @@ const invalid = computed(
       : !form.rows.some(r => r.crmProductId && Number(r.qty) > 0))
 );
 
+const invalidateRows = () => {
+  rowsRequestId += 1;
+  loadingRows.value = false;
+  pushedRows.value = [];
+  form.rows = [];
+};
+onBeforeUnmount(invalidateRows);
+
 const openCreate = () => {
+  invalidateRows();
   Object.assign(form, {
     mesSupplierId: '',
     productionOrderId: '',
@@ -856,6 +896,7 @@ onMounted(() => {
     <!-- 新建 -->
     <Dialog
       ref="formDialogRef"
+      @close="invalidateRows"
       width="3xl"
       overflow-y-auto
       title="新建退料单"
