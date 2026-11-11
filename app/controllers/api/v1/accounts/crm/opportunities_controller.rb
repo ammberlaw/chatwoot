@@ -7,7 +7,9 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
   def index
     @opportunities_scope = filtered_opportunities
     @opportunities_count = @opportunities_scope.count
+    @amount_summary = amount_summary if params[:include_summary] == '1'
     @opportunities = @opportunities_scope
+                     .includes(:crm_customer, :owner)
                      .order(order_clause)
                      .page(permitted_params[:page] || 1)
                      .per((params[:per_page] || RESULTS_PER_PAGE).to_i.clamp(1, 100))
@@ -31,6 +33,28 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
   end
 
   private
+
+  # 看板每列分别分页，金额和数量仍按该列完整的可见范围汇总，不能拿当前页冒充总计。
+  def amount_summary
+    amounts = @opportunities_scope.where.not(amount_micros: [nil, 0]).group(:currency).count
+    currencies = amounts.keys.map { |currency| currency.presence || 'CNY' }.uniq
+    mixed = currencies.size > 1
+    totals = amounts.map do |currency, count|
+      converted_amount(currency, count, mixed)
+    end
+    { total_micros: totals.sum(&:first), currency: currencies.one? ? currencies.first : 'CNY',
+      mixed: mixed, unconverted: totals.sum(&:last) }
+  end
+
+  def converted_amount(currency, count, mixed)
+    scope = @opportunities_scope.where(currency: currency)
+    return [scope.sum(:amount_micros), 0] if !mixed || currency.blank? || currency == 'CNY'
+
+    rate = Crm::FxRate.rate_for(currency, Date.current) || Crm::FxRate.rate_on_or_after(currency, Date.current)
+    return [0, count] unless rate
+
+    [scope.sum(Arel.sql("ROUND(amount_micros * #{rate.to_d.to_s('F')})")).to_i, 0]
+  end
 
   # 按可见范围取商机：业务员只能查看/编辑/删除自己的，主管本团队，管理员全部。
   # 越权访问（如业务员删他人商机）会因不在范围内而 RecordNotFound → 404。
@@ -69,7 +93,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
 
   def order_clause
     column = SORT_COLUMNS[params[:sort]]
-    return { updated_at: :desc } unless column
+    return { updated_at: :desc, id: :desc } unless column
 
     direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
     # 补 id 兜底：赢率是 10/20/50 这种档位、金额也常相同，并列行不唯一定序的话，

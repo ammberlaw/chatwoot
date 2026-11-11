@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import camelcaseKeys from 'camelcase-keys';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -9,6 +10,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
+import OpportunityAPI from 'dashboard/api/crm/opportunities';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -39,8 +41,30 @@ const sortDir = ref('desc');
 // 看板快速查找：按商机名/客户名搜（后端过滤，能搜全量而非仅当前页）。
 const searchQuery = ref('');
 
-const records = computed(() => store.getRecords);
-const isFetching = computed(() => store.getUIFlags.fetchingList);
+const STAGE_KEYS = [
+  'NEEDS_CONFIRMED',
+  'SAMPLING',
+  'PENDING_PAYMENT',
+  'WON',
+  'LOST',
+];
+const BOARD_PAGE_SIZE = 25;
+const emptyStage = () => ({
+  items: [],
+  count: 0,
+  page: 1,
+  summary: {},
+  loading: false,
+  failed: false,
+  requestId: 0,
+});
+const boardStages = ref(
+  Object.fromEntries(STAGE_KEYS.map(key => [key, emptyStage()]))
+);
+const records = computed(() =>
+  Object.values(boardStages.value).flatMap(stage => stage.items)
+);
+const isFetching = ref(false);
 const isCreating = computed(() => store.getUIFlags.creatingItem);
 
 // admin 逐级筛选：团队 → 业务员
@@ -83,34 +107,77 @@ const managerOwnerOptions = computed(() => {
 
 const createDialogRef = ref(null);
 const detailDrawerRef = ref(null);
+const listRef = ref(null);
 const openDetail = record => detailDrawerRef.value?.open(record);
-const refreshBoard = () =>
-  store.get({
-    page: 1,
-    // 后端读 per_page（下划线）；驼峰 perPage 不生效，会回落到每页 15 条导致看板漏单。
-    per_page: 100,
-    filter: VIEW_FILTER[view.value] || undefined,
-    // 团队/业务员筛选只在常规看板生效；「我的商机」按当前用户收口，不叠加这些。
-    team_id:
-      view.value === 'board' ? selectedTeamId.value || undefined : undefined,
-    owner_id:
-      view.value === 'board' ? selectedOwnerId.value || undefined : undefined,
-    sort: sortKey.value || undefined,
-    direction: sortKey.value ? sortDir.value : undefined,
-    q: searchQuery.value.trim() || undefined,
-  });
+const boardFilters = () => ({
+  filter: VIEW_FILTER[view.value] || undefined,
+  // 团队/业务员筛选只在常规看板生效；「我的商机」按当前用户收口，不叠加这些。
+  team_id:
+    view.value === 'board' ? selectedTeamId.value || undefined : undefined,
+  owner_id:
+    view.value === 'board' ? selectedOwnerId.value || undefined : undefined,
+  sort: sortKey.value || undefined,
+  direction: sortKey.value ? sortDir.value : undefined,
+  q: searchQuery.value.trim() || undefined,
+});
+
+let boardRequestId = 0;
+let searchTimer = null;
+const loadStage = async (key, page, requestId = boardRequestId) => {
+  const stage = boardStages.value[key];
+  stage.requestId += 1;
+  const stageRequestId = stage.requestId;
+  stage.page = page;
+  stage.items = [];
+  stage.loading = true;
+  stage.failed = false;
+  try {
+    const { data } = await OpportunityAPI.get({
+      ...boardFilters(),
+      page,
+      per_page: BOARD_PAGE_SIZE,
+      sales_stage: key,
+      include_summary: 1,
+    });
+    if (requestId !== boardRequestId || stageRequestId !== stage.requestId)
+      return;
+    stage.items = camelcaseKeys(data.payload || [], { deep: true });
+    stage.count = Number(data.meta.count);
+    stage.summary = camelcaseKeys(data.meta.amount_summary);
+  } catch {
+    if (requestId === boardRequestId && stageRequestId === stage.requestId)
+      stage.failed = true;
+  } finally {
+    if (requestId === boardRequestId && stageRequestId === stage.requestId)
+      stage.loading = false;
+  }
+};
+const refreshBoard = async () => {
+  clearTimeout(searchTimer);
+  boardRequestId += 1;
+  const requestId = boardRequestId;
+  boardStages.value = Object.fromEntries(
+    STAGE_KEYS.map(key => [key, emptyStage()])
+  );
+  isFetching.value = true;
+  await Promise.all(STAGE_KEYS.map(key => loadStage(key, 1, requestId)));
+  if (requestId === boardRequestId) isFetching.value = false;
+};
 
 // 搜索防抖：输入停 300ms 再拉，避免逐字请求。
-let searchTimer = null;
 const onSearch = () => {
   clearTimeout(searchTimer);
+  boardRequestId += 1;
+  isFetching.value = true;
   searchTimer = setTimeout(refreshBoard, 300);
 };
 
 const setView = value => {
+  clearTimeout(searchTimer);
   view.value = value;
   // 列表视图由嵌入的商机列表组件自行取数，无需再拉看板数据。
   if (value !== 'list') refreshBoard();
+  else boardRequestId += 1;
 };
 
 const sortOptions = [
@@ -122,12 +189,12 @@ const sortOptions = [
 
 const setSort = value => {
   sortKey.value = value;
-  refreshBoard();
+  if (isBoardView.value) refreshBoard();
 };
 
 const toggleSortDir = () => {
   sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc';
-  if (sortKey.value) refreshBoard();
+  if (sortKey.value && isBoardView.value) refreshBoard();
 };
 
 const fetchTeams = async () => {
@@ -157,7 +224,8 @@ const createRecord = async payload => {
     await store.create(payload);
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.OPPORTUNITIES.CREATE.SUCCESS'));
-    refreshBoard();
+    if (view.value === 'list') listRef.value?.refresh();
+    else refreshBoard();
   } catch {
     useAlert(t('CRM.OPPORTUNITIES.CREATE.ERROR'));
   }
@@ -173,7 +241,8 @@ const updateRecord = async payload => {
     await store.update(payload);
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.OPPORTUNITIES.EDIT.SUCCESS'));
-    refreshBoard();
+    if (view.value === 'list') listRef.value?.refresh();
+    else refreshBoard();
   } catch {
     useAlert(t('CRM.OPPORTUNITIES.EDIT.ERROR'));
   }
@@ -213,22 +282,16 @@ const CURRENCY_SYMBOL = { USD: '$', CNY: '¥', EUR: '€' };
 
 const columns = computed(() =>
   STAGES.value.map(stage => {
-    const items = records.value.filter(r => r.salesStage === stage.key);
-    const priced = items.filter(r => r.amountMicros);
-    const currencies = new Set(priced.map(r => r.currency || 'CNY'));
-    // 单一币种：按原币种精确合计；多币种：按今日牌价统一折算人民币再合计（不能跨币种直加）。
-    const mixed = currencies.size > 1;
-    // 混币列里查不到牌价的外币商机（amountCnyMicros 为 null）不能拿原数字当人民币直加——
-    // 那样合计会虚高还看不出来。一律剔除出合计，并把笔数挂到列头提示。
-    const convertible = mixed
-      ? priced.filter(r => r.amountCnyMicros != null)
-      : priced;
-    const unconverted = priced.length - convertible.length;
-    const total = mixed
-      ? convertible.reduce((s, r) => s + r.amountCnyMicros, 0)
-      : convertible.reduce((s, r) => s + (r.amountMicros || 0), 0);
-    const currency = mixed ? 'CNY' : priced[0]?.currency || 'CNY';
-    return { ...stage, items, total, currency, mixed, unconverted };
+    const data = boardStages.value[stage.key];
+    return {
+      ...stage,
+      ...data,
+      total: data.summary.totalMicros || 0,
+      currency: data.summary.currency || 'CNY',
+      mixed: data.summary.mixed || false,
+      unconverted: data.summary.unconverted || 0,
+      pages: Math.max(1, Math.ceil(data.count / BOARD_PAGE_SIZE)),
+    };
   })
 );
 
@@ -245,13 +308,22 @@ const onDrop = async stageKey => {
   const record = records.value.find(r => r.id === dragId.value);
   dragId.value = null;
   if (!record || record.salesStage === stageKey) return;
-  await store.update({ id: record.id, salesStage: stageKey });
+  try {
+    await store.update({ id: record.id, salesStage: stageKey });
+    await refreshBoard();
+  } catch {
+    useAlert(t('CRM.OPPORTUNITIES.EDIT.ERROR'));
+  }
 };
 
 onMounted(() => {
   if (isCrmManager.value) fetchTeamMembers();
   else fetchTeams();
   refreshBoard();
+});
+onBeforeUnmount(() => {
+  boardRequestId += 1;
+  clearTimeout(searchTimer);
 });
 </script>
 
@@ -365,7 +437,13 @@ onMounted(() => {
     </div>
 
     <!-- 列表视图：复用商机列表页（嵌入模式，隐藏其标题头） -->
-    <CrmOpportunitiesIndex v-if="view === 'list'" embedded />
+    <CrmOpportunitiesIndex
+      v-if="view === 'list'"
+      ref="listRef"
+      embedded
+      :sort-key="sortKey"
+      :sort-direction="sortDir"
+    />
 
     <div v-else-if="isFetching" class="p-8 text-center text-n-slate-11">
       {{ t('CRM.FUNNEL.LOADING') }}
@@ -392,11 +470,11 @@ onMounted(() => {
             <span
               class="px-1.5 py-0.5 ml-auto bg-n-alpha-2 text-n-slate-11 text-label-small rounded-full"
             >
-              {{ col.items.length }}
+              {{ col.failed ? t('CRM.FUNNEL.UNAVAILABLE') : col.count }}
             </span>
           </div>
           <div
-            v-if="col.total > 0 || col.unconverted"
+            v-if="!col.failed && (col.total > 0 || col.unconverted)"
             class="mt-2 text-lg font-bold text-n-slate-12"
             :title="col.mixed ? '本列含多种币种，已按今日牌价折算为人民币' : ''"
           >
@@ -404,12 +482,14 @@ onMounted(() => {
               {{ col.mixed ? '≈' : '' }}{{ CURRENCY_SYMBOL[col.currency] || ''
               }}{{ totalAmount(col.total) }}
             </template>
-            <span v-else class="text-n-slate-9">—</span>
+            <span v-else class="text-n-slate-9">{{
+              t('CRM.FUNNEL.UNAVAILABLE')
+            }}</span>
           </div>
           <!-- 查不到牌价、没算进合计的外币商机：明着标出来，别让人以为合计是全的。
                单独占一行并 nowrap，列窄时不会折行把列头顶高、顶歪。 -->
           <div
-            v-if="col.unconverted"
+            v-if="!col.failed && col.unconverted"
             class="mt-1.5 px-1.5 py-0.5 inline-flex text-xs font-medium rounded-md whitespace-nowrap bg-n-amber-3 text-n-amber-11"
             :title="`有 ${col.unconverted} 笔外币商机查不到牌价，未计入本列合计`"
           >
@@ -419,6 +499,12 @@ onMounted(() => {
 
         <!-- 卡片列表 -->
         <div class="flex flex-col flex-1 gap-2.5 px-2.5 pb-2.5 overflow-y-auto">
+          <div
+            v-if="col.loading"
+            class="px-2 py-8 text-center text-label-small text-n-slate-11"
+          >
+            {{ t('CRM.FUNNEL.LOADING') }}
+          </div>
           <div
             v-for="item in col.items"
             :key="item.id"
@@ -499,11 +585,58 @@ onMounted(() => {
           </div>
 
           <div
-            v-if="!col.items.length"
+            v-if="col.failed"
+            class="flex flex-col items-center gap-2 px-2 py-6 text-label-small text-n-slate-11"
+          >
+            {{ t('CRM.FUNNEL.LOAD_FAILED') }}
+            <Button
+              :label="t('CRM.FUNNEL.RETRY')"
+              size="sm"
+              variant="ghost"
+              color="slate"
+              @click="loadStage(col.key, col.page)"
+            />
+          </div>
+          <div
+            v-else-if="!col.loading && !col.items.length"
             class="px-2 py-8 text-xs text-center text-n-slate-10"
           >
             暂无商机
           </div>
+        </div>
+        <div
+          v-if="col.count > BOARD_PAGE_SIZE"
+          class="flex shrink-0 items-center justify-between gap-1 border-t border-n-weak px-2 py-2"
+        >
+          <Button
+            icon="i-lucide-chevron-left"
+            :aria-label="
+              t('CRM.FUNNEL.PREVIOUS_STAGE_PAGE', { stage: col.label })
+            "
+            size="sm"
+            variant="ghost"
+            color="slate"
+            :disabled="col.loading || col.page === 1"
+            @click="loadStage(col.key, col.page - 1)"
+          />
+          <span class="text-label-small tabular-nums text-n-slate-11">
+            {{
+              t('CRM.FUNNEL.STAGE_PAGE', {
+                page: col.page,
+                pages: col.pages,
+                count: col.count,
+              })
+            }}
+          </span>
+          <Button
+            icon="i-lucide-chevron-right"
+            :aria-label="t('CRM.FUNNEL.NEXT_STAGE_PAGE', { stage: col.label })"
+            size="sm"
+            variant="ghost"
+            color="slate"
+            :disabled="col.loading || col.page === col.pages"
+            @click="loadStage(col.key, col.page + 1)"
+          />
         </div>
       </div>
     </div>

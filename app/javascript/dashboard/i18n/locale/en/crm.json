@@ -1485,7 +1485,13 @@
       "SORT_AMOUNT": "按金额",
       "SORT_PROBABILITY": "按成交概率",
       "SORT_ASC": "正序",
-      "SORT_DESC": "倒序"
+      "SORT_DESC": "倒序",
+      "STAGE_PAGE": "{page}/{pages} 页 · 共 {count} 项",
+      "PREVIOUS_STAGE_PAGE": "{stage}：上一页",
+      "NEXT_STAGE_PAGE": "{stage}：下一页",
+      "LOAD_FAILED": "商机加载失败，请重试",
+      "UNAVAILABLE": "—",
+      "RETRY": "重试"
     },
     "MAIL_ACCOUNTS": {
       "HEADER": "邮箱账户",

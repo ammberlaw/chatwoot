@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -10,6 +10,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import CrmOpportunityDetailDrawer from 'dashboard/components-next/CRM/CrmOpportunityDetailDrawer.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
@@ -18,6 +19,8 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 嵌入「商机看板」作为列表视图时：隐藏自身标题头、去掉卡片外框、不受外层路由 query 影响。
 const props = defineProps({
   embedded: { type: Boolean, default: false },
+  sortKey: { type: String, default: '' },
+  sortDirection: { type: String, default: 'desc' },
 });
 
 const { t } = useI18n();
@@ -37,6 +40,9 @@ const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
+const ITEMS_PER_PAGE = 20;
+const currentPage = ref(1);
+const totalCount = computed(() => Number(store.getMeta?.count || 0));
 
 const STAGES = {
   NEEDS_CONFIRMED: {
@@ -68,15 +74,31 @@ const filterTabs = computed(() => [
 
 const fetchRecords = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
-  // 列表无翻页控件，取满一页（接口上限 100），避免 >15 条被截断「消失」。
-  // 注意后端读 per_page（下划线），驼峰 perPage 不会被识别。
-  store.get({ page: 1, per_page: 100, filter });
+  return store.get({
+    page: currentPage.value,
+    per_page: ITEMS_PER_PAGE,
+    filter,
+    sort: props.sortKey || undefined,
+    direction: props.sortKey ? props.sortDirection : undefined,
+  });
 };
 
 const setFilter = key => {
   activeFilter.value = key;
+  currentPage.value = 1;
   fetchRecords();
 };
+
+const onPage = page => {
+  currentPage.value = page;
+  fetchRecords();
+};
+const refresh = () => {
+  currentPage.value = 1;
+  return fetchRecords();
+};
+defineExpose({ refresh });
+watch(() => [props.sortKey, props.sortDirection], refresh);
 
 const openEditDialog = record => createDialogRef.value?.open(record);
 
@@ -89,6 +111,7 @@ const removeRecord = async record => {
     return;
   try {
     await store.delete(record.id);
+    if (!records.value.length && currentPage.value > 1) currentPage.value -= 1;
     useAlert(t('CRM.OPPORTUNITIES.DELETE.SUCCESS'));
     fetchRecords();
   } catch {
@@ -101,6 +124,7 @@ const updateRecord = async payload => {
     await store.update(payload);
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.OPPORTUNITIES.EDIT.SUCCESS'));
+    fetchRecords();
   } catch {
     useAlert(t('CRM.OPPORTUNITIES.EDIT.ERROR'));
   }
@@ -112,21 +136,18 @@ watch(
   value => {
     if (props.embedded) return;
     activeFilter.value = normalizeFilter(value);
+    currentPage.value = 1;
     fetchRecords();
   }
 );
 
-// 从客户详情跳来时带 ?focus=<id>，列表加载后自动打开该商机（仅一次）。
-const focusOpened = ref(false);
+// 定位不依赖当前页：抽屉按 ID 读取，后端继续执行商机可见范围鉴权。
 watch(
-  records,
-  list => {
-    if (props.embedded || focusOpened.value || !route.query.focus) return;
-    const rec = list.find(r => String(r.id) === String(route.query.focus));
-    if (rec) {
-      openDetail(rec);
-      focusOpened.value = true;
-    }
+  () => route.query.focus,
+  async id => {
+    if (props.embedded || !id) return;
+    await nextTick();
+    openDetail({ id });
   },
   { immediate: true }
 );
@@ -140,7 +161,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 <template>
   <HScrollButtons />
   <div
-    class="flex flex-col w-full h-full overflow-auto"
+    class="flex flex-col w-full h-full min-h-0 overflow-hidden"
     :class="
       embedded
         ? ''
@@ -157,7 +178,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
     </div>
 
     <div
-      class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak [.theme-classic_&]:sm:!px-8"
+      class="flex shrink-0 flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak [.theme-classic_&]:sm:!px-8"
     >
       <div
         class="contents"
@@ -177,7 +198,9 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       </div>
     </div>
 
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 overflow-auto px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -389,6 +412,15 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
         </table>
       </template>
     </div>
+
+    <PaginationFooter
+      v-if="totalCount > 0"
+      class="shrink-0"
+      :current-page="currentPage"
+      :total-items="totalCount"
+      :items-per-page="ITEMS_PER_PAGE"
+      @update:current-page="onPage"
+    />
 
     <CrmOpportunityDetailDrawer ref="detailDrawerRef" @edit="openEditDialog" />
 
