@@ -1679,7 +1679,10 @@ onMounted(() => {
                   >{{ campaignSearchStateLabel }}</span
                 >
                 <span v-if="campaignSearchTime">{{ campaignSearchTime }}</span>
-                <span v-if="searchRetryAvailable" class="w-full text-n-amber-11">
+                <span
+                  v-if="searchRetryAvailable"
+                  class="w-full text-n-amber-11"
+                >
                   {{ t('CRM.SEARCH_VISIBILITY.RETRY_HINT') }}
                 </span>
                 <span v-else-if="searchPollPaused" class="w-full">
