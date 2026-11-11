@@ -413,9 +413,10 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       </template>
     </div>
 
+    <!-- 桌面两侧默认悬浮按钮宽 104px，分页文字和操作向内避让。 -->
     <PaginationFooter
       v-if="totalCount > 0"
-      class="shrink-0"
+      class="relative shrink-0 md:!pl-32 md:!pr-32"
       :current-page="currentPage"
       :total-items="totalCount"
       :items-per-page="ITEMS_PER_PAGE"

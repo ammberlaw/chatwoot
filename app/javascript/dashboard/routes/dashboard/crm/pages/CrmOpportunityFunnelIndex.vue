@@ -461,7 +461,7 @@ onBeforeUnmount(() => {
         @drop="onDrop(col.key)"
       >
         <!-- 列头：阶段名 + 数量 + 总金额 -->
-        <div class="px-4 pt-3.5 pb-3">
+        <div class="shrink-0 px-4 pt-3.5 pb-3">
           <div class="flex items-center gap-2">
             <span class="rounded-full size-2" :class="col.color" />
             <span class="text-sm font-semibold text-n-slate-12">
@@ -497,8 +497,46 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- 卡片列表 -->
-        <div class="flex flex-col flex-1 gap-2.5 px-2.5 pb-2.5 overflow-y-auto">
+        <!-- 翻页放在固定列头，避免右下 AI 助手和左下待办遮住操作。 -->
+        <div
+          v-if="col.count > BOARD_PAGE_SIZE"
+          class="flex shrink-0 items-center justify-between gap-1 border-y border-n-weak px-2 py-2"
+        >
+          <Button
+            icon="i-lucide-chevron-left"
+            :aria-label="
+              t('CRM.FUNNEL.PREVIOUS_STAGE_PAGE', { stage: col.label })
+            "
+            size="sm"
+            variant="ghost"
+            color="slate"
+            :disabled="col.loading || col.page === 1"
+            @click="loadStage(col.key, col.page - 1)"
+          />
+          <span class="text-label-small tabular-nums text-n-slate-11">
+            {{
+              t('CRM.FUNNEL.STAGE_PAGE', {
+                page: col.page,
+                pages: col.pages,
+                count: col.count,
+              })
+            }}
+          </span>
+          <Button
+            icon="i-lucide-chevron-right"
+            :aria-label="t('CRM.FUNNEL.NEXT_STAGE_PAGE', { stage: col.label })"
+            size="sm"
+            variant="ghost"
+            color="slate"
+            :disabled="col.loading || col.page === col.pages"
+            @click="loadStage(col.key, col.page + 1)"
+          />
+        </div>
+
+        <!-- 末尾留在滚动区内，最后一张卡片也能滚到默认悬浮按钮上方。 -->
+        <div
+          class="flex min-h-0 flex-col flex-1 gap-2.5 px-2.5 pb-32 overflow-y-auto"
+        >
           <div
             v-if="col.loading"
             class="px-2 py-8 text-center text-label-small text-n-slate-11"
@@ -603,40 +641,6 @@ onBeforeUnmount(() => {
           >
             暂无商机
           </div>
-        </div>
-        <div
-          v-if="col.count > BOARD_PAGE_SIZE"
-          class="flex shrink-0 items-center justify-between gap-1 border-t border-n-weak px-2 py-2"
-        >
-          <Button
-            icon="i-lucide-chevron-left"
-            :aria-label="
-              t('CRM.FUNNEL.PREVIOUS_STAGE_PAGE', { stage: col.label })
-            "
-            size="sm"
-            variant="ghost"
-            color="slate"
-            :disabled="col.loading || col.page === 1"
-            @click="loadStage(col.key, col.page - 1)"
-          />
-          <span class="text-label-small tabular-nums text-n-slate-11">
-            {{
-              t('CRM.FUNNEL.STAGE_PAGE', {
-                page: col.page,
-                pages: col.pages,
-                count: col.count,
-              })
-            }}
-          </span>
-          <Button
-            icon="i-lucide-chevron-right"
-            :aria-label="t('CRM.FUNNEL.NEXT_STAGE_PAGE', { stage: col.label })"
-            size="sm"
-            variant="ghost"
-            color="slate"
-            :disabled="col.loading || col.page === col.pages"
-            @click="loadStage(col.key, col.page + 1)"
-          />
         </div>
       </div>
     </div>
