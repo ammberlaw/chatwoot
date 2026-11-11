@@ -42,12 +42,18 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   # 生成理想客户画像 + 本地化关键词。不调 Apollo、不花 credits，
   # 料全来自我们自己的成交数据（见 Crm::LeadProfileBuilder）。
   def build_profile
-    if Crm::LeadProfileBuilder.new(campaign: @campaign).call
-      render :show, locals: { campaign: @campaign.reload }
-    else
-      render json: { error: @campaign.reload.last_error.presence || '画像生成失败，请重试' },
-             status: :unprocessable_entity
+    locked = @campaign.with_search_lock do
+      @campaign.reload
+      if @campaign.search_active?
+        render json: { error: '这个任务正在排队或搜索中，完成后再改客户画像' }, status: :conflict
+      elsif Crm::LeadProfileBuilder.new(campaign: @campaign).call
+        render :show, locals: { campaign: @campaign.reload }
+      else
+        render json: { error: @campaign.reload.last_error.presence || '画像生成失败，请重试' },
+               status: :unprocessable_entity
+      end
     end
+    render json: { error: '这个任务正在处理中，请稍后重试' }, status: :conflict unless locked
   end
 
   # 按画像生成的关键词去 Apollo 搜潜在客户。挖公司和探词表都不扣 credits
@@ -61,7 +67,6 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   # 现在点完立刻返回，前端轮询 show 看 status 变成 DONE 没有。
   def search
     return render json: { error: '先生成客户画像' }, status: :unprocessable_entity if @campaign.keywords.blank?
-    return render json: { error: '这个任务正在搜索中，等它跑完再点' }, status: :unprocessable_entity if @campaign.status == 'SEARCHING'
 
     # 挖客户的额度（2026-11-10 起）。挖公司是主要成本，不是只有解锁花钱——
     # 两个业务员各建了选 11~13 个国家的任务，一下午烧掉 400 多 credits，
@@ -69,8 +74,12 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
     quota = Crm::ApolloQuota.new(account: Current.account).search_status_for(@campaign.owner)
     return render json: { error: search_quota_message(quota) }, status: :unprocessable_entity unless quota.allowed?
 
-    Crm::LeadSearchJob.perform_later(@campaign.id)
-    render json: { queued: true, status: 'SEARCHING' }
+    return render json: { error: '这个任务正在排队或搜索中，等它完成后再点' }, status: :conflict unless @campaign.enqueue_search!
+
+    render json: { queued: true, id: @campaign.id, status: @campaign.reload.status, search_run: @campaign.search_run }
+  rescue ActiveJob::EnqueueError, Redis::BaseError => e
+    Rails.logger.error("[LeadSearch] enqueue failed campaign=#{@campaign.id}: #{e.class}")
+    render json: { error: '搜索排队失败，请稍后重试' }, status: :service_unavailable
   end
 
   # 获客效果:搜索词 → 线索 → 建档 → 成交额。

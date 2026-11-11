@@ -64,7 +64,7 @@ class Crm::LeadProfileBuilder
 
     @campaign.update!(
       profile: parsed['persona'], keywords: Array(parsed['keywords']),
-      evidence: { facts: facts, inferred: inferred_fields(parsed['persona']) },
+      evidence: @campaign.evidence.merge('facts' => facts, 'inferred' => inferred_fields(parsed['persona'])),
       run_model: Crm::AiSetting.for_account(@account).model,
       status: 'PROFILED', profiled_at: Time.current, last_error: nil
     )

@@ -16,7 +16,7 @@ class Crm::LeadAutoSearchJob < ApplicationJob
   MAX_PER_DAY = 3
 
   def perform
-    due_campaigns.each { |campaign| Crm::LeadSearchJob.perform_later(campaign.id) }
+    due_campaigns.each(&:enqueue_search!)
   end
 
   private

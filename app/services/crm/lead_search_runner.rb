@@ -20,27 +20,26 @@ class Crm::LeadSearchRunner
 
   # 返回新建的线索条数。
   def call
-    return 0 unless @client.configured? && @campaign.keywords.present?
+    raise '请先配置 Apollo 连接后再搜索' unless @client.configured?
+    raise '请先生成可搜索的关键词' if @campaign.keywords.blank?
 
-    @campaign.update!(status: 'SEARCHING', last_error: nil)
+    @campaign.update_search_stage!('collecting_companies')
     companies = collect_companies
     # ⚠️ 初筛必须在抓联系人**之前**：判断要的东西（公司名/域名/行业代码/营收/门店数）
     # 搜索阶段全都有了，一个都不来自联系人。2026-11-07 改这个顺序之前，
     # 73 家公司里 53 家被判「不是买家」，而联系人是挨家都搜过的——七成调用白花。
+    @campaign.update_search_stage!('screening')
     verdicts = Crm::LeadScreener.verdicts_for(account: @account, items: screen_items(companies),
                                               product_hint: @campaign.product_hint,
                                               criteria: @campaign.screen_criteria)
+    @campaign.update_search_stage!('saving_leads')
     created = companies.sum { |company| harvest_company(company, verdicts[company[:name]]) }
     # 兜底：初筛那一批 AI 调用万一失败，没判到的公司不能就这么漏成「没结论」。
     Crm::LeadScreener.new(campaign: @campaign).call
     enqueue_bg_checks
     # 跑完给每个搜索词评级（好词/可用/弱词/废词/待观察），废词下一轮不再占配额。
     Crm::KeywordGrade.new(campaign: @campaign.reload).stamp!
-    @campaign.update!(status: 'DONE', searched_at: Time.current)
     created
-  rescue StandardError => e
-    @campaign.update(status: 'PROFILED', last_error: error_text(e).truncate(300))
-    0
   end
 
   # 额度耗尽那句原样摆到任务上，不带类名前缀——这句是给人看的，不是异常现场：

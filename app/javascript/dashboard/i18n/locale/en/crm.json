@@ -19,7 +19,9 @@
       "QUEUED_AT": "提交于 {time}",
       "STARTED_AT": "开始于 {time}",
       "FINISHED_AT": "结束于 {time}",
-      "RESULT": "本轮新增 {companies} 家公司、{leads} 条线索"
+      "RESULT": "本轮新增 {companies} 家公司、{leads} 条线索",
+      "RETRY_HINT": "搜索等待较久，可点击「重试搜索」检查并恢复。",
+      "POLL_PAUSED": "自动刷新已暂停，可点击「检查搜索进度」继续查看。"
     },
     "SUPPLIER_RETURN_DETAILS": {
       "TITLE": "采购退料单 {no}",
@@ -1618,6 +1620,10 @@
       "REGISTRATION": "粤ICP备2026106012号-1"
     },
     "LEAD_CENTER_UI": {
+      "SEARCH_QUEUED": "已排队，等待搜索",
+      "SEARCH_REFRESH": "检查搜索进度",
+      "SEARCH_RETRY": "重试搜索",
+      "SEARCH_FAILED": "搜索失败，请重试",
       "CREATED_BY": "创建人：{name}",
       "OWNED_BY": "负责人：{name}",
       "CREATOR_UNRECORDED": "历史未记录",

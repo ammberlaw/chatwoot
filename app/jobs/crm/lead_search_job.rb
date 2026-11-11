@@ -6,18 +6,34 @@ class Crm::LeadSearchJob < ApplicationJob
 
   def perform(campaign_id)
     campaign = Crm::LeadCampaign.find_by(id: campaign_id)
-    return if campaign.nil? || campaign.keywords.blank?
+    return if campaign.nil?
 
-    # 先从认可的公司身上学几个新词，再搜。
-    # 只翻页的话挖到第 7 页平均匹配度掉到 15（2026-11-08 实测）——
-    # 要续的是关键词，不是页码。学不到就按原词搜，不影响主流程。
-    learned = harvest_keywords(campaign)
-    created = Crm::LeadSearchRunner.new(campaign: campaign.reload).call
-    campaign.update_columns(auto_run_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    created = 0
+    learned = []
+    campaign.with_search_lock do
+      next unless campaign.claim_search!(job_id)
+
+      created, learned = execute_search(campaign)
+    end
     notify(campaign, created, learned) if created.positive?
   end
 
   private
+
+  def execute_search(campaign)
+    # 同一计划的自动续挖、手动搜索和重复投递都经过执行锁。
+    learned = harvest_keywords(campaign)
+    runner = Crm::LeadSearchRunner.new(campaign: campaign.reload)
+    runner.call
+    completed = campaign.finish_search!(job_id)
+    campaign.update_columns(auto_run_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    [completed.fetch('created_leads'), learned]
+  rescue StandardError => e
+    error = runner ? runner.error_text(e).truncate(300) : '搜索任务执行失败，请重试'
+    campaign.finish_search!(job_id, error: error)
+    Rails.logger.error("[LeadSearch] execution failed campaign=#{campaign.id}: #{e.class}")
+    [0, []]
+  end
 
   def harvest_keywords(campaign)
     Crm::LeadKeywordHarvester.new(campaign: campaign).call

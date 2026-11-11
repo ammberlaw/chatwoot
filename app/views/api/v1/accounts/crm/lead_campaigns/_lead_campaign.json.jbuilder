@@ -33,3 +33,4 @@ json.last_error campaign.last_error
 # 不摆的话这些词永远静静地产出 0 条，没人知道为什么。
 json.dead_keywords campaign.dead_keywords
 json.created_at campaign.created_at
+json.updated_at campaign.updated_at

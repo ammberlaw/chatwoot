@@ -194,25 +194,6 @@ const loadLeads = async id => {
   }
 };
 
-const load = async () => {
-  loading.value = true;
-  try {
-    const { data } = await LeadCampaignsAPI.get({});
-    campaigns.value = data.payload || [];
-    apolloQuota.value = data.apollo_quota || {};
-    // 默认选中第一个任务，并把它的线索一起拉回来——
-    // 不拉的话进页面看到的永远是「点右上角开始找」，哪怕线索早就搜好了。
-    if (!current.value && campaigns.value.length) {
-      current.value = campaigns.value[0];
-      await loadLeads(current.value.id);
-    }
-  } catch {
-    useAlert('拓客任务加载失败');
-  } finally {
-    loading.value = false;
-  }
-};
-
 const addMarket = v => {
   if (v && !form.value.markets.includes(v)) form.value.markets.push(v);
 };
@@ -388,48 +369,160 @@ const facts = computed(() => current.value?.facts || {});
 // 后端排队跑（一次三到五分钟，在请求里等必然被 15 秒超时掐断），这里轮询任务状态。
 // 轮询而不是一直转圈：页面刷新、换台电脑打开，照样能接着看进度。
 const SEARCH_POLL_MS = 8000;
-const SEARCH_POLL_MAX = 60; // 8 分钟还没完就不再等了，任务自己会把 last_error 写上
-
+const SEARCH_POLL_MAX = 60;
+const ACTIVE_SEARCH_STATUSES = ['QUEUED', 'SEARCHING'];
+const searchClock = ref(Date.now());
+const searchPollPaused = ref(false);
+const searchSubmitting = ref(false);
+const searchRetryAvailable = computed(() => {
+  if (
+    !ACTIVE_SEARCH_STATUSES.includes(current.value?.status) ||
+    campaignSearchQuota.value?.allowed === false
+  )
+    return false;
+  const retryAt = current.value.search_run?.retry_after
+    ? new Date(current.value.search_run.retry_after).getTime()
+    : new Date(current.value.updated_at).getTime() + 15 * 60 * 1000;
+  return retryAt <= searchClock.value;
+});
+const searchRefreshOnly = computed(
+  () =>
+    ACTIVE_SEARCH_STATUSES.includes(current.value?.status) &&
+    !searchRetryAvailable.value
+);
+const searchButtonLoading = computed(
+  () =>
+    searchSubmitting.value || (searching.value && !searchRetryAvailable.value)
+);
+const searchButtonLabel = computed(() => {
+  if (
+    searchRetryAvailable.value ||
+    current.value?.search_run?.state === 'failed'
+  ) {
+    return t('CRM.LEAD_CENTER_UI.SEARCH_RETRY');
+  }
+  if (searchPollPaused.value && searchRefreshOnly.value)
+    return t('CRM.LEAD_CENTER_UI.SEARCH_REFRESH');
+  if (current.value?.status === 'QUEUED')
+    return t('CRM.LEAD_CENTER_UI.SEARCH_QUEUED');
+  return searching.value
+    ? t('CRM.LEAD_CENTER_UI.TEXT_031')
+    : t('CRM.LEAD_CENTER_UI.TEXT_032');
+});
 let searchTimer = null;
+let searchPollId = 0;
+const searchClockTimer = setInterval(() => {
+  searchClock.value = Date.now();
+}, 30000);
 
 const stopSearchPoll = () => {
+  searchPollId += 1;
   if (searchTimer) clearTimeout(searchTimer);
   searchTimer = null;
   searching.value = false;
+  searchSubmitting.value = false;
 };
 
-const pollSearch = async (id, tries = 0) => {
-  if (tries >= SEARCH_POLL_MAX) return stopSearchPoll();
+const updateSearchCampaign = campaign => {
+  const index = campaigns.value.findIndex(c => c.id === campaign.id);
+  if (index >= 0)
+    campaigns.value[index] = { ...campaigns.value[index], ...campaign };
+  if (current.value?.id === campaign.id)
+    current.value = { ...current.value, ...campaign };
+};
+
+const pollSearch = async (id, tries = 0, pollId = searchPollId) => {
+  if (pollId !== searchPollId || current.value?.id !== id) return undefined;
+  if (tries >= SEARCH_POLL_MAX) {
+    stopSearchPoll();
+    searchPollPaused.value = true;
+    return undefined;
+  }
   try {
     const { data } = await LeadCampaignsAPI.show(id);
-    const c = data.payload || data;
-    if (c.status !== 'SEARCHING') {
+    if (pollId !== searchPollId || current.value?.id !== id) return undefined;
+    const campaign = data.payload || data;
+    updateSearchCampaign(campaign);
+    searchClock.value = Date.now();
+    if (!ACTIVE_SEARCH_STATUSES.includes(campaign.status)) {
       stopSearchPoll();
-      if (c.last_error) useAlert(c.last_error);
+      searchPollPaused.value = false;
+      if (campaign.last_error) useAlert(campaign.last_error);
       await loadLeads(id);
+      loadOutcomes();
       return undefined;
     }
+    searching.value = true;
   } catch {
-    // 单次轮询失败不算数，下一轮再问
+    // 网络失败不等于任务结束，下一轮继续查看。
   }
-  searchTimer = setTimeout(() => pollSearch(id, tries + 1), SEARCH_POLL_MS);
+  if (pollId === searchPollId && current.value?.id === id) {
+    searchTimer = setTimeout(
+      () => pollSearch(id, tries + 1, pollId),
+      SEARCH_POLL_MS
+    );
+  }
   return undefined;
 };
 
-const runSearch = async () => {
-  if (!current.value) return;
-  const id = current.value.id;
-  searching.value = true;
+const load = async () => {
+  loading.value = true;
   try {
-    await LeadCampaignsAPI.search(id);
-    pollSearch(id);
-  } catch (e) {
-    searching.value = false;
-    useAlert(e?.response?.data?.error || '搜索失败，请重试');
+    const { data } = await LeadCampaignsAPI.get({});
+    campaigns.value = data.payload || [];
+    apolloQuota.value = data.apollo_quota || {};
+    // 默认选中第一个任务，并把它的线索一起拉回来——
+    // 不拉的话进页面看到的永远是「点右上角开始找」，哪怕线索早就搜好了。
+    if (!current.value && campaigns.value.length) {
+      current.value = campaigns.value[0];
+      await loadLeads(current.value.id);
+      if (ACTIVE_SEARCH_STATUSES.includes(current.value?.status)) {
+        searching.value = true;
+        pollSearch(current.value.id);
+      }
+    }
+  } catch {
+    useAlert('拓客任务加载失败');
+  } finally {
+    loading.value = false;
   }
 };
 
-onBeforeUnmount(stopSearchPoll);
+const runSearch = async () => {
+  if (!current.value || searchButtonLoading.value) return;
+  const id = current.value.id;
+  const refreshOnly = searchRefreshOnly.value;
+  stopSearchPoll();
+  const pollId = searchPollId;
+  searchPollPaused.value = false;
+  searching.value = true;
+  if (refreshOnly) {
+    pollSearch(id, 0, pollId);
+    return;
+  }
+  searchSubmitting.value = true;
+  try {
+    const { data } = await LeadCampaignsAPI.search(id);
+    if (pollId !== searchPollId || current.value?.id !== id) return;
+    updateSearchCampaign({ id, ...data });
+    pollSearch(id, 0, pollId);
+  } catch (error) {
+    if (pollId !== searchPollId || current.value?.id !== id) return;
+    searching.value = false;
+    useAlert(
+      error?.response?.data?.error || t('CRM.LEAD_CENTER_UI.SEARCH_FAILED')
+    );
+    // 另一个窗口已启动、或旧 worker 仍在工作时，只恢复观察，不再次入队。
+    if (error?.response?.status === 409) pollSearch(id, 0, pollId);
+  } finally {
+    if (pollId === searchPollId) searchSubmitting.value = false;
+  }
+};
+
+onBeforeUnmount(() => {
+  clearInterval(searchClockTimer);
+  stopSearchPoll();
+});
 
 // 丢弃原因。点一下就走，不打字——原因不是给人看的记录，
 // 是给初筛学的方向：没有原因，系统只能学到「这家不要」，学不到「这类不要」。
@@ -545,6 +638,8 @@ const POOL_VIEWS = [
 ];
 const poolView = ref('pool');
 const selectPool = async scope => {
+  stopSearchPoll();
+  searchPollPaused.value = false;
   leadsRequestId += 1;
   const req = leadsRequestId;
   poolView.value = scope;
@@ -565,7 +660,12 @@ const selectCampaign = c => {
   stopSearchPoll();
   poolView.value = null;
   current.value = c;
+  searchPollPaused.value = false;
   loadLeads(c.id);
+  if (ACTIVE_SEARCH_STATUSES.includes(c.status)) {
+    searching.value = true;
+    pollSearch(c.id);
+  }
 };
 
 // 行业代码认定「不可能是买家」的（出版、广电、人力中介这些）默认折叠。
@@ -1511,16 +1611,14 @@ onMounted(() => {
                 />
                 <Button
                   v-if="current.profiled_at"
-                  :label="
-                    searching
-                      ? t('CRM.LEAD_CENTER_UI.TEXT_031')
-                      : t('CRM.LEAD_CENTER_UI.TEXT_032')
-                  "
+                  :label="searchButtonLabel"
                   icon="i-lucide-radar"
                   size="sm"
                   class="!rounded-xl !bg-[#ffca35] !text-[#202427]"
-                  :is-loading="searching"
-                  :disabled="campaignSearchQuota?.allowed === false"
+                  :is-loading="searchButtonLoading"
+                  :disabled="
+                    campaignSearchQuota?.allowed === false && !searchRefreshOnly
+                  "
                   @click="runSearch"
                 />
               </div>
@@ -1581,6 +1679,12 @@ onMounted(() => {
                   >{{ campaignSearchStateLabel }}</span
                 >
                 <span v-if="campaignSearchTime">{{ campaignSearchTime }}</span>
+                <span v-if="searchRetryAvailable" class="w-full text-n-amber-11">
+                  {{ t('CRM.SEARCH_VISIBILITY.RETRY_HINT') }}
+                </span>
+                <span v-else-if="searchPollPaused" class="w-full">
+                  {{ t('CRM.SEARCH_VISIBILITY.POLL_PAUSED') }}
+                </span>
                 <span
                   v-if="
                     campaignSearchState === 'completed' &&
