@@ -1591,6 +1591,10 @@
       "REGISTRATION": "粤ICP备2026106012号-1"
     },
     "LEAD_CENTER_UI": {
+      "CREATED_BY": "创建人：{name}",
+      "OWNED_BY": "负责人：{name}",
+      "CREATOR_UNRECORDED": "历史未记录",
+      "OWNER_UNASSIGNED": "未分配",
       "TEXT_001": "新客开发",
       "TEXT_002": "从真实成交出发，找到更合适的潜在客户。",
       "TEXT_003": "新建拓客任务",

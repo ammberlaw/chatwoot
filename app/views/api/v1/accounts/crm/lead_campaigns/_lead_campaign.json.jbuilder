@@ -10,6 +10,8 @@ json.auto_run campaign.auto_run
 # 挖到的线索进不进共享池。不勾的只有负责人自己看得见、领得走。
 json.shared campaign.shared
 json.owner_id campaign.owner_id
+json.created_by_id campaign.created_by_id
+json.created_by_name campaign.created_by&.crm_display_name
 json.auto_run_at campaign.auto_run_at
 json.seed_keywords campaign.seed_keywords
 json.target_count campaign.target_count

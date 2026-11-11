@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_10_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_11_163325) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1719,7 +1719,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_170000) do
     t.datetime "auto_run_at"
     t.jsonb "dead_keywords", default: []
     t.boolean "shared", default: true, null: false
+    t.bigint "created_by_id"
     t.index ["account_id", "status"], name: "index_crm_lead_campaigns_on_account_id_and_status"
+    t.index ["created_by_id"], name: "index_crm_lead_campaigns_on_created_by_id"
     t.index ["owner_id"], name: "index_crm_lead_campaigns_on_owner_id"
   end
 
@@ -4559,6 +4561,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_10_170000) do
   add_foreign_key "crm_kpi_sheets", "crm_kpi_schemes", on_delete: :nullify
   add_foreign_key "crm_kpi_sheets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_kpi_sheets", "users", column: "returned_by_id", on_delete: :nullify
+  add_foreign_key "crm_lead_campaigns", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify

@@ -27,12 +27,18 @@
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  account_id             :bigint           not null
+#  created_by_id          :bigint
 #  owner_id               :bigint
 #
 # Indexes
 #
 #  index_crm_lead_campaigns_on_account_id_and_status  (account_id,status)
+#  index_crm_lead_campaigns_on_created_by_id          (created_by_id)
 #  index_crm_lead_campaigns_on_owner_id               (owner_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (created_by_id => users.id) ON DELETE => nullify
 #
 class Crm::LeadCampaign < ApplicationRecord
   self.table_name = 'crm_lead_campaigns'
@@ -43,6 +49,8 @@ class Crm::LeadCampaign < ApplicationRecord
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: 'User', optional: true
+  attr_readonly :created_by_id
   has_many :leads, class_name: 'Crm::Lead', foreign_key: :crm_lead_campaign_id,
                    dependent: :destroy, inverse_of: :campaign
 

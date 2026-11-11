@@ -9,7 +9,7 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   def index
     # 共享的任务全员可见（线索是共享池，谁挖的不重要，谁领的才重要）；
     # 没勾共享的只有负责人自己看得见。
-    @campaigns = visible_campaigns.recent_first.limit(50)
+    @campaigns = visible_campaigns.includes(:owner, :created_by).recent_first.limit(50)
     # 本月还能解锁几条。摆在页面上，业务员点之前就知道还剩多少，
     # 不至于点到一半被拦下来才发现额度没了。
     @quota = Crm::ApolloQuota.new(account: Current.account).status_for(current_user)
@@ -18,7 +18,7 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   def show; end
 
   def create
-    @campaign = Current.account.crm_lead_campaigns.new(campaign_params)
+    @campaign = Current.account.crm_lead_campaigns.new(campaign_params.merge(created_by: current_user))
     @campaign.owner_id = assigned_owner_id
     # 没自己写初筛条件就用公司级默认的——11 个人写 11 套标准，判出来的东西没有可比性。
     @campaign.screen_criteria = default_criteria if @campaign.screen_criteria.blank?

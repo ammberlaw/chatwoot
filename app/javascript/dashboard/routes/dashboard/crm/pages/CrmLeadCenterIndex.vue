@@ -1138,6 +1138,29 @@ onMounted(() => {
                     {{ c.name }}
                   </div>
                   <div
+                    class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 break-words text-label-small leading-relaxed"
+                    :class="
+                      current && current.id === c.id
+                        ? 'text-white/70'
+                        : 'text-n-slate-11'
+                    "
+                  >
+                    <span>{{
+                      t('CRM.LEAD_CENTER_UI.CREATED_BY', {
+                        name:
+                          c.created_by_name ||
+                          t('CRM.LEAD_CENTER_UI.CREATOR_UNRECORDED'),
+                      })
+                    }}</span>
+                    <span>{{
+                      t('CRM.LEAD_CENTER_UI.OWNED_BY', {
+                        name:
+                          c.owner_name ||
+                          t('CRM.LEAD_CENTER_UI.OWNER_UNASSIGNED'),
+                      })
+                    }}</span>
+                  </div>
+                  <div
                     class="mt-1 break-words text-label-small leading-relaxed"
                     :class="
                       current && current.id === c.id
@@ -1391,6 +1414,24 @@ onMounted(() => {
                 <h2 class="mb-0 break-words text-heading-2 text-n-slate-12">
                   {{ current.name }}
                 </h2>
+                <div
+                  class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 break-words text-label-small text-n-slate-11"
+                >
+                  <span>{{
+                    t('CRM.LEAD_CENTER_UI.CREATED_BY', {
+                      name:
+                        current.created_by_name ||
+                        t('CRM.LEAD_CENTER_UI.CREATOR_UNRECORDED'),
+                    })
+                  }}</span>
+                  <span>{{
+                    t('CRM.LEAD_CENTER_UI.OWNED_BY', {
+                      name:
+                        current.owner_name ||
+                        t('CRM.LEAD_CENTER_UI.OWNER_UNASSIGNED'),
+                    })
+                  }}</span>
+                </div>
                 <p
                   class="mb-0 mt-1 text-label-small leading-relaxed text-n-slate-11"
                 >
