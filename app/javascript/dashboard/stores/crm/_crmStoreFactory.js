@@ -20,22 +20,24 @@ const normalizeMeta = meta => ({
 // 不同列表视图共用同一份 records；旧请求的成功、错误和收尾都不能覆盖新请求。
 const latestListRequests = new WeakMap();
 export const fetchCrmList = async (store, load) => {
+  // Pinia devtools 会为每次 action 包装新的 store Proxy；$state 在这些调用间保持一致。
+  const state = store.$state;
   const request = {};
-  latestListRequests.set(store, request);
+  latestListRequests.set(state, request);
   store.setUIFlag({ fetchingList: true });
   try {
     const { data } = await load();
-    if (latestListRequests.get(store) !== request) return store.records;
+    if (latestListRequests.get(state) !== request) return store.records;
 
     store.records = camelize(data.payload);
     store.meta = normalizeMeta(data.meta);
     return store.records;
   } catch (error) {
-    if (latestListRequests.get(store) !== request) return store.records;
+    if (latestListRequests.get(state) !== request) return store.records;
 
     return throwErrorMessage(error);
   } finally {
-    if (latestListRequests.get(store) === request) {
+    if (latestListRequests.get(state) === request) {
       store.setUIFlag({ fetchingList: false });
     }
   }
