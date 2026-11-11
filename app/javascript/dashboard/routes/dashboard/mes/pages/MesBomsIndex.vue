@@ -1440,7 +1440,7 @@ onMounted(async () => {
     <Dialog
       ref="viewDialogRef"
       :dismissible="false"
-      width="6xl"
+      width="full"
       overflow-y-auto
       :show-confirm-button="false"
       cancel-button-label="关闭"
