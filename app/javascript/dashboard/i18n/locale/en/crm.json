@@ -660,6 +660,8 @@
     },
     "KNOWLEDGE_DOCS": {
       "DOWNLOAD": {
+        "BATCH": "批量下载",
+        "CANCEL": "取消",
         "SELECT_ALL": "全选本层",
         "SELECTED": "下载选中（{count} 项）",
         "CLEAR": "取消选择",

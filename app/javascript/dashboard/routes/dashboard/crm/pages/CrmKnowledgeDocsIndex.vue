@@ -384,6 +384,7 @@ const currentDocs = computed(() => {
   return [];
 });
 
+const selectionMode = ref(false);
 const checkedDocIds = ref([]);
 const checkedCategoryIds = ref([]);
 const checkedCount = computed(
@@ -401,6 +402,16 @@ const allChecked = computed(
 const clearSelection = () => {
   checkedDocIds.value = [];
   checkedCategoryIds.value = [];
+};
+const exitSelection = () => {
+  selectionMode.value = false;
+  clearSelection();
+};
+const toggleChecked = (type, id) => {
+  const ids = type === 'category' ? checkedCategoryIds : checkedDocIds;
+  ids.value = ids.value.includes(id)
+    ? ids.value.filter(value => value !== id)
+    : [...ids.value, id];
 };
 const toggleAllChecked = () => {
   if (allChecked.value) {
@@ -421,7 +432,7 @@ const downloadSelection = (categoryIds = null) => {
 };
 watch(
   [currentNode, currentLibrary, activeSectionId, activeFilter, searchQuery],
-  clearSelection
+  exitSelection
 );
 watch(records, () => {
   const ids = new Set(records.value.map(d => d.id));
@@ -1019,6 +1030,7 @@ watch(
 <template>
   <div
     class="flex w-full h-full overflow-hidden backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border bg-n-solid-1/80 border-n-weak/70 shadow-wintouch-glass"
+    @keydown.esc="exitSelection"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
@@ -1393,51 +1405,103 @@ watch(
           />
           <div
             v-if="
-              currentDocs.length || currentFolders.length || currentCategoryId
+              currentDocs.length ||
+              currentFolders.length ||
+              currentCategoryId ||
+              canCreateDocsHere ||
+              canAddFolderHere
             "
-            class="flex flex-wrap items-center gap-3 mb-3 text-label-small"
+            class="flex min-h-9 flex-wrap items-center justify-end gap-2 mb-3 text-label-small"
           >
-            <label
-              class="inline-flex items-center gap-2 cursor-pointer text-n-slate-11"
-            >
-              <input
-                type="checkbox"
-                class="reset-base size-4 accent-current"
-                :checked="allChecked"
-                :indeterminate="checkedCount > 0 && !allChecked"
-                @change="toggleAllChecked"
+            <template v-if="selectionMode">
+              <label
+                class="mr-auto inline-flex items-center gap-2 cursor-pointer text-n-slate-11"
+              >
+                <input
+                  type="checkbox"
+                  class="reset-base size-4 accent-current"
+                  :checked="allChecked"
+                  :indeterminate="checkedCount > 0 && !allChecked"
+                  @change="toggleAllChecked"
+                />
+                {{ t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECT_ALL') }}
+              </label>
+              <Button
+                :label="
+                  t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECTED', {
+                    count: checkedCount,
+                  })
+                "
+                icon="i-lucide-download"
+                size="sm"
+                color="slate"
+                variant="outline"
+                :disabled="!checkedCount"
+                @click="downloadSelection()"
               />
-              {{ t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECT_ALL') }}
-            </label>
-            <Button
-              v-if="checkedCount"
-              :label="
-                t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.SELECTED', {
-                  count: checkedCount,
-                })
-              "
-              icon="i-lucide-download"
-              size="sm"
-              variant="outline"
-              @click="downloadSelection()"
-            />
-            <button
-              v-if="checkedCount"
-              type="button"
-              class="text-n-slate-11 hover:text-n-slate-12"
-              @click="clearSelection"
-            >
-              {{ t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.CLEAR') }}
-            </button>
-            <Button
-              v-if="currentCategoryId && !isSearching"
-              class="ml-auto"
-              :label="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER')"
-              icon="i-lucide-download"
-              size="sm"
-              variant="ghost"
-              @click="downloadSelection([currentCategoryId])"
-            />
+              <Button
+                :label="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.CANCEL')"
+                size="sm"
+                color="slate"
+                variant="ghost"
+                @click="exitSelection"
+              />
+            </template>
+            <template v-else>
+              <Button
+                v-if="currentCategoryId && !isSearching"
+                :label="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER')"
+                icon="i-lucide-download"
+                size="sm"
+                color="slate"
+                variant="ghost"
+                @click="downloadSelection([currentCategoryId])"
+              />
+              <Button
+                v-if="currentDocs.length || selectableFolders.length"
+                :label="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.BATCH')"
+                icon="i-lucide-list-checks"
+                size="sm"
+                color="slate"
+                variant="ghost"
+                @click="selectionMode = true"
+              />
+              <template v-if="!isSearching">
+                <button
+                  v-if="canAddFolderHere"
+                  type="button"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                  @click="createUnnamedFolder"
+                >
+                  <span class="i-lucide-folder-plus size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
+                </button>
+                <button
+                  v-if="canCreateDocsHere"
+                  type="button"
+                  :disabled="directUploading"
+                  class="inline-flex items-center gap-1 px-2 py-1 disabled:opacity-60 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
+                  @click="triggerDirectUpload"
+                >
+                  <span
+                    :class="
+                      directUploading
+                        ? 'i-lucide-loader-2 animate-spin'
+                        : 'i-lucide-upload'
+                    "
+                    class="size-3.5"
+                  />
+                  {{
+                    directUploading
+                      ? t('CRM.KNOWLEDGE_DOCS.UPLOAD.UPLOADING', {
+                          done: directProgress.done,
+                          total: directProgress.total,
+                        })
+                      : t('CRM.KNOWLEDGE_DOCS.UPLOAD.BTN')
+                  }}
+                </button>
+              </template>
+            </template>
           </div>
           <!-- 空态 -->
           <div
@@ -1476,45 +1540,6 @@ watch(
             "
           >
             <div
-              v-if="canCreateDocsHere || canAddFolderHere"
-              class="flex items-center justify-end gap-1.5 h-8 mb-2"
-            >
-              <button
-                v-if="canAddFolderHere"
-                type="button"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-                @click="createUnnamedFolder"
-              >
-                <span class="i-lucide-folder-plus size-3.5" />
-                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
-              </button>
-              <button
-                v-if="canCreateDocsHere"
-                type="button"
-                :disabled="directUploading"
-                class="inline-flex items-center gap-1 px-2 py-1 disabled:opacity-60 text-label-small rounded-xl bg-wintouch-yellow text-wintouch-ink hover:enabled:bg-wintouch-yellow-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wintouch-ink/50 transition-colors duration-150"
-                @click="triggerDirectUpload"
-              >
-                <span
-                  :class="
-                    directUploading
-                      ? 'i-lucide-loader-2 animate-spin'
-                      : 'i-lucide-upload'
-                  "
-                  class="size-3.5"
-                />
-                {{
-                  directUploading
-                    ? t('CRM.KNOWLEDGE_DOCS.UPLOAD.UPLOADING', {
-                        done: directProgress.done,
-                        total: directProgress.total,
-                      })
-                    : t('CRM.KNOWLEDGE_DOCS.UPLOAD.BTN')
-                }}
-              </button>
-            </div>
-
-            <div
               v-if="sortedFolders.length"
               class="grid grid-cols-3 gap-2.5 sm:grid-cols-6 xl:grid-cols-8"
             >
@@ -1526,6 +1551,7 @@ watch(
                 @mouseleave="hoveredFolderId = null"
               >
                 <input
+                  v-if="selectionMode"
                   v-model="checkedCategoryIds"
                   type="checkbox"
                   :value="folder.id"
@@ -1534,12 +1560,13 @@ watch(
                       name: folder.name,
                     })
                   "
-                  class="reset-base absolute left-8 top-0 z-20 size-4 cursor-pointer accent-current"
+                  class="reset-base absolute left-1 top-1 z-20 size-4 cursor-pointer accent-current"
                   @click.stop
                 />
                 <button
+                  v-if="!selectionMode"
                   type="button"
-                  class="absolute right-0 top-8 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 shadow-sm hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8"
+                  class="absolute right-0 top-8 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 shadow-sm hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/folder-style:opacity-100 [@media(hover:hover)]:group-focus-within/folder-style:opacity-100"
                   :title="t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER')"
                   :aria-label="
                     t('CRM.KNOWLEDGE_DOCS.DOWNLOAD.FOLDER_NAME', {
@@ -1563,9 +1590,20 @@ watch(
                 <!-- 单击直接进入（逐级下钻）-->
                 <button
                   type="button"
-                  class="relative block w-full text-left transition-transform cursor-pointer"
-                  :class="hoveredFolderId === folder.id ? '-translate-y-1' : ''"
-                  @click="enterFolder(folder)"
+                  class="relative block w-full rounded-xl text-left transition-transform cursor-pointer"
+                  :class="[
+                    hoveredFolderId === folder.id && !selectionMode
+                      ? '-translate-y-1'
+                      : '',
+                    checkedCategoryIds.includes(folder.id)
+                      ? 'bg-n-alpha-2 ring-1 ring-n-slate-7'
+                      : '',
+                  ]"
+                  @click="
+                    selectionMode
+                      ? toggleChecked('category', folder.id)
+                      : enterFolder(folder)
+                  "
                 >
                   <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白/黄纸扇形探出 + 前袋写名 -->
                   <div v-if="(isGeneral || isMineView) && styleForFolder(folderStyleKey('category', folder.id)).image" class="flex flex-col items-center gap-2 p-2">
@@ -1639,7 +1677,7 @@ watch(
                 </button>
 
                 <button
-                  v-if="isGeneral || isMineView"
+                  v-if="(isGeneral || isMineView) && !selectionMode"
                   type="button"
                   class="absolute left-0 top-0 z-20 flex size-7 items-center justify-center rounded-full border border-n-weak bg-n-solid-1 text-n-slate-11 opacity-100 shadow-sm transition-opacity duration-150 hover:text-n-iris-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-8 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/folder-style:opacity-100 [@media(hover:hover)]:group-focus-within/folder-style:opacity-100 motion-reduce:transition-none"
                   :title="t('CRM.KNOWLEDGE_DOCS.FOLDER_STYLE.FOLDER_TITLE', { name: folder.name })"
@@ -1653,6 +1691,7 @@ watch(
                 <div
                   v-show="
                     canManageBoard &&
+                    !selectionMode &&
                     editingId !== folder.id &&
                     hoveredFolderId === folder.id
                   "
@@ -1702,6 +1741,7 @@ watch(
                 @mouseleave="hoveredDocId = null"
               >
                 <input
+                  v-if="selectionMode"
                   v-model="checkedDocIds"
                   type="checkbox"
                   :value="doc.id"
@@ -1710,18 +1750,25 @@ watch(
                       name: doc.name,
                     })
                   "
-                  class="reset-base absolute left-0 top-0 z-20 size-4 cursor-pointer accent-current"
+                  class="reset-base absolute left-1 top-1 z-20 size-4 cursor-pointer accent-current"
                   @click.stop
                 />
                 <button
                   type="button"
                   class="flex flex-col items-center w-full gap-1.5 px-1 py-2 text-center transition-colors rounded-xl hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
                   :class="
-                    selectedDoc && selectedDoc.id === doc.id
+                    checkedDocIds.includes(doc.id) ||
+                    (selectedDoc && selectedDoc.id === doc.id)
                       ? 'bg-n-alpha-2 ring-1 ring-n-blue-8'
                       : ''
                   "
-                  @click="isFileDoc(doc) ? openPreview(doc) : openPanel(doc)"
+                  @click="
+                    selectionMode
+                      ? toggleChecked('doc', doc.id)
+                      : isFileDoc(doc)
+                        ? openPreview(doc)
+                        : openPanel(doc)
+                  "
                 >
                   <!-- 多附件条目取第一个附件的类型出图标，右下角挂附件数角标 -->
                   <span class="relative size-[72px] shrink-0">
@@ -1778,6 +1825,7 @@ watch(
                 <div
                   v-show="
                     canManageDoc(doc) &&
+                    !selectionMode &&
                     editingDocId !== doc.id &&
                     hoveredDocId === doc.id
                   "
