@@ -1,5 +1,26 @@
 {
   "CRM": {
+    "SEARCH_VISIBILITY": {
+      "OWNER_QUOTA": "挖客额度 · {owner}",
+      "USED": "本月已挖 {used} 家",
+      "REMAINING": "剩余 {left} / {limit} 家",
+      "UNLIMITED": "未设个人上限",
+      "NO_OWNER": "计划未分配负责人，暂无个人挖客额度",
+      "METRIC": "按本月去重公司数统计",
+      "SCOPE": "覆盖 {markets} 个市场 · 配置 {keywords} 个关键词",
+      "QUEUED": "搜索已排队",
+      "RUNNING": "正在搜索",
+      "LEARNING_KEYWORDS": "正在整理搜索词",
+      "COLLECTING_COMPANIES": "正在寻找公司",
+      "SCREENING": "正在筛选公司",
+      "SAVING_LEADS": "正在整理线索",
+      "COMPLETED": "搜索已完成",
+      "FAILED": "搜索未完成",
+      "QUEUED_AT": "提交于 {time}",
+      "STARTED_AT": "开始于 {time}",
+      "FINISHED_AT": "结束于 {time}",
+      "RESULT": "本轮新增 {companies} 家公司、{leads} 条线索"
+    },
     "SUPPLIER_RETURN_DETAILS": {
       "TITLE": "采购退料单 {no}",
       "VIEW": "查看",

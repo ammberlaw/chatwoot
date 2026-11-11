@@ -1,6 +1,9 @@
 json.id campaign.id
 json.name campaign.name
 json.status campaign.status
+json.search_quota search_quota_for(campaign)
+json.search_run campaign.evidence['search_run']
+json.searched_at campaign.searched_at
 json.target_markets campaign.target_markets
 json.product_hint campaign.product_hint
 # 编辑弹窗要回填这两项，不序列化就会被清空。

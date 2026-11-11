@@ -87,6 +87,50 @@ const quotaLeft = computed(() => {
   if (q.user_left === null || q.user_left === undefined) return null;
   return { left: q.user_left, limit: q.user_limit };
 });
+const campaignSearchQuota = computed(() => current.value?.search_quota);
+const campaignSearchRun = computed(() => current.value?.search_run || {});
+const campaignSearchState = computed(() => {
+  if (current.value?.status === 'QUEUED') return 'queued';
+  if (current.value?.status === 'SEARCHING') return 'running';
+  return (
+    campaignSearchRun.value.state ||
+    (current.value?.searched_at ? 'completed' : '')
+  );
+});
+const campaignSearchStateLabel = computed(() => {
+  const stages = {
+    learning_keywords: 'LEARNING_KEYWORDS',
+    collecting_companies: 'COLLECTING_COMPANIES',
+    screening: 'SCREENING',
+    saving_leads: 'SAVING_LEADS',
+  };
+  if (
+    campaignSearchState.value === 'running' &&
+    stages[campaignSearchRun.value.stage]
+  ) {
+    return t(`CRM.SEARCH_VISIBILITY.${stages[campaignSearchRun.value.stage]}`);
+  }
+  const keys = {
+    queued: 'QUEUED',
+    running: 'RUNNING',
+    completed: 'COMPLETED',
+    failed: 'FAILED',
+  };
+  const key = keys[campaignSearchState.value];
+  return key ? t(`CRM.SEARCH_VISIBILITY.${key}`) : '';
+});
+const campaignSearchTime = computed(() => {
+  const run = campaignSearchRun.value;
+  const state = campaignSearchState.value;
+  const [key, value] = {
+    queued: ['QUEUED_AT', run.queued_at],
+    running: ['STARTED_AT', run.started_at],
+  }[state] || ['FINISHED_AT', run.finished_at || current.value?.searched_at];
+  if (!value) return '';
+  return t(`CRM.SEARCH_VISIBILITY.${key}`, {
+    time: new Date(value).toLocaleString('zh-CN', { hour12: false }),
+  });
+});
 const showOutcomes = ref(false);
 
 const loadOutcomes = async () => {
@@ -1476,8 +1520,84 @@ onMounted(() => {
                   size="sm"
                   class="!rounded-xl !bg-[#ffca35] !text-[#202427]"
                   :is-loading="searching"
+                  :disabled="campaignSearchQuota?.allowed === false"
                   @click="runSearch"
                 />
+              </div>
+            </div>
+            <div
+              data-search-quota
+              class="shrink-0 rounded-xl border border-n-weak bg-n-solid-1 px-3 py-2.5 text-label-small text-n-slate-11"
+            >
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <template v-if="campaignSearchQuota">
+                  <span class="font-medium text-n-slate-12">{{
+                    t('CRM.SEARCH_VISIBILITY.OWNER_QUOTA', {
+                      owner: campaignSearchQuota.owner_name,
+                    })
+                  }}</span>
+                  <span>{{
+                    t('CRM.SEARCH_VISIBILITY.USED', {
+                      used: campaignSearchQuota.used,
+                    })
+                  }}</span>
+                  <span
+                    v-if="campaignSearchQuota.limit != null"
+                    :class="campaignSearchQuota.allowed ? '' : 'text-n-ruby-11'"
+                    >{{
+                      t('CRM.SEARCH_VISIBILITY.REMAINING', {
+                        left: campaignSearchQuota.remaining,
+                        limit: campaignSearchQuota.limit,
+                      })
+                    }}</span
+                  >
+                  <span v-else>{{ t('CRM.SEARCH_VISIBILITY.UNLIMITED') }}</span>
+                  <span>{{ t('CRM.SEARCH_VISIBILITY.METRIC') }}</span>
+                </template>
+                <span v-else>{{ t('CRM.SEARCH_VISIBILITY.NO_OWNER') }}</span>
+              </div>
+              <div class="mt-1">
+                {{
+                  t('CRM.SEARCH_VISIBILITY.SCOPE', {
+                    markets: (current.target_markets || []).length,
+                    keywords: (current.keywords || []).length,
+                  })
+                }}
+              </div>
+              <div
+                v-if="campaignSearchState"
+                data-search-run
+                role="status"
+                aria-live="polite"
+                class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-n-weak pt-2"
+              >
+                <span
+                  class="font-medium"
+                  :class="
+                    campaignSearchState === 'failed'
+                      ? 'text-n-ruby-11'
+                      : 'text-n-slate-12'
+                  "
+                  >{{ campaignSearchStateLabel }}</span
+                >
+                <span v-if="campaignSearchTime">{{ campaignSearchTime }}</span>
+                <span
+                  v-if="
+                    campaignSearchState === 'completed' &&
+                    campaignSearchRun.created_leads != null
+                  "
+                  >{{
+                    t('CRM.SEARCH_VISIBILITY.RESULT', {
+                      companies: campaignSearchRun.created_companies,
+                      leads: campaignSearchRun.created_leads,
+                    })
+                  }}</span
+                >
+                <span
+                  v-if="campaignSearchState === 'failed'"
+                  class="w-full break-words text-n-ruby-11"
+                  >{{ campaignSearchRun.error || current.last_error }}</span
+                >
               </div>
             </div>
             <div

@@ -5,6 +5,7 @@
 class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_campaign, only: [:show, :update, :destroy, :build_profile, :search, :leads]
+  helper_method :search_quota_for
 
   def index
     # 共享的任务全员可见（线索是共享池，谁挖的不重要，谁领的才重要）；
@@ -158,6 +159,17 @@ class Api::V1::Accounts::Crm::LeadCampaignsController < Api::V1::Accounts::Crm::
   end
 
   private
+
+  # 搜索按计划负责人核算；解锁仍按操作者核算，两种额度不能混用。
+  def search_quota_for(campaign)
+    return if campaign.owner.nil?
+
+    @search_quotas ||= {}
+    @search_quota_service ||= Crm::ApolloQuota.new(account: Current.account)
+    quota = @search_quotas[campaign.owner_id] ||= @search_quota_service.search_status_for(campaign.owner)
+    { owner_id: campaign.owner_id, owner_name: campaign.owner.crm_display_name,
+      used: quota.user_used, limit: quota.user_limit, remaining: quota.user_left, allowed: quota.allowed? }
+  end
 
   # 拦下来要说清是谁的额度、用了多少、什么时候清零——只说「不让搜」会让人以为系统坏了。
   def search_quota_message(quota)
