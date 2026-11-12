@@ -38,7 +38,8 @@ class Oa::EditApprovalService
           removed = @request.files.where(id: Array(@attributes[:remove_file_ids]).map(&:to_i)).to_a
           raise ActiveRecord::RecordNotFound if removed.size != Array(@attributes[:remove_file_ids]).map(&:to_i).uniq.size
 
-          @request.update!(title: @attributes[:title].presence || @request.title, department_id: department_id, form_data: data)
+          @request.update!(title: @attributes[:title].presence || @request.title, department_id: department_id, form_data: data,
+                           department_name_snapshot: @request.account.org_departments.find_by(id: department_id)&.name)
           after = @request.attributes.slice('form_data', 'department_id', 'title')
           after['department_name'] = @request.account.org_departments.find_by(id: @request.department_id)&.name
           payload = { 'before' => before, 'after' => after,

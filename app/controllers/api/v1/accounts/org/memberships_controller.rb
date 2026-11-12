@@ -6,20 +6,21 @@ class Api::V1::Accounts::Org::MembershipsController < Api::V1::Accounts::BaseCon
     # 排掉已停用（离职）的人：组织架构、部门成员、负责人下拉都不该再出现他。
     @memberships = Current.account.org_memberships.includes(:user, :department)
                           .where(user_id: Current.account.account_users.active_members.select(:user_id))
+                          .where(department_id: Current.account.org_departments.active.select(:id))
     @memberships = @memberships.where(department_id: params[:department_id]) if params[:department_id].present?
     @memberships = @memberships.where(user_id: current_user.id) if params[:mine] == 'true'
   end
 
   def create
-    @membership = Current.account.org_memberships.create!(membership_params)
+    Current.account.with_lock(requires_new: true) { @membership = Current.account.org_memberships.create!(membership_params) }
   end
 
   def update
-    @membership.update!(membership_params)
+    Current.account.with_lock(requires_new: true) { @membership.lock!; @membership.update!(membership_params) }
   end
 
   def destroy
-    @membership.destroy!
+    Current.account.with_lock(requires_new: true) { @membership.lock!; @membership.destroy! }
     head :ok
   end
 

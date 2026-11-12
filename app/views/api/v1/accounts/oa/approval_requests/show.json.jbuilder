@@ -3,7 +3,7 @@ json.form_data @request.form_data
 json.form_fields @request.definition.form_fields
 json.flow @request.definition.flow
 json.department_id @request.department_id
-json.department_name Current.account.org_departments.find_by(id: @request.department_id)&.name
+json.department_name @request.department_name_snapshot || Current.account.org_departments.find_by(id: @request.department_id)&.name
 json.files @request.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
 json.can_act @request.pending? && @request.current_step&.approver_id == current_user.id && @request.current_step&.status == 'pending'
 json.is_applicant @request.applicant_id == current_user.id

@@ -32,6 +32,11 @@ class Crm::EmployeePolicy < ApplicationPolicy
     admin_like?
   end
 
+  def restore_file? = admin_like?
+  def offboarding_preview? = admin_like?
+  def retry_offboarding? = admin_like?
+  def workbench? = admin_like?
+
   private
 
   def admin_like?

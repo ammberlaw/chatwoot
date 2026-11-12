@@ -82,6 +82,10 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     if params[:member].key?(:in_sales_rank)
       updates[:in_sales_rank] = ActiveModel::Type::Boolean.new.cast(params[:member][:in_sales_rank])
     end
+    if params[:member].key?(:crm_role) || params[:member].key?(:role)
+      updates[:org_managed_crm_role] = false
+      updates[:org_previous_crm_role] = nil
+    end
     @member.update!(updates)
     apply_user_updates
   rescue ActiveRecord::RecordInvalid => e
@@ -95,7 +99,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     return render json: { error: error[:message] }, status: error[:status] if error
 
     Crm::OffboardingService.new(
-      account: Current.account, user_id: @member.user_id,
+      account: Current.account, user_id: @member.user_id, actor: current_user,
       mode: params[:handover_mode].to_s, target_user_id: params[:handover_target_id].presence
     ).perform
     @member.reload
@@ -120,6 +124,10 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     head :ok
   rescue Crm::MemberDeletionService::NotDeletable => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  rescue_from Crm::OffboardingService::Invalid do |error|
+    render json: { error: error.message }, status: :unprocessable_entity
   end
 
   private

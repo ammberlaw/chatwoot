@@ -70,6 +70,43 @@ class Crm::Employee < ApplicationRecord
   validates :contract_type, inclusion: { in: CONTRACT_TYPES }, allow_blank: true
   validates :resign_type, inclusion: { in: RESIGN_TYPES }, allow_blank: true
 
+  validates :probation_months, :renew_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validate :valid_dates_and_links
+
+  private
+
+  def valid_dates_and_links
+    %w[birth_date hire_date regular_date contract_start_date contract_end_date resign_date].each do |field|
+      raw = public_send("#{field}_before_type_cast")
+      next if raw.blank? || raw.is_a?(Date) || raw.is_a?(Time)
+      begin
+        raise ArgumentError unless raw.is_a?(String) && raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+        Date.iso8601(raw)
+      rescue ArgumentError
+        errors.add(field, '日期格式不正确')
+      end
+    end
+    if department_id.present? && (new_record? || will_save_change_to_department_id?)
+      errors.add(:department_id, '部门不存在、已停用或不属于当前公司') unless account.org_departments.active.exists?(id: department_id)
+    end
+    if user_id.present?
+      member = account.account_users.find_by(user_id: user_id)
+      errors.add(:user_id, '账号不属于当前公司') unless member
+      if member && status != 'RESIGNED' && member.deactivated_at.present?
+        errors.add(:user_id, '请先在成员管理中恢复该账号')
+      elsif member && status == 'RESIGNED' && member.deactivated_at.nil? && (new_record? || will_save_change_to_status?)
+        errors.add(:status, '关联在职账号必须通过离职交接办理')
+      end
+    end
+    [[hire_date, regular_date, :regular_date], [contract_start_date, contract_end_date, :contract_end_date],
+     [hire_date, resign_date, :resign_date]].each do |first, last, key|
+      errors.add(key, '结束日期不能早于开始日期') if first && last && first > last
+    end
+    errors.add(:birth_date, '出生日期不能晚于今天') if birth_date && birth_date > Date.current
+  end
+
+  public
+
   # 指定月份（考核月）该员工是否处于试用期。绩效核算据此判断是否发绩效薪资。
   # 优先按转正日期；无转正日期时按「入职日 + 试用期月数」推算；再兜底看当前状态。
   def probation_in?(month)

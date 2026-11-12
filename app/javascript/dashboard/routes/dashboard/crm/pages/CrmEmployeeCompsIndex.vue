@@ -1,9 +1,8 @@
 <script setup>
-/* global axios */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { useHrSensitiveSession } from 'dashboard/composables/useHrSensitiveSession';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
-import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmEmployeeCompsStore } from 'dashboard/stores/crm/employeeComps';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -12,6 +11,9 @@ import CrmEmployeeCompCreateDialog from 'dashboard/components-next/CRM/CrmEmploy
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const store = useCrmEmployeeCompsStore();
+const label = key => t(`CRM.HR_WORKFLOW.${key}`);
+const showHistory = ref(false);
+let dialogGeneration = 0;
 
 const createDialogRef = ref(null);
 
@@ -22,85 +24,82 @@ const isCreating = computed(() => uiFlags.value.creatingItem);
 const isUpdating = computed(() => uiFlags.value.updatingItem);
 const isDialogLoading = computed(() => isCreating.value || isUpdating.value);
 
-const fetchRecords = () => store.get();
+const {
+  active: sudoActive,
+  checking: sudoChecking,
+  password: sudoPassword,
+  error: sudoError,
+  verifying: sudoVerifying,
+  unlock,
+  handleError: handleSensitiveError,
+} = useHrSensitiveSession();
 
-const openCreateDialog = () => createDialogRef.value?.open();
-const openEditDialog = record => createDialogRef.value?.openEdit(record);
+const fetchRecords = async () => {
+  try {
+    await store.get({ history: showHistory.value });
+  } catch (failure) {
+    if (!handleSensitiveError(failure))
+      useAlert(failure.message || label('FAILED'));
+  }
+  if (!sudoActive.value) store.records = [];
+};
+
+const openCreateDialog = () => {
+  dialogGeneration += 1;
+  createDialogRef.value?.open();
+};
+const openEditDialog = record => {
+  dialogGeneration += 1;
+  createDialogRef.value?.openEdit(record);
+};
 
 const createRecord = async payload => {
+  const request = dialogGeneration;
   try {
     await store.create(payload);
+    await fetchRecords();
+    if (!sudoActive.value || request !== dialogGeneration) return;
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.EMPLOYEE_COMPS.CREATE.SUCCESS'));
-  } catch {
-    useAlert(t('CRM.EMPLOYEE_COMPS.CREATE.ERROR'));
+  } catch (failure) {
+    if (!handleSensitiveError(failure) && request === dialogGeneration)
+      useAlert(failure.message || t('CRM.EMPLOYEE_COMPS.CREATE.ERROR'));
   }
 };
 
 const updateRecord = async payload => {
+  const request = dialogGeneration;
   try {
     await store.update(payload);
+    await fetchRecords();
+    if (!sudoActive.value || request !== dialogGeneration) return;
     createDialogRef.value?.onSuccess();
     useAlert(t('CRM.EMPLOYEE_COMPS.EDIT.SUCCESS'));
-  } catch {
-    useAlert(t('CRM.EMPLOYEE_COMPS.EDIT.ERROR'));
+  } catch (failure) {
+    if (!handleSensitiveError(failure) && request === dialogGeneration)
+      useAlert(failure.message || t('CRM.EMPLOYEE_COMPS.EDIT.ERROR'));
   }
 };
 
 const deleteRecord = async record => {
-  if (
-    !window.confirm(
-      t('CRM.EMPLOYEE_COMPS.DELETE.CONFIRM', { name: record.name })
-    )
-  ) {
+  if (!window.confirm(label('PAY_ARCHIVE_CONFIRM'))) {
     return;
   }
   try {
     await store.delete(record.id);
-    useAlert(t('CRM.EMPLOYEE_COMPS.DELETE.SUCCESS'));
-  } catch {
-    useAlert(t('CRM.EMPLOYEE_COMPS.DELETE.ERROR'));
+    fetchRecords();
+    useAlert(label('PAY_ARCHIVED'));
+  } catch (failure) {
+    if (!handleSensitiveError(failure))
+      useAlert(failure.message || t('CRM.EMPLOYEE_COMPS.DELETE.ERROR'));
   }
 };
 
 // ── 敏感区二次验证：先输登录密码解锁（15 分钟免验），解锁后才拉数据 ──
-const { accountId } = useAccount();
-const sudoActive = ref(false);
-const sudoChecking = ref(true);
-const sudoPassword = ref('');
-const sudoError = ref('');
-const sudoVerifying = ref(false);
-const sudoUrl = () =>
-  `/api/v1/accounts/${accountId.value}/crm/sensitive_session`;
-const checkSudo = async () => {
-  try {
-    const { data } = await axios.get(sudoUrl());
-    sudoActive.value = !!data.active;
-  } catch {
-    sudoActive.value = false;
-  } finally {
-    sudoChecking.value = false;
-  }
-  if (sudoActive.value) fetchRecords();
+const togglePayHistory = () => {
+  showHistory.value = !showHistory.value;
+  fetchRecords();
 };
-const unlock = async () => {
-  if (!sudoPassword.value || sudoVerifying.value) return;
-  sudoVerifying.value = true;
-  sudoError.value = '';
-  try {
-    await axios.post(sudoUrl(), { password: sudoPassword.value });
-    sudoActive.value = true;
-    sudoPassword.value = '';
-    fetchRecords();
-  } catch (e) {
-    sudoError.value =
-      e.response?.status === 401 ? '密码不正确' : '验证失败，请重试';
-  } finally {
-    sudoVerifying.value = false;
-  }
-};
-
-onMounted(checkSudo);
 
 // 金额默认打码，页头开关显隐（防旁人瞟屏）。
 const showMoney = ref(false);
@@ -110,6 +109,19 @@ const fmtMoney = micros => {
     ? `¥ ${(micros / 1_000_000).toLocaleString()}`
     : '¥ ******';
 };
+watch(
+  sudoActive,
+  unlocked => {
+    if (unlocked) fetchRecords();
+    else {
+      dialogGeneration += 1;
+      store.records = [];
+      showMoney.value = false;
+      createDialogRef.value?.onSuccess();
+    }
+  },
+  { flush: 'sync', immediate: true }
+);
 </script>
 
 <template>
@@ -138,6 +150,12 @@ const fmtMoney = micros => {
           color="slate"
           variant="faded"
           @click="showMoney = !showMoney"
+        />
+        <Button
+          :label="label(showHistory ? 'CURRENT_ONLY' : 'SHOW_PAY_HISTORY')"
+          color="slate"
+          variant="outline"
+          @click="togglePayHistory"
         />
         <Button
           :label="t('CRM.EMPLOYEE_COMPS.NEW')"
@@ -179,7 +197,10 @@ const fmtMoney = micros => {
       </span>
     </div>
 
-    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      v-else
+      class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -203,6 +224,11 @@ const fmtMoney = micros => {
             <div class="flex items-center gap-2">
               <span class="font-medium truncate text-n-slate-12">
                 {{ record.name }}
+                <span
+                  v-if="record.active === false"
+                  class="ml-2 text-label-small text-n-slate-10"
+                  >{{ label('PAY_HISTORY') }}</span
+                >
               </span>
               <span class="flex-1" />
               <Button
@@ -219,6 +245,7 @@ const fmtMoney = micros => {
                 color="ruby"
                 variant="ghost"
                 size="sm"
+                :disabled="record.active === false"
                 @click.stop="deleteRecord(record)"
               />
             </div>
@@ -325,6 +352,7 @@ const fmtMoney = micros => {
                     color="ruby"
                     variant="ghost"
                     size="sm"
+                    :disabled="record.active === false"
                     @click="deleteRecord(record)"
                   />
                 </div>
@@ -336,10 +364,12 @@ const fmtMoney = micros => {
     </div>
 
     <CrmEmployeeCompCreateDialog
+      v-if="sudoActive"
       ref="createDialogRef"
       :is-loading="isDialogLoading"
       @create="createRecord"
       @update="updateRecord"
+      @closed="dialogGeneration += 1"
     />
   </div>
 </template>

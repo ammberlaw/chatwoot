@@ -63,6 +63,7 @@ class Oa::SubmitApprovalService
           draft = @attributes[:draft] == true
           request = @account.oa_approval_requests.create!(template: @template, applicant: @applicant,
             title: @title.presence || "#{@applicant.name}的#{@definition.name}", department_id: @department_id,
+            department_name_snapshot: @account.org_departments.find_by(id: @department_id)&.name,
             revokes_request_id: @revokes_request_id, source_request_id: @attributes[:source_request_id],
             template_snapshot: @definition.data, form_data: @form_data || {}, submission_key: key,
             status: draft ? 'draft' : 'pending', current_position: 0, submitted_at: draft ? nil : Time.current,

@@ -9,10 +9,10 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
-defineProps({
+const props = defineProps({
   isLoading: { type: Boolean, default: false },
 });
-const emit = defineEmits(['create', 'update']);
+const emit = defineEmits(['create', 'update', 'closed']);
 // 业绩保底目标与晋升体系（硬编码档位表）。选档位自动带出：月薪(底薪)/绩效占比/月度业绩底线。
 // salary、baseline 单位为「元」；ratio 为绩效占比百分数。
 // WITHIN_12M = 入职12个月内（P3 六档）；OVER_12M = 入职满12个月（P4~P9）。
@@ -119,6 +119,8 @@ const { accountId } = useAccount();
 const dialogRef = ref(null);
 // 有值=编辑该配置，null=新建。
 const editingId = ref(null);
+const readOnly = ref(false);
+const label = key => t(`CRM.HR_WORKFLOW.${key}`);
 const members = ref([]);
 // 原生 select → 紫玻璃 SelectCard 选项（含空值项「—」）。
 const ownerOptions = computed(() => [
@@ -136,6 +138,7 @@ const form = reactive({
   performanceRatio: '10',
   baselineTarget: '',
   rankNote: '',
+  effectiveOn: new Date().toLocaleDateString('sv-SE'),
 });
 
 const isFormInvalid = computed(() => !form.name.trim());
@@ -193,10 +196,12 @@ const resetForm = () => {
   form.performanceRatio = '10';
   form.baselineTarget = '';
   form.rankNote = '';
+  form.effectiveOn = new Date().toLocaleDateString('sv-SE');
 };
 
 const open = () => {
   editingId.value = null;
+  readOnly.value = false;
   resetForm();
   dialogRef.value?.open();
 };
@@ -204,6 +209,10 @@ const open = () => {
 // 编辑已有配置：回填表单（金额由 micros 还原为元），档位仅作辅助不回填。
 const openEdit = record => {
   editingId.value = record.id;
+  readOnly.value = record.active === false;
+  form.effectiveOn = readOnly.value
+    ? record.effectiveOn
+    : new Date().toLocaleDateString('sv-SE');
   form.name = record.name || '';
   form.ownerId = record.ownerId || '';
   form.payGrade = '';
@@ -229,9 +238,10 @@ const onSuccess = () => {
 const toMicros = v => (v ? Math.round(parseFloat(v) * 1_000_000) : null);
 
 const handleConfirm = () => {
-  if (isFormInvalid.value) return;
+  if (isFormInvalid.value || props.isLoading || readOnly.value) return;
   const payload = {
     name: form.name.trim(),
+    effectiveOn: form.effectiveOn,
     ownerId: form.ownerId || null,
     monthlySalaryMicros: toMicros(form.monthlySalary),
     performanceRatio: form.performanceRatio
@@ -280,9 +290,29 @@ defineExpose({ dialogRef, onSuccess, open, openEdit });
     :title="dialogTitle"
     :is-loading="isLoading"
     @confirm="handleConfirm"
-    @close="resetForm"
+    :show-confirm-button="!readOnly"
+    @close="
+      () => {
+        resetForm();
+        emit('closed');
+      }
+    "
   >
-    <div class="flex flex-col gap-4">
+    <fieldset :disabled="readOnly" class="flex flex-col gap-4">
+      <p v-if="readOnly" class="text-label-small">{{ label('PAY_HISTORY') }}</p>
+      <label class="flex flex-col gap-1 text-label">
+        {{ label('EFFECTIVE_ON') }}
+        <input
+          v-model="form.effectiveOn"
+          type="date"
+          :max="new Date().toLocaleDateString('sv-SE')"
+          :disabled="readOnly"
+          class="h-10 rounded-xl border border-n-weak bg-n-solid-1 px-3"
+        />
+        <span class="text-label-small text-n-slate-10">{{
+          label('EFFECTIVE_HINT')
+        }}</span>
+      </label>
       <Input
         v-model="form.name"
         :label="t('CRM.EMPLOYEE_COMPS.FORM.NAME')"
@@ -340,6 +370,6 @@ defineExpose({ dialogRef, onSuccess, open, openEdit });
           :label="t('CRM.EMPLOYEE_COMPS.FORM.RANK_NOTE')"
         />
       </div>
-    </div>
+    </fieldset>
   </Dialog>
 </template>

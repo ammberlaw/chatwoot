@@ -34,3 +34,5 @@ json.entry_files(resource.entry_files.map { |f| { id: f.id, filename: f.filename
 json.resign_files(resource.resign_files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } })
 json.created_at resource.created_at.to_i
 json.updated_at resource.updated_at.to_i
+
+json.can_offboard Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? || false

@@ -289,7 +289,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return @perf_baseline_micros if defined?(@perf_baseline_micros)
 
     @perf_baseline_micros = @sheet.baseline_target_micros.presence ||
-                            Current.account.crm_employee_comps.owned_by(@sheet.owner_id)
+                            Current.account.crm_employee_comps.current.owned_by(@sheet.owner_id)
                                    .order(created_at: :desc).first&.baseline_target_micros
   end
 

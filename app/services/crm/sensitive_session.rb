@@ -10,6 +10,10 @@ module Crm::SensitiveSession
     Redis::Alfred.get(key(account, user)).present?
   end
 
+  def self.remaining(account, user)
+    [Redis::Alfred.ttl(key(account, user)), 0].max
+  end
+
   def self.key(account, user)
     "CRM_SENSITIVE_SESSION::#{account.id}::#{user.id}"
   end

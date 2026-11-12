@@ -23,28 +23,63 @@ class Org::Department < ApplicationRecord
   belongs_to :account
   belongs_to :parent, class_name: 'Org::Department', optional: true
   belongs_to :leader, class_name: 'User', optional: true
-  has_many :children, class_name: 'Org::Department', foreign_key: :parent_id, inverse_of: :parent, dependent: :destroy
-  has_many :memberships, class_name: 'Org::Membership', dependent: :destroy
+  has_many :children, class_name: 'Org::Department', foreign_key: :parent_id, inverse_of: :parent, dependent: :restrict_with_error
+  has_many :memberships, class_name: 'Org::Membership', dependent: :restrict_with_error
   has_many :members, through: :memberships, source: :user
 
   validates :name, presence: true
   validate :parent_not_self_or_descendant
 
+  scope :active, -> { where(archived_at: nil) }
   scope :ordered, -> { order(:position, :id) }
   scope :roots, -> { where(parent_id: nil) }
 
-  after_destroy :demote_former_leader
-  # 组织架构与系统角色联动（仅业务条线部门）：设为业务部门负责人自动升为「部门负责人」角色；
-  # 卸任且不再负责任何业务部门时回落为「业务员」。非业务部门（生产/人事等）的负责人不联动，
-  # 不会因此获得 CRM 入口。超级管理员/管理员不受影响。
-  after_save :sync_leader_crm_role, if: :saved_change_to_leader_id?
+  validate :valid_account_links
+  before_destroy :protect_business_history, prepend: true
+  after_save :sync_roles_and_history
+  after_destroy { Org::ManagedRoleSync.perform(account) }
+
+  def active? = archived_at.nil?
+
+  def active_member_count
+    memberships.where(user_id: account.account_users.active_members.select(:user_id)).count
+  end
+
+  def impact
+    { children: children.active.count, members: active_member_count,
+      employees: account.crm_employees.where(department_id: id).where.not(status: 'RESIGNED').count,
+      leader: leader_id.present?, history: business_history? }
+  end
+
+  def business_history?
+    account.crm_employees.exists?(department_id: id) || account.oa_approval_requests.exists?(department_id: id) ||
+      account.crm_petty_cash_books.exists?(org_department_id: id) || Erp::VoucherLine.where(account_id: account_id, department_id: id).exists? ||
+      Erp::FixedAsset.where(account_id: account_id, department_id: id).exists? || account.crm_member_invites.exists?(department_id: id)
+  end
+
+  def archive_or_destroy!
+    dependencies = impact
+    if dependencies[:children].positive? || dependencies[:members].positive? || dependencies[:employees].positive? || dependencies[:leader]
+      errors.add(:base, '请先迁移在职成员、员工档案、下级部门并移交负责人')
+      raise ActiveRecord::RecordInvalid, self
+    end
+    if business_history? || children.exists? || memberships.exists?
+      update!(archived_at: Time.current)
+      true
+    else
+      destroy!
+      false
+    end
+  end
 
   BUSINESS_KEYWORDS = %w[销售 业务].freeze
 
   # 业务条线部门：自身或任一上级部门名称含「销售/业务」。
   def business_line?
     node = self
-    while node
+    seen = []
+    while node && seen.exclude?(node.id)
+      seen << node.id
       return true if BUSINESS_KEYWORDS.any? { |keyword| node.name.include?(keyword) }
 
       node = node.parent_id && account.org_departments.find_by(id: node.parent_id)
@@ -84,7 +119,7 @@ class Org::Department < ApplicationRecord
       seen << dept_id
       dept = account.org_departments.find_by(id: dept_id)
       return nil unless dept
-      return dept.leader_id if dept.leader_id.present? && dept.leader_id != user_id
+      return dept.leader_id if dept.active? && dept.leader_id != user_id && account.account_users.active_members.exists?(user_id: dept.leader_id)
 
       dept_id = dept.parent_id
     end
@@ -93,32 +128,34 @@ class Org::Department < ApplicationRecord
 
   private
 
-  def sync_leader_crm_role
-    old_id, new_id = saved_change_to_leader_id
-    promote_to_manager(new_id)
-    demote_if_not_leading(old_id)
+  def valid_account_links
+    if archived_at_in_database.present? && (changes.keys & %w[name parent_id leader_id archived_at]).any?
+      errors.add(:base, '已停用部门只保留历史，不能修改')
+    end
+    if parent_id.present? && !account.org_departments.active.exists?(id: parent_id)
+      errors.add(:parent_id, '上级部门不存在、已停用或不属于当前公司')
+    end
+    if leader_id.present? && !account.account_users.active_members.exists?(user_id: leader_id)
+      errors.add(:leader_id, '负责人必须是当前公司在职成员')
+    end
+    if archived_at.present? && new_record?
+      errors.add(:base, '新部门不能直接归档')
+    end
   end
 
-  def demote_former_leader
-    demote_if_not_leading(leader_id)
+  def protect_business_history
+    return unless business_history?
+
+    errors.add(:base, '部门已有业务记录，请归档并保留历史')
+    throw :abort
   end
 
-  def promote_to_manager(user_id)
-    return if user_id.blank?
-    return unless business_line?
+  def sync_roles_and_history
+    return unless (saved_changes.keys & %w[id name parent_id leader_id archived_at]).any?
 
-    au = account.account_users.find_by(user_id: user_id)
-    return unless au && !au.administrator? && ['sales', nil].include?(au.crm_role)
-
-    au.update!(crm_role: 'manager')
-  end
-
-  def demote_if_not_leading(user_id)
-    return if user_id.blank?
-    return if account.org_departments.where(leader_id: user_id).any?(&:business_line?)
-
-    au = account.account_users.find_by(user_id: user_id)
-    au.update!(crm_role: 'sales') if au&.crm_role == 'manager'
+    Org::ManagedRoleSync.perform(account)
+    Crm::HrEvent.record!(account: account, department: self, kind: 'org_department_changed',
+                        payload: { department_name: name, changes: saved_changes.slice('name', 'parent_id', 'leader_id', 'archived_at') })
   end
 
   def parent_not_self_or_descendant

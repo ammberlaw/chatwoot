@@ -139,7 +139,7 @@ class Crm::SalaryBaseline
   end
 
   def comp_index(owner_ids)
-    @account.crm_employee_comps.where(owner_id: owner_ids)
+    @account.crm_employee_comps.current.where(owner_id: owner_ids)
             .order(:created_at).index_by(&:owner_id)
   end
 

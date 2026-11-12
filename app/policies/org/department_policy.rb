@@ -24,6 +24,9 @@ class Org::DepartmentPolicy < ApplicationPolicy
     admin_like?
   end
 
+  def impact? = admin_like?
+  def history? = admin_like?
+
   private
 
   def admin_like?

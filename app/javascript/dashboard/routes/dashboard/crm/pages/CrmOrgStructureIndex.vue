@@ -1,6 +1,10 @@
 <script setup>
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { ref, computed, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
+import DepartmentsAPI from 'dashboard/api/org/departments';
+import OrgHistory from 'dashboard/components-next/HR/OrgHistory.vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -15,7 +19,15 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+const { t } = useI18n();
+const label = key => t(`CRM.HR_WORKFLOW.${key}`);
+const route = useRoute();
 const { isAdmin } = useAdmin();
+const showArchived = ref(false);
+
+const deptStore = useOrgDepartmentsStore();
+const memberStore = useOrgMembershipsStore();
+const memberLoading = computed(() => memberStore.getUIFlags.fetchingList);
 const currentUser = useMapGetter('getCurrentUser');
 // 超级管理员/管理员/人事部成员可维护组织架构（org_maintainer 由后端按部门归属判定）。
 const canManage = computed(
@@ -24,8 +36,6 @@ const canManage = computed(
     currentUser.value?.crm_role === 'deputy_admin' ||
     currentUser.value?.org_maintainer === true
 );
-const deptStore = useOrgDepartmentsStore();
-const memberStore = useOrgMembershipsStore();
 
 const L = {
   header: '组织架构',
@@ -41,7 +51,7 @@ const L = {
   emptyTree: '还没有部门，点「新建部门」开始',
   namePrompt: '部门名称',
   renamePrompt: '新的部门名称',
-  deleteConfirm: '删除该部门及其所有子部门、成员归属？',
+  deleteConfirm: label('ARCHIVE_CONFIRM'),
   selectHint: '选择左侧部门查看/管理成员',
   leader: '负责人',
   noLeader: '未设置',
@@ -119,7 +129,11 @@ const selectedDeptId = ref(null);
 const selectedDept = computed(
   () => departments.value.find(d => d.id === selectedDeptId.value) || null
 );
-const members = computed(() => memberStore.getRecords);
+const members = computed(() =>
+  memberStore.getRecords.filter(
+    member => member.departmentId === selectedDeptId.value
+  )
+);
 
 const agents = ref([]);
 const leaderOptions = computed(() => [
@@ -131,10 +145,25 @@ const assignableAgents = computed(() => {
   return agents.value.filter(a => !taken.has(a.id));
 });
 
-const fetchDepartments = () => deptStore.get();
-const fetchMembers = () => {
-  if (selectedDeptId.value)
-    memberStore.get({ department_id: selectedDeptId.value });
+const fetchMembers = async () => {
+  if (!selectedDeptId.value) return;
+  try {
+    await memberStore.get({ department_id: selectedDeptId.value });
+  } catch (failure) {
+    useAlert(failure.message || L.error);
+  }
+};
+const fetchDepartments = async () => {
+  await deptStore.get({ include_archived: showArchived.value });
+  const focused = Number(route.query.department);
+  if (
+    focused &&
+    !selectedDeptId.value &&
+    departments.value.some(department => department.id === focused)
+  ) {
+    selectedDeptId.value = focused;
+    fetchMembers();
+  }
 };
 
 const selectDept = dept => {
@@ -174,11 +203,26 @@ const renameDept = async dept => {
 };
 
 const deleteDept = async dept => {
-  // eslint-disable-next-line no-alert
-  if (!window.confirm(L.deleteConfirm)) return;
-  await deptStore.delete(dept.id);
-  if (selectedDeptId.value === dept.id) selectedDeptId.value = null;
-  useAlert(L.saved);
+  try {
+    const { data } = await DepartmentsAPI.impact(dept.id);
+    if (
+      !window.confirm(
+        `${t('CRM.HR_WORKFLOW.DEPT_IMPACT', data)}\n${L.deleteConfirm}`
+      )
+    )
+      return;
+    const response = await DepartmentsAPI.delete(dept.id);
+    if (selectedDeptId.value === dept.id) selectedDeptId.value = null;
+    await fetchDepartments();
+    useAlert(response.data?.archived ? label('ARCHIVED') : L.saved);
+  } catch (failure) {
+    useAlert(
+      failure?.response?.data?.message ||
+        failure?.response?.data?.error ||
+        failure.message ||
+        L.error
+    );
+  }
 };
 
 // ---- 移动部门（更换上级，任意层级）----
@@ -238,6 +282,7 @@ const confirmMove = async () => {
 };
 
 const setLeader = async value => {
+  if (memberLoading.value || selectedDept.value?.archivedAt) return;
   await deptStore.update({
     id: selectedDept.value.id,
     leaderId: value ? Number(value) : null,
@@ -248,15 +293,18 @@ const setLeader = async value => {
 // ---- 成员管理 ----
 const dialogRef = ref(null);
 const editingId = ref(null);
+const memberDepartmentId = ref(null);
 const memberForm = ref({ userId: '', title: '', isPrimary: false });
 
 const openAddMember = () => {
+  memberDepartmentId.value = selectedDeptId.value;
   editingId.value = null;
   memberForm.value = { userId: '', title: '', isPrimary: false };
   dialogRef.value?.open();
 };
 
 const openEditMember = m => {
+  memberDepartmentId.value = selectedDeptId.value;
   editingId.value = m.id;
   memberForm.value = {
     userId: String(m.userId),
@@ -277,7 +325,7 @@ const saveMember = async () => {
     } else {
       if (!memberForm.value.userId) return;
       await memberStore.create({
-        departmentId: selectedDeptId.value,
+        departmentId: memberDepartmentId.value,
         userId: Number(memberForm.value.userId),
         title: memberForm.value.title.trim() || null,
         isPrimary: memberForm.value.isPrimary,
@@ -299,8 +347,6 @@ const removeMember = async m => {
   fetchDepartments();
   useAlert(L.saved);
 };
-
-const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
 onMounted(async () => {
   fetchDepartments();
@@ -345,6 +391,15 @@ onMounted(async () => {
       <aside
         class="flex flex-col flex-shrink-0 w-full max-h-64 border-b md:max-h-none md:w-80 md:border-b-0 md:border-r border-n-weak bg-n-solid-1"
       >
+        <label
+          v-if="canManage"
+          class="flex items-center gap-2 p-3 text-label-small"
+          ><input
+            v-model="showArchived"
+            type="checkbox"
+            @change="fetchDepartments"
+          />{{ label('INCLUDE_ARCHIVED') }}</label
+        >
         <div class="flex-1 p-3 overflow-y-auto">
           <div
             v-if="isFetching"
@@ -454,7 +509,7 @@ onMounted(async () => {
               >
                 {{ node.memberCount }}
               </span>
-              <template v-if="canManage">
+              <template v-if="canManage && !node.archivedAt">
                 <button
                   class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
                   :title="L.addChild"
@@ -505,6 +560,11 @@ onMounted(async () => {
           >
             <h2 class="text-n-slate-12 text-heading-2">
               {{ selectedDept.name }}
+              <span
+                v-if="selectedDept.archivedAt"
+                class="ml-2 text-label-small text-n-slate-10"
+                >{{ label('STOPPED_DEPARTMENT') }}</span
+              >
             </h2>
             <div class="flex items-center flex-shrink-0 gap-2">
               <span class="text-xs whitespace-nowrap text-n-slate-10">{{
@@ -515,6 +575,7 @@ onMounted(async () => {
                 :model-value="
                   selectedDept.leaderId ? String(selectedDept.leaderId) : ''
                 "
+                :disabled="memberLoading || Boolean(selectedDept.archivedAt)"
                 :options="leaderOptions"
                 trigger-class="w-40"
                 @update:model-value="setLeader"
@@ -525,7 +586,7 @@ onMounted(async () => {
             </div>
             <span class="flex-1" />
             <Button
-              v-if="canManage"
+              v-if="canManage && !selectedDept.archivedAt"
               :label="L.addChild"
               icon="i-lucide-folder-plus"
               size="sm"
@@ -534,7 +595,7 @@ onMounted(async () => {
               @click="addChild(selectedDept)"
             />
             <Button
-              v-if="canManage"
+              v-if="canManage && !selectedDept.archivedAt"
               :label="L.addMember"
               icon="i-lucide-user-plus"
               size="sm"
@@ -598,6 +659,7 @@ onMounted(async () => {
             </div>
           </div>
         </template>
+        <OrgHistory v-if="canManage" :department-id="selectedDeptId" />
       </section>
     </div>
 

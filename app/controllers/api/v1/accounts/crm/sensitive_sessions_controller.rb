@@ -2,13 +2,13 @@
 class Api::V1::Accounts::Crm::SensitiveSessionsController < Api::V1::Accounts::Crm::BaseController
   skip_before_action :ensure_crm_access
   def show
-    render json: { active: Crm::SensitiveSession.active?(Current.account, current_user) }
+    render json: { active: Crm::SensitiveSession.active?(Current.account, current_user), expires_in: Crm::SensitiveSession.remaining(Current.account, current_user) }
   end
 
   def create
     return render json: { error: '密码不正确' }, status: :unauthorized unless current_user.valid_password?(params[:password].to_s)
 
     Crm::SensitiveSession.grant(Current.account, current_user)
-    render json: { active: true }
+    render json: { active: true, expires_in: Crm::SensitiveSession::TTL.to_i }
   end
 end

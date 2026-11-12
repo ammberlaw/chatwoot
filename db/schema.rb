@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_12_020500) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -62,6 +62,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.bigint "tiktok_department_id"
     t.datetime "deactivated_at"
     t.boolean "in_sales_rank", default: false, null: false
+    t.boolean "org_managed_crm_role", default: false, null: false
+    t.string "org_previous_crm_role"
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
@@ -1394,8 +1396,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.string "rank_note"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "active", default: true, null: false
+    t.date "effective_on"
+    t.bigint "previous_comp_id"
+    t.index ["account_id", "owner_id"], name: "idx_current_employee_comp", unique: true, where: "((active = true) AND (owner_id IS NOT NULL))"
     t.index ["account_id"], name: "index_crm_employee_comps_on_account_id"
     t.index ["owner_id"], name: "index_crm_employee_comps_on_owner_id"
+    t.index ["previous_comp_id"], name: "index_crm_employee_comps_on_previous_comp_id"
   end
 
   create_table "crm_employees", force: :cascade do |t|
@@ -1542,6 +1549,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["currency", "quote_date"], name: "index_crm_fx_rates_on_currency_and_quote_date", unique: true
+  end
+
+  create_table "crm_hr_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "employee_id"
+    t.bigint "department_id"
+    t.bigint "actor_id"
+    t.bigint "user_id"
+    t.string "kind", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_hr_events_on_account_id"
+    t.index ["actor_id"], name: "index_crm_hr_events_on_actor_id"
+    t.index ["department_id"], name: "index_crm_hr_events_on_department_id"
+    t.index ["employee_id"], name: "index_crm_hr_events_on_employee_id"
   end
 
   create_table "crm_issue_reports", force: :cascade do |t|
@@ -1854,6 +1877,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_crm_member_invites_on_account_id"
     t.index ["token"], name: "index_crm_member_invites_on_token", unique: true
+  end
+
+  create_table "crm_offboarding_runs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "employee_id"
+    t.bigint "actor_id"
+    t.bigint "user_id", null: false
+    t.bigint "target_user_id"
+    t.string "mode", null: false
+    t.string "status", default: "pending", null: false
+    t.string "error_message"
+    t.jsonb "summary", default: {}, null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "status"], name: "idx_offboarding_user_status"
+    t.index ["account_id"], name: "index_crm_offboarding_runs_on_account_id"
+    t.index ["actor_id"], name: "index_crm_offboarding_runs_on_actor_id"
+    t.index ["employee_id"], name: "index_crm_offboarding_runs_on_employee_id"
   end
 
   create_table "crm_opportunities", force: :cascade do |t|
@@ -4134,6 +4176,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.string "submission_key"
     t.bigint "source_request_id"
     t.datetime "last_reminded_at"
+    t.string "department_name_snapshot"
     t.index ["account_id", "applicant_id", "submission_key"], name: "idx_oa_submission_key", unique: true, where: "(submission_key IS NOT NULL)"
     t.index ["account_id", "revokes_request_id"], name: "idx_approval_revokes"
     t.index ["account_id", "status"], name: "index_oa_approval_requests_on_account_id_and_status"
@@ -4190,6 +4233,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.bigint "leader_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "archived_at"
     t.index ["account_id", "parent_id"], name: "index_org_departments_on_account_id_and_parent_id"
     t.index ["account_id"], name: "index_org_departments_on_account_id"
     t.index ["leader_id"], name: "index_org_departments_on_leader_id"
@@ -4203,6 +4247,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
     t.boolean "is_primary", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id"], name: "idx_primary_org_membership", unique: true, where: "(is_primary = true)"
     t.index ["account_id"], name: "index_org_memberships_on_account_id"
     t.index ["department_id", "user_id"], name: "index_org_memberships_unique", unique: true
     t.index ["department_id"], name: "index_org_memberships_on_department_id"
@@ -4612,7 +4657,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_employee_comps", "crm_employee_comps", column: "previous_comp_id", on_delete: :restrict
   add_foreign_key "crm_employee_comps", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_employees", "org_departments", column: "department_id", on_delete: :restrict, validate: false
   add_foreign_key "crm_exhibition_invites", "accounts"
   add_foreign_key "crm_exhibition_invites", "crm_customers", on_delete: :cascade
   add_foreign_key "crm_exhibition_invites", "crm_exhibitions", on_delete: :cascade
@@ -4625,6 +4672,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
   add_foreign_key "crm_follow_up_tasks", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
+  add_foreign_key "crm_hr_events", "accounts"
+  add_foreign_key "crm_hr_events", "crm_employees", column: "employee_id", on_delete: :nullify
+  add_foreign_key "crm_hr_events", "org_departments", column: "department_id", on_delete: :nullify
+  add_foreign_key "crm_hr_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_categories", "accounts"
   add_foreign_key "crm_knowledge_categories", "users", column: "discarded_by_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "crm_doc_sections", column: "section_id", on_delete: :nullify
@@ -4643,6 +4694,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
   add_foreign_key "crm_kpi_sheets", "users", column: "returned_by_id", on_delete: :nullify
   add_foreign_key "crm_lead_campaigns", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_offboarding_runs", "accounts"
+  add_foreign_key "crm_offboarding_runs", "crm_employees", column: "employee_id", on_delete: :nullify
+  add_foreign_key "crm_offboarding_runs", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_option_items", "accounts", on_delete: :cascade
@@ -4784,8 +4838,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
   add_foreign_key "oa_approval_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "oa_approval_requests", "oa_approval_requests", column: "source_request_id", on_delete: :restrict
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :restrict
+  add_foreign_key "oa_approval_requests", "org_departments", column: "department_id", on_delete: :restrict, validate: false
   add_foreign_key "oa_approval_steps", "oa_approval_requests", column: "request_id", on_delete: :cascade
-  add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade
+  add_foreign_key "org_departments", "org_departments", column: "parent_id", on_delete: :restrict, validate: false
+  add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :restrict, validate: false
   add_foreign_key "tiktok_daily_sales_records", "accounts", on_delete: :cascade
   add_foreign_key "tiktok_daily_sales_records", "tiktok_shops", column: "shop_id", on_delete: :cascade
   add_foreign_key "tiktok_daily_sales_records", "users", column: "creator_id", on_delete: :nullify

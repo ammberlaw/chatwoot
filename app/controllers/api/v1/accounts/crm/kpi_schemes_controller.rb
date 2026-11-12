@@ -80,7 +80,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
 
   # 快照方案 + 员工薪资，复制指标行，生成一张考核表。
   def build_sheet_for(owner_id, month)
-    comp = Current.account.crm_employee_comps.owned_by(owner_id).order(created_at: :desc).first
+    comp = Current.account.crm_employee_comps.current.owned_by(owner_id).order(created_at: :desc).first
     sheet = Current.account.crm_kpi_sheets.create!(
       crm_kpi_scheme_id: @scheme.id, owner_id: owner_id, scheme_name: @scheme.name,
       period_month: month, status: 'PENDING', pass_score: @scheme.pass_score,

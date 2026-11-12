@@ -427,8 +427,12 @@ Rails.application.routes.draw do
               end
             end
             resources :employees do
+              collection { get :workbench }
               member do
                 get :audits
+                get :offboarding_preview
+                post :retry_offboarding
+                post :restore_file
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
               end
@@ -805,6 +809,8 @@ Rails.application.routes.draw do
           namespace :org do
             resources :departments, only: [:index, :create, :update, :destroy] do
               post :reorder, on: :collection
+              get :history, on: :collection
+              get :impact, on: :member
             end
             resources :memberships, only: [:index, :create, :update, :destroy]
           end

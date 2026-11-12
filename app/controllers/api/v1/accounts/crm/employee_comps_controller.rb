@@ -7,21 +7,31 @@ class Api::V1::Accounts::Crm::EmployeeCompsController < Api::V1::Accounts::Crm::
 
   def index
     @comps = Current.account.crm_employee_comps.includes(:owner).order(created_at: :desc)
+    @comps = @comps.current unless params[:history] == 'true'
   end
 
   def show; end
 
   def create
-    @comp = Current.account.crm_employee_comps.create!(comp_params)
+    @comp = Crm::EmployeeCompWorkflow.new(account: Current.account, actor: current_user).save(comp_params.to_h)
   end
 
   def update
-    @comp.update!(comp_params)
+    @comp = Crm::EmployeeCompWorkflow.new(account: Current.account, actor: current_user).save(comp_params.to_h, previous: @comp)
   end
 
   def destroy
-    @comp.destroy!
+    Current.account.with_lock do
+      @comp.lock!
+      @comp.update_columns(active: false)
+      Crm::HrEvent.record!(account: Current.account, actor: current_user, user_id: @comp.owner_id,
+                          kind: 'comp_archived', payload: { comp_id: @comp.id })
+    end
     head :ok
+  end
+
+  rescue_from Crm::OffboardingService::Invalid do |error|
+    render json: { error: error.message }, status: :unprocessable_entity
   end
 
   private
@@ -50,6 +60,6 @@ class Api::V1::Accounts::Crm::EmployeeCompsController < Api::V1::Accounts::Crm::
   end
 
   def comp_params
-    params.require(:comp).permit(:name, :monthly_salary_micros, :performance_ratio, :baseline_target_micros, :rank_note, :owner_id)
+    params.require(:comp).permit(:name, :monthly_salary_micros, :performance_ratio, :baseline_target_micros, :rank_note, :owner_id, :effective_on)
   end
 end
