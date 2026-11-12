@@ -1431,6 +1431,7 @@
         "REVENUE": "成交额",
         "UNSET": "—",
         "ALL_RANK": "查看完整排行",
+        "RANK_SCROLL_HINT": "左右滑动查看全部业务员，或展开下方完整排行",
         "SCORE": "{score} / 100",
         "MONTHLY_REVENUE": "年内月度成交额",
         "TARGET": "业绩目标",

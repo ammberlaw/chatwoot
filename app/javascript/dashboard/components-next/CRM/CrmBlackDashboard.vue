@@ -28,7 +28,7 @@ const props = defineProps({
 defineEmits(['customer']);
 const { t } = useI18n();
 const emailBars = computed(() => {
-  const rows = props.emailRows.filter(row => Number(row.count) > 0);
+  const rows = props.emailRows;
   const max = Math.max(...rows.map(row => Number(row.count)), 1);
   return rows.map((row, index) => ({
     ...row,
@@ -50,8 +50,9 @@ const sourceColors = [
   '#7e8473',
 ];
 const selectedRep = ref(0);
+const rankChartWidth = computed(() => Math.max(648, props.rank.length * 81));
 const rankBars = computed(() => {
-  const rows = props.rank.slice(0, 8);
+  const rows = props.rank;
   const max = Math.max(...rows.map(row => row.amount), 1);
   return rows.map((row, index) => ({
     name: row.name,
@@ -188,6 +189,11 @@ const sourceShare = index =>
                   : t('CRM.DASHBOARD.DESIGN.SALES_RANK')
               }}
             </h2>
+            <span v-if="!isMine" class="text-label-small text-[#85887f]">
+              {{
+                t('CRM.DASHBOARD.DESIGN.PEOPLE_COUNT', { count: rank.length })
+              }}
+            </span>
           </div>
           <div v-if="isMine" class="min-w-0">
             <CrmBlackSalesTrend
@@ -204,10 +210,18 @@ const sourceShare = index =>
             </div>
           </div>
           <template v-else-if="rank.length">
-            <div class="hidden sm:block h-56 min-w-0">
+            <p
+              v-if="rank.length > 8"
+              class="hidden sm:block text-label-small text-[#85887f]"
+            >
+              {{ t('CRM.DASHBOARD.DESIGN.RANK_SCROLL_HINT') }}
+            </p>
+            <div class="hidden sm:block min-w-0 overflow-x-auto">
               <svg
-                viewBox="0 0 648 290"
-                class="w-full h-full"
+                :viewBox="`0 0 ${rankChartWidth} 290`"
+                :width="rankChartWidth"
+                height="290"
+                class="min-w-full max-w-none"
                 role="img"
                 :aria-label="t('CRM.DASHBOARD.DESIGN.SALES_RANK')"
               >
@@ -287,7 +301,7 @@ const sourceShare = index =>
             </div>
             <ol class="flex flex-col sm:hidden">
               <li
-                v-for="(person, i) in rank.slice(0, 8)"
+                v-for="(person, i) in rank"
                 :key="person.name"
                 class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0 text-label-small"
               >
@@ -579,6 +593,13 @@ const sourceShare = index =>
           <h2 class="text-heading-2 text-[#191b1b]">
             {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
           </h2>
+          <span class="text-label-small text-[#85887f]">
+            {{
+              t('CRM.DASHBOARD.DESIGN.PEOPLE_COUNT', {
+                count: emailBars.length,
+              })
+            }}
+          </span>
         </div>
         <div
           v-if="!emailBars.length"
@@ -586,7 +607,7 @@ const sourceShare = index =>
         >
           {{ t('CRM.DASHBOARD.DESIGN.NO_SENT_EMAIL') }}
         </div>
-        <div v-else class="max-h-80 overflow-y-auto space-y-4">
+        <div v-else class="space-y-4">
           <div v-for="bar in emailBars" :key="bar.name">
             <div
               class="flex items-center justify-between gap-3 mb-2 text-label-small"

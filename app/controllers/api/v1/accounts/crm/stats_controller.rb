@@ -220,7 +220,7 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   # 业务员发信排行：和成交排行同一套做法，按「业务员 × 月份」预聚合，
   # 前端按所选周期即时汇总。归属按邮件的 owner（这封信是谁发的）。
   def owner_monthly_sent_emails
-    monthly_by_owner(sent_emails.where(email_date: year_range).joins(:owner), 'email_date')
+    with_zero_owners(monthly_by_owner(sent_emails.where(email_date: year_range).joins(:owner), 'email_date'))
   end
 
   # 业务员成交排行：当年按「业务员 × 月份」预聚合（下单日期口径），

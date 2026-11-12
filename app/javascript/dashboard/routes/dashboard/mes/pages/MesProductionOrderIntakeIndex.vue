@@ -1,6 +1,13 @@
 <script setup>
 /* global axios */
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -129,6 +136,12 @@ const link = reactive({
 const salesOrders = ref([]);
 const soQuery = ref('');
 const soOpen = ref(false);
+let soBlurTimer = null;
+const onSalesOrderBlur = () => {
+  soBlurTimer = setTimeout(() => {
+    soOpen.value = false;
+  }, 150);
+};
 const loadSalesOrders = async () => {
   try {
     const { data } = await CrmSalesOrderAPI.get({ filter: 'mine', page: 1 });
@@ -171,6 +184,12 @@ const clearSalesOrder = () => {
 const custQuery = ref('');
 const custResults = ref([]);
 const custOpen = ref(false);
+let custBlurTimer = null;
+const onCustomerBlur = () => {
+  custBlurTimer = setTimeout(() => {
+    custOpen.value = false;
+  }, 150);
+};
 let custTimer = null;
 const runCustSearch = kw => {
   clearTimeout(custTimer);
@@ -208,6 +227,12 @@ const clearCustomer = () => {
   link.customerName = '';
   link.country = '';
 };
+
+onBeforeUnmount(() => {
+  [productSearchTimer, custTimer, soBlurTimer, custBlurTimer].forEach(
+    clearTimeout
+  );
+});
 
 // ── 需求3：从自己账号的历史生产订单导入（回填产品线/成品/数量/规格）──
 const history = ref([]);
@@ -545,7 +570,7 @@ const backToList = () =>
                     soOpen = true;
                   }
                 "
-                @blur="() => setTimeout(() => (soOpen = false), 150)"
+                @blur="onSalesOrderBlur"
               />
               <ul
                 v-if="soOpen && filteredSO.length"
@@ -594,7 +619,7 @@ const backToList = () =>
                 class="h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
                 @focus="runCustSearch(custQuery)"
                 @input="e => onCustInput(e.target.value)"
-                @blur="() => setTimeout(() => (custOpen = false), 150)"
+                @blur="onCustomerBlur"
               />
               <ul
                 v-if="custOpen && custResults.length"

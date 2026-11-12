@@ -494,8 +494,7 @@ const ownerRank = computed(() => {
   // 排序按金额倒序，0 的自然落在末尾。
   const rows = Object.entries(by)
     .map(([name, arr]) => [name, months.reduce((s, i) => s + (arr[i] || 0), 0)])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 50);
+    .sort((a, b) => b[1] - a[1]);
   return {
     labels: rows.map(([k]) => k),
     data: rows.map(([, v]) => toYuan(v)),
@@ -569,9 +568,7 @@ const ownerEmailRank = computed(() => {
       name,
       months.reduce((sum, i) => sum + (arr[i] || 0), 0),
     ])
-    .filter(([, v]) => v)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 50);
+    .sort((a, b) => b[1] - a[1]);
   return {
     labels: rows.map(([k]) => k),
     data: rows.map(([, v]) => v),

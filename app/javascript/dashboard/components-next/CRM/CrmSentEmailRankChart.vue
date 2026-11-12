@@ -15,9 +15,7 @@ const props = defineProps({
 const TOP_COLOR = '#ffc53d';
 const REST_COLOR = '#2a2e37';
 
-const visibleRows = computed(() =>
-  props.rows.filter(r => Number(r.count) > 0).slice(0, 50)
-);
+const visibleRows = computed(() => props.rows);
 const isEmpty = computed(() => !visibleRows.value.length);
 const maxValue = computed(() =>
   Math.max(...visibleRows.value.map(r => Number(r.count) || 0), 1)
@@ -33,10 +31,13 @@ const bars = computed(() =>
     name: row.name,
     value: Number(row.count) || 0,
     // 留 6% 底座，免得只发一两封的人细成一条线看不见
-    pct: Math.max(
-      6,
-      Math.round(((Number(row.count) || 0) / maxValue.value) * 100)
-    ),
+    pct:
+      Number(row.count) > 0
+        ? Math.max(
+            6,
+            Math.round(((Number(row.count) || 0) / maxValue.value) * 100)
+          )
+        : 0,
     top: i === 0,
   }))
 );
