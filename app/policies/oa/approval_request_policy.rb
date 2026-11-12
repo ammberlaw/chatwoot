@@ -1,5 +1,9 @@
 class Oa::ApprovalRequestPolicy < ApplicationPolicy
   # 谁都能发起/查自己相关的审批；具体权限由控制器可见范围与服务校验。
+  %i[destroy submit_draft resubmit remind transfer events transfer_candidates].each do |action|
+    define_method("#{action}?") { true }
+  end
+
   def index?
     true
   end

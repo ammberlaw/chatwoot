@@ -14,6 +14,7 @@ class Oa::ApprovalNotifier
   # 提交 / 改单后重建审批链：提醒此刻该他办的人。
   # 空流程直接通过的单没有审批人，不吵人。
   def submitted(resubmit: false)
+    notify_cc('抄送给你', '抄送待阅')
     return unless @request.pending?
 
     notify(current_approver_id, "【OA审批】#{resubmit ? '改后重新提交' : '新单待审批'}：#{label}（#{applicant_name}）", '待审批')
@@ -23,6 +24,7 @@ class Oa::ApprovalNotifier
   # 还在 pending = 流转到了下一节点，提醒下一个人；
   # 已 approved / rejected = 整单有结果了，提醒申请人。
   def acted
+    notify_cc('审批结果更新', @request.status == 'approved' ? '已通过' : '已驳回') if %w[approved rejected].include?(@request.status)
     case @request.status
     when 'pending' then notify(current_approver_id, "【OA审批】轮到你审批：#{label}（#{applicant_name}）", '待审批')
     when 'approved' then notify(@request.applicant_id, "【OA审批】#{label} 已通过", '已通过')
@@ -36,7 +38,17 @@ class Oa::ApprovalNotifier
     notify(approver_id, "【OA审批】#{label} 已被 #{applicant_name} 撤回，无需再审", '已撤回')
   end
 
+  def reminded
+    notify(current_approver_id, "【OA催办】#{label}（#{applicant_name}）", '待审批')
+  end
+
   private
+
+  def notify_cc(prefix, subtitle)
+    ids = @request.account.account_users.active_members.where(user_id: @request.cc_user_ids).pluck(:user_id)
+    @request.cc_receipts.where(user_id: ids).update_all(read_at: nil)
+    ids.each { |id| notify(id, "【OA审批】#{prefix}：#{label}（#{applicant_name}）", subtitle) }
+  end
 
   def notify(target_id, text, subtitle)
     return if target_id.blank?
@@ -52,7 +64,7 @@ class Oa::ApprovalNotifier
 
   def current_approver_id = @request.current_step&.approver_id
 
-  def label = [@request.template&.name, @request.title].compact_blank.uniq.join(' · ')
+  def label = [@request.definition&.name, @request.title].compact_blank.uniq.join(' · ')
 
   def applicant_name = @request.applicant&.crm_display_name
 

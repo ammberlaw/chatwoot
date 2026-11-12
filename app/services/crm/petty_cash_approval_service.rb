@@ -12,7 +12,7 @@ class Crm::PettyCashApprovalService
   end
 
   def perform
-    direction = KIND_DIRECTION[@request.template.cash_kind]
+    direction = KIND_DIRECTION[@request.definition.cash_kind]
     return if direction.nil?
 
     book = resolve_book
@@ -52,7 +52,7 @@ class Crm::PettyCashApprovalService
 
   # 金额字段：模板里 type=amount 的第一个字段（备用金申请=借款金额，费用报销=报销金额）。
   def form_amount
-    key = Array(@request.template.form_fields).find { |f| f['type'] == 'amount' }&.dig('key')
+    key = Array(@request.definition.form_fields).find { |f| f['type'] == 'amount' }&.dig('key')
     value = key ? form_value(key) : nil
     BigDecimal(value.to_s)
   rescue ArgumentError, TypeError

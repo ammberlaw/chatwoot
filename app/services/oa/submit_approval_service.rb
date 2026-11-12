@@ -1,5 +1,5 @@
 # 提交审批：按模板 flow 物化成有序审批步骤并解析审批人，定位到首个可办步骤。
-# 解析不到审批人的步骤标记 skipped；若开头即无可办步骤（全跳过/空流程），直接通过。
+# 解析不到审批人或条件未命中时拒绝提交；只有明确配置免审批才能自动通过。
 #
 # flow 支持两类节点（有序）：
 #   固定步骤：{ type: 'user'|'dept_leader', user_id? }
@@ -21,13 +21,15 @@ class Oa::SubmitApprovalService
     @title = attributes[:title]
     @department_id = attributes[:department_id]
     @revokes_request_id = attributes[:revokes_request_id]
+    @attributes = attributes
+    @definition = attributes[:definition] || Oa::TemplateSnapshot.new(template.snapshot)
   end
 
   # 发起销假：复用原单的模板与部门（同一套审批链与日期字段），form_data 只带销假区间。
-  def self.revoke(original:, applicant:, form_data:)
+  def self.revoke(original:, applicant:, form_data:, submission_key: nil)
     new(account: original.account, applicant: applicant, template: original.template,
-        attributes: { form_data: form_data, title: "销假：#{original.title}",
-                      department_id: original.department_id, revokes_request_id: original.id }).perform
+        attributes: { form_data: original.form_data.merge(form_data), title: "销假：#{original.title}",
+                      department_id: original.department_id, revokes_request_id: original.id, definition: original.definition, submission_key: submission_key }).perform
   end
 
   # 申请人修改审批单后按最新 form_data/部门重新物化审批链（审批中且尚无人处理时用）。
@@ -37,42 +39,101 @@ class Oa::SubmitApprovalService
   end
 
   def perform
-    # 物化+定位同一事务：settle_start 判定「无有效审批人」时抛错回滚，绝不留下半物化的孤儿单。
-    request = ApplicationRecord.transaction do
-      created = @account.oa_approval_requests.create!(
-        template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
-        revokes_request_id: @revokes_request_id,
-        form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
-        cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
-      )
-      build_steps(created)
-      settle_start(created)
-      created
+    created = false
+    request = nil
+    membership = @account.account_users.active_members.find_by!(user_id: @applicant.id)
+    membership.with_lock do
+      key = @attributes[:submission_key].presence
+      raise Oa::FormValidator::InvalidForm, '请求标识格式不正确' if key && (!key.is_a?(String) || key.length > 128)
+      raise Oa::FormValidator::InvalidForm, '表单数据格式不正确' unless @form_data.nil? || @form_data.is_a?(Hash)
+      digest = submission_digest
+      request = @account.oa_approval_requests.find_by(applicant_id: @applicant.id, submission_key: key) if key
+      if request
+        original = request.events.order(:id).first&.payload&.dig('submission_digest')
+        raise Oa::FormValidator::InvalidForm, '该请求已提交，请查看原单或重新发起申请' unless original == digest
+      end
+      unless request
+        @template.with_lock do
+          raise Oa::FormValidator::InvalidForm, '该审批模板已停用' unless @template.active? || @revokes_request_id
+          if @attributes[:template_revision].present? && @template.revision != @attributes[:template_revision].to_i
+            raise Oa::FormValidator::InvalidForm, '模板已更新，请重新打开并核对后提交'
+          end
+          @definition = Oa::TemplateSnapshot.new(@template.snapshot) unless @attributes[:definition]
+          validate_submission!
+          draft = @attributes[:draft] == true
+          request = @account.oa_approval_requests.create!(template: @template, applicant: @applicant,
+            title: @title.presence || "#{@applicant.name}的#{@definition.name}", department_id: @department_id,
+            revokes_request_id: @revokes_request_id, source_request_id: @attributes[:source_request_id],
+            template_snapshot: @definition.data, form_data: @form_data || {}, submission_key: key,
+            status: draft ? 'draft' : 'pending', current_position: 0, submitted_at: draft ? nil : Time.current,
+            cc_user_ids: draft ? [] : Array(@definition.cc_user_ids).map(&:to_i).uniq)
+          request.files.attach(@attributes[:files]) if @attributes[:files].present?
+          unless draft
+            build_steps(request)
+            settle_start(request)
+          end
+          request.event!(draft ? 'draft_saved' : (@attributes[:source_request_id] ? 'resubmitted' : 'submitted'), actor: @applicant,
+                         payload: { 'source_request_id' => @attributes[:source_request_id], 'template_revision' => @definition.revision, 'submission_digest' => digest })
+          created = true
+        end
+      end
     end
-    # 提醒放事务外：通知发不出去是小事，不该把已经成立的审批单回滚掉。
-    Oa::ApprovalNotifier.new(request).submitted
+    if created && request.status != 'draft'
+      request.pending? ? Oa::ApprovalNotifier.new(request).submitted : Oa::ApprovalNotifier.new(request).acted
+    end
     request
+  end
+
+  def validate_submission!
+    Oa::FormValidator.new(account: @account, applicant: @applicant, definition: @definition, form_data: @form_data || {},
+                         department_id: @department_id, partial: @attributes[:draft] == true, revoke: @revokes_request_id.present?).validate!
+    return if @attributes[:draft] || @revokes_request_id
+
+    overlap = Crm::AttendanceApprovalService.overlap_violation(@account, @applicant.id, @definition, @form_data || {})
+    raise Oa::FormValidator::InvalidForm, overlap if overlap
+    if @definition.attendance_kind == 'reclock'
+      date = Crm::AttendanceApprovalService.form_dates(@definition, @form_data || {}).first
+      raise Oa::FormValidator::InvalidForm, '请填写补卡日期' unless date
+      error = Crm::AttendanceApprovalService.reclock_violation(@account, @applicant.id, date)
+      raise Oa::FormValidator::InvalidForm, error if error
+    end
   end
 
   # 重建审批链：清掉旧步骤，按当前 flow/部门/条件重新展开并定位首个可办步骤。
   def rebuild(request)
+    @definition = request.definition
     ApplicationRecord.transaction do
       request.steps.destroy_all
       build_steps(request)
       settle_start(request)
     end
-    Oa::ApprovalNotifier.new(request).submitted(resubmit: true)
     request
   end
 
   private
 
+  def submission_digest
+    files = Array(@attributes[:files]).map do |file|
+      unless file.is_a?(ActiveStorage::Blob) || file.is_a?(ActionDispatch::Http::UploadedFile)
+        raise Oa::FormValidator::InvalidForm, '附件格式不正确'
+      end
+      if file.is_a?(ActiveStorage::Blob)
+        [file.filename.to_s, file.byte_size, file.checksum]
+      else
+        [file.original_filename, file.size, Digest::MD5.file(file.tempfile.path).base64digest]
+      end
+    end
+    payload = [@template.id, @title.to_s, @department_id.to_s, @revokes_request_id, @attributes[:source_request_id], @attributes[:draft] == true,
+               (@form_data || {}).deep_stringify_keys.sort.to_h, files.sort]
+    Digest::SHA256.hexdigest(JSON.generate(payload))
+  end
+
   def build_steps(request)
-    expand_flow(Array(@template.flow)).each_with_index do |step, index|
+    expand_flow(Array(@definition.flow)).each_with_index do |step, index|
       approver_id = resolve_approver(step)
       request.steps.create!(
         account_id: @account.id, position: index, approver_id: approver_id,
-        status: approver_id ? 'pending' : 'skipped'
+        status: 'pending'
       )
     end
   end
@@ -85,7 +146,15 @@ class Oa::SubmitApprovalService
       next [e] unless e[:type] == 'condition'
 
       branch = pick_branch(e[:branches])
-      branch ? expand_flow(Array(branch.with_indifferent_access[:flow])) : []
+      raise ApproverResolutionError, '没有匹配的审批条件，请联系管理员补充默认分支' unless branch
+
+      branch = branch.with_indifferent_access
+      if Array(branch[:flow]).empty?
+        raise ApproverResolutionError, '该条件分支未配置审批人或明确免审批' unless branch[:auto_approve] == true
+        []
+      else
+        expand_flow(Array(branch[:flow]))
+      end
     end
   end
 
@@ -160,7 +229,7 @@ class Oa::SubmitApprovalService
   # 请假天数：日期字段最早/最晚为区间的自然日跨度（含首尾）；单日且时长不超过半个工作日=0.5。
   # 半天口径统一由 AttendanceApprovalService 判定，与通过时写考勤用的是同一套。
   def leave_days
-    dates = Crm::AttendanceApprovalService.form_dates(@template, @form_data || {})
+    dates = Crm::AttendanceApprovalService.form_dates(@definition, @form_data || {})
     return 0 if dates.empty?
 
     span = (dates.max - dates.min).to_i + 1
@@ -168,7 +237,7 @@ class Oa::SubmitApprovalService
   end
 
   def half_day_selected?
-    Crm::AttendanceApprovalService.half_day?(@account, @applicant.id, @template, @form_data || {})
+    Crm::AttendanceApprovalService.half_day?(@account, @applicant.id, @definition, @form_data || {})
   end
 
   def applicant_primary_department_id
@@ -182,11 +251,12 @@ class Oa::SubmitApprovalService
          when 'user' then step[:user_id]
          when 'dept_leader' then applicant_dept_leader_id
          end
-    # 审批人必须是本账号在职成员：指定审批人已离职/部门负责人已移除 → 视为无效(nil→该步 skipped)，
-    # 由 settle_start 兜底判定，绝不把审批推给一个不存在的人。
-    return nil if id.blank?
+    # 任一必要步骤解析不到本账号在职审批人，整次提交回滚。
+    unless id.present? && @account.account_users.active_members.exists?(user_id: id)
+      raise ApproverResolutionError, '审批人未设置或已停用，请联系管理员修正或转交'
+    end
 
-    @account.account_users.exists?(user_id: id) ? id.to_i : nil
+    id.to_i
   end
 
   # 优先按提交时所选部门取负责人；否则回落到主负部门/任一部门。
@@ -201,6 +271,7 @@ class Oa::SubmitApprovalService
   def settle_start(request)
     first = request.steps.where(status: 'pending').order(:position).first
     if first
+      first.update!(assigned_at: Time.current)
       request.update!(current_position: first.position)
     elsif request.steps.exists?
       # 有步骤却一个 pending 都没有 = 全 skipped(审批人全部解析失败)。绝不能静默「自动通过」——
@@ -208,7 +279,8 @@ class Oa::SubmitApprovalService
       raise ApproverResolutionError, '审批流未找到有效审批人，请联系管理员检查该模板的审批人或部门负责人配置'
     else
       # 空流程(模板本就无审批节点)=无需审批，直接通过。
-      request.update!(status: 'approved')
+      raise ApproverResolutionError, '未配置审批流程，也未明确免审批' if Array(@definition.flow).empty? && !@definition.auto_approve
+      Oa::FinalizeApprovalService.new(request: request, actor: @applicant).perform
     end
   end
 end

@@ -10,4 +10,8 @@ json.cash_kind resource.cash_kind
 json.erp_expense resource.erp_expense
 json.flow resource.flow
 json.cc_user_ids resource.cc_user_ids
-json.cc_names User.where(id: resource.cc_user_ids).pluck(:name)
+json.cc_names resource.account.users.where(id: resource.cc_user_ids).map(&:crm_display_name)
+
+json.revision resource.revision
+json.auto_approve resource.auto_approve
+json.overdue_hours resource.overdue_hours

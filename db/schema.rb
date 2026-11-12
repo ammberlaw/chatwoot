@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_12_010100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -4090,6 +4090,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "oa_approval_cc_receipts", force: :cascade do |t|
+    t.bigint "request_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["request_id", "user_id"], name: "idx_oa_cc_receipt", unique: true
+    t.index ["request_id"], name: "index_oa_approval_cc_receipts_on_request_id"
+    t.index ["user_id"], name: "index_oa_approval_cc_receipts_on_user_id"
+  end
+
+  create_table "oa_approval_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "request_id", null: false
+    t.bigint "actor_id"
+    t.string "kind", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_oa_approval_events_on_account_id"
+    t.index ["actor_id"], name: "index_oa_approval_events_on_actor_id"
+    t.index ["request_id"], name: "index_oa_approval_events_on_request_id"
+  end
+
   create_table "oa_approval_requests", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "template_id", null: false
@@ -4104,12 +4128,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
     t.bigint "department_id"
     t.bigint "cc_user_ids", default: [], null: false, array: true
     t.bigint "revokes_request_id"
+    t.jsonb "template_snapshot", default: {}, null: false
+    t.jsonb "integration_result", default: {}, null: false
+    t.datetime "finalized_at"
+    t.string "submission_key"
+    t.bigint "source_request_id"
+    t.datetime "last_reminded_at"
+    t.index ["account_id", "applicant_id", "submission_key"], name: "idx_oa_submission_key", unique: true, where: "(submission_key IS NOT NULL)"
     t.index ["account_id", "revokes_request_id"], name: "idx_approval_revokes"
     t.index ["account_id", "status"], name: "index_oa_approval_requests_on_account_id_and_status"
     t.index ["account_id"], name: "index_oa_approval_requests_on_account_id"
     t.index ["applicant_id"], name: "index_oa_approval_requests_on_applicant_id"
     t.index ["cc_user_ids"], name: "index_oa_approval_requests_on_cc_user_ids", using: :gin
     t.index ["department_id"], name: "index_oa_approval_requests_on_department_id"
+    t.index ["source_request_id"], name: "index_oa_approval_requests_on_source_request_id"
     t.index ["template_id"], name: "index_oa_approval_requests_on_template_id"
   end
 
@@ -4123,6 +4155,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
     t.datetime "acted_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "assigned_at"
     t.index ["account_id"], name: "index_oa_approval_steps_on_account_id"
     t.index ["approver_id"], name: "index_oa_approval_steps_on_approver_id"
     t.index ["request_id"], name: "index_oa_approval_steps_on_request_id"
@@ -4143,6 +4176,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
     t.bigint "cc_user_ids", default: [], null: false, array: true
     t.string "cash_kind"
     t.boolean "erp_expense", default: false, null: false
+    t.integer "revision", default: 1, null: false
+    t.boolean "auto_approve", default: false, null: false
+    t.integer "overdue_hours", default: 24, null: false
     t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
   end
 
@@ -4741,7 +4777,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_11_11_202000) do
   add_foreign_key "mes_supplier_items", "mes_suppliers", column: "supplier_id", on_delete: :cascade
   add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify
-  add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade
+  add_foreign_key "oa_approval_cc_receipts", "oa_approval_requests", column: "request_id", on_delete: :cascade
+  add_foreign_key "oa_approval_cc_receipts", "users", on_delete: :cascade
+  add_foreign_key "oa_approval_events", "accounts"
+  add_foreign_key "oa_approval_events", "oa_approval_requests", column: "request_id", on_delete: :cascade
+  add_foreign_key "oa_approval_events", "users", column: "actor_id", on_delete: :nullify
+  add_foreign_key "oa_approval_requests", "oa_approval_requests", column: "source_request_id", on_delete: :restrict
+  add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :restrict
   add_foreign_key "oa_approval_steps", "oa_approval_requests", column: "request_id", on_delete: :cascade
   add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade
   add_foreign_key "tiktok_daily_sales_records", "accounts", on_delete: :cascade

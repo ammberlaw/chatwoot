@@ -1,6 +1,8 @@
 <script setup>
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import OaApprovalTools from 'dashboard/components-next/OA/OaApprovalTools.vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -19,6 +21,8 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { flowNeedsDept } from 'dashboard/helper/oaApprovalFlow';
 
+const { t } = useI18n();
+const label = key => t(`CRM.OA_WORKFLOW.${key}`);
 const L = {
   header: '审批中心',
   start: '发起审批',
@@ -112,6 +116,7 @@ const amountToWords = value => {
 };
 
 const STATUS_META = {
+  draft: { label: label('DRAFT'), class: 'bg-n-slate-3 text-n-slate-11' },
   pending: { label: '审批中', class: 'bg-n-iris-3 text-n-iris-11' },
   approved: { label: '已通过', class: 'bg-n-teal-3 text-n-teal-11' },
   rejected: { label: '已驳回', class: 'bg-n-ruby-3 text-n-ruby-11' },
@@ -149,10 +154,23 @@ const TABS = computed(() =>
       ? { key: 'done', label: L.tabDone }
       : null,
     { key: 'mine', label: L.tabMine },
+    { key: 'drafts', label: label('DRAFTS') },
     showCc.value ? { key: 'cc', label: L.tabCc } : null,
   ].filter(Boolean)
 );
 const selected = ref(null);
+let listGeneration = 0;
+let detailGeneration = 0;
+let countsGeneration = 0;
+let formGeneration = 0;
+let pickerGeneration = 0;
+const listLoading = ref(false);
+const detailLoading = ref(false);
+const acting = ref(false);
+const submitting = ref(false);
+const resubmittingId = ref(null);
+const editingDraft = ref(false);
+const submissionKey = ref('');
 const comment = ref('');
 
 const templates = ref([]);
@@ -160,7 +178,6 @@ const pickerRef = ref(null);
 const formRef = ref(null);
 const activeTemplate = ref(null);
 const formValues = ref({});
-const { isDirty, markPristine } = useDirtyGuard(() => formValues.value);
 const myDepartments = ref([]);
 const agents = ref([]);
 const selectedDeptId = ref('');
@@ -206,6 +223,16 @@ const fileInputRef = ref(null);
 const editingId = ref(null);
 const existingFiles = ref([]);
 const removeFileIds = ref([]);
+const { isDirty, markPristine } = useDirtyGuard(() => ({
+  values: formValues.value,
+  department: selectedDeptId.value,
+  files: attachments.value.map(file => [
+    file.name,
+    file.size,
+    file.lastModified,
+  ]),
+  removed: removeFileIds.value,
+}));
 
 const templateFlow = computed(
   () => activeTemplate.value?.flow || activeTemplate.value?.flow || []
@@ -295,38 +322,58 @@ const total = ref(0);
 const PER_PAGE = 20;
 
 const fetchRequests = async () => {
-  const { data } = await RequestsAPI.list({
-    filter: activeTab.value,
-    page: page.value,
-    ...(monthFilter.value ? { month: monthFilter.value } : {}),
-    ...(statusFilter.value ? { status: statusFilter.value } : {}),
-  });
-  requests.value = data.payload || [];
-  total.value = data.meta?.count || 0;
+  listGeneration += 1;
+  const request = listGeneration;
+  listLoading.value = true;
+  try {
+    const { data } = await RequestsAPI.list({
+      filter: activeTab.value,
+      page: page.value,
+      ...(monthFilter.value ? { month: monthFilter.value } : {}),
+      ...(statusFilter.value ? { status: statusFilter.value } : {}),
+    });
+    if (request !== listGeneration) return;
+    requests.value = data.payload || [];
+    total.value = data.meta?.count || 0;
+  } catch (error) {
+    if (request === listGeneration)
+      useAlert(error?.response?.data?.error || L.error);
+  } finally {
+    if (request === listGeneration) listLoading.value = false;
+  }
+};
+const clearDetails = () => {
+  detailGeneration += 1;
+  selected.value = null;
+  detailLoading.value = false;
+  acting.value = false;
 };
 
 // 换月份/换页签都要回到第 1 页：留在第 3 页筛十月，很可能直接落到空列表上。
 const onMonthChange = () => {
   page.value = 1;
-  selected.value = null;
+  clearDetails();
   fetchRequests();
 };
 
 const onStatusChange = () => {
   page.value = 1;
-  selected.value = null;
+  clearDetails();
   fetchRequests();
 };
 
 const goPage = n => {
   page.value = n;
-  selected.value = null;
+  clearDetails();
   fetchRequests();
 };
 
 const fetchCounts = async () => {
+  countsGeneration += 1;
+  const request = countsGeneration;
   try {
     const { data } = await RequestsAPI.counts();
+    if (request !== countsGeneration) return;
     counts.value = data;
     // 非审批人回退「我的」；非管理层落在「抄送我的」也回退（该 Tab 已隐藏）。
     if (
@@ -343,60 +390,93 @@ const fetchCounts = async () => {
 
 const setTab = key => {
   activeTab.value = key;
-  selected.value = null;
+  clearDetails();
   page.value = 1;
   fetchRequests();
 };
 
 const openRequest = async row => {
+  detailGeneration += 1;
+  const request = detailGeneration;
+  selected.value = null;
   comment.value = '';
-  const { data } = await RequestsAPI.show(row.id);
-  selected.value = data;
+  detailLoading.value = true;
+  acting.value = false;
+  try {
+    const { data } = await RequestsAPI.show(row.id);
+    if (request === detailGeneration) selected.value = data;
+  } catch (error) {
+    if (request === detailGeneration)
+      useAlert(error?.response?.data?.error || L.error);
+  } finally {
+    if (request === detailGeneration) detailLoading.value = false;
+  }
 };
-
 const refreshAll = () => {
   fetchRequests();
   fetchCounts();
 };
-
-const act = async decision => {
+const onDraftDeleted = id => {
+  if (selected.value?.id === id) clearDetails();
+  refreshAll();
+};
+const updateCurrent = data => {
+  if (selected.value?.id === data.id) {
+    selected.value = data;
+    refreshAll();
+  }
+};
+const runAction = async operation => {
+  if (!selected.value || acting.value || detailLoading.value) return;
+  const request = detailGeneration;
+  const id = selected.value.id;
+  acting.value = true;
   try {
-    const fn =
-      decision === 'approved' ? RequestsAPI.approve : RequestsAPI.reject;
-    const { data } = await fn.call(
-      RequestsAPI,
-      selected.value.id,
-      comment.value
-    );
+    const { data } = await operation(id);
+    refreshAll();
+    if (request !== detailGeneration || selected.value?.id !== id) return;
     selected.value = data;
     comment.value = '';
     useAlert(L.done);
-    refreshAll();
-  } catch {
-    useAlert(L.error);
+  } catch (error) {
+    if (request === detailGeneration)
+      useAlert(error?.response?.data?.error || L.error);
+  } finally {
+    if (request === detailGeneration) acting.value = false;
   }
 };
-
-const cancelRequest = async () => {
-  try {
-    const { data } = await RequestsAPI.cancel(selected.value.id);
-    selected.value = data;
-    useAlert(L.canceled);
-    refreshAll();
-  } catch {
-    useAlert(L.error);
-  }
+const act = decision => {
+  const text = comment.value;
+  return runAction(id =>
+    decision === 'approved'
+      ? RequestsAPI.approve(id, text)
+      : RequestsAPI.reject(id, text)
+  );
 };
+const cancelRequest = () => runAction(id => RequestsAPI.cancel(id));
 
 // ---- 发起审批 ----
 const openPicker = async () => {
-  const { data } = await TemplatesAPI.get({ active: true });
-  templates.value = data.payload || [];
-  pickerRef.value?.open();
+  pickerGeneration += 1;
+  const request = pickerGeneration;
+  try {
+    const { data } = await TemplatesAPI.get({ active: true });
+    if (request !== pickerGeneration) return;
+    templates.value = data.payload || [];
+    pickerRef.value?.open();
+  } catch (error) {
+    if (request === pickerGeneration)
+      useAlert(error?.response?.data?.error || L.error);
+  }
 };
 
 const pickTemplate = tpl => {
+  formGeneration += 1;
+  pickerGeneration += 1;
+  submitting.value = false;
   editingId.value = null;
+  resubmittingId.value = null;
+  submissionKey.value = crypto.randomUUID();
   activeTemplate.value = tpl;
   formValues.value = {};
   (tpl.formFields || tpl.form_fields || []).forEach(f => {
@@ -414,18 +494,44 @@ const pickTemplate = tpl => {
 };
 
 // 修改已发起的审批单（审批中且尚无人处理时可用）：用当前单的表单值/部门/附件回填同一个发起表单。
-const openEditRequest = () => {
+const openEditRequest = async (resubmit = false) => {
+  formGeneration += 1;
+  const formRequest = formGeneration;
   const r = selected.value;
   if (!r) return;
-  editingId.value = r.id;
-  activeTemplate.value = {
+  const request = detailGeneration;
+  let latest = null;
+  if (r.status === 'draft' || resubmit) {
+    try {
+      const { data } = await TemplatesAPI.get();
+      latest = (data.payload || []).find(tpl => tpl.id === r.template_id);
+    } catch (error) {
+      useAlert(error?.response?.data?.error || L.error);
+      return;
+    }
+    if (request !== detailGeneration || formRequest !== formGeneration) return;
+    if (!latest) {
+      useAlert(label('TEMPLATE_MISSING'));
+      return;
+    }
+  }
+  resubmittingId.value = resubmit ? r.id : null;
+  submissionKey.value = crypto.randomUUID();
+  editingId.value = resubmit ? null : r.id;
+  editingDraft.value = r.status === 'draft';
+  activeTemplate.value = latest || {
     id: r.template_id,
     name: r.template_name,
     formFields: r.form_fields || [],
     flow: r.flow || [],
+    revision: r.template_revision,
   };
   formValues.value = {};
-  (r.form_fields || []).forEach(f => {
+  (
+    activeTemplate.value.form_fields ||
+    activeTemplate.value.formFields ||
+    []
+  ).forEach(f => {
     formValues.value[f.key] = r.form_data?.[f.key] ?? '';
   });
   attachments.value = [];
@@ -470,7 +576,9 @@ const removeAttachment = i => attachments.value.splice(i, 1);
 // 表单值 + 附件打包成 multipart（新发起 / 修改共用）。
 const buildFormData = () => {
   const fd = new FormData();
-  if (selectedDeptId.value) fd.append('department_id', selectedDeptId.value);
+  fd.append('department_id', selectedDeptId.value || '');
+  fd.append('template_revision', activeTemplate.value.revision || '');
+  fd.append('submission_key', submissionKey.value);
   Object.entries(formValues.value).forEach(([k, v]) =>
     fd.append(`form_data[${k}]`, v ?? '')
   );
@@ -478,54 +586,69 @@ const buildFormData = () => {
   return fd;
 };
 
-const submitRequest = async () => {
+const submitRequest = async (saveDraft = false) => {
+  if (submitting.value) return;
   const missing = templateFields.value.some(
     f => f.required && !String(formValues.value[f.key] ?? '').trim()
   );
-  if (missing || (needsDept.value && !selectedDeptId.value)) {
+  if (!saveDraft && (missing || (needsDept.value && !selectedDeptId.value))) {
     useAlert(L.required);
     return;
   }
+  submitting.value = true;
+  const request = formGeneration;
+  const draftId = editingId.value;
+  const sourceId = resubmittingId.value;
   try {
-    if (editingId.value) {
-      const id = editingId.value;
-      // 有新增/删除附件走 multipart，否则纯 JSON。
-      if (attachments.value.length || removeFileIds.value.length) {
-        const fd = buildFormData();
-        removeFileIds.value.forEach(fid => fd.append('remove_file_ids[]', fid));
-        await RequestsAPI.updateForm(id, fd);
-      } else {
-        await RequestsAPI.update(id, {
-          department_id: selectedDeptId.value || null,
-          form_data: formValues.value,
-        });
+    const fd = buildFormData();
+    removeFileIds.value.forEach(id => fd.append('remove_file_ids[]', id));
+    let response;
+    if (sourceId) {
+      if (saveDraft) {
+        useAlert(label('RESUBMIT_NOT_DRAFT'));
+        return;
       }
-      formRef.value?.close();
-      editingId.value = null;
-      useAlert(L.saved);
-      await openRequest({ id }); // 重新拉详情，展示修改后的单
-      refreshAll();
+      response = await RequestsAPI.resubmitForm(sourceId, fd);
+    } else if (draftId) {
+      response =
+        saveDraft || !editingDraft.value
+          ? await RequestsAPI.updateForm(draftId, fd)
+          : await RequestsAPI.submitDraftForm(draftId, fd);
     } else {
-      if (attachments.value.length) {
-        const fd = buildFormData();
-        fd.append('template_id', activeTemplate.value.id);
-        await RequestsAPI.submitForm(fd);
-      } else {
-        await RequestsAPI.submit({
-          template_id: activeTemplate.value.id,
-          department_id: selectedDeptId.value || null,
-          form_data: formValues.value,
-        });
-      }
-      formRef.value?.close();
-      useAlert(L.submitted);
-      activeTab.value = 'mine';
-      selected.value = null;
-      refreshAll();
+      fd.append('template_id', activeTemplate.value.id);
+      fd.append('draft', String(saveDraft));
+      response = await RequestsAPI.submitForm(fd);
     }
-  } catch (e) {
-    useAlert(e?.response?.data?.error || L.error);
+    refreshAll();
+    if (request !== formGeneration) return;
+    markPristine();
+    formRef.value?.close();
+    editingId.value = null;
+    resubmittingId.value = null;
+    useAlert(
+      saveDraft && (!draftId || editingDraft.value)
+        ? label('DRAFT_SAVED')
+        : L.saved
+    );
+    activeTab.value =
+      saveDraft && (!draftId || editingDraft.value) ? 'drafts' : 'mine';
+    page.value = 1;
+    clearDetails();
+    refreshAll();
+    if (response.data?.id) await openRequest({ id: response.data.id });
+  } catch (error) {
+    if (request === formGeneration)
+      useAlert(error?.response?.data?.error || L.error);
+  } finally {
+    if (request === formGeneration) submitting.value = false;
   }
+};
+
+const onFormClosed = () => {
+  formGeneration += 1;
+  pickerGeneration += 1;
+  submitting.value = false;
+  markPristine();
 };
 
 // ---- 销假 ----
@@ -535,6 +658,8 @@ const revokeRef = ref(null);
 const revokeFrom = ref('');
 const revokeTo = ref('');
 const revoking = ref(false);
+const revokeContext = ref(null);
+let revokeGeneration = 0;
 const todayStr = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（本地时区）
 
 // 原单的日期字段：date 与 datetime 都算（datetime 值形如 2026-09-23T09:00，
@@ -561,6 +686,12 @@ const revokeMax = computed(
 );
 
 const openRevoke = () => {
+  revokeGeneration += 1;
+  revokeContext.value = {
+    id: selected.value.id,
+    keys: [...originalDateKeys.value],
+    key: crypto.randomUUID(),
+  };
   revokeFrom.value = revokeMin.value;
   revokeTo.value = revokeMax.value || revokeMin.value;
   revokeRef.value?.open();
@@ -572,11 +703,14 @@ const submitRevoke = async () => {
     useAlert(L.revokeRangeInvalid);
     return;
   }
+  const request = revokeGeneration;
+  const context = revokeContext.value;
+  if (!context || context.id !== selected.value?.id) return;
   revoking.value = true;
   try {
     // 销假单复用原模板，所以 form_data 的键也要用原模板的日期字段：
     // 两个日期字段=起止各填一个；只有一个字段=按单日销。
-    const keys = originalDateKeys.value;
+    const keys = context.keys;
     const formData = {};
     if (keys.length >= 2) {
       formData[keys[0]] = revokeFrom.value;
@@ -584,14 +718,16 @@ const submitRevoke = async () => {
     } else if (keys.length === 1) {
       formData[keys[0]] = revokeFrom.value;
     }
-    await RequestsAPI.revoke(selected.value.id, formData);
+    await RequestsAPI.revoke(context.id, formData, context.key);
+    if (request !== revokeGeneration) return;
     revokeRef.value?.close();
     useAlert(L.revokeDone);
     refreshAll();
   } catch (e) {
-    useAlert(e?.response?.data?.error || L.error);
+    if (request === revokeGeneration)
+      useAlert(e?.response?.data?.error || L.error);
   } finally {
-    revoking.value = false;
+    if (request === revokeGeneration) revoking.value = false;
   }
 };
 
@@ -623,7 +759,7 @@ const openComposeFromQuery = async () => {
     const { data } = await TemplatesAPI.get({ active: true });
     templates.value = data.payload || [];
     const tpl = templates.value.find(
-      t => (t.attendanceKind || t.attendance_kind) === kind
+      template => (template.attendanceKind || template.attendance_kind) === kind
     );
     if (tpl) pickTemplate(tpl);
     else useAlert('没有找到对应的审批模板，请先在「审批模板」里配置');
@@ -648,6 +784,32 @@ onMounted(async () => {
   }
   openComposeFromQuery();
 });
+watch(
+  [activeTab, monthFilter, statusFilter, page],
+  () => {
+    detailGeneration += 1;
+    selected.value = null;
+  },
+  { flush: 'sync' }
+);
+watch(
+  () => selected.value?.id,
+  () => {
+    revokeGeneration += 1;
+    revoking.value = false;
+    revokeRef.value?.close();
+    previewRef.value?.close();
+  },
+  { flush: 'sync' }
+);
+onBeforeUnmount(() => {
+  listGeneration += 1;
+  detailGeneration += 1;
+  countsGeneration += 1;
+  formGeneration += 1;
+  pickerGeneration += 1;
+  revokeGeneration += 1;
+});
 </script>
 
 <template>
@@ -671,14 +833,13 @@ onMounted(async () => {
     <div class="flex flex-1 min-h-0">
       <!-- 左：列表（手机：仅未选中时全宽显示） -->
       <section
-        class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[420px] border-n-weak bg-n-solid-1"
+        class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[420px] xl:w-[480px] border-n-weak bg-n-solid-1"
         :class="selected ? 'hidden' : 'flex'"
       >
         <!-- 四个 tab 平分整行（page-block = 槽满宽 + 按钮 flex:1），别让灰槽只包住左边一截。
-             420px 栏宽下每个 tab 约 100px，带角标的「待我审批 4」刚好放得下；
-             一律不换行，真放不下（窄屏/更多 tab）就横向滚，不折行。 -->
+             宽屏为草稿页签留出空间；窄栏横向滚动，不折行。 -->
         <div class="px-2 overflow-x-auto border-b border-n-weak">
-          <div data-tabbar="page-block" class="whitespace-nowrap">
+          <div data-tabbar="page-block" class="!flex-nowrap whitespace-nowrap">
             <button
               v-for="tab in TABS"
               :key="tab.key"
@@ -719,14 +880,22 @@ onMounted(async () => {
           </span>
         </div>
         <div class="flex-1 overflow-y-auto">
+          <p
+            v-if="listLoading"
+            role="status"
+            class="p-8 text-center text-label-small text-n-slate-10"
+          >
+            {{ label('LOADING') }}
+          </p>
           <div
-            v-if="!requests.length"
+            v-else-if="!requests.length"
             class="p-8 text-sm text-center text-n-slate-10"
           >
             {{ monthFilter || statusFilter ? '没有符合条件的审批单' : L.empty }}
           </div>
           <button
             v-for="row in requests"
+            v-show="!listLoading"
             :key="row.id"
             class="flex w-full gap-3 px-4 py-3 text-left border-b border-n-weak transition-colors"
             :class="
@@ -787,7 +956,9 @@ onMounted(async () => {
           class="flex flex-col items-center justify-center flex-1 gap-3 text-n-slate-10"
         >
           <Icon icon="i-lucide-file-check" class="size-12 opacity-40" />
-          <p class="text-sm">{{ L.selectHint }}</p>
+          <p class="text-label-small">
+            {{ detailLoading ? label('LOADING') : L.selectHint }}
+          </p>
         </div>
 
         <template v-else>
@@ -937,13 +1108,22 @@ onMounted(async () => {
                 </span>
               </div>
             </div>
+            <OaApprovalTools
+              :key="selected.id"
+              :request="selected"
+              @updated="updateCurrent"
+              @deleted="onDraftDeleted"
+            />
           </div>
 
           <!-- 操作区：待我审批 / 申请人改撤（审批中）/ 申请人销假（已通过的考勤类单） -->
           <div
             v-if="
               selected.can_act ||
-              (selected.is_applicant && selected.status === 'pending') ||
+              (selected.is_applicant &&
+                ['draft', 'pending', 'rejected', 'canceled'].includes(
+                  selected.status
+                )) ||
               (selected.is_applicant && selected.revokable)
             "
             class="flex-shrink-0 p-4 border-t border-n-weak bg-n-solid-1"
@@ -955,15 +1135,26 @@ onMounted(async () => {
               :placeholder="L.commentPlaceholder"
               class="w-full px-3 py-2 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
+              <Button
+                v-if="
+                  selected.is_applicant &&
+                  ['rejected', 'canceled'].includes(selected.status)
+                "
+                :label="label('RESUBMIT')"
+                icon="i-lucide-copy"
+                @click="openEditRequest(true)"
+              />
               <template v-if="selected.can_act">
                 <Button
+                  :disabled="acting || detailLoading"
                   :label="L.approve"
                   icon="i-lucide-check"
                   color="iris"
                   @click="act('approved')"
                 />
                 <Button
+                  :disabled="acting || detailLoading"
                   :label="L.reject"
                   icon="i-lucide-x"
                   color="ruby"
@@ -972,15 +1163,16 @@ onMounted(async () => {
                 />
               </template>
               <Button
-                v-if="selected.is_applicant && selected.status === 'pending'"
+                v-if="selected.can_edit"
                 :label="L.editAction"
                 icon="i-lucide-pencil"
                 color="iris"
                 variant="faded"
-                @click="openEditRequest"
+                @click="openEditRequest(false)"
               />
               <Button
                 v-if="selected.is_applicant && selected.status === 'pending'"
+                :disabled="acting"
                 :label="L.cancel"
                 icon="i-lucide-undo-2"
                 color="slate"
@@ -1081,11 +1273,22 @@ onMounted(async () => {
       :confirm-button-label="L.submit"
       confirm-button-color="iris"
       :dirty="isDirty"
-      dirty-save-label="保存"
-      @confirm="submitRequest"
-      @close="markPristine"
-      @save="submitRequest"
+      :dirty-save-label="
+        editingId && !editingDraft ? label('SAVE_CHANGES') : label('SAVE_DRAFT')
+      "
+      :disable-confirm-button="submitting"
+      @confirm="submitRequest(false)"
+      @close="onFormClosed"
+      @save="submitRequest(!editingId || editingDraft)"
     >
+      <Button
+        v-if="!resubmittingId && (!editingId || editingDraft)"
+        :label="label('SAVE_DRAFT')"
+        variant="outline"
+        color="slate"
+        :disabled="submitting"
+        @click="submitRequest(true)"
+      />
       <div class="flex flex-col gap-4">
         <div v-for="f in templateFields" :key="f.key">
           <label class="block mb-0.5 text-heading-3 text-n-slate-12">

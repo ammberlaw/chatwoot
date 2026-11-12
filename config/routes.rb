@@ -810,13 +810,19 @@ Rails.application.routes.draw do
           end
           namespace :oa do
             resources :approval_templates, only: [:index, :create, :update, :destroy]
-            resources :approval_requests, only: [:index, :show, :create, :update] do
+            resources :approval_requests, only: [:index, :show, :create, :update, :destroy] do
               collection { get :counts }
               member do
                 post :approve
                 post :reject
                 post :cancel
                 post :revoke
+                post :submit_draft
+                post :resubmit
+                post :remind
+                post :transfer
+                get :events
+                get :transfer_candidates
               end
             end
           end

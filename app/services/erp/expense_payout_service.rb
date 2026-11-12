@@ -19,7 +19,8 @@ class Erp::ExpensePayoutService
     paid_ids = @account.erp_expense_payouts.normal.select(:oa_approval_request_id)
     @account.oa_approval_requests
             .joins(:template)
-            .where(status: 'approved', oa_approval_templates: { erp_expense: true })
+            .where(status: 'approved')
+            .where("COALESCE((oa_approval_requests.template_snapshot->>'erp_expense')::boolean, oa_approval_templates.erp_expense) = TRUE")
             .where.not(id: paid_ids)
             .includes(:applicant, :department, :template)
             .order(updated_at: :desc)
@@ -27,7 +28,7 @@ class Erp::ExpensePayoutService
 
   # 表单里 type=amount 的第一个字段就是报销金额（模板约定，与备用金台账联动同一口径）。
   def self.request_amount_micros(request)
-    key = amount_field_key(request.template)
+    key = amount_field_key(request.definition)
     return nil if key.blank?
 
     parse_micros((request.form_data || {})[key])

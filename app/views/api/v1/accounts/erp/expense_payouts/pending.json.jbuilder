@@ -6,7 +6,7 @@ json.payload do
     json.applicant_name request.applicant&.name.presence || request.applicant&.crm_name
     json.applicant_id request.applicant_id
     json.department_name request.department&.name
-    json.template_name request.template&.name
+    json.template_name request.definition.name
     json.submitted_at request.submitted_at
     json.approved_at request.updated_at
     json.form_data request.form_data

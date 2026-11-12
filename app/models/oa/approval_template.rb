@@ -33,13 +33,36 @@ class Oa::ApprovalTemplate < ApplicationRecord
 
   belongs_to :account
   has_many :requests, class_name: 'Oa::ApprovalRequest', foreign_key: :template_id,
-                      inverse_of: :template, dependent: :destroy
+                      inverse_of: :template, dependent: :restrict_with_error
 
   validates :name, presence: true
   # 考勤联动：leave 请假单 / reclock 补卡申请 / trip 出差单；空=不联动。
   validates :attendance_kind, inclusion: { in: %w[leave reclock trip] }, allow_blank: true
   # 备用金台账联动：advance 备用金申请（通过记存入）/ reimburse 费用报销（通过记支出）；空=不联动。
   validates :cash_kind, inclusion: { in: %w[advance reimburse] }, allow_blank: true
+
+  validates :overdue_hours, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 720 }
+  validate :valid_definition, if: :active?
+  before_update :preserve_history
+
+  def snapshot(legacy: false)
+    Oa::TemplateSnapshot.capture(self, legacy: legacy)
+  end
+
+  private
+
+  def valid_definition
+    Oa::DefinitionValidator.new(self).validate!
+  rescue Oa::FormValidator::InvalidForm => e
+    errors.add(:base, e.message)
+  end
+
+  def preserve_history
+    requests.where(template_snapshot: {}).update_all(template_snapshot: Oa::TemplateSnapshot.capture(self, legacy: true, before_change: true))
+    self.revision = revision_in_database + 1
+  end
+
+  public
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:position, :id) }

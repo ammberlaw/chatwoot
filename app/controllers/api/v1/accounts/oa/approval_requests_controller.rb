@@ -1,12 +1,12 @@
 class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_request, only: [:show, :update, :approve, :reject, :cancel, :revoke]
+  before_action :fetch_request, only: [:show, :update, :destroy, :approve, :reject, :cancel, :revoke, :submit_draft, :resubmit, :remind, :transfer, :events, :transfer_candidates]
 
   RESULTS_PER_PAGE = 20
 
   def index
     @requests = filtered_requests
-                .includes(:template, :applicant)
+                .includes(:template, :applicant, :steps)
                 .order(created_at: :desc)
                 .page(params[:page] || 1).per(RESULTS_PER_PAGE)
   end
@@ -15,58 +15,89 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   def counts
     render json: {
       todo: todo_scope.count,
-      mine: Current.account.oa_approval_requests.applied_by(current_user.id).count,
+      mine: Current.account.oa_approval_requests.applied_by(current_user.id).where.not(status: 'draft').count,
+      drafts: Current.account.oa_approval_requests.applied_by(current_user.id).where(status: 'draft').count,
+      cc_unread: cc_scope.where.not(id: Oa::ApprovalCcReceipt.where(user_id: current_user.id).where.not(read_at: nil).select(:request_id)).count,
       cc: cc_scope.count,
       done: done_scope.count,
       approver_view: approver_view?
     }
   end
 
-  def show; end
-
-  def create
-    # 补卡单先过考勤组补卡规则（时限/每月上限）；请假/出差单查区间重叠。
-    if (error = reclock_rule_error || overlap_error)
-      return render json: { error: error }, status: :unprocessable_entity
-    end
-
-    @request = build_request
-    @request.files.attach(params[:files]) if params[:files].present?
-    render :show
-  rescue Oa::SubmitApprovalService::ApproverResolutionError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+  rescue_from Oa::FormValidator::InvalidForm, Oa::SubmitApprovalService::ApproverResolutionError,
+              Crm::AttendanceApprovalService::WriteError, Crm::AttendanceRevokeService::RevokeError do |error|
+    render json: { error: error.message }, status: :unprocessable_entity
   end
 
-  # 申请人修改自己的审批单：仅「审批中且尚无人处理」时可改（改字段/所在部门 + 增删附件）。
-  # 改后按最新表单/部门重新物化审批链（部门主管/条件分支可能随之变化）。
-  def update
-    return render json: { error: '只能修改自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
-
-    # 补卡单改单同样复查补卡规则（时限/当月上限），排除本单自身计数，防改日期绕过上限。
-    if (error = reclock_rule_error(template: @request.template, exclude_request_id: @request.id) ||
-                overlap_error(template: @request.template, exclude_request_id: @request.id))
-      return render json: { error: error }, status: :unprocessable_entity
+  def show
+    if @request.cc_user_ids.include?(current_user.id)
+      receipt = @request.cc_receipts.create_or_find_by!(user_id: current_user.id)
+      receipt.update!(read_at: Time.current) if receipt.read_at.nil?
     end
+  end
 
-    # 锁本单 + 锁内复检可编辑：序列化「申请人改单重建审批链」与「审批人正在审批」的并发，
-    # 杜绝审批人刚同意的瞬间被改单把审批链重置。
-    @request.with_lock do
-      unless editable_by_applicant?(@request)
-        return render json: { error: '该审批单已被处理或已结束，无法修改，请撤回后重新发起' }, status: :unprocessable_entity
-      end
-
-      @request.update!(
-        title: params[:title].presence || @request.title,
-        department_id: params[:department_id].presence,
-        form_data: form_data_param
-      )
-      purge_removed_files
-      @request.files.attach(params[:files]) if params[:files].present?
-      Oa::SubmitApprovalService.rebuild_steps(request: @request.reload)
-    end
+  def create
+    @request = build_request
     render :show
-  rescue Oa::SubmitApprovalService::ApproverResolutionError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def destroy
+    @request.with_lock do
+      unless @request.status == 'draft' && @request.applicant_id == current_user.id
+        raise Oa::FormValidator::InvalidForm, '只能删除自己的草稿，历史申请不能删除'
+      end
+      @request.destroy!
+    end
+    head :no_content
+  end
+
+  def update
+    @request = Oa::EditApprovalService.new(request: @request, actor: current_user, attributes: edit_attributes).perform
+    render :show
+  end
+
+  def submit_draft
+    @request = Oa::EditApprovalService.new(request: @request, actor: current_user, attributes: edit_attributes, submit: true).perform
+    render :show
+  end
+
+  def resubmit
+    unless @request.applicant_id == current_user.id && %w[rejected canceled].include?(@request.status)
+      return render json: { error: '只能对自己已驳回或撤回的单据修改重提' }, status: :forbidden
+    end
+    attrs = edit_attributes
+    removed_ids = Array(attrs[:remove_file_ids]).map(&:to_i)
+    raise ActiveRecord::RecordNotFound unless @request.files.where(id: removed_ids).count == removed_ids.uniq.size
+
+    @request = Oa::SubmitApprovalService.new(account: Current.account, applicant: current_user, template: @request.template,
+      attributes: attrs.merge(title: @request.title, source_request_id: @request.id, submission_key: params[:submission_key],
+                              files: @request.files.reject { |file| removed_ids.include?(file.id) }.map(&:blob) + Array(attrs[:files]))).perform
+    render :show
+  end
+
+  def remind
+    collaboration.remind!
+    render :show
+  rescue Oa::ApprovalCollaboration::RateLimited => error
+    render json: { error: error.message }, status: :too_many_requests
+  end
+
+  def transfer
+    collaboration.transfer!(params[:user_id], params[:reason])
+    render :show
+  end
+
+  def transfer_candidates
+    raise Pundit::NotAuthorizedError unless collaboration.manager?
+    ids = Current.account.account_users.active_members.where.not(user_id: @request.applicant_id).select(:user_id)
+    render json: { payload: User.where(id: ids).map { |user| { id: user.id, name: user.crm_display_name } } }
+  end
+
+  def events
+    render json: { payload: @request.events.includes(:actor, files_attachments: :blob).order(id: :desc).map { |event|
+      { id: event.id, kind: event.kind, actor_name: event.actor&.crm_display_name, payload: event.payload,
+        created_at: event.created_at, files: event.files.map { |file| { filename: file.filename.to_s, url: url_for(file) } } }
+    } }
   end
 
   def approve
@@ -87,6 +118,7 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
 
       approver_id = @request.current_step&.approver_id # 改成 canceled 后就问不出 current_step 了
       @request.update!(status: 'canceled')
+      @request.event!('canceled', actor: current_user)
       canceled = true
     end
     return head :unprocessable_entity unless canceled
@@ -101,8 +133,15 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     return render json: { error: '只能撤销自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
     return render json: { error: '该单据不可撤销（仅已通过的请假/外出单，且尚有未开始的日期）' }, status: :unprocessable_entity unless @request.revocable?
 
+    requested = Crm::AttendanceApprovalService.form_dates(@request.definition, form_data_param)
+    original = Crm::AttendanceApprovalService.form_dates(@request.definition, @request.form_data)
+    today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date
+    unless requested.any? && original.any? && requested.min >= [today, original.min].max && requested.max <= original.max
+      raise Oa::FormValidator::InvalidForm, '销假日期必须在原单今天及以后的区间内'
+    end
+
     @request = Oa::SubmitApprovalService.revoke(
-      original: @request, applicant: current_user, form_data: form_data_param
+      original: @request, applicant: current_user, form_data: form_data_param, submission_key: params[:submission_key]
     )
     render :show
   rescue Oa::SubmitApprovalService::ApproverResolutionError => e
@@ -120,31 +159,23 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
-  # 请假/出差重叠校验（销假单豁免——它与原单重叠是设计使然）。
-  def overlap_error(template: nil, exclude_request_id: nil)
-    template ||= Current.account.oa_approval_templates.find(params[:template_id])
-    Crm::AttendanceApprovalService.overlap_violation(
-      Current.account, current_user.id, template, form_data_param, exclude_request_id: exclude_request_id
-    )
+  def edit_attributes
+    attrs = { form_data: form_data_param, files: params[:files], remove_file_ids: params[:remove_file_ids],
+              template_revision: params[:template_revision] }
+    attrs[:department_id] = params[:department_id] if params.key?(:department_id)
+    attrs[:title] = params[:title] if params.key?(:title)
+    attrs
   end
 
-  def reclock_rule_error(template: nil, exclude_request_id: nil)
-    template ||= Current.account.oa_approval_templates.find(params[:template_id])
-    return nil unless template.attendance_kind == 'reclock'
-
-    date = Crm::AttendanceApprovalService.form_dates(template, form_data_param).first
-    return '请填写补卡日期' if date.nil?
-
-    Crm::AttendanceApprovalService.reclock_violation(Current.account, current_user.id, date, exclude_request_id: exclude_request_id)
+  def collaboration
+    Oa::ApprovalCollaboration.new(request: @request, actor: current_user, account_user: Current.account_user)
   end
 
   def build_request
     template = Current.account.oa_approval_templates.find(params[:template_id])
-    title = params[:title].presence || "#{current_user.name}的#{template.name}"
-    Oa::SubmitApprovalService.new(
-      account: Current.account, applicant: current_user, template: template,
-      attributes: { form_data: form_data_param, title: title, department_id: params[:department_id].presence }
-    ).perform
+    Oa::SubmitApprovalService.new(account: Current.account, applicant: current_user, template: template,
+      attributes: edit_attributes.merge(title: params[:title], department_id: params[:department_id].presence,
+                                         submission_key: params[:submission_key], draft: ActiveModel::Type::Boolean.new.cast(params[:draft]))).perform
   end
 
   # form_data 可能是 JSON（普通提交）或 multipart 嵌套哈希（带附件提交）。
@@ -155,29 +186,16 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     raw.respond_to?(:permit) ? raw.permit!.to_h : raw
   end
 
-  # 可编辑：审批中，且还没有任何审批人处理过（同意/驳回）——首个审批人一动，申请人就不能改了。
-  def editable_by_applicant?(request)
-    request.pending? && request.steps.where(status: %w[approved rejected]).none?
-  end
-
-  # 删除申请人在编辑时勾掉的既有附件（remove_file_ids 为附件 id 数组）。
-  def purge_removed_files
-    ids = Array(params[:remove_file_ids]).map(&:to_i).reject(&:zero?)
-    return if ids.empty?
-
-    @request.files.where(id: ids).find_each(&:purge)
-  end
-
   def fetch_request
-    @request = visible_requests.find(params[:id])
+    @request = visible_requests.includes(:steps).find(params[:id])
   end
 
   # 可见：申请人本人、任一步骤审批人、或管理员。
   def visible_requests
-    return Current.account.oa_approval_requests if Current.account_user.administrator?
+    base = Current.account.oa_approval_requests.where.not(status: 'draft').or(Current.account.oa_approval_requests.where(status: 'draft', applicant_id: current_user.id))
+    return base if Current.account_user.administrator?
 
-    Current.account.oa_approval_requests
-           .left_joins(:steps)
+    base.left_joins(:steps)
            .where(
              'oa_approval_requests.applicant_id = :uid OR oa_approval_steps.approver_id = :uid ' \
              'OR oa_approval_requests.cc_user_ids @> ARRAY[:uid]::bigint[]',
@@ -191,7 +209,8 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
             when 'todo' then todo_scope
             when 'done' then done_scope
             when 'cc' then cc_scope
-            else Current.account.oa_approval_requests.applied_by(current_user.id)
+            when 'drafts' then Current.account.oa_approval_requests.applied_by(current_user.id).where(status: 'draft')
+            else Current.account.oa_approval_requests.applied_by(current_user.id).where.not(status: 'draft')
             end
     by_status(by_month(scope))
   end

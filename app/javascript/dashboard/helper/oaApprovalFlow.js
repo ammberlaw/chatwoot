@@ -98,6 +98,7 @@ export const parseStep = s => {
     type: 'condition',
     branches: (s.branches || []).map(b => ({
       seq: nextSeq(),
+      autoApprove: !!b.auto_approve,
       conditions: (b.conditions || []).map(c => ({
         seq: nextSeq(),
         var: c.var,
@@ -130,7 +131,10 @@ export const serializeStep = (vars, s) => {
         op: c.op,
         value: serializeCondValue(vars, c),
       })),
-      flow: (b.flow || []).map(x => serializeStep(vars, x)),
+      auto_approve: !!b.autoApprove,
+      flow: b.autoApprove
+        ? []
+        : (b.flow || []).map(x => serializeStep(vars, x)),
     })),
   };
 };

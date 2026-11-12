@@ -1,9 +1,9 @@
 json.partial! 'api/v1/models/oa_approval_request', formats: [:json], resource: @request
 json.form_data @request.form_data
-json.form_fields @request.template&.form_fields
-json.flow @request.template&.flow
+json.form_fields @request.definition.form_fields
+json.flow @request.definition.flow
 json.department_id @request.department_id
-json.department_name @request.department&.name
+json.department_name Current.account.org_departments.find_by(id: @request.department_id)&.name
 json.files @request.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
 json.can_act @request.pending? && @request.current_step&.approver_id == current_user.id && @request.current_step&.status == 'pending'
 json.is_applicant @request.applicant_id == current_user.id
@@ -19,3 +19,7 @@ json.steps do
     json.is_current step.position == @request.current_position && @request.pending?
   end
 end
+
+json.can_transfer @request.pending? && (Current.account_user.administrator? || Current.account_user.crm_deputy_admin?)
+json.cc_readers @request.cc_receipts.where.not(read_at: nil).includes(:user).map { |receipt| { name: receipt.user.crm_display_name, read_at: receipt.read_at } }
+json.can_edit @request.editable_by?(current_user.id)

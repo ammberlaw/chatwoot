@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
@@ -24,6 +25,8 @@ const canMaintain = computed(
   () => currentUser.value?.oa_template_maintainer === true
 );
 
+const { t } = useI18n();
+const label = key => t(`CRM.OA_WORKFLOW.${key}`);
 const L = {
   header: '审批模板',
   hint: '定义审批类型的表单字段与审批流程，供全员发起审批时选用。',
@@ -59,7 +62,7 @@ const L = {
   ccAdd: '添加抄送人…',
   remove: '删除',
   save: '保存',
-  deleteConfirm: '删除该模板？已发起的审批单不受影响。',
+  deleteConfirm: label('ARCHIVE_CONFIRM'),
   saved: '已保存',
   deleted: '已删除',
   error: '操作失败',
@@ -118,6 +121,8 @@ const form = ref({
   attendanceKind: '',
   cashKind: '',
   erpExpense: false,
+  autoApprove: false,
+  overdueHours: 24,
   fields: [],
   flow: [],
   ccUserIds: [],
@@ -142,13 +147,16 @@ const parseStep = s => {
     type: 'condition',
     branches: (s.branches || []).map(b => ({
       seq: nextSeq(),
+      autoApprove: !!b.auto_approve,
       conditions: (b.conditions || []).map(c => ({
         seq: nextSeq(),
         var: c.var,
         op: c.op,
-        value: c.value != null ? String(c.value) : '',
+        value: Array.isArray(c.value)
+          ? c.value.map(String)
+          : String(c.value ?? ''),
       })),
-      flow: (b.flow || []).map(parseApprover),
+      flow: (b.flow || []).map(parseStep),
     })),
   };
 };
@@ -162,6 +170,8 @@ const resetForm = () => {
     attendanceKind: '',
     cashKind: '',
     erpExpense: false,
+    autoApprove: false,
+    overdueHours: 24,
     fields: [],
     flow: [],
     ccUserIds: [],
@@ -185,6 +195,8 @@ const openEdit = tpl => {
     attendanceKind: tpl.attendance_kind || '',
     cashKind: tpl.cash_kind || '',
     erpExpense: !!tpl.erp_expense,
+    autoApprove: !!tpl.auto_approve,
+    overdueHours: tpl.overdue_hours || 24,
     fields: (tpl.form_fields || []).map(f => ({
       seq: nextSeq(),
       key: f.key,
@@ -234,13 +246,13 @@ const conditionVars = computed(() => {
   }
   list.push({ value: 'department', label: '申请人部门', kind: 'dept' });
   form.value.fields.forEach(f => {
-    const label = (f.label || '').trim() || f.key;
+    const fieldLabel = (f.label || '').trim() || f.key;
     if (['number', 'amount'].includes(f.type)) {
-      list.push({ value: `field:${f.key}`, label, kind: 'number' });
+      list.push({ value: `field:${f.key}`, label: fieldLabel, kind: 'number' });
     } else if (f.type === 'select') {
       list.push({
         value: `field:${f.key}`,
-        label,
+        label: fieldLabel,
         kind: 'enum',
         options: f.optionsText
           .split(',')
@@ -383,7 +395,8 @@ const serializeStep = s => {
         op: c.op,
         value: serializeCondValue(c),
       })),
-      flow: (b.flow || []).map(serializeApprover),
+      auto_approve: !!b.autoApprove,
+      flow: b.autoApprove ? [] : (b.flow || []).map(serializeStep),
     })),
   };
 };
@@ -414,7 +427,9 @@ const save = async () => {
               .filter(Boolean)
           : [],
     })),
-    flow: form.value.flow.map(serializeStep),
+    flow: form.value.autoApprove ? [] : form.value.flow.map(serializeStep),
+    auto_approve: form.value.autoApprove,
+    overdue_hours: Number(form.value.overdueHours),
     cc_user_ids: form.value.ccUserIds.map(Number),
   };
   try {
@@ -426,8 +441,8 @@ const save = async () => {
     dialogRef.value?.close();
     fetchTemplates();
     useAlert(L.saved);
-  } catch {
-    useAlert(L.error);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || L.error);
   }
 };
 
@@ -435,12 +450,12 @@ const removeTemplate = async () => {
   // eslint-disable-next-line no-alert
   if (!editingId.value || !window.confirm(L.deleteConfirm)) return;
   try {
-    await TemplatesAPI.remove(editingId.value);
+    const { data } = await TemplatesAPI.remove(editingId.value);
     dialogRef.value?.close();
     fetchTemplates();
-    useAlert(L.deleted);
-  } catch {
-    useAlert(L.error);
+    useAlert(data.archived ? label('ARCHIVED') : L.deleted);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || L.error);
   }
 };
 
@@ -620,6 +635,29 @@ onMounted(async () => {
           </span>
         </label>
 
+        <div class="space-y-2 rounded-xl border border-n-weak p-3">
+          <label class="flex items-center gap-2 text-label"
+            ><input
+              v-model="form.autoApprove"
+              type="checkbox"
+              class="accent-current"
+            />{{ label('AUTO_APPROVE') }}</label
+          >
+          <p class="text-label-small text-n-slate-10">
+            {{ label('AUTO_HINT') }}
+          </p>
+          <label class="block text-label" for="oa-overdue-hours">{{
+            label('OVERDUE_HOURS')
+          }}</label>
+          <input
+            id="oa-overdue-hours"
+            v-model="form.overdueHours"
+            type="number"
+            min="1"
+            max="720"
+            class="h-9 w-28 rounded-xl border border-n-weak bg-n-solid-1 px-2 text-label"
+          />
+        </div>
         <!-- 图标 -->
         <div>
           <label class="block mb-1 text-heading-3 text-n-slate-12">
@@ -852,6 +890,13 @@ onMounted(async () => {
                     <div class="pl-2 border-l-2 border-n-iris-5">
                       <div class="text-[11px] text-n-slate-10 mb-1">
                         {{ L.branchApprovers }}
+                        <label class="flex items-center gap-2 text-label-small"
+                          ><input
+                            v-model="b.autoApprove"
+                            type="checkbox"
+                            class="accent-current"
+                          />{{ label('AUTO_APPROVE') }}</label
+                        >
                       </div>
                       <div class="flex flex-col gap-1">
                         <div

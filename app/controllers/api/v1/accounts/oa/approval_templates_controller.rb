@@ -13,12 +13,20 @@ class Api::V1::Accounts::Oa::ApprovalTemplatesController < Api::V1::Accounts::Ba
   end
 
   def update
-    @template.update!(template_params)
+    @template.with_lock { @template.update!(template_params) }
   end
 
   def destroy
-    @template.destroy!
-    head :ok
+    archived = false
+    @template.with_lock do
+      if @template.requests.exists?
+        @template.update!(active: false)
+        archived = true
+      else
+        @template.destroy!
+      end
+    end
+    render json: { archived: archived }
   end
 
   private
@@ -33,7 +41,7 @@ class Api::V1::Accounts::Oa::ApprovalTemplatesController < Api::V1::Accounts::Ba
 
   def template_params
     permitted = params.require(:template).permit(
-      :name, :description, :icon, :active, :position, :attendance_kind, :cash_kind, :erp_expense,
+      :name, :description, :icon, :active, :position, :attendance_kind, :cash_kind, :erp_expense, :auto_approve, :overdue_hours,
       form_fields: [:key, :label, :type, :required, { options: [] }],
       cc_user_ids: []
     )
@@ -68,7 +76,8 @@ class Api::V1::Accounts::Oa::ApprovalTemplatesController < Api::V1::Accounts::Ba
     b = to_hash(branch)
     return nil if b.blank?
 
-    { 'conditions' => to_list(b[:conditions]).filter_map { |c| sanitize_condition_row(c) },
+    { 'auto_approve' => ActiveModel::Type::Boolean.new.cast(b[:auto_approve]),
+      'conditions' => to_list(b[:conditions]).filter_map { |c| sanitize_condition_row(c) },
       'flow' => sanitize_flow(b[:flow]) }
   end
 

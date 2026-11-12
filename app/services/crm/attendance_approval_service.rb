@@ -107,7 +107,7 @@ class Crm::AttendanceApprovalService
 
     range = dates.min..dates.max
     conflict = overlapping_requests(account, applicant_id, exclude_request_id).find do |r|
-      other = form_dates(r.template, r.form_data)
+      other = form_dates(r.definition, r.form_data)
       other.any? && (other.min..other.max).overlaps?(range)
     end
     return nil if conflict.nil?
@@ -118,8 +118,8 @@ class Crm::AttendanceApprovalService
   def self.overlapping_requests(account, applicant_id, exclude_request_id)
     scope = account.oa_approval_requests
                    .joins(:template)
-                   .where(oa_approval_templates: { attendance_kind: %w[leave trip] },
-                          applicant_id: applicant_id, status: %w[pending approved],
+                   .where("COALESCE(oa_approval_requests.template_snapshot->>'attendance_kind', oa_approval_templates.attendance_kind) IN ('leave', 'trip')")
+                   .where(applicant_id: applicant_id, status: %w[pending approved],
                           revokes_request_id: nil)
     scope = scope.where.not(id: exclude_request_id) if exclude_request_id
     scope.includes(:template)
@@ -145,11 +145,11 @@ class Crm::AttendanceApprovalService
   def self.reclock_used_in_month(account, applicant_id, date, exclude_request_id: nil)
     scope = account.oa_approval_requests
                    .joins(:template)
-                   .where(oa_approval_templates: { attendance_kind: 'reclock' },
-                          applicant_id: applicant_id, status: %w[pending approved])
+                   .where("COALESCE(oa_approval_requests.template_snapshot->>'attendance_kind', oa_approval_templates.attendance_kind) = 'reclock'")
+                   .where(applicant_id: applicant_id, status: %w[pending approved])
     scope = scope.where.not(id: exclude_request_id) if exclude_request_id
     scope.count do |r|
-      d = form_dates(r.template, r.form_data).first
+      d = form_dates(r.definition, r.form_data).first
       d && d.beginning_of_month == date.beginning_of_month
     end
   end
@@ -160,7 +160,7 @@ class Crm::AttendanceApprovalService
   end
 
   def perform
-    case @request.template.attendance_kind
+    case @request.definition.attendance_kind
     when 'leave' then apply_leave
     when 'reclock' then apply_reclock
     when 'trip' then apply_trip
@@ -186,7 +186,7 @@ class Crm::AttendanceApprovalService
 
   # 解析日期区间（校验非空/格式/跨度），失败抛 WriteError。
   def resolve_range(label)
-    filled = self.class.date_field_values(@request.template, @request.form_data)
+    filled = self.class.date_field_values(@request.definition, @request.form_data)
     dates = filled.filter_map { |v| self.class.parse_date(v) }
     raise WriteError, "#{label}缺少有效日期，无法写入考勤" if dates.empty?
     raise WriteError, "#{label}日期格式有误，无法写入考勤" if dates.size != filled.size
@@ -198,7 +198,7 @@ class Crm::AttendanceApprovalService
   end
 
   def half_day?
-    self.class.half_day?(@request.account, @request.applicant_id, @request.template, @request.form_data)
+    self.class.half_day?(@request.account, @request.applicant_id, @request.definition, @request.form_data)
   end
 
   def apply_reclock
@@ -232,7 +232,7 @@ class Crm::AttendanceApprovalService
   end
 
   def form_dates
-    self.class.form_dates(@request.template, @request.form_data)
+    self.class.form_dates(@request.definition, @request.form_data)
   end
 
   def group
