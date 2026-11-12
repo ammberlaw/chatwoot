@@ -731,14 +731,10 @@ const backToList = () =>
           />
         </label>
         <label class="flex flex-col gap-1 sm:w-64">
-          <span class="text-xs text-n-slate-11">
-            商品编码
-            <span class="text-n-slate-10">
-              （选填，可留空，由工程做生产任务单时补录）
-            </span>
-          </span>
+          <span class="text-xs text-n-slate-11">商品编码</span>
           <ComboBox
             v-model="base.crmProductId"
+            class="[&_button]:!h-9 [&_button]:!py-0"
             :options="productOptions"
             use-api-results
             clearable
@@ -749,6 +745,9 @@ const backToList = () =>
             @open="onProductOpen"
             @search="onProductSearch"
           />
+          <span class="text-label-small text-n-slate-10">
+            （选填，可留空，由工程做生产任务单时补录）
+          </span>
         </label>
         <label class="flex flex-col gap-1 sm:w-28">
           <span class="text-xs text-n-slate-11">
