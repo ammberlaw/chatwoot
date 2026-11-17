@@ -314,7 +314,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   # 防撞单：收件邮箱若属于「别人建档且你够不到」的客户，则拦截发送（单发/群发/回复通用）。
-  # 豁免：管理员·超管·副管（early return）/ 负责人本人 / 被共享 / 该客户负责人在你邮件可见范围（主管看本团队）。
+  # 豁免：管理员·超管·副管（early return）/ 负责人本人 / 被共享 / 已分发邮件的对方 / 主管可见团队。
   # 匹配按客户「主要联系邮箱」，无主/公海客户不拦（谁都能捡）。
   def poaching_blocked_recipients(to_string)
     au = Current.account_user
@@ -336,9 +336,23 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       next if cust.account_owner_id == uid
       next if cust.shared_user_ids.include?(uid)
       next if visible.include?(cust.account_owner_id)
+      next if distributed_counterparty_addresses.include?(addr)
 
       { email: addr, owner: cust.account_owner&.name }
     end
+  end
+
+  # 分发一封客户邮件即允许被分发人联系该邮件的对方，和强制抄送留档使用同一侧地址。
+  # 仅精确授权本账号、分发给本人的邮件对方；抄送地址和其他客户不随之放开。
+  def distributed_counterparty_addresses
+    @distributed_counterparty_addresses ||= Current.account.crm_email_distributions
+                                                   .to_user(current_user.id).includes(:crm_email)
+                                                   .flat_map do |distribution|
+      email = distribution.crm_email
+      next [] unless email && email.account_id == Current.account.id
+
+      (email.folder == 'INBOX' ? email.from_address : email.to_address).to_s.downcase.scan(EMAIL_RE)
+    end.to_set
   end
 
   def poaching_error(blocked)
